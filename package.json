@@ -1,0 +1,21 @@
+{
+  "name": "rezrov-zmachine",
+  "version": "1.0.0",
+  "description": "Z-machine interpreter in TypeScript",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "format": "prettier -w package.json src/**",
+    "lint": "eslint src/**"
+  },
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "eslint": "^8.38.0",
+    "eslint-config-prettier": "^8.8.0",
+    "eslint-plugin-prettier": "^4.2.1",
+    "prettier": "^2.8.7",
+    "typescript": "^5.0.4"
+  }
+}
