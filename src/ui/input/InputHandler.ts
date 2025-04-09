@@ -35,8 +35,31 @@ export class InputHandler {
       return;
     }
 
-    // Process the input and resume execution
-    this.processTextInput(state, input);
+    // Convert to lowercase (Z-machine convention)
+    input = input.toLowerCase();
+
+    const { textBuffer, parseBuffer, resultVar } = state;
+    if (textBuffer === undefined) {
+      throw new Error("textBuffer undefined");
+    }
+    if (parseBuffer === undefined) {
+      throw new Error("parseBuffer undefined");
+    }
+
+    const gameState = this.machine.getGameState();
+    const memory = gameState.memory;
+    const version = gameState.version;
+
+    // Process the text input
+    this.storeTextInput(input, textBuffer, version);
+
+    // Tokenize the input
+    this.machine.tokenizeLine(textBuffer, parseBuffer, 0, false);
+
+    // For V5+, store the terminating key (assume Enter key)
+    if (version >= 5) {
+      gameState.storeVariable(resultVar, 0x0d);
+    }
   }
 
   /**
@@ -55,35 +78,26 @@ export class InputHandler {
       return;
     }
 
-    // Process the keypress and resume execution
-    this.processKeyInput(state, key);
+    // Store the key (as ZSCII)
+    // For simplicity, just use the first character's code
+    const keyCode = key.length > 0 ? key.charCodeAt(0) : 0;
+    this.machine.getGameState().storeVariable(state.resultVar, keyCode);
   }
 
   /**
-   * Process text input and store in the Z-machine memory
-   * @param state Input state
-   * @param input Text input from user
+   * Store text input in Z-machine memory
    */
-  private processTextInput(state: InputState, input: string): void {
-    input = input.toLowerCase();
+  private storeTextInput(input: string, textBuffer: number, version: number): void {
+    const memory = this.machine.getGameState().memory;
 
-    const { textBuffer, parseBuffer, resultVar } = state;
-    if (textBuffer === undefined) {
-      throw new Error("textBuffer undefined");
-    }
-    if (parseBuffer === undefined) {
-      throw new Error("parseBuffer undefined");
-    }
-
-    const gameState = this.machine.getGameState();
-    const memory = gameState.memory;
-    const version = gameState.version;
-
+    // Get the maximum input length
     let maxInput = memory.getByte(textBuffer);
     if (version <= 4) {
       // Need room for terminator
       maxInput--;
     }
+
+    // Truncate if needed
     input = input.slice(0, maxInput);
 
     // Store the input text in memory
@@ -99,33 +113,5 @@ export class InputHandler {
       // Store length of string
       memory.setByte(textBuffer + 1, input.length);
     }
-
-    // Tokenize the input
-    this.machine.tokenizeLine(textBuffer, parseBuffer, 0, false);
-
-    if (version >= 5) {
-      // Store terminating key (assume Enter key)
-      gameState.storeVariable(resultVar, 0x0d);
-    }
-
-    // Resume execution
-    this.machine.resumeExecution();
-  }
-
-  /**
-   * Process key input and store in the Z-machine
-   * @param state Input state
-   * @param key Key pressed by user
-   */
-  private processKeyInput(state: InputState, key: string): void {
-    const { resultVar } = state;
-
-    // Store the key (as ZSCII)
-    // For simplicity, just use the first character's code
-    const keyCode = key.length > 0 ? key.charCodeAt(0) : 0;
-    this.machine.getGameState().storeVariable(resultVar, keyCode);
-
-    // Resume execution
-    this.machine.resumeExecution();
   }
 }

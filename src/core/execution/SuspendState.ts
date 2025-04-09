@@ -1,7 +1,7 @@
 /**
  * Represents a state requiring suspension of execution, such as waiting for user input
  */
-export type InputState = {
+export interface InputState {
   /**
    * If true, this is for a single keypress (read_char instruction)
    * If false, this is for a line of text input (read instruction)

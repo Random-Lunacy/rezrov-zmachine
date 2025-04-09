@@ -124,8 +124,36 @@ export class ZMachine {
    * Start executing the story file
    */
   execute(): void {
+    // Set initial PC from the header
     this.state.pc = this.memory.getWord(HeaderLocation.InitialPC);
+
+    // Start the execution loop
     this.executor.executeLoop();
+  }
+
+  /**
+   * Get the current input state if execution is suspended
+   */
+  getInputState(): InputState | null {
+    return this.executor.suspendedInputState;
+  }
+
+  /**
+   * Handle input completion from the user
+   * @param input The user input
+   */
+  handleInputCompletion(input: string): void {
+    this.inputHandler.processInput(input);
+    this.resumeExecution();
+  }
+
+  /**
+   * Handle keypress completion from the user
+   * @param key The key pressed
+   */
+  handleKeyCompletion(key: string): void {
+    this.inputHandler.processKeypress(key);
+    this.resumeExecution();
   }
 
   /**

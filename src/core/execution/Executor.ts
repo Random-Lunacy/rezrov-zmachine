@@ -30,43 +30,71 @@ export class Executor {
   private memory: Memory;
   private state: GameState;
   private logger: Logger;
-  private screen: Screen;
   private _quit: boolean = false;
   private _op_pc: Address = 0;
 
-  constructor(memory: Memory, state: GameState, logger: Logger, screen: Screen) {
+  // Track suspended state
+  private _suspended: boolean = false;
+  public suspendedInputState: InputState | null = null;
+
+  constructor(memory: Memory, state: GameState, logger: Logger) {
     this.memory = memory;
     this.state = state;
     this.logger = logger;
-    this.screen = screen;
   }
 
-  executeLoop() {
+  /**
+   * Main execution loop for the Z-machine
+   */
+  executeLoop(): void {
+    // Reset suspension state
+    this._suspended = false;
+    this.suspendedInputState = null;
+
     try {
-      while (!this._quit) {
+      // Keep executing instructions until we quit or suspend
+      while (!this._quit && !this._suspended) {
         this._op_pc = this.state.pc;
         this.executeInstruction();
       }
-      this.screen.quit();
-    } catch (e) {
-        if (e instanceof SuspendState) {
-          // Make sure any state that might involve the stack is properly maintained
-          // This depends on how your implementation handles suspension and resumption
-          setImmediate(() => {
-            try {
-              if (e.state.keyPress) {
-                this.screen.getKeyFromUser(this.state, e.state);
-              } else {
-                this.screen.getInputFromUser(this.state, e.state);
-              }
-            } catch (e) {
-              this.logger.error(`Error during input handling: ${e}`);
-            }
-          });
-        } else {
-          this.logger.error(`Execution error: ${e}`);
-        }
+
+      // If we've quit, notify the UI
+      if (this._quit) {
+        this.logger.info("Program execution terminated");
       }
+    } catch (e) {
+      if (e instanceof SuspendState) {
+        // Handle suspension for user input
+        this._suspended = true;
+        this.suspendedInputState = e.state;
+
+        // Unwind the stack before handling input
+        setImmediate(() => {
+          try {
+            if (e.state.keyPress) {
+              this.logger.debug("Suspended for key input");
+              // Input handling will be delegated to the Screen implementation
+            } else {
+              this.logger.debug("Suspended for text input");
+              // Input handling will be delegated to the Screen implementation
+            }
+          } catch (inputError) {
+            this.logger.error(`Error during input handling: ${inputError}`);
+          }
+        });
+      } else {
+        // Handle other errors
+        this.logger.error(`Execution error: ${e}`);
+        throw e; // Re-throw to allow higher-level error handling
+      }
+    }
+  }
+
+  /**
+   * Quit the Z-machine interpreter
+   */
+  quit(): void {
+    this._quit = true;
   }
 
   executeInstruction() {
