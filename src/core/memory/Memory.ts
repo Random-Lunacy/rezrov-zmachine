@@ -2,9 +2,17 @@
 import { Address } from "../../types";
 import { ZString } from "../../parsers/ZString";
 
+/**
+ * Provides access to the Z-machine's memory, handling byte and word operations
+ * with bounds checking and specialized Z-string retrieval.
+ */
 export class Memory {
   private _mem: Buffer;
 
+  /**
+   * Creates a new Memory instance
+   * @param buffer The raw story file buffer
+   */
   constructor(buffer: Buffer) {
     this._mem = buffer;
   }
