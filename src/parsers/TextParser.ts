@@ -1,6 +1,6 @@
-import { Memory } from '../core/memory/Memory';
-import { Dictionary } from './Dictionary';
-import { Logger } from '../utils/log';
+import { Memory } from "../core/memory/Memory";
+import { Dictionary } from "./Dictionary";
+import { Logger } from "../utils/log";
 
 export class TextParser {
   private memory: Memory;
@@ -13,7 +13,12 @@ export class TextParser {
     this.logger = logger;
   }
 
-  tokeniseLine(textBuffer: number, parseBuffer: number, dict: number = 0, flag: boolean = false): void {
+  tokeniseLine(
+    textBuffer: number,
+    parseBuffer: number,
+    dict: number = 0,
+    flag: boolean = false
+  ): void {
     // Text parsing implementation will go here
   }
 

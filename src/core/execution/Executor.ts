@@ -1,7 +1,7 @@
-import { Memory } from '../memory/Memory';
-import { GameState } from '../../interpreter/GameState';
-import { Logger } from '../../utils/log';
-import { SuspendState } from './SuspendState';
+import { Memory } from "../memory/Memory";
+import { GameState } from "../../interpreter/GameState";
+import { Logger } from "../../utils/log";
+import { SuspendState } from "./SuspendState";
 
 export class Executor {
   private memory: Memory;
@@ -155,16 +155,11 @@ export class Executor {
       throw e;
     }
     this._log.debug(`op = ${op.mnemonic}`);
-    /*
-    if (this._callstack.length > 0) {
-      console.log(this._callstack[this._callstack.length - 1].locals);
-    }
-    */
     op.impl(this, ...operands);
   }
-  
+
   // Additional execution methods will go here
-  
+
   quit(): void {
     this._quit = true;
   }

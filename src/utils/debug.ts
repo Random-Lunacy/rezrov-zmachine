@@ -1,4 +1,4 @@
-import { ZMachine } from '../interpreter/ZMachine';
+import { ZMachine } from "../interpreter/ZMachine";
 
 export function hex(v: number): string {
   return v !== undefined ? v.toString(16) : "";

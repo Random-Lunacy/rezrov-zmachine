@@ -1,5 +1,5 @@
-import { ZMachine } from '../../interpreter/ZMachine';
-import { Screen } from '../screen/interfaces';
+import { ZMachine } from "../../interpreter/ZMachine";
+import { Screen } from "../screen/interfaces";
 
 export type InputState = {
   keyPress: boolean;

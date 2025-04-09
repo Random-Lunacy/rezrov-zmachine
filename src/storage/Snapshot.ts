@@ -1,5 +1,5 @@
-import { Snapshot } from './interfaces';
-import { CallFrame } from '../core/execution/CallFrame';
+import { Snapshot } from "./interfaces";
+import { StackFrame } from "../core/execution/StackFrame";
 
 enum SnapshotChunkType {
   Memory = 1,
@@ -19,6 +19,6 @@ export function readSnapshotFromBuffer(buffer: Buffer): Snapshot {
     mem: Buffer.alloc(0),
     stack: [],
     callstack: [],
-    pc: 0
+    pc: 0,
   };
 }

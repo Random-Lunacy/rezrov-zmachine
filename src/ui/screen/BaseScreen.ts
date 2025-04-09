@@ -1,7 +1,7 @@
-import { Screen, Capabilities, ScreenSize } from './interfaces';
-import { ZMachine } from '../../interpreter/ZMachine';
-import { InputState } from '../input/InputHandler';
-import { Logger } from '../../utils/log';
+import { Screen, Capabilities, ScreenSize } from "./interfaces";
+import { ZMachine } from "../../interpreter/ZMachine";
+import { InputState } from "../input/InputHandler";
+import { Logger } from "../../utils/log";
 
 export class BaseScreen implements Screen {
   protected logger: Logger;

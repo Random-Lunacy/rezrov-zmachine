@@ -1,12 +1,12 @@
 // src/interpreter/ZMachine.ts
-import { Memory } from '../core/memory/Memory';
-import { Executor } from '../core/execution/Executor';
-import { GameState } from './GameState';
-import { Screen } from '../ui/screen/interfaces';
-import { Storage } from '../storage/interfaces';
-import { InputHandler } from '../ui/input/InputHandler';
-import { Logger } from '../utils/log';
-import { HeaderLocation } from '../utils/constants';
+import { Memory } from "../core/memory/Memory";
+import { Executor } from "../core/execution/Executor";
+import { GameState } from "./GameState";
+import { Screen } from "../ui/screen/interfaces";
+import { Storage } from "../storage/interfaces";
+import { InputHandler } from "../ui/input/InputHandler";
+import { Logger } from "../utils/log";
+import { HeaderLocation } from "../utils/constants";
 
 export class ZMachine {
   private memory: Memory;
@@ -27,17 +27,17 @@ export class ZMachine {
     this.logger = logger;
     this.screen = screen;
     this.storage = storage;
-    
+
     // Initialize state
     const version = this.memory.getByte(HeaderLocation.Version);
     this.state = new GameState(this.memory, version);
-    
+
     // Initialize executor
     this.executor = new Executor(this.memory, this.state, this.logger);
-    
+
     // Initialize input handler
     this.inputHandler = new InputHandler(this, this.screen);
-    
+
     // Configure screen capabilities
     this.configureScreenCapabilities();
   }

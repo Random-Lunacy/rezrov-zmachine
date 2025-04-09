@@ -1,3 +1,5 @@
+import seedrandom from 'seedrandom';
+
 let rng: () => number;
 
 // Initialize with a default seed
@@ -5,8 +7,8 @@ initRandom();
 
 export function initRandom(seed?: string): void {
   if (seed) {
-    // Use seeded random number generator
-    // Implementation will depend on the library used
+    // Use a seeded RNG
+    rng = seedrandom(seed);
   } else {
     // Use Math.random as a fallback
     rng = Math.random;

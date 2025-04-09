@@ -1,5 +1,5 @@
-import { Memory } from '../core/memory/Memory';
-import { ZSCII } from '../types';
+import { Memory } from "../core/memory/Memory";
+import { ZSCII } from "../types";
 
 export type ZString = Array<ZSCII>;
 
@@ -9,7 +9,11 @@ const alphabet_table = [
   /* A2 */ " \n0123456789.,!?_#'\"/\\-:()",
 ];
 
-export function decodeZString(memory: Memory, zstr: ZString, expand: boolean = false): string {
+export function decodeZString(
+  memory: Memory,
+  zstr: ZString,
+  expand: boolean = false
+): string {
   // Z-string decoding logic will go here
   return "";
 }

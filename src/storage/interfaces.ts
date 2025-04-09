@@ -1,7 +1,7 @@
 export interface Snapshot {
   mem: Buffer;
   stack: Array<number>;
-  callstack: Array<any>; // Will be replaced with CallFrame type
+  callstack: Array<any>; // Will be replaced with StackFrame type
   pc: number;
 }
 

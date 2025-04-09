@@ -1,6 +1,6 @@
-import { Memory } from '../core/memory/Memory';
-import { Address } from '../types';
-import { Logger } from '../utils/log';
+import { Memory } from "../core/memory/Memory";
+import { Address } from "../types";
+import { Logger } from "../utils/log";
 
 export class Dictionary {
   private memory: Memory;
@@ -12,7 +12,7 @@ export class Dictionary {
     this.memory = memory;
     this.logger = logger;
     this.dictAddr = dictAddr;
-    
+
     // Read separators from dictionary
     this.separators = this.readSeparators();
   }

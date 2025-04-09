@@ -1,10 +1,10 @@
-import { ZMachine } from '../../interpreter/ZMachine';
+import { ZMachine } from "../../interpreter/ZMachine";
 
 export type OpcodeFn = (machine: ZMachine, ...operands: Array<number>) => void;
 
-export type Opcode = { 
-  mnemonic: string; 
-  impl: OpcodeFn 
+export type Opcode = {
+  mnemonic: string;
+  impl: OpcodeFn;
 };
 
 export function opcode(mnemonic: string, impl: OpcodeFn): Opcode {

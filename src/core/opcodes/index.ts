@@ -1,7 +1,7 @@
-import { mathOpcodes } from './math';
-import { objectOpcodes } from './object';
-import { stackOpcodes } from './stack';
-import { ioOpcodes } from './io';
+import { mathOpcodes } from "./math";
+import { objectOpcodes } from "./object";
+import { stackOpcodes } from "./stack";
+import { ioOpcodes } from "./io";
 
 export const opcodes = {
   ...mathOpcodes,
@@ -10,4 +10,4 @@ export const opcodes = {
   ...ioOpcodes,
 };
 
-export * from './base';
+export * from "./base";

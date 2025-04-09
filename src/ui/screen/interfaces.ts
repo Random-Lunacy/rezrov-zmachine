@@ -1,5 +1,5 @@
-import { ZMachine } from '../../interpreter/ZMachine';
-import { InputState } from '../input/InputHandler';
+import { ZMachine } from "../../interpreter/ZMachine";
+import { InputState } from "../input/InputHandler";
 
 export enum TextStyle {
   Roman = 0,
@@ -51,9 +51,9 @@ export interface Screen {
   getInputFromUser(machine: ZMachine, inputState: InputState): void;
   getKeyFromUser(machine: ZMachine, inputState: InputState): void;
   print(machine: ZMachine, str: string): void;
-  
+
   // Other methods will go here
-  
+
   getSize(): ScreenSize;
   updateStatusBar(lhs: string, rhs: string): void;
   quit(): void;
