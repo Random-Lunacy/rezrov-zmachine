@@ -298,4 +298,56 @@ export class GameState {
     // Restore memory (no need to re-read header values as they should be the same)
     // If headers need to be re-read, call this._readHeaderValues() after restoring memory
   }
+
+
+  /**
+   * Process a branch instruction
+   * @param cond Branch condition
+   * @param condfalse Whether to branch on false instead of true
+   * @param offset Branch offset
+   */
+  doBranch(cond: boolean, condfalse: boolean, offset: number): void {
+    this.logger.debug(`     Branch condition: ${cond}, invert: ${!condfalse}, offset: ${offset}`);
+
+    // Branch if (condition is true and !condfalse) or (condition is false and condfalse)
+    if ((cond && !condfalse) || (!cond && condfalse)) {
+      if (offset === 0) {
+        this.logger.debug("     Returning false");
+        this.returnFromRoutine(0);
+      } else if (offset === 1) {
+        this.logger.debug("     Returning true");
+        this.returnFromRoutine(1);
+      } else {
+        this.pc = this.pc + offset - 2;
+        if (this.pc < 0 || this.pc > this.memory.size) {
+          throw new Error(`Branch out of bounds: ${this.pc}`);
+        }
+        this.logger.debug(`     Taking branch to ${this.pc.toString(16)}!`);
+      }
+    }
+  }
+
+  /**
+   * Read a branch offset
+   * @returns [offset, condfalse]
+   */
+  readBranchOffset(): [number, boolean] {
+    const branchData = this.readByte();
+    let off1 = branchData & 0x3f;
+    let offset: number;
+
+    if ((branchData & 0x40) === 0x40) {
+      // 1 byte offset
+      offset = off1;
+    } else {
+      // 2 byte offset - propagate sign bit
+      if ((off1 & 0x20) !== 0) {
+        off1 |= 0xc0;
+      }
+      offset = (off1 << 8) | this.readByte();
+    }
+
+    // Branch conditions: 0 in bit 7 means "branch on true"
+    return [offset, (branchData & 0x80) === 0x00];
+  }
 }

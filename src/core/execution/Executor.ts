@@ -3,62 +3,69 @@ import { Memory } from "../memory/Memory";
 import { GameState } from "../../interpreter/GameState";
 import { Logger } from "../../utils/log";
 import { SuspendState } from "./SuspendState";
-import { Opcode, opcodes } from "../opcodes";
-import { HeaderLocation } from "../../utils/constants";
-import { Address } from "../../types";
-import { Screen } from "../../ui/screen/interfaces";
-import { StackFrame, createStackFrame } from "./StackFrame";
+import { Opcode } from "../opcodes/base";
+import { Address, InstructionForm, OperandType } from "../../types";
+import { toI16 } from "../memory/cast16";
+import { hex } from "../../utils/debug";
 
-// These would come from opcodes/index.ts
-const { op0, op1, op2, op3, op4, opv } = opcodes;
-
-enum OperandType {
-  Large = 0,   // Large constant (0 to 65535) - 2 bytes
-  Small = 1,   // Small constant (0 to 255) - 1 byte
-  Variable = 2, // Variable - 1 byte
-  Omitted = 3  // Omitted altogether - 0 bytes
-}
-
-enum InstructionForm {
-  Long = 0,
-  Short = 1,
-  Variable = 2,
-  Extended = 3
-}
-
+/**
+ * Handles execution of Z-machine instructions
+ */
 export class Executor {
-  private memory: Memory;
-  private state: GameState;
+  private gameState: GameState;
   private logger: Logger;
   private _quit: boolean = false;
   private _op_pc: Address = 0;
 
   // Track suspended state
   private _suspended: boolean = false;
-  public suspendedInputState: InputState | null = null;
+  private _suspendState: any = null;
 
-  constructor(memory: Memory, state: GameState, logger: Logger) {
-    this.memory = memory;
-    this.state = state;
+  // Opcode tables - these would be imported from the opcodes modules
+  private op0: Array<Opcode>;
+  private op1: Array<Opcode>;
+  private op2: Array<Opcode>;
+  private op3: Array<Opcode>;
+  private op4: Array<Opcode>;
+  private opv: Array<Opcode>;
+  private opext: Array<Opcode>;
+
+  constructor(
+    gameState: GameState,
+    logger: Logger,
+    opcodes: {
+      op0: Array<Opcode>,
+      op1: Array<Opcode>,
+      op2: Array<Opcode>,
+      op3: Array<Opcode>,
+      op4: Array<Opcode>,
+      opv: Array<Opcode>,
+      opext: Array<Opcode>
+    }
+  ) {
+    this.gameState = gameState;
     this.logger = logger;
+
+    // Store opcode tables
+    this.op0 = opcodes.op0;
+    this.op1 = opcodes.op1;
+    this.op2 = opcodes.op2;
+    this.op3 = opcodes.op3;
+    this.op4 = opcodes.op4;
+    this.opv = opcodes.opv;
+    this.opext = opcodes.opext;
   }
 
   /**
    * Main execution loop for the Z-machine
    */
   executeLoop(): void {
-    // Reset suspension state
-    this._suspended = false;
-    this.suspendedInputState = null;
-
     try {
-      // Keep executing instructions until we quit or suspend
       while (!this._quit && !this._suspended) {
-        this._op_pc = this.state.pc;
+        this._op_pc = this.gameState.pc;
         this.executeInstruction();
       }
 
-      // If we've quit, notify the UI
       if (this._quit) {
         this.logger.info("Program execution terminated");
       }
@@ -66,86 +73,101 @@ export class Executor {
       if (e instanceof SuspendState) {
         // Handle suspension for user input
         this._suspended = true;
-        this.suspendedInputState = e.state;
+        this._suspendState = e.state;
 
         // Unwind the stack before handling input
         setImmediate(() => {
           try {
-            if (e.state.keyPress) {
-              this.logger.debug("Suspended for key input");
-              // Input handling will be delegated to the Screen implementation
-            } else {
-              this.logger.debug("Suspended for text input");
-              // Input handling will be delegated to the Screen implementation
-            }
+            this.logger.debug(`Suspended for ${e.state.keyPress ? 'key' : 'text'} input`);
+            // Input handling will be delegated to the calling code
           } catch (inputError) {
             this.logger.error(`Error during input handling: ${inputError}`);
           }
         });
       } else {
         // Handle other errors
-        this.logger.error(`Execution error: ${e}`);
-        throw e; // Re-throw to allow higher-level error handling
+        this.logger.error(`Execution error at PC=${hex(this._op_pc)}: ${e}`);
+        throw e;
       }
     }
   }
 
   /**
-   * Quit the Z-machine interpreter
+   * Execute a single Z-machine instruction
    */
-  quit(): void {
-    this._quit = true;
-  }
+  executeInstruction(): void {
+    // Store the current PC for debugging/error reporting
+    const op_pc = this.gameState.pc;
+    let opcode = this.gameState.readByte();
 
-  executeInstruction() {
-    // If the top two bits of the opcode are $$11 the form is
-    // variable; if $$10, the form is short. If the opcode is 190 ($BE
-    // in hexadecimal) and the version is 5 or later, the form is
-    // "extended". Otherwise, the form is "long".
-
-    const op_pc = this.state.pc;
-    let opcode = this.readByte();
-
-    let operandTypes: Array<number /* OperandType */> = [];
+    let operandTypes: Array<OperandType> = [];
     let reallyVariable = false;
     let form: InstructionForm;
 
-    this.logger.debug(`${op_pc.toString(16)}: opbyte = ${opcode}`);
+    this.logger.debug(`${hex(op_pc)}: opbyte = ${hex(opcode)}`);
 
+    // Determine instruction form and operand types based on opcode
     if ((opcode & 0xc0) === 0xc0) {
+      // Variable form (top two bits are 11)
       form = InstructionForm.Variable;
 
       if ((opcode & 0x20) !== 0) {
+        // VAR form: operands given by 4-bit type specifier
         reallyVariable = true;
+      } else {
+        // 2OP form with variable operands
       }
 
-      if (form === InstructionForm.Variable) {
-        const bits = this.readByte();
-        for (let i = 0; i < 4; i++) {
-          const optype = (bits >> ((3 - i) * 2)) & 0x03;
-          if (optype !== OperandType.Omitted) {
-            operandTypes.push(optype);
-          } else {
-            break;
-          }
+      // Read operand types for variable form
+      const typesByte = this.gameState.readByte();
+      for (let i = 0; i < 4; i++) {
+        const optype = (typesByte >> ((3 - i) * 2)) & 0x03;
+        if (optype !== OperandType.Omitted) {
+          operandTypes.push(optype);
+        } else {
+          break;
         }
       }
 
+      // Mask to get the actual opcode
       opcode = opcode & 0x1f;
     } else if ((opcode & 0x80) === 0x80) {
+      // Short form (top bit is 1, second bit is 0)
       form = InstructionForm.Short;
 
+      // Get operand type from bits 4-5
       const optype = (opcode & 0x30) >> 4;
       if (optype !== OperandType.Omitted) {
         operandTypes = [optype];
       }
 
+      // Mask to get the actual opcode
       opcode = opcode & 0x0f;
-    } else if (opcode === 190 && this.state.version >= 5) {
-      throw new Error("Extended opcodes not implemented");
+    } else if (opcode === 190 && this.gameState.version >= 5) {
+      // Extended form (opcode 190/$BE) in version 5+
+      form = InstructionForm.Extended;
+
+      // Read extended opcode
+      opcode = this.gameState.readByte();
+
+      // Read operand types (similar to variable form)
+      const typesByte = this.gameState.readByte();
+      for (let i = 0; i < 4; i++) {
+        const optype = (typesByte >> ((3 - i) * 2)) & 0x03;
+        if (optype !== OperandType.Omitted) {
+          operandTypes.push(optype);
+        } else {
+          break;
+        }
+      }
+
+      // For now, throw an error as extended opcodes aren't implemented
+      throw new Error(`Extended opcode ${hex(opcode)} not implemented`);
     } else {
+      // Long form (top two bits are not 11, and not extended)
       form = InstructionForm.Long;
 
+      // Determine operand types from bits 5-6
       operandTypes.push(
         (opcode & 0x40) === 0x40 ? OperandType.Variable : OperandType.Small
       );
@@ -153,121 +175,108 @@ export class Executor {
         (opcode & 0x20) === 0x20 ? OperandType.Variable : OperandType.Small
       );
 
+      // Mask to get the actual opcode
       opcode = opcode & 0x1f;
     }
 
+    // Read operands based on their types
     const operands: Array<number> = [];
     for (const optype of operandTypes) {
       switch (optype) {
         case OperandType.Large:
-          operands.push(this.readWord());
+          operands.push(this.gameState.readWord());
           break;
         case OperandType.Small:
-          operands.push(this.readByte());
+          operands.push(this.gameState.readByte());
           break;
         case OperandType.Variable:
-          const varnum = this.readByte();
-          operands.push(this.state.loadVariable(varnum));
+          const varnum = this.gameState.readByte();
+          operands.push(this.gameState.loadVariable(varnum));
           break;
         default:
-          throw new Error("Unknown operand type");
+          throw new Error(`Unknown operand type: ${optype}`);
       }
     }
 
+    // Find the appropriate opcode handler
     let op: Opcode;
+
     try {
-      if (reallyVariable) {
-        op = opv[opcode];
+      if (form === InstructionForm.Extended) {
+        op = this.opext[opcode];
+      } else if (reallyVariable) {
+        op = this.opv[opcode];
       } else {
         switch (operands.length) {
           case 0:
-            op = op0[opcode];
+            op = this.op0[opcode];
             break;
           case 1:
-            op = op1[opcode];
+            op = this.op1[opcode];
             break;
           case 2:
-            op = op2[opcode];
+            op = this.op2[opcode];
             break;
           case 3:
-            op = op3[opcode];
+            op = this.op3[opcode];
             break;
           case 4:
-            op = op4[opcode];
+            op = this.op4[opcode];
             break;
           default:
             throw new Error(`Unhandled number of operands: ${operands.length}`);
         }
       }
+
+      if (!op) {
+        throw new Error(`No implementation found for opcode ${hex(opcode)} with ${operands.length} operands`);
+      }
     } catch (e) {
       this.logger.error(
-        `Error at pc=${this.hexString(op_pc)}, opcode=${this.hexString(opcode)}: ${e.toString()}`
+        `Error resolving opcode at pc=${hex(op_pc)}, opcode=${hex(opcode)}, form=${form}, operands=${operands.length}: ${e.toString()}`
       );
       throw e;
     }
 
-    this.logger.debug(`op = ${op.mnemonic}`);
-    op.impl(this.state, ...operands);
+    this.logger.debug(`Executing op = ${op.mnemonic} with operands [${operands.map(o => hex(o)).join(', ')}]`);
+
+    // Call the opcode implementation
+    op.impl(this.gameState, ...operands);
   }
 
-  readByte(): number {
-    const rv = this.memory.getByte(this.state.pc);
-    this.state.pc++;
-    return rv;
+  /**
+   * Gets the current operation PC (for debugging)
+   */
+  get op_pc(): Address {
+    return this._op_pc;
   }
 
-  readWord(): number {
-    const rv = this.memory.getWord(this.state.pc);
-    this.state.pc += 2;
-    return rv;
+  /**
+   * Gets the suspended input state if execution is suspended
+   */
+  get suspendState(): any {
+    return this._suspendState;
   }
 
-  readBranchOffset(): [number, boolean] {
-    const branchData = this.readByte();
-    let off1 = branchData & 0x3f;
-    let offset: number;
-
-    if ((branchData & 0x40) === 0x40) {
-      // 1 byte offset
-      offset = off1;
-    } else {
-      // 2 byte offset
-      // propagate sign bit
-      if ((off1 & 0x20) !== 0) {
-        off1 |= 0xc0;
-      }
-
-      offset = (off1 << 8) | this.readByte();
-    }
-
-    // First bit of branchData indicates condition sense (0=branch on true, 1=branch on false)
-    return [offset, (branchData & 0x80) === 0x00];
+  /**
+   * Check if execution is currently suspended
+   */
+  get isSuspended(): boolean {
+    return this._suspended;
   }
 
-  doBranch(cond: boolean, condfalse: boolean, offset: number) {
-    this.logger.debug(`     Branch condition: ${cond}, invert: ${!condfalse}, offset: ${offset}`);
-
-    if ((cond && !condfalse) || (!cond && condfalse)) {
-      if (offset === 0) {
-        this.logger.debug("     Returning false");
-        this.state.returnFromRoutine(0);
-      } else if (offset === 1) {
-        this.logger.debug("     Returning true");
-        this.state.returnFromRoutine(1);
-      } else {
-        this.state.pc = this.state.pc + offset - 2;
-        if (this.state.pc < 0 || this.state.pc > this.memory.size) {
-          throw new Error(`Branch out of bounds: ${this.state.pc}`);
-        }
-        this.logger.debug(`     Taking branch to ${this.state.pc}!`);
-      }
-    }
+  /**
+   * Resume execution after suspension
+   */
+  resume(): void {
+    this._suspended = false;
+    this._suspendState = null;
+    this.executeLoop();
   }
 
-  hexString(value: number): string {
-    return value !== undefined ? value.toString(16) : "";
-  }
-
+  /**
+   * Quit the Z-machine
+   */
   quit(): void {
     this._quit = true;
   }
