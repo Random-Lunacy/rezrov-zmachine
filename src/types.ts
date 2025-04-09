@@ -98,10 +98,10 @@ export enum InstructionForm {
  * Represents Z-machine operand types
  */
 export enum OperandType {
-  Large = 0,   // Large constant (0 to 65535) - 2 bytes
-  Small = 1,   // Small constant (0 to 255) - 1 byte
+  Large = 0, // Large constant (0 to 65535) - 2 bytes
+  Small = 1, // Small constant (0 to 255) - 1 byte
   Variable = 2, // Variable - 1 byte
-  Omitted = 3  // Omitted altogether - 0 bytes
+  Omitted = 3, // Omitted altogether - 0 bytes
 }
 
 /**

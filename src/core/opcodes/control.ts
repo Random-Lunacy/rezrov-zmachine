@@ -7,16 +7,22 @@ import { toI16 } from "../memory/cast16";
 /**
  * Jumps if equal
  */
-function je(state: GameState, a: number, b: number, c?: number, d?: number): void {
+function je(
+  state: GameState,
+  a: number,
+  b: number,
+  c?: number,
+  d?: number
+): void {
   const [offset, condfalse] = state.readBranchOffset();
   state.logger.debug(
-    `${hex(state.pc)} je ${hex(a)} ${hex(b)} ${c !== undefined ? hex(c) : ''} ${d !== undefined ? hex(d) : ''} -> [${!condfalse}] ${hex(state.pc + offset - 2)}`
+    `${hex(state.pc)} je ${hex(a)} ${hex(b)} ${c !== undefined ? hex(c) : ""} ${
+      d !== undefined ? hex(d) : ""
+    } -> [${!condfalse}] ${hex(state.pc + offset - 2)}`
   );
 
   const cond =
-    a === b ||
-    (c !== undefined && a === c) ||
-    (d !== undefined && a === d);
+    a === b || (c !== undefined && a === c) || (d !== undefined && a === d);
 
   state.doBranch(cond, condfalse, offset);
 }
@@ -27,7 +33,9 @@ function je(state: GameState, a: number, b: number, c?: number, d?: number): voi
 function jl(state: GameState, a: number, b: number): void {
   const [offset, condfalse] = state.readBranchOffset();
   state.logger.debug(
-    `${hex(state.pc)} jl ${hex(a)} ${hex(b)} -> [${!condfalse}] ${hex(state.pc + offset - 2)}`
+    `${hex(state.pc)} jl ${hex(a)} ${hex(b)} -> [${!condfalse}] ${hex(
+      state.pc + offset - 2
+    )}`
   );
 
   state.doBranch(toI16(a) < toI16(b), condfalse, offset);
@@ -39,7 +47,9 @@ function jl(state: GameState, a: number, b: number): void {
 function jg(state: GameState, a: number, b: number): void {
   const [offset, condfalse] = state.readBranchOffset();
   state.logger.debug(
-    `${hex(state.pc)} jg ${hex(a)} ${hex(b)} -> [${!condfalse}] ${hex(state.pc + offset - 2)}`
+    `${hex(state.pc)} jg ${hex(a)} ${hex(b)} -> [${!condfalse}] ${hex(
+      state.pc + offset - 2
+    )}`
   );
 
   state.doBranch(toI16(a) > toI16(b), condfalse, offset);
@@ -51,7 +61,9 @@ function jg(state: GameState, a: number, b: number): void {
 function jz(state: GameState, a: number): void {
   const [offset, condfalse] = state.readBranchOffset();
   state.logger.debug(
-    `${hex(state.pc)} jz ${hex(a)} -> [${!condfalse}] ${hex(state.pc + offset - 2)}`
+    `${hex(state.pc)} jz ${hex(a)} -> [${!condfalse}] ${hex(
+      state.pc + offset - 2
+    )}`
   );
 
   state.doBranch(a === 0, condfalse, offset);
@@ -71,7 +83,9 @@ function jump(state: GameState, offset: number): void {
 function test(state: GameState, bitmap: number, flags: number): void {
   const [offset, condfalse] = state.readBranchOffset();
   state.logger.debug(
-    `${hex(state.pc)} test ${hex(bitmap)} ${hex(flags)} -> [${!condfalse}] ${hex(state.pc + offset - 2)}`
+    `${hex(state.pc)} test ${hex(bitmap)} ${hex(
+      flags
+    )} -> [${!condfalse}] ${hex(state.pc + offset - 2)}`
   );
 
   state.doBranch((bitmap & flags) === flags, condfalse, offset);
@@ -83,7 +97,9 @@ function test(state: GameState, bitmap: number, flags: number): void {
 function check_arg_count(state: GameState, argNumber: number): void {
   const [offset, condfalse] = state.readBranchOffset();
   state.logger.debug(
-    `${hex(state.pc)} check_arg_count ${hex(argNumber)} -> [${!condfalse}] ${hex(state.pc + offset - 2)}`
+    `${hex(state.pc)} check_arg_count ${hex(
+      argNumber
+    )} -> [${!condfalse}] ${hex(state.pc + offset - 2)}`
   );
 
   state.doBranch(state.getArgumentCount() >= argNumber, condfalse, offset);

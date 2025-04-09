@@ -34,7 +34,9 @@ export interface VersionCapabilities {
  * @param version Z-machine version
  * @returns Capabilities for the specified version
  */
-export function getVersionCapabilities(version: ZMachineVersion): VersionCapabilities {
+export function getVersionCapabilities(
+  version: ZMachineVersion
+): VersionCapabilities {
   switch (version) {
     case ZMachineVersion.V1:
     case ZMachineVersion.V2:
@@ -107,7 +109,10 @@ export function getVersionCapabilities(version: ZMachineVersion): VersionCapabil
  * @param feature Feature to check
  * @returns True if the version supports the feature
  */
-export function versionSupports(version: ZMachineVersion, feature: keyof VersionCapabilities): boolean {
+export function versionSupports(
+  version: ZMachineVersion,
+  feature: keyof VersionCapabilities
+): boolean {
   const capabilities = getVersionCapabilities(version);
   return capabilities[feature] as boolean;
 }

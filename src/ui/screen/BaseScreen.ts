@@ -52,7 +52,9 @@ export class BaseScreen implements Screen {
   }
 
   setOutputWindow(machine: ZMachine, windowId: number): void {
-    this.logger.debug(`not implemented: ${this.id} setOutputWindow windowId=${windowId}`);
+    this.logger.debug(
+      `not implemented: ${this.id} setOutputWindow windowId=${windowId}`
+    );
   }
 
   getOutputWindow(machine: ZMachine): number {
@@ -61,23 +63,36 @@ export class BaseScreen implements Screen {
   }
 
   clearWindow(machine: ZMachine, windowId: number): void {
-    this.logger.debug(`not implemented: ${this.id} clearWindow windowId=${windowId}`);
+    this.logger.debug(
+      `not implemented: ${this.id} clearWindow windowId=${windowId}`
+    );
   }
 
   clearLine(machine: ZMachine, value: number): void {
     this.logger.debug(`not implemented: ${this.id} clearLine value=${value}`);
   }
 
-  setCursorPosition(machine: ZMachine, line: number, column: number, windowId: number): void {
-    this.logger.debug(`not implemented: ${this.id} setCursorPosition line=${line} column=${column} windowId=${windowId}`);
+  setCursorPosition(
+    machine: ZMachine,
+    line: number,
+    column: number,
+    windowId: number
+  ): void {
+    this.logger.debug(
+      `not implemented: ${this.id} setCursorPosition line=${line} column=${column} windowId=${windowId}`
+    );
   }
 
   hideCursor(machine: ZMachine, windowId: number): void {
-    this.logger.debug(`not implemented: ${this.id} hideCursor windowId=${windowId}`);
+    this.logger.debug(
+      `not implemented: ${this.id} hideCursor windowId=${windowId}`
+    );
   }
 
   showCursor(machine: ZMachine, windowId: number): void {
-    this.logger.debug(`not implemented: ${this.id} showCursor windowId=${windowId}`);
+    this.logger.debug(
+      `not implemented: ${this.id} showCursor windowId=${windowId}`
+    );
   }
 
   setBufferMode(machine: ZMachine, mode: number): void {
@@ -85,27 +100,54 @@ export class BaseScreen implements Screen {
   }
 
   setTextStyle(machine: ZMachine, style: number): void {
-    this.logger.debug(`not implemented: ${this.id} setTextStyle style=${style}`);
+    this.logger.debug(
+      `not implemented: ${this.id} setTextStyle style=${style}`
+    );
   }
 
-  setTextColors(machine: ZMachine, windowId: number, foreground: number, background: number): void {
-    this.logger.debug(`not implemented: ${this.id} setTextColors windowId=${windowId} foreground=${foreground} background=${background}`);
+  setTextColors(
+    machine: ZMachine,
+    windowId: number,
+    foreground: number,
+    background: number
+  ): void {
+    this.logger.debug(
+      `not implemented: ${this.id} setTextColors windowId=${windowId} foreground=${foreground} background=${background}`
+    );
   }
 
-  enableOutputStream(machine: ZMachine, streamId: number, table: number, width: number): void {
-    this.logger.error(`not implemented: ${this.id} enableOutputStream streamId=${streamId} table=${table} width=${width}`);
+  enableOutputStream(
+    machine: ZMachine,
+    streamId: number,
+    table: number,
+    width: number
+  ): void {
+    this.logger.error(
+      `not implemented: ${this.id} enableOutputStream streamId=${streamId} table=${table} width=${width}`
+    );
   }
 
-  disableOutputStream(machine: ZMachine, streamId: number, table: number, width: number): void {
-    this.logger.error(`not implemented: ${this.id} disableOutputStream streamId=${streamId} table=${table} width=${width}`);
+  disableOutputStream(
+    machine: ZMachine,
+    streamId: number,
+    table: number,
+    width: number
+  ): void {
+    this.logger.error(
+      `not implemented: ${this.id} disableOutputStream streamId=${streamId} table=${table} width=${width}`
+    );
   }
 
   selectInputStream(machine: ZMachine, streamId: number): void {
-    this.logger.error(`not implemented: ${this.id} selectInputStream streamId=${streamId}`);
+    this.logger.error(
+      `not implemented: ${this.id} selectInputStream streamId=${streamId}`
+    );
   }
 
   updateStatusBar(lhs: string, rhs: string): void {
-    this.logger.debug(`not implemented: ${this.id} updateStatusBar lhs=${lhs} rhs=${rhs}`);
+    this.logger.debug(
+      `not implemented: ${this.id} updateStatusBar lhs=${lhs} rhs=${rhs}`
+    );
   }
 
   quit(): void {

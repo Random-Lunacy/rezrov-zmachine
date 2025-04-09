@@ -44,7 +44,10 @@ function div(machine: ZMachine, a: number, b: number): void {
   if (b === 0) {
     throw new Error("Division by zero");
   }
-  machine.storeVariable(machine.readByte(), toU16(Math.floor(toI16(a) / toI16(b))));
+  machine.storeVariable(
+    machine.readByte(),
+    toU16(Math.floor(toI16(a) / toI16(b)))
+  );
 }
 
 /**
@@ -122,5 +125,5 @@ export const mathOpcodes = {
 
   // VAR opcodes (v5+)
   art_shift: opcode("art_shift", art_shift),
-  log_shift: opcode("log_shift", log_shift)
+  log_shift: opcode("log_shift", log_shift),
 };

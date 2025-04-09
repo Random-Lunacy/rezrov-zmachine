@@ -9,7 +9,7 @@ enum SnapshotChunkType {
   Memory = 1,
   Stack = 2,
   Callstack = 3,
-  Registers = 4
+  Registers = 4,
 }
 
 /**
@@ -19,7 +19,10 @@ enum SnapshotChunkType {
  */
 export function createSnapshotBuffer(snapshot: Snapshot): Buffer {
   // Helper function to create a chunk header
-  const createChunkHeader = (type: SnapshotChunkType, length: number): Buffer => {
+  const createChunkHeader = (
+    type: SnapshotChunkType,
+    length: number
+  ): Buffer => {
     const header = Buffer.alloc(8);
     header.writeUInt32LE(type, 0);
     header.writeUInt32LE(length, 4);
@@ -30,7 +33,9 @@ export function createSnapshotBuffer(snapshot: Snapshot): Buffer {
   const buffers: Array<Buffer> = [];
 
   // Add memory chunk
-  buffers.push(createChunkHeader(SnapshotChunkType.Memory, snapshot.mem.length));
+  buffers.push(
+    createChunkHeader(SnapshotChunkType.Memory, snapshot.mem.length)
+  );
   buffers.push(snapshot.mem);
 
   // Add stack chunk
@@ -40,7 +45,9 @@ export function createSnapshotBuffer(snapshot: Snapshot): Buffer {
 
   // Add callstack chunk (convert old CallFrame to new StackFrame if needed)
   const callstackString = JSON.stringify(snapshot.callstack);
-  buffers.push(createChunkHeader(SnapshotChunkType.Callstack, callstackString.length));
+  buffers.push(
+    createChunkHeader(SnapshotChunkType.Callstack, callstackString.length)
+  );
   buffers.push(Buffer.from(callstackString, "utf8"));
 
   // Add registers chunk (just PC for now)
@@ -82,11 +89,15 @@ export function readSnapshotFromBuffer(buffer: Buffer): Snapshot {
         break;
       case SnapshotChunkType.Stack:
         // Parse stack data
-        stack = JSON.parse(buffer.toString("utf8", position, position + length));
+        stack = JSON.parse(
+          buffer.toString("utf8", position, position + length)
+        );
         break;
       case SnapshotChunkType.Callstack:
         // Parse callstack data
-        const rawCallstack = JSON.parse(buffer.toString("utf8", position, position + length));
+        const rawCallstack = JSON.parse(
+          buffer.toString("utf8", position, position + length)
+        );
 
         // Convert old CallFrame format to new StackFrame format if needed
         callstack = rawCallstack.map((frame: any) => {
@@ -100,7 +111,7 @@ export function readSnapshotFromBuffer(buffer: Buffer): Snapshot {
               storesResult: frame.return_value_location !== null,
               resultVariable: frame.return_value_location || 0,
               argumentCount: frame.arg_count || 0,
-              routineAddress: frame.method_pc
+              routineAddress: frame.method_pc,
             };
           }
           return frame;
@@ -137,7 +148,7 @@ export function readSnapshotFromBuffer(buffer: Buffer): Snapshot {
     mem,
     stack,
     callstack,
-    pc
+    pc,
   };
 }
 

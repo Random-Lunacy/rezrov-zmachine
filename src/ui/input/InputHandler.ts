@@ -87,7 +87,11 @@ export class InputHandler {
   /**
    * Store text input in Z-machine memory
    */
-  private storeTextInput(input: string, textBuffer: number, version: number): void {
+  private storeTextInput(
+    input: string,
+    textBuffer: number,
+    version: number
+  ): void {
     const memory = this.machine.getGameState().memory;
 
     // Get the maximum input length

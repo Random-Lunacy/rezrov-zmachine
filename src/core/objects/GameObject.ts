@@ -28,7 +28,13 @@ export class GameObject {
    * @param objTable Address of the object table
    * @param objnum Object number
    */
-  constructor(memory: Memory, logger: Logger, version: number, objTable: number, objnum: number) {
+  constructor(
+    memory: Memory,
+    logger: Logger,
+    version: number,
+    objTable: number,
+    objnum: number
+  ) {
     this.memory = memory;
     this.logger = logger;
     this.version = version;
@@ -58,9 +64,10 @@ export class GameObject {
    * Get the object's parent object
    */
   get parent(): GameObject | null {
-    const parentObjNum = this.version <= 3
-      ? this.memory.getByte(this.objaddr + 4)
-      : this.memory.getWord(this.objaddr + 6);
+    const parentObjNum =
+      this.version <= 3
+        ? this.memory.getByte(this.objaddr + 4)
+        : this.memory.getWord(this.objaddr + 6);
 
     // Return null for object 0, which means "no object"
     return parentObjNum === 0 ? null : this.getObject(parentObjNum);
@@ -82,9 +89,10 @@ export class GameObject {
    * Get the object's first child
    */
   get child(): GameObject | null {
-    const childObjNum = this.version <= 3
-      ? this.memory.getByte(this.objaddr + 6)
-      : this.memory.getWord(this.objaddr + 10);
+    const childObjNum =
+      this.version <= 3
+        ? this.memory.getByte(this.objaddr + 6)
+        : this.memory.getWord(this.objaddr + 10);
 
     return childObjNum === 0 ? null : this.getObject(childObjNum);
   }
@@ -105,9 +113,10 @@ export class GameObject {
    * Get the object's sibling
    */
   get sibling(): GameObject | null {
-    const siblingObjNum = this.version <= 3
-      ? this.memory.getByte(this.objaddr + 5)
-      : this.memory.getWord(this.objaddr + 8);
+    const siblingObjNum =
+      this.version <= 3
+        ? this.memory.getByte(this.objaddr + 5)
+        : this.memory.getWord(this.objaddr + 8);
 
     return siblingObjNum === 0 ? null : this.getObject(siblingObjNum);
   }
@@ -128,9 +137,7 @@ export class GameObject {
    * Get the address of the object's property table
    */
   get propertyTableAddr(): Address {
-    return this.memory.getWord(
-      this.objaddr + (this.version <= 3 ? 7 : 12)
-    );
+    return this.memory.getWord(this.objaddr + (this.version <= 3 ? 7 : 12));
   }
 
   /**
@@ -203,7 +210,9 @@ export class GameObject {
     }
 
     // If we didn't find the previous child, something is definitely wrong
-    throw new Error("Sibling list is in a bad state, couldn't find previous node");
+    throw new Error(
+      "Sibling list is in a bad state, couldn't find previous node"
+    );
   }
 
   /**
@@ -238,7 +247,11 @@ export class GameObject {
    * @param version Z-machine version
    * @param propAddr Address of the property
    */
-  static _propDataLen(memory: Memory, version: number, propAddr: Address): number {
+  static _propDataLen(
+    memory: Memory,
+    version: number,
+    propAddr: Address
+  ): number {
     let size = memory.getByte(propAddr);
 
     if (version <= 3) {
@@ -312,7 +325,11 @@ export class GameObject {
       throw new Error(`Property ${prop} not found`);
     }
 
-    const propLen = GameObject._propDataLen(this.memory, this.version, propAddr);
+    const propLen = GameObject._propDataLen(
+      this.memory,
+      this.version,
+      propAddr
+    );
     const dataPtr = this._propDataPtr(propAddr);
 
     switch (propLen) {
@@ -336,7 +353,11 @@ export class GameObject {
       throw new Error(`Property ${prop} not found`);
     }
 
-    const propLen = GameObject._propDataLen(this.memory, this.version, propAddr);
+    const propLen = GameObject._propDataLen(
+      this.memory,
+      this.version,
+      propAddr
+    );
     const dataPtr = this._propDataPtr(propAddr);
 
     switch (propLen) {
@@ -377,7 +398,11 @@ export class GameObject {
    * @param version Z-machine version
    * @param dataAddr Address of the property data
    */
-  static getPropertyLength(memory: Memory, version: number, dataAddr: Address): number {
+  static getPropertyLength(
+    memory: Memory,
+    version: number,
+    dataAddr: Address
+  ): number {
     if (dataAddr === 0) {
       return 0;
     }
@@ -414,14 +439,18 @@ export class GameObject {
    */
   dumpPropData(entry: Address): string {
     const propDataPtr = this._propDataPtr(entry);
-    const propDataLen = GameObject._propDataLen(this.memory, this.version, entry);
+    const propDataLen = GameObject._propDataLen(
+      this.memory,
+      this.version,
+      entry
+    );
     const data: Array<number> = [];
 
     for (let i = 0; i < propDataLen; i++) {
       data.push(this.memory.getByte(propDataPtr + i));
     }
 
-    return data.map(val => this.hexString(val)).join(" ");
+    return data.map((val) => this.hexString(val)).join(" ");
   }
 
   /**
@@ -441,7 +470,9 @@ export class GameObject {
         break;
       }
       this.logger.debug(
-        `${_indent}   ${this.hexString(entry)} [${propNum}] ${this.dumpPropData(entry)}`
+        `${_indent}   ${this.hexString(entry)} [${propNum}] ${this.dumpPropData(
+          entry
+        )}`
       );
       entry = this._nextPropEntry(entry);
     }

@@ -15,13 +15,13 @@ export enum ResourceType {
  * Status of a multimedia operation
  */
 export enum ResourceStatus {
-  Available = 0,    // Resource is available
+  Available = 0, // Resource is available
   NotAvailable = 1, // Resource is not available
-  Loading = 2,      // Resource is loading
-  Loaded = 3,       // Resource is loaded and ready to use
-  Playing = 4,      // Resource is currently playing
-  Stopped = 5,      // Resource is stopped
-  Error = 6,        // Error occurred during resource operation
+  Loading = 2, // Resource is loading
+  Loaded = 3, // Resource is loaded and ready to use
+  Playing = 4, // Resource is currently playing
+  Stopped = 5, // Resource is stopped
+  Error = 6, // Error occurred during resource operation
 }
 
 /**
@@ -53,7 +53,12 @@ export interface MultimediaHandler {
    * @param repeats Number of repeats (0 = infinite)
    * @returns Status of the operation
    */
-  playSound(resourceId: number, effect: number, volume: number, repeats: number): ResourceStatus;
+  playSound(
+    resourceId: number,
+    effect: number,
+    volume: number,
+    repeats: number
+  ): ResourceStatus;
 
   /**
    * Stop a playing sound
@@ -70,7 +75,12 @@ export interface MultimediaHandler {
    * @param scale Scale factor (100 = normal size)
    * @returns Status of the operation
    */
-  displayPicture(resourceId: number, x: number, y: number, scale: number): ResourceStatus;
+  displayPicture(
+    resourceId: number,
+    x: number,
+    y: number,
+    scale: number
+  ): ResourceStatus;
 }
 
 /**
@@ -81,17 +91,29 @@ export class BaseMultimediaHandler implements MultimediaHandler {
   constructor(private machine: ZMachine) {}
 
   isResourceAvailable(type: ResourceType, resourceId: number): boolean {
-    this.machine.logger.debug(`Checking availability of ${ResourceType[type]} ${resourceId}`);
+    this.machine.logger.debug(
+      `Checking availability of ${ResourceType[type]} ${resourceId}`
+    );
     return false;
   }
 
-  async loadResource(type: ResourceType, resourceId: number): Promise<ResourceStatus> {
+  async loadResource(
+    type: ResourceType,
+    resourceId: number
+  ): Promise<ResourceStatus> {
     this.machine.logger.debug(`Loading ${ResourceType[type]} ${resourceId}`);
     return ResourceStatus.NotAvailable;
   }
 
-  playSound(resourceId: number, effect: number, volume: number, repeats: number): ResourceStatus {
-    this.machine.logger.debug(`Playing sound ${resourceId} (effect: ${effect}, volume: ${volume}, repeats: ${repeats})`);
+  playSound(
+    resourceId: number,
+    effect: number,
+    volume: number,
+    repeats: number
+  ): ResourceStatus {
+    this.machine.logger.debug(
+      `Playing sound ${resourceId} (effect: ${effect}, volume: ${volume}, repeats: ${repeats})`
+    );
     return ResourceStatus.NotAvailable;
   }
 
@@ -100,8 +122,15 @@ export class BaseMultimediaHandler implements MultimediaHandler {
     return ResourceStatus.NotAvailable;
   }
 
-  displayPicture(resourceId: number, x: number, y: number, scale: number): ResourceStatus {
-    this.machine.logger.debug(`Displaying picture ${resourceId} at (${x},${y}) with scale ${scale}%`);
+  displayPicture(
+    resourceId: number,
+    x: number,
+    y: number,
+    scale: number
+  ): ResourceStatus {
+    this.machine.logger.debug(
+      `Displaying picture ${resourceId} at (${x},${y}) with scale ${scale}%`
+    );
     return ResourceStatus.NotAvailable;
   }
 }

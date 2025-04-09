@@ -30,7 +30,9 @@ function pull(machine: ZMachine, variable: number): void {
  */
 function load(machine: ZMachine, variable: number): void {
   const resultVar = machine.readByte();
-  machine.logger.debug(`${machine.op_pc.toString(16)} load ${variable} -> (${resultVar})`);
+  machine.logger.debug(
+    `${machine.op_pc.toString(16)} load ${variable} -> (${resultVar})`
+  );
   machine.storeVariable(resultVar, machine.loadVariable(variable, true), true);
 }
 
@@ -38,7 +40,9 @@ function load(machine: ZMachine, variable: number): void {
  * Stores a value in a variable.
  */
 function store(machine: ZMachine, variable: number, value: number): void {
-  machine.logger.debug(`${machine.op_pc.toString(16)} store (${variable}) ${value}`);
+  machine.logger.debug(
+    `${machine.op_pc.toString(16)} store (${variable}) ${value}`
+  );
   machine.storeVariable(variable, value, true);
 }
 
@@ -47,11 +51,7 @@ function store(machine: ZMachine, variable: number, value: number): void {
  */
 function inc(machine: ZMachine, variable: number): void {
   const currentValue = machine.loadVariable(variable, true);
-  machine.storeVariable(
-    variable,
-    toU16(toI16(currentValue) + 1),
-    true
-  );
+  machine.storeVariable(variable, toU16(toI16(currentValue) + 1), true);
 }
 
 /**
@@ -59,11 +59,7 @@ function inc(machine: ZMachine, variable: number): void {
  */
 function dec(machine: ZMachine, variable: number): void {
   const currentValue = machine.loadVariable(variable, true);
-  machine.storeVariable(
-    variable,
-    toU16(toI16(currentValue) - 1),
-    true
-  );
+  machine.storeVariable(variable, toU16(toI16(currentValue) - 1), true);
 }
 
 /**
@@ -72,7 +68,11 @@ function dec(machine: ZMachine, variable: number): void {
 function inc_chk(machine: ZMachine, variable: number, value: number): void {
   const [offset, condfalse] = machine.readBranchOffset();
   machine.logger.debug(
-    `${machine.op_pc.toString(16)} inc_chk ${variable} ${value} -> [${!condfalse}] ${machine.pc + offset - 2}`
+    `${machine.op_pc.toString(
+      16
+    )} inc_chk ${variable} ${value} -> [${!condfalse}] ${
+      machine.pc + offset - 2
+    }`
   );
 
   const currentValue = machine.loadVariable(variable, true);
@@ -89,7 +89,11 @@ function inc_chk(machine: ZMachine, variable: number, value: number): void {
 function dec_chk(machine: ZMachine, variable: number, value: number): void {
   const [offset, condfalse] = machine.readBranchOffset();
   machine.logger.debug(
-    `${machine.op_pc.toString(16)} dec_chk ${variable} ${value} -> [${!condfalse}] ${machine.pc + offset - 2}`
+    `${machine.op_pc.toString(
+      16
+    )} dec_chk ${variable} ${value} -> [${!condfalse}] ${
+      machine.pc + offset - 2
+    }`
   );
 
   const currentValue = machine.loadVariable(variable, true);
@@ -106,7 +110,9 @@ function dec_chk(machine: ZMachine, variable: number, value: number): void {
 function loadw(machine: ZMachine, array: number, wordIndex: number): void {
   const resultVar = machine.readByte();
   machine.logger.debug(
-    `${machine.op_pc.toString(16)} loadw ${array} ${wordIndex} -> (${resultVar})`
+    `${machine.op_pc.toString(
+      16
+    )} loadw ${array} ${wordIndex} -> (${resultVar})`
   );
 
   const address = (array + 2 * wordIndex) & 0xffff;
@@ -119,7 +125,9 @@ function loadw(machine: ZMachine, array: number, wordIndex: number): void {
 function loadb(machine: ZMachine, array: number, byteIndex: number): void {
   const resultVar = machine.readByte();
   machine.logger.debug(
-    `${machine.op_pc.toString(16)} loadb ${array} ${byteIndex} -> (${resultVar})`
+    `${machine.op_pc.toString(
+      16
+    )} loadb ${array} ${byteIndex} -> (${resultVar})`
   );
 
   const address = (array + byteIndex) & 0xffff;
@@ -129,7 +137,12 @@ function loadb(machine: ZMachine, array: number, byteIndex: number): void {
 /**
  * Stores a word in an array.
  */
-function storew(machine: ZMachine, array: number, wordIndex: number, value: number): void {
+function storew(
+  machine: ZMachine,
+  array: number,
+  wordIndex: number,
+  value: number
+): void {
   machine.logger.debug(
     `${machine.op_pc.toString(16)} storew ${array} ${wordIndex} ${value}`
   );
@@ -141,7 +154,12 @@ function storew(machine: ZMachine, array: number, wordIndex: number, value: numb
 /**
  * Stores a byte in an array.
  */
-function storeb(machine: ZMachine, array: number, byteIndex: number, value: number): void {
+function storeb(
+  machine: ZMachine,
+  array: number,
+  byteIndex: number,
+  value: number
+): void {
   machine.logger.debug(
     `${machine.op_pc.toString(16)} storeb ${array} ${byteIndex} ${value}`
   );

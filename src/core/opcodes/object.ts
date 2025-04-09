@@ -9,7 +9,11 @@ import { GameObject } from "../objects/GameObject";
 function test_attr(machine: ZMachine, obj: number, attribute: number): void {
   const [offset, condfalse] = machine.readBranchOffset();
   machine.logger.debug(
-    `${machine.op_pc.toString(16)} test_attr ${obj} ${attribute} -> [${!condfalse}] ${machine.pc + offset - 2}`
+    `${machine.op_pc.toString(
+      16
+    )} test_attr ${obj} ${attribute} -> [${!condfalse}] ${
+      machine.pc + offset - 2
+    }`
   );
 
   const o = machine.getObject(obj);
@@ -25,7 +29,9 @@ function test_attr(machine: ZMachine, obj: number, attribute: number): void {
  * Sets an attribute for an object.
  */
 function set_attr(machine: ZMachine, obj: number, attribute: number): void {
-  machine.logger.debug(`${machine.op_pc.toString(16)} set_attr ${obj} ${attribute}`);
+  machine.logger.debug(
+    `${machine.op_pc.toString(16)} set_attr ${obj} ${attribute}`
+  );
 
   const o = machine.getObject(obj);
   if (o === null) {
@@ -39,7 +45,9 @@ function set_attr(machine: ZMachine, obj: number, attribute: number): void {
  * Clears an attribute for an object.
  */
 function clear_attr(machine: ZMachine, obj: number, attribute: number): void {
-  machine.logger.debug(`${machine.op_pc.toString(16)} clear_attr ${obj} ${attribute}`);
+  machine.logger.debug(
+    `${machine.op_pc.toString(16)} clear_attr ${obj} ${attribute}`
+  );
 
   const o = machine.getObject(obj);
   if (o === null) {
@@ -55,7 +63,9 @@ function clear_attr(machine: ZMachine, obj: number, attribute: number): void {
 function jin(machine: ZMachine, obj1: number, obj2: number): void {
   const [offset, condfalse] = machine.readBranchOffset();
   machine.logger.debug(
-    `${machine.op_pc.toString(16)} jin ${obj1} ${obj2} -> [${!condfalse}] ${machine.pc + offset - 2}`
+    `${machine.op_pc.toString(16)} jin ${obj1} ${obj2} -> [${!condfalse}] ${
+      machine.pc + offset - 2
+    }`
   );
 
   const o1 = machine.getObject(obj1);
@@ -72,7 +82,9 @@ function jin(machine: ZMachine, obj1: number, obj2: number): void {
  * Inserts an object into another object.
  */
 function insert_obj(machine: ZMachine, obj: number, destination: number): void {
-  machine.logger.debug(`${machine.op_pc.toString(16)} insert_obj ${obj} ${destination}`);
+  machine.logger.debug(
+    `${machine.op_pc.toString(16)} insert_obj ${obj} ${destination}`
+  );
 
   const o = machine.getObject(obj);
   if (o === null) {
@@ -103,7 +115,9 @@ function insert_obj(machine: ZMachine, obj: number, destination: number): void {
 function get_prop(machine: ZMachine, obj: number, property: number): void {
   const resultVar = machine.readByte();
   machine.logger.debug(
-    `${machine.op_pc.toString(16)} get_prop ${obj} ${property} -> (${resultVar})`
+    `${machine.op_pc.toString(
+      16
+    )} get_prop ${obj} ${property} -> (${resultVar})`
   );
 
   const o = machine.getObject(obj);
@@ -122,7 +136,9 @@ function get_prop(machine: ZMachine, obj: number, property: number): void {
 function get_prop_addr(machine: ZMachine, obj: number, property: number): void {
   const resultVar = machine.readByte();
   machine.logger.debug(
-    `${machine.op_pc.toString(16)} get_prop_addr ${obj} ${property} -> (${resultVar})`
+    `${machine.op_pc.toString(
+      16
+    )} get_prop_addr ${obj} ${property} -> (${resultVar})`
   );
 
   const o = machine.getObject(obj);
@@ -141,7 +157,9 @@ function get_prop_addr(machine: ZMachine, obj: number, property: number): void {
 function get_next_prop(machine: ZMachine, obj: number, property: number): void {
   const resultVar = machine.readByte();
   machine.logger.debug(
-    `${machine.op_pc.toString(16)} get_next_prop ${obj} ${property} -> (${resultVar})`
+    `${machine.op_pc.toString(
+      16
+    )} get_next_prop ${obj} ${property} -> (${resultVar})`
   );
 
   const o = machine.getObject(obj);
@@ -161,7 +179,9 @@ function get_sibling(machine: ZMachine, obj: number): void {
   const resultVar = machine.readByte();
   const [offset, condfalse] = machine.readBranchOffset();
   machine.logger.debug(
-    `${machine.op_pc.toString(16)} get_sibling ${obj} -> (${resultVar}) ?[${!condfalse}] ${offset}`
+    `${machine.op_pc.toString(
+      16
+    )} get_sibling ${obj} -> (${resultVar}) ?[${!condfalse}] ${offset}`
   );
 
   const o = machine.getObject(obj);
@@ -185,7 +205,9 @@ function get_child(machine: ZMachine, obj: number): void {
   const resultVar = machine.readByte();
   const [offset, condfalse] = machine.readBranchOffset();
   machine.logger.debug(
-    `${machine.op_pc.toString(16)} get_child ${obj} -> (${resultVar}) ?[${!condfalse}] ${offset}`
+    `${machine.op_pc.toString(
+      16
+    )} get_child ${obj} -> (${resultVar}) ?[${!condfalse}] ${offset}`
   );
 
   const o = machine.getObject(obj);
@@ -206,7 +228,9 @@ function get_child(machine: ZMachine, obj: number): void {
  */
 function get_parent(machine: ZMachine, obj: number): void {
   const resultVar = machine.readByte();
-  machine.logger.debug(`${machine.op_pc.toString(16)} get_parent ${obj} -> (${resultVar})`);
+  machine.logger.debug(
+    `${machine.op_pc.toString(16)} get_parent ${obj} -> (${resultVar})`
+  );
 
   const o = machine.getObject(obj);
   if (o === null) {
@@ -237,7 +261,12 @@ function remove_obj(machine: ZMachine, obj: number): void {
 /**
  * Sets a property value for an object.
  */
-function put_prop(machine: ZMachine, obj: number, property: number, value: number): void {
+function put_prop(
+  machine: ZMachine,
+  obj: number,
+  property: number,
+  value: number
+): void {
   machine.logger.debug(`put_prop ${obj} ${property} ${value}`);
 
   const o = machine.getObject(obj);
@@ -255,7 +284,9 @@ function put_prop(machine: ZMachine, obj: number, property: number, value: numbe
 function get_prop_len(machine: ZMachine, propDataAddr: number): void {
   const resultVar = machine.readByte();
   machine.logger.debug(
-    `${machine.op_pc.toString(16)} get_prop_len ${propDataAddr} -> (${resultVar})`
+    `${machine.op_pc.toString(
+      16
+    )} get_prop_len ${propDataAddr} -> (${resultVar})`
   );
 
   const len = GameObject.getPropertyLength(machine.state, propDataAddr);

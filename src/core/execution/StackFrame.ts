@@ -10,7 +10,7 @@ export interface StackFrame {
   previousSP: number;
 
   // Storage for up to 15 local variables (0-14)
-  locals: Uint16Array; // Fixed size of 15
+  locals: Uint16Array;
 
   // Whether a result is expected from this routine call
   storesResult: boolean;
@@ -39,7 +39,9 @@ export function createStackFrame(
 ): StackFrame {
   // Ensure numLocals is within the Z-Machine specification limit (0-15)
   if (numLocals < 0 || numLocals > 15) {
-    throw new Error(`Invalid number of locals: ${numLocals}. Z-Machine allows 0-15 locals.`);
+    throw new Error(
+      `Invalid number of locals: ${numLocals}. Z-Machine allows 0-15 locals.`
+    );
   }
 
   // Create local variables storage with the proper size
@@ -52,6 +54,6 @@ export function createStackFrame(
     storesResult,
     resultVariable,
     argumentCount,
-    routineAddress
+    routineAddress,
   };
 }

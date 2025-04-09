@@ -40,7 +40,11 @@ export function decodeZString(
           const abbrevAddr = memory.getWord(abbrevTableAddr + entry * 2) * 2;
 
           // Decode the abbreviation (recursive call)
-          const abbrevText = decodeZString(memory, memory.getZString(abbrevAddr), false);
+          const abbrevText = decodeZString(
+            memory,
+            memory.getZString(abbrevAddr),
+            false
+          );
           result.push(abbrevText);
           break;
         }
@@ -83,7 +87,7 @@ export function encodeZString(text: string, padding: number = 0x05): ZString {
     const char = text[i];
 
     // Very simplified encoding - just handle lowercase letters for now
-    if (char >= 'a' && char <= 'z') {
+    if (char >= "a" && char <= "z") {
       zchars.push(alphabet_table[0].indexOf(char) + 6);
     } else {
       // Try to find character in alphabet 2
@@ -135,7 +139,10 @@ export function packStringAddress(memory: Memory, addr: number): number {
  * @param packedAddr Packed address
  * @returns Real memory address
  */
-export function unpackStringAddress(memory: Memory, packedAddr: number): number {
+export function unpackStringAddress(
+  memory: Memory,
+  packedAddr: number
+): number {
   const version = memory.getByte(0x00);
 
   if (version <= 3) {

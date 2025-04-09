@@ -57,7 +57,9 @@ export class TextParser {
       separators.push(this.memory.getByte(sepAddr++));
     }
 
-    this.logger.debug(`Separators: ${separators.map(s => String.fromCharCode(s)).join(' ')}`);
+    this.logger.debug(
+      `Separators: ${separators.map((s) => String.fromCharCode(s)).join(" ")}`
+    );
 
     let c: number;
     do {
@@ -145,7 +147,7 @@ export class TextParser {
       const charCode = this.memory.getByte(textBuffer + from + i);
       wordChars.push(String.fromCharCode(charCode));
     }
-    const word = wordChars.join('').toLowerCase();
+    const word = wordChars.join("").toLowerCase();
 
     this.logger.debug(`Tokenizing word: "${word}"`);
 
@@ -163,7 +165,11 @@ export class TextParser {
       this.memory.setByte(tokenStorage + 2, length);
       this.memory.setByte(tokenStorage + 3, from);
 
-      this.logger.debug(`Token stored: addr=${this.hexString(tokenAddr)}, length=${length}, position=${from}`);
+      this.logger.debug(
+        `Token stored: addr=${this.hexString(
+          tokenAddr
+        )}, length=${length}, position=${from}`
+      );
     }
   }
 
@@ -185,7 +191,9 @@ export class TextParser {
     const entryCount = this.memory.getWord(dictStart + 1);
     const entriesStart = dictStart + 3;
 
-    this.logger.debug(`Dictionary: ${entryCount} entries, each ${entryLen} bytes`);
+    this.logger.debug(
+      `Dictionary: ${entryCount} entries, each ${entryLen} bytes`
+    );
 
     // Check if entries are sorted (negative count means unsorted)
     if (entryCount < 0) {
@@ -208,7 +216,11 @@ export class TextParser {
       while (low <= high) {
         const mid = Math.floor((low + high) / 2);
         const entryAddr = entriesStart + mid * entryLen;
-        const comparison = this.compareTokenWords(entryAddr, encodedToken, version);
+        const comparison = this.compareTokenWords(
+          entryAddr,
+          encodedToken,
+          version
+        );
 
         if (comparison < 0) {
           low = mid + 1;
@@ -271,13 +283,13 @@ export class TextParser {
       const char = text.charAt(i);
       let zchar: number;
 
-      if (char >= 'a' && char <= 'z') {
+      if (char >= "a" && char <= "z") {
         // A0: a-z -> 6-31
-        zchar = char.charCodeAt(0) - 'a'.charCodeAt(0) + 6;
-      } else if (char >= 'A' && char <= 'Z') {
+        zchar = char.charCodeAt(0) - "a".charCodeAt(0) + 6;
+      } else if (char >= "A" && char <= "Z") {
         // Shift to A1 + a-z -> 6-31
         zchars.push(4); // Shift to A1
-        zchar = char.charCodeAt(0) - 'A'.charCodeAt(0) + 6;
+        zchar = char.charCodeAt(0) - "A".charCodeAt(0) + 6;
       } else {
         // Try to find in A2
         const a2Chars = " \n0123456789.,!?_#'\"/\\-:()";
@@ -300,19 +312,22 @@ export class TextParser {
       zchars.push(padding);
     }
 
-    this.logger.debug(`Z-characters: ${zchars.join(',')}`);
+    this.logger.debug(`Z-characters: ${zchars.join(",")}`);
 
     // Pack into words
     const words: number[] = [];
     for (let i = 0; i < resolution; i++) {
-      const word = (zchars[i*3] << 10) | (zchars[i*3 + 1] << 5) | zchars[i*3 + 2];
+      const word =
+        (zchars[i * 3] << 10) | (zchars[i * 3 + 1] << 5) | zchars[i * 3 + 2];
       words.push(word);
     }
 
     // Set terminator bit in the last word
     words[resolution - 1] |= 0x8000;
 
-    this.logger.debug(`Encoded words: ${words.map(w => this.hexString(w)).join(',')}`);
+    this.logger.debug(
+      `Encoded words: ${words.map((w) => this.hexString(w)).join(",")}`
+    );
 
     return words;
   }
@@ -352,7 +367,7 @@ export class TextParser {
     };
 
     // Process input characters
-    const chars = input.split('');
+    const chars = input.split("");
     const classes = chars.map(charClass);
 
     for (let start = 0; start < chars.length; start++) {
@@ -418,7 +433,11 @@ export class TextParser {
       this.memory.setByte(tokenStorage + 2, end - start);
       this.memory.setByte(tokenStorage + 3, start + 1);
 
-      this.logger.debug(`Word stored: addr=${this.hexString(tokenAddr)}, len=${end-start}, pos=${start+1}`);
+      this.logger.debug(
+        `Word stored: addr=${this.hexString(tokenAddr)}, len=${
+          end - start
+        }, pos=${start + 1}`
+      );
     } else {
       this.logger.debug(`Word not found in dictionary`);
     }
@@ -439,7 +458,11 @@ export class TextParser {
       const length = this.memory.getByte(parseBuffer + 4 + i * 4);
       const from = this.memory.getByte(parseBuffer + 5 + i * 4);
 
-      this.logger.debug(`  (${this.hexString(addr)}, ${this.hexString(length)}, ${this.hexString(from)})`);
+      this.logger.debug(
+        `  (${this.hexString(addr)}, ${this.hexString(
+          length
+        )}, ${this.hexString(from)})`
+      );
     }
 
     this.logger.debug("]");

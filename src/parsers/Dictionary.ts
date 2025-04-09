@@ -43,7 +43,7 @@ export class Dictionary {
   public getEntryAddress(index: number): Address {
     const entriesStart = this.dictAddr + this.separators.length + 4;
     const entryLength = this.getEntryLength();
-    return entriesStart + (index * entryLength);
+    return entriesStart + index * entryLength;
   }
 
   /**
@@ -76,7 +76,10 @@ export class Dictionary {
    * @param version Z-machine version
    * @returns Address of the token in the dictionary, or 0 if not found
    */
-  public lookupToken(encodedTokenWords: Array<number>, version: number): Address {
+  public lookupToken(
+    encodedTokenWords: Array<number>,
+    version: number
+  ): Address {
     const numEntries = this.getNumEntries();
     const entryLength = this.getEntryLength();
     const entriesStart = this.dictAddr + this.separators.length + 4;

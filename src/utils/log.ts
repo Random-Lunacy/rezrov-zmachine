@@ -26,7 +26,8 @@ export class Logger {
    */
   constructor(level: LogLevel = LogLevel.INFO, useColors?: boolean) {
     this.level = level;
-    this.useColors = useColors ?? (typeof process !== 'undefined' && process.stdout.isTTY);
+    this.useColors =
+      useColors ?? (typeof process !== "undefined" && process.stdout.isTTY);
   }
 
   /**

@@ -36,7 +36,7 @@ export interface InputState {
    * Routine to call if the time limit expires
    */
   routine?: number;
-};
+}
 
 /**
  * Exception that is thrown when the interpreter needs to suspend execution

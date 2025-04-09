@@ -41,7 +41,9 @@ export class ZMachine {
     this.storage = storage;
 
     // Initialize state
-    const version = this.memory.getByte(HeaderLocation.Version) as ZMachineVersion;
+    const version = this.memory.getByte(
+      HeaderLocation.Version
+    ) as ZMachineVersion;
     this.state = new GameState(this.memory, version);
 
     // Initialize executor
@@ -236,7 +238,9 @@ export class ZMachine {
     // Get location object
     const globalVarsBase = this.state.globalVariablesAddress;
     const locationVar = 0; // First global is the location
-    const locationObjNum = this.memory.getWord(globalVarsBase + 2 * locationVar);
+    const locationObjNum = this.memory.getWord(
+      globalVarsBase + 2 * locationVar
+    );
     const locationObj = this.state.getObject(locationObjNum);
 
     // Determine if this is a score or time game
@@ -255,7 +259,7 @@ export class ZMachine {
     } else {
       const hours = this.memory.getWord(globalVarsBase + 2 * 1); // Global 1 = hours
       const minutes = this.memory.getWord(globalVarsBase + 2 * 2); // Global 2 = minutes
-      const paddedMinutes = minutes.toString().padStart(2, '0');
+      const paddedMinutes = minutes.toString().padStart(2, "0");
       rhs = `Time: ${hours}:${paddedMinutes}`;
     }
 

@@ -4,6 +4,7 @@ import { Address } from "../types";
 import { GameObject } from "../core/objects/GameObject";
 import { HeaderLocation } from "../utils/constants";
 import { Snapshot } from "../storage/interfaces";
+import { Logger, LogLevel } from "../utils/log";
 
 export class GameState {
   private _pc: Address = 0;
@@ -24,9 +25,13 @@ export class GameState {
   // Game objects cache
   private _gameObjects: Map<number, GameObject> = new Map();
 
-  constructor(memory: Memory, version: number) {
+  // Logger for output and debugging
+  public logger: Logger;
+
+  constructor(memory: Memory, version: number, logger?: Logger) {
     this._memory = memory;
     this._version = version;
+    this.logger = logger || new Logger(LogLevel.INFO);
 
     // Read header values
     this._readHeaderValues();
@@ -40,8 +45,12 @@ export class GameState {
     this._dict = this._memory.getWord(HeaderLocation.Dictionary);
 
     if (this._version === 6 || this._version === 7) {
-      this._routinesOffset = this._memory.getWord(HeaderLocation.RoutinesOffset);
-      this._stringsOffset = this._memory.getWord(HeaderLocation.StaticStringsOffset);
+      this._routinesOffset = this._memory.getWord(
+        HeaderLocation.RoutinesOffset
+      );
+      this._stringsOffset = this._memory.getWord(
+        HeaderLocation.StaticStringsOffset
+      );
     }
   }
 
@@ -120,7 +129,9 @@ export class GameState {
 
       const frame = this._callstack[this._callstack.length - 1];
       if (variable > frame.locals.length) {
-        throw new Error(`Local variable ${variable} out of range. Only ${frame.locals.length} locals available.`);
+        throw new Error(
+          `Local variable ${variable} out of range. Only ${frame.locals.length} locals available.`
+        );
       }
 
       return frame.locals[variable - 1];
@@ -130,7 +141,11 @@ export class GameState {
     }
   }
 
-  storeVariable(variable: number, value: number, replaceTop: boolean = false): void {
+  storeVariable(
+    variable: number,
+    value: number,
+    replaceTop: boolean = false
+  ): void {
     if (variable === 0) {
       if (replaceTop) {
         this.popStack();
@@ -147,7 +162,9 @@ export class GameState {
 
       const frame = this._callstack[this._callstack.length - 1];
       if (variable > frame.locals.length) {
-        throw new Error(`Local variable ${variable} out of range. Only ${frame.locals.length} locals available.`);
+        throw new Error(
+          `Local variable ${variable} out of range. Only ${frame.locals.length} locals available.`
+        );
       }
 
       frame.locals[variable - 1] = value;
@@ -157,7 +174,11 @@ export class GameState {
     }
   }
 
-  callRoutine(routineAddress: Address, returnVar: number | null, ...args: number[]): void {
+  callRoutine(
+    routineAddress: Address,
+    returnVar: number | null,
+    ...args: number[]
+  ): void {
     // Read the number of locals
     const numLocals = this._memory.getByte(routineAddress);
     let currentAddress = routineAddress + 1;
@@ -186,13 +207,13 @@ export class GameState {
 
     // Create stack frame
     const frame = createStackFrame(
-      this._pc,              // Return PC
-      this._stack.length,    // Previous stack pointer
-      numLocals,             // Number of locals
-      returnVar !== null,    // Whether this call expects a result
-      returnVar || 0,        // Variable to store result in
-      args.length,           // Argument count
-      routineAddress         // Routine address for debugging
+      this._pc, // Return PC
+      this._stack.length, // Previous stack pointer
+      numLocals, // Number of locals
+      returnVar !== null, // Whether this call expects a result
+      returnVar || 0, // Variable to store result in
+      args.length, // Argument count
+      routineAddress // Routine address for debugging
     );
 
     // Update locals in the created frame
@@ -234,7 +255,10 @@ export class GameState {
     }
 
     // Validate object number
-    if ((this._version <= 3 && objNum > 255) || (this._version >= 4 && objNum > 65535)) {
+    if (
+      (this._version <= 3 && objNum > 255) ||
+      (this._version >= 4 && objNum > 65535)
+    ) {
       throw new Error(`Invalid object number: ${objNum}`);
     }
 
@@ -281,7 +305,7 @@ export class GameState {
       mem: Buffer.from(this._memory.buffer),
       stack: [...this._stack],
       callstack: [...this._callstack],
-      pc: this._pc
+      pc: this._pc,
     };
   }
 
@@ -299,7 +323,6 @@ export class GameState {
     // If headers need to be re-read, call this._readHeaderValues() after restoring memory
   }
 
-
   /**
    * Process a branch instruction
    * @param cond Branch condition
@@ -307,7 +330,9 @@ export class GameState {
    * @param offset Branch offset
    */
   doBranch(cond: boolean, condfalse: boolean, offset: number): void {
-    this.logger.debug(`     Branch condition: ${cond}, invert: ${!condfalse}, offset: ${offset}`);
+    this.logger.debug(
+      `     Branch condition: ${cond}, invert: ${!condfalse}, offset: ${offset}`
+    );
 
     // Branch if (condition is true and !condfalse) or (condition is false and condfalse)
     if ((cond && !condfalse) || (!cond && condfalse)) {
@@ -325,6 +350,41 @@ export class GameState {
         this.logger.debug(`     Taking branch to ${this.pc.toString(16)}!`);
       }
     }
+  }
+
+  /**
+   * Read a byte from memory at the current PC and advance PC
+   */
+  readByte(): number {
+    const value = this._memory.getByte(this._pc);
+    this._pc++;
+    return value;
+  }
+
+  /**
+   * Read a word from memory at the current PC and advance PC
+   */
+  readWord(): number {
+    const value = this._memory.getWord(this._pc);
+    this._pc += 2;
+    return value;
+  }
+
+  /**
+   * Read a Z-string from memory at the current PC and advance PC
+   */
+  readZString(): Array<number> {
+    const zstring = this._memory.getZString(this._pc);
+
+    // Calculate how many bytes the Z-string takes in memory
+    // Each Z-string word encodes 3 Z-characters
+    const wordCount = Math.ceil(zstring.length / 3);
+
+    // Move PC past the Z-string
+    // The last word has its high bit set, so we know when to stop
+    this._pc += wordCount * 2;
+
+    return zstring;
   }
 
   /**

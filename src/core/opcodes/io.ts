@@ -8,7 +8,10 @@ import { decodeZString } from "../../parsers/ZString";
  */
 function print_addr(machine: ZMachine, stringAddr: number): void {
   machine.logger.debug(`print_addr ${machine.hexString(stringAddr)}`);
-  machine.screen.print(machine, decodeZString(machine.memory, machine.memory.getZString(stringAddr), true));
+  machine.screen.print(
+    machine,
+    decodeZString(machine.memory, machine.memory.getZString(stringAddr), true)
+  );
 }
 
 /**
@@ -18,7 +21,9 @@ function print_obj(machine: ZMachine, obj: number): void {
   machine.logger.debug(`print_obj ${machine.hexString(obj)}`);
   const gameObj = machine.state.getObject(obj);
   if (gameObj === null) {
-    machine.logger.warn(`print_obj: object ${machine.hexString(obj)} not found`);
+    machine.logger.warn(
+      `print_obj: object ${machine.hexString(obj)} not found`
+    );
     return;
   }
   machine.screen.print(machine, gameObj.name);
@@ -88,7 +93,12 @@ function erase_line(machine: ZMachine, value: number): void {
 /**
  * Set the cursor position
  */
-function set_cursor(machine: ZMachine, line: number, column: number, window: number = 0): void {
+function set_cursor(
+  machine: ZMachine,
+  line: number,
+  column: number,
+  window: number = 0
+): void {
   if (machine.state.version >= 6) {
     if (line === -1) {
       machine.screen.hideCursor(machine, window);
@@ -195,7 +205,10 @@ function sread(
  */
 function print_char(machine: ZMachine, ...chars: Array<number>): void {
   machine.logger.debug(`print_char(${chars})`);
-  machine.screen.print(machine, chars.map((c) => String.fromCharCode(c)).join(""));
+  machine.screen.print(
+    machine,
+    chars.map((c) => String.fromCharCode(c)).join("")
+  );
 }
 
 /**
@@ -221,13 +234,18 @@ function sound_effect(
 /**
  * Read a single character from the user
  */
-function read_char(machine: ZMachine, device: number = 0, time: number = 0, routine: number = 0): void {
+function read_char(
+  machine: ZMachine,
+  device: number = 0,
+  time: number = 0,
+  routine: number = 0
+): void {
   const resultVar = machine.state.readByte();
   throw new SuspendState({
     keyPress: true,
     resultVar,
     time,
-    routine
+    routine,
   });
 }
 
@@ -252,6 +270,22 @@ function print_table(
     machine.logger.debug(`skip = ${skip}`);
   }
   // TODO: Implement proper table printing
+}
+
+/**
+ * Print a string and return 1
+ * This opcode prints the Z-string immediately following it in memory,
+ * then returns from the current routine with the value 1.
+ */
+function print_ret(state: GameState): void {
+  state.logger.debug(`${hex(state.pc)} print_ret`);
+
+  // Read and print the embedded Z-string
+  const zstring = state.readZString();
+  state.screen.print(state, decodeZString(state.memory, zstring, true));
+
+  // Return from the routine with value 1
+  state.returnFromRoutine(1);
 }
 
 /**
@@ -324,6 +358,7 @@ export const ioOpcodes = {
   new_line: opcode("new_line", new_line),
   show_status: opcode("show_status", show_status),
   print: opcode("print", print),
+  print_ret: opcode("print_ret", print_ret), // Added print_ret export here
   split_window: opcode("split_window", split_window),
   set_window: opcode("set_window", set_window),
   erase_window: opcode("erase_window", erase_window),

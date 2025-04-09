@@ -34,13 +34,13 @@ export class Executor {
     gameState: GameState,
     logger: Logger,
     opcodes: {
-      op0: Array<Opcode>,
-      op1: Array<Opcode>,
-      op2: Array<Opcode>,
-      op3: Array<Opcode>,
-      op4: Array<Opcode>,
-      opv: Array<Opcode>,
-      opext: Array<Opcode>
+      op0: Array<Opcode>;
+      op1: Array<Opcode>;
+      op2: Array<Opcode>;
+      op3: Array<Opcode>;
+      op4: Array<Opcode>;
+      opv: Array<Opcode>;
+      opext: Array<Opcode>;
     }
   ) {
     this.gameState = gameState;
@@ -78,7 +78,9 @@ export class Executor {
         // Unwind the stack before handling input
         setImmediate(() => {
           try {
-            this.logger.debug(`Suspended for ${e.state.keyPress ? 'key' : 'text'} input`);
+            this.logger.debug(
+              `Suspended for ${e.state.keyPress ? "key" : "text"} input`
+            );
             // Input handling will be delegated to the calling code
           } catch (inputError) {
             this.logger.error(`Error during input handling: ${inputError}`);
@@ -229,16 +231,26 @@ export class Executor {
       }
 
       if (!op) {
-        throw new Error(`No implementation found for opcode ${hex(opcode)} with ${operands.length} operands`);
+        throw new Error(
+          `No implementation found for opcode ${hex(opcode)} with ${
+            operands.length
+          } operands`
+        );
       }
     } catch (e) {
       this.logger.error(
-        `Error resolving opcode at pc=${hex(op_pc)}, opcode=${hex(opcode)}, form=${form}, operands=${operands.length}: ${e.toString()}`
+        `Error resolving opcode at pc=${hex(op_pc)}, opcode=${hex(
+          opcode
+        )}, form=${form}, operands=${operands.length}: ${e.toString()}`
       );
       throw e;
     }
 
-    this.logger.debug(`Executing op = ${op.mnemonic} with operands [${operands.map(o => hex(o)).join(', ')}]`);
+    this.logger.debug(
+      `Executing op = ${op.mnemonic} with operands [${operands
+        .map((o) => hex(o))
+        .join(", ")}]`
+    );
 
     // Call the opcode implementation
     op.impl(this.gameState, ...operands);
