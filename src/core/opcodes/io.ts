@@ -349,6 +349,23 @@ function set_color(
 }
 
 /**
+ * Generate a random number
+ */
+function random(machine: ZMachine, range: number): void {
+  const resultVar = machine.getGameState().readByte();
+
+  if (range <= 0) {
+    // Reseed the RNG
+    machine.reseedRandom(range);
+    machine.getGameState().storeVariable(resultVar, 0);
+  } else {
+    // Generate a random number between 1 and range
+    const value = machine.getRandomInt(range);
+    machine.getGameState().storeVariable(resultVar, value);
+  }
+}
+
+/**
  * Export all I/O opcodes
  */
 export const ioOpcodes = {
@@ -380,4 +397,6 @@ export const ioOpcodes = {
   quit: opcode("quit", quit),
   verify: opcode("verify", verify),
   set_color: opcode("set_color", set_color),
+  random: opcode("random", random),
+
 };
