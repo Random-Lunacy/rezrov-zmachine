@@ -1,0 +1,33 @@
+! je_test.inf - Test file for the je opcode
+
+[ Main;
+    ! Test equal case (je with 2 operands)
+    if (5 == 5) {
+        print "Equal test (5==5) passed^";
+    } else {
+        print "Equal test (5==5) failed^";
+    }
+
+    ! Test not equal (5!=8)
+    if (5 ~= 8) {
+        print "Not equal test (5!=8) passed^";
+    } else {
+        print "Not equal test (5!=8) failed^";
+    }
+
+    ! Test multiple equality using helper functions
+    ! This will still generate je opcodes with multiple operands
+    if (TestEqual(7, 8, 7) || 7 == 9) {
+        print "Multiple equality test passed^";
+    } else {
+        print "Multiple equality test failed^";
+    }
+
+    print "All tests completed^";
+];
+
+! Helper function to test equality with multiple values
+! This forces the compiler to use je with multiple operands
+[ TestEqual a b c;
+    return (a == b || a == c);
+];

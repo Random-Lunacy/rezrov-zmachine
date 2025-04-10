@@ -7,7 +7,10 @@
   "scripts": {
     "build": "tsc",
     "format": "prettier --write \"src/**/*.{ts,tsx,json,md}\" \"package.json\" \"README.md\"",
-    "lint": "eslint . --ext .ts"
+    "lint": "eslint . --ext .ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "keywords": [],
   "author": "",
@@ -19,7 +22,8 @@
     "eslint-config-prettier": "^8.8.0",
     "eslint-plugin-prettier": "^4.2.1",
     "prettier": "^2.8.7",
-    "typescript": "^5.0.4"
+    "typescript": "^5.0.4",
+    "vitest": "^0.34.0"
   },
   "dependencies": {
     "seedrandom": "^3.0.5"
