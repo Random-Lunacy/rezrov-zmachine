@@ -1,13 +1,12 @@
-// src/parsers/TextParser.ts
+// Updates to src/parsers/TextParser.ts
+
 import { Memory } from "../core/memory/Memory";
 import { Logger } from "../utils/log";
 import { Address } from "../types";
 import { Dictionary } from "./Dictionary";
 import { HeaderLocation } from "../utils/constants";
+import { encodeZString, packZCharacters } from "./ZString";
 
-/**
- * Handles parsing and tokenizing text input for the Z-machine
- */
 export class TextParser {
   private memory: Memory;
   private logger: Logger;
@@ -21,18 +20,13 @@ export class TextParser {
     this.dictionaries = new Map();
   }
 
-  /**
-   * Get a Dictionary instance for the given address
-   * @param dictAddr Dictionary address (0 for default)
-   * @returns Dictionary instance
-   */
   private getDictionary(dictAddr: Address = 0): Dictionary {
-    // Use default dictionary if none specified
+    // If no dictionary address provided, use the default
     if (dictAddr === 0) {
       dictAddr = this.memory.getWord(HeaderLocation.Dictionary);
     }
 
-    // Create dictionary instance if not cached
+    // Create a new dictionary instance if we haven't seen this one before
     if (!this.dictionaries.has(dictAddr)) {
       this.dictionaries.set(
         dictAddr,
@@ -44,13 +38,13 @@ export class TextParser {
   }
 
   /**
-   * Tokenize a line of text and populate the parse buffer
-   * @param textBuffer Address of text buffer containing input
-   * @param parseBuffer Address of parse buffer to populate
-   * @param dict Dictionary address (0 for default)
-   * @param flag If true, only recognized words are added to parse buffer
+   * Tokenize a line of text from a text buffer and store the results in a parse buffer
+   * @param textBuffer Address of the text buffer
+   * @param parseBuffer Address of the parse buffer
+   * @param dict Address of the dictionary to use (0 for default)
+   * @param flag If true, only recognized words are added to the parse buffer
    */
-  tokeniseLine(
+  tokenizeLine(
     textBuffer: Address,
     parseBuffer: Address,
     dict: Address = 0,
@@ -58,25 +52,50 @@ export class TextParser {
   ): void {
     this.logger.debug(`Tokenizing line: textBuffer=${textBuffer}, parseBuffer=${parseBuffer}`);
 
-    // Get dictionary to use
+    // Get the dictionary
     const dictionary = this.getDictionary(dict);
 
-    // Reset token count to 0
+    // Reset the token count to 0
     this.memory.setByte(parseBuffer + 1, 0);
 
-    // Get text buffer content based on version
-    let text = this.getTextBufferContent(textBuffer);
-    this.logger.debug(`Input text: "${text}"`);
-
-    // Get separators
+    // Skip the separators
     const separators = dictionary.getSeparators();
     this.logger.debug(`Separators: ${dictionary.getSeparatorsAsString()}`);
+
+    let text: string;
+    let version = this.version;
+
+    // Read text based on version format
+    if (version >= 5) {
+      // V5+: Text buffer format is:
+      // Byte 0: Max length
+      // Byte 1: Actual length
+      // Byte 2+: Characters (no terminator)
+      const length = this.memory.getByte(textBuffer + 1);
+      text = this.readChars(textBuffer + 2, length);
+    } else {
+      // V1-4: Text buffer format is:
+      // Byte 0: Max length
+      // Byte 1+: Characters until 0 byte
+      text = "";
+      let addr = textBuffer + 1;
+      const maxLength = this.memory.getByte(textBuffer);
+
+      while (text.length < maxLength) {
+        const c = this.memory.getByte(addr++);
+        if (c === 0) break;
+        text += String.fromCharCode(c);
+      }
+    }
+
+    text = text.toLowerCase();
+    this.logger.debug(`Input text: "${text}"`);
 
     // Helper functions for character classification
     const isSpace = (c: string): boolean => c === ' ';
     const isSeparator = (c: string): boolean => separators.includes(c.charCodeAt(0));
 
-    // Tokenize the text
+    // Process the text character by character
     let wordStart = -1;
 
     for (let i = 0; i <= text.length; i++) {
@@ -88,13 +107,14 @@ export class TextParser {
         wordStart = i;
       }
 
-      // End of a word or end of input
+      // End of a word
       if ((!isWordChar || i === text.length) && wordStart !== -1) {
-        this.processWord(text.substring(wordStart, i), wordStart, parseBuffer, dictionary, flag);
+        const wordText = text.substring(wordStart, i);
+        this.processWord(wordText, wordStart, parseBuffer, dictionary, flag);
         wordStart = -1;
       }
 
-      // Process separator as a single character token
+      // Process separator characters as individual "words"
       if (c !== null && isSeparator(c)) {
         this.processWord(c, i, parseBuffer, dictionary, flag);
       }
@@ -104,49 +124,18 @@ export class TextParser {
   }
 
   /**
-   * Get text content from the text buffer
-   * @param textBuffer Address of text buffer
-   * @returns Text content
+   * Read characters from memory into a string
    */
-  private getTextBufferContent(textBuffer: Address): string {
+  private readChars(address: Address, length: number): string {
     let result = "";
-
-    if (this.version <= 4) {
-      // V1-4: Text buffer format is:
-      // Byte 0: Max length
-      // Byte 1+: Characters until 0 byte
-      const maxLength = this.memory.getByte(textBuffer);
-      let addr = textBuffer + 1;
-
-      while (addr - textBuffer <= maxLength) {
-        const c = this.memory.getByte(addr++);
-        if (c === 0) break;
-        result += String.fromCharCode(c);
-      }
-    } else {
-      // V5+: Text buffer format is:
-      // Byte 0: Max length
-      // Byte 1: Actual length
-      // Byte 2+: Characters (no terminator)
-      const length = this.memory.getByte(textBuffer + 1);
-      let addr = textBuffer + 2;
-
-      for (let i = 0; i < length; i++) {
-        const c = this.memory.getByte(addr++);
-        result += String.fromCharCode(c);
-      }
+    for (let i = 0; i < length; i++) {
+      result += String.fromCharCode(this.memory.getByte(address + i));
     }
-
-    return result.toLowerCase();
+    return result;
   }
 
   /**
    * Process a word and add it to the parse buffer
-   * @param word Word to process
-   * @param position Position in the input
-   * @param parseBuffer Parse buffer address
-   * @param dictionary Dictionary to use
-   * @param flag If true, only recognized words are added
    */
   private processWord(
     word: string,
@@ -166,17 +155,18 @@ export class TextParser {
       return;
     }
 
-    // Encode the word
-    const encodedWord = this.encodeWord(word);
+    // Encode the word for dictionary lookup
+    const encodedText = encodeZString(word, this.version);
+    const encodedWord = packZCharacters(encodedText, this.version);
 
-    // Look up in dictionary
+    // Look up the word in the dictionary
     const dictEntry = dictionary.lookupToken(encodedWord);
 
-    // Store the token if found or if flag is false
+    // If found or if we're adding all words
     if (dictEntry !== 0 || !flag) {
       const tokenOffset = 2 + tokenCount * 4;
 
-      // Store dictionary address
+      // Store dictionary address (or 0 if not found)
       this.memory.setWord(parseBuffer + tokenOffset, dictEntry);
 
       // Store word length
@@ -196,77 +186,7 @@ export class TextParser {
   }
 
   /**
-   * Encode a word for dictionary lookup
-   * @param word Word to encode
-   * @returns Encoded word as an array of word values
-   */
-  private encodeWord(word: string): Array<number> {
-    this.logger.debug(`Encoding word: "${word}"`);
-
-    // Use default alphabet tables
-    const a0 = "abcdefghijklmnopqrstuvwxyz";
-    const a1 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-    const a2 = " \n0123456789.,!?_#'\"/\\-:()";
-
-    // Convert to lowercase
-    word = word.toLowerCase();
-
-    // Limit length based on version
-    const maxZChars = this.version <= 3 ? 6 : 9;
-
-    // Prepare Z-characters array
-    const zchars: Array<number> = [];
-
-    // Encode each character
-    for (let i = 0; i < word.length && zchars.length < maxZChars; i++) {
-      const char = word[i];
-
-      if (a0.includes(char)) {
-        // Alphabet 0 (lowercase)
-        zchars.push(a0.indexOf(char) + 6);
-      } else if (a2.includes(char)) {
-        // Alphabet 2 (symbols)
-        zchars.push(5); // Shift to A2
-        zchars.push(a2.indexOf(char) + 6);
-      } else {
-        // Unknown character
-        zchars.push(5); // Shift to A2
-        zchars.push(a2.indexOf(' ') + 6); // Default to space
-      }
-    }
-
-    // Pad with shift+space (5 for A2, then 6 for space)
-    while (zchars.length < maxZChars) {
-      zchars.push(5);
-      zchars.push(6);
-    }
-
-    // Pack Z-characters into words (3 Z-chars per word)
-    const result: Array<number> = [];
-    const wordCount = this.version <= 3 ? 2 : 3;
-
-    for (let i = 0; i < wordCount; i++) {
-      const char1 = i * 3 < zchars.length ? zchars[i * 3] : 5;
-      const char2 = i * 3 + 1 < zchars.length ? zchars[i * 3 + 1] : 5;
-      const char3 = i * 3 + 2 < zchars.length ? zchars[i * 3 + 2] : 5;
-
-      let word = (char1 << 10) | (char2 << 5) | char3;
-
-      // Set terminator bit in last word
-      if (i === wordCount - 1) {
-        word |= 0x8000;
-      }
-
-      result.push(word);
-    }
-
-    this.logger.debug(`Encoded to: [${result.map(w => '0x' + w.toString(16)).join(', ')}]`);
-    return result;
-  }
-
-  /**
-   * Debug utility to dump the parse buffer contents
-   * @param parseBuffer Parse buffer address
+   * Dump the parse buffer contents for debugging
    */
   private dumpParseBuffer(parseBuffer: Address): void {
     const maxTokens = this.memory.getByte(parseBuffer);
@@ -287,11 +207,7 @@ export class TextParser {
   }
 
   /**
-   * Convenience method for direct string tokenization
-   * @param text Text to tokenize
-   * @param parseBuffer Parse buffer address
-   * @param dict Dictionary address (0 for default)
-   * @param flag If true, only recognized words are added
+   * Tokenize an external string (not from game memory)
    */
   tokenizeString(
     text: string,
@@ -301,20 +217,20 @@ export class TextParser {
   ): void {
     this.logger.debug(`Tokenizing string: "${text}"`);
 
-    // Reset parse buffer
+    // Reset the token count to 0
     this.memory.setByte(parseBuffer + 1, 0);
 
-    // Get dictionary
+    // Get the dictionary
     const dictionary = this.getDictionary(dict);
 
-    // Get separators
+    // Get the separators
     const separators = dictionary.getSeparators();
 
     // Helper functions for character classification
     const isSpace = (c: string): boolean => c === ' ';
     const isSeparator = (c: string): boolean => separators.includes(c.charCodeAt(0));
 
-    // Tokenize the text
+    // Process the text character by character
     let wordStart = -1;
 
     for (let i = 0; i <= text.length; i++) {
@@ -326,13 +242,13 @@ export class TextParser {
         wordStart = i;
       }
 
-      // End of a word or end of input
+      // End of a word
       if ((!isWordChar || i === text.length) && wordStart !== -1) {
         this.processWord(text.substring(wordStart, i), wordStart, parseBuffer, dictionary, flag);
         wordStart = -1;
       }
 
-      // Process separator as a single character token
+      // Process separator characters as individual "words"
       if (c !== null && isSeparator(c)) {
         this.processWord(c, i, parseBuffer, dictionary, flag);
       }

@@ -153,6 +153,7 @@ export class ZMachine {
    * Handle keypress completion from the user
    * @param key The key pressed
    */
+   */
   handleKeyCompletion(key: string): void {
     this.inputHandler.processKeypress(key);
     this.resumeExecution();
@@ -227,45 +228,56 @@ export class ZMachine {
     this.inputHandler.processKeypress(key);
   }
 
-  /**
-   * Update the status line (for V1-3 games)
-   */
-  updateStatusLine(): void {
-    if (this.state.version > 3) {
-      return;
-    }
-
-    // Get location object
-    const globalVarsBase = this.state.globalVariablesAddress;
-    const locationVar = 0; // First global is the location
-    const locationObjNum = this.memory.getWord(
-      globalVarsBase + 2 * locationVar
-    );
-    const locationObj = this.state.getObject(locationObjNum);
-
-    // Determine if this is a score or time game
-    const isScoreGame =
-      this.state.version < 3 ||
-      (this.memory.getByte(HeaderLocation.Flags1) & 0x02) === 0;
-
-    // Prepare status line content
-    const lhs = locationObj?.name || "Unknown location";
-    let rhs: string;
-
-    if (isScoreGame) {
-      const score = this.memory.getWord(globalVarsBase + 2 * 1); // Global 1 = score
-      const moves = this.memory.getWord(globalVarsBase + 2 * 2); // Global 2 = moves
-      rhs = `Score: ${score}   Moves: ${moves}`;
-    } else {
-      const hours = this.memory.getWord(globalVarsBase + 2 * 1); // Global 1 = hours
-      const minutes = this.memory.getWord(globalVarsBase + 2 * 2); // Global 2 = minutes
-      const paddedMinutes = minutes.toString().padStart(2, "0");
-      rhs = `Time: ${hours}:${paddedMinutes}`;
-    }
-
-    // Update the status line
-    this.screen.updateStatusBar(lhs, rhs);
+/**
+ * Updates the status line for V1-V3 games
+ * Displays location name on the left and score/moves or time on the right
+ */
+updateStatusLine(): void {
+  // Skip for version 4+ games which handle status differently
+  if (this.state.version > 3) {
+    return;
   }
+
+  // Get memory and required data
+  const memory = this.state.memory;
+  const globalVarsBase = this.state.globalVariablesAddress;
+
+  // First global variable is always the current location
+  const locationVar = 0;
+  const locationObjNum = memory.getWord(globalVarsBase + 2 * locationVar);
+  const locationObj = this.state.getObject(locationObjNum);
+
+  // Determine if it's a score game or time game
+  // It's a score game if version < 3 or bit 1 of Flags1 is clear
+  const isScoreGame =
+    this.state.version < 3 ||
+    (memory.getByte(HeaderLocation.Flags1) & 0x02) === 0;
+
+  // Content for left side of status bar is always the location name
+  const lhs = locationObj?.name || "Unknown location";
+
+  // Content for right side depends on game type
+  let rhs: string;
+
+  if (isScoreGame) {
+    // Score and moves are in globals 1 and 2
+    const score = memory.getWord(globalVarsBase + 2 * 1);
+    const moves = memory.getWord(globalVarsBase + 2 * 2);
+    rhs = `Score: ${score}   Moves: ${moves}`;
+  } else {
+    // Time (hours and minutes) are in globals 1 and 2
+    const hours = memory.getWord(globalVarsBase + 2 * 1);
+    const minutes = memory.getWord(globalVarsBase + 2 * 2);
+    // Ensure minutes is displayed with leading zero if needed
+    const paddedMinutes = minutes.toString().padStart(2, '0');
+    rhs = `Time: ${hours}:${paddedMinutes}`;
+  }
+
+  // Pass to the screen implementation to actually display
+  this.screen.updateStatusBar(lhs, rhs);
+
+  this.logger.debug(`Updated status bar: [${lhs}] [${rhs}]`);
+}
 
   /**
    * Quit the Z-Machine
