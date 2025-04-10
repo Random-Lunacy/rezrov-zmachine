@@ -1,11 +1,18 @@
+// src/interpreter/GameState.ts
 import { Memory } from "../core/memory/Memory";
 import { StackFrame, createStackFrame } from "../core/execution/StackFrame";
 import { Address } from "../types";
 import { GameObject } from "../core/objects/GameObject";
+import { GameObjectFactory } from "../core/objects/GameObjectFactory";
 import { HeaderLocation } from "../utils/constants";
 import { Snapshot } from "../storage/interfaces";
 import { Logger, LogLevel } from "../utils/log";
+import { decodeZString } from "../parsers/ZString";
+import { TextParser } from "../parsers/TextParser";
 
+/**
+ * Represents the complete state of a Z-machine game
+ */
 export class GameState {
   private _pc: Address = 0;
   private _stack: Array<number> = [];
@@ -22,21 +29,35 @@ export class GameState {
   private _routinesOffset: number = 0;
   private _stringsOffset: number = 0;
 
-  // Game objects cache
-  private _gameObjects: Map<number, GameObject> = new Map();
+  // Game objects factory
+  private _objectFactory: GameObjectFactory;
+
+  // Parser
+  private _textParser: TextParser | null = null;
 
   // Logger for output and debugging
   public logger: Logger;
 
-  constructor(memory: Memory, version: number, logger?: Logger) {
+  constructor(memory: Memory, logger?: Logger) {
     this._memory = memory;
-    this._version = version;
     this.logger = logger || new Logger(LogLevel.INFO);
+    this._version = this._memory.getByte(HeaderLocation.Version);
 
     // Read header values
     this._readHeaderValues();
+
+    // Initialize object factory
+    this._objectFactory = new GameObjectFactory(
+      this._memory,
+      this.logger,
+      this._version,
+      this._objectTable
+    );
   }
 
+  /**
+   * Read and cache header values
+   */
   private _readHeaderValues(): void {
     this._highmem = this._memory.getWord(HeaderLocation.HighMemBase);
     this._globalVars = this._memory.getWord(HeaderLocation.GlobalVariables);
@@ -52,63 +73,114 @@ export class GameState {
         HeaderLocation.StaticStringsOffset
       );
     }
+
+    this.logger.debug(`Z-machine version: ${this._version}`);
+    this.logger.debug(`Global variables: 0x${this._globalVars.toString(16)}`);
+    this.logger.debug(`Object table: 0x${this._objectTable.toString(16)}`);
+    this.logger.debug(`Dictionary: 0x${this._dict.toString(16)}`);
   }
 
+  /**
+   * Get the program counter
+   */
   get pc(): Address {
     return this._pc;
   }
 
+  /**
+   * Set the program counter
+   */
   set pc(value: Address) {
     this._pc = value;
   }
 
+  /**
+   * Get the Z-machine version
+   */
   get version(): number {
     return this._version;
   }
 
+  /**
+   * Get the memory interface
+   */
   get memory(): Memory {
     return this._memory;
   }
 
+  /**
+   * Get the stack
+   */
   get stack(): Array<number> {
     return this._stack;
   }
 
+  /**
+   * Get the call stack
+   */
   get callstack(): Array<StackFrame> {
     return this._callstack;
   }
 
+  /**
+   * Get the global variables address
+   */
   get globalVariablesAddress(): number {
     return this._globalVars;
   }
 
+  /**
+   * Get the abbreviations table address
+   */
   get abbreviationsTableAddress(): number {
     return this._abbrevs;
   }
 
+  /**
+   * Get the object table address
+   */
   get objectTableAddress(): number {
     return this._objectTable;
   }
 
+  /**
+   * Get the dictionary address
+   */
   get dictionaryAddress(): number {
     return this._dict;
   }
 
+  /**
+   * Push a value onto the stack
+   * @param value Value to push
+   */
   pushStack(value: number): void {
     if (value === undefined || value === null) {
       throw new Error("Invalid value for stack push");
     }
     this._stack.push(value);
+    this.logger.debug(`Pushed ${value} (0x${value.toString(16)}) onto stack`);
   }
 
+  /**
+   * Pop a value from the stack
+   * @returns The popped value
+   */
   popStack(): number {
-    const value = this._stack.pop();
-    if (value === undefined) {
+    if (this._stack.length === 0) {
+      this.logger.warn("Attempted to pop from empty stack; returning 0");
       return 0;
     }
+
+    const value = this._stack.pop()!;
+    this.logger.debug(`Popped ${value} (0x${value.toString(16)}) from stack`);
     return value;
   }
 
+  /**
+   * Peek at the top value on the stack without removing it
+   * @returns The top value
+   */
   peekStack(): number {
     if (this._stack.length === 0) {
       throw new Error("Cannot peek an empty stack");
@@ -116,6 +188,12 @@ export class GameState {
     return this._stack[this._stack.length - 1];
   }
 
+  /**
+   * Load a value from a variable
+   * @param variable Variable number (0 = stack, 1-15 = local, 16+ = global)
+   * @param peekTop Whether to peek at the stack instead of popping for variable 0
+   * @returns The variable's value
+   */
   loadVariable(variable: number, peekTop: boolean = false): number {
     if (variable === 0) {
       return peekTop ? this.peekStack() : this.popStack();
@@ -141,13 +219,19 @@ export class GameState {
     }
   }
 
+  /**
+   * Store a value in a variable
+   * @param variable Variable number (0 = stack, 1-15 = local, 16+ = global)
+   * @param value Value to store
+   * @param replaceTop Whether to replace the top stack value instead of pushing for variable 0
+   */
   storeVariable(
     variable: number,
     value: number,
     replaceTop: boolean = false
   ): void {
     if (variable === 0) {
-      if (replaceTop) {
+      if (replaceTop && this._stack.length > 0) {
         this.popStack();
       }
       this.pushStack(value);
@@ -168,29 +252,46 @@ export class GameState {
       }
 
       frame.locals[variable - 1] = value;
+      this.logger.debug(`Stored ${value} (0x${value.toString(16)}) in local ${variable}`);
     } else {
       // Global variable
-      this._memory.setWord(this._globalVars + 2 * (variable - 16), value);
+      const addr = this._globalVars + 2 * (variable - 16);
+      this._memory.setWord(addr, value);
+      this.logger.debug(`Stored ${value} (0x${value.toString(16)}) in global ${variable}`);
     }
   }
 
+  /**
+   * Call a routine
+   * @param routineAddress Address of the routine to call
+   * @param returnVar Variable to store the result in, or null if no result expected
+   * @param args Arguments to pass to the routine
+   */
   callRoutine(
     routineAddress: Address,
     returnVar: number | null,
     ...args: number[]
   ): void {
+    // Validate routine address
+    if (routineAddress === 0) {
+      if (returnVar !== null) {
+        this.storeVariable(returnVar, 0);
+      }
+      return;
+    }
+
     // Read the number of locals
     const numLocals = this._memory.getByte(routineAddress);
     let currentAddress = routineAddress + 1;
 
+    this.logger.debug(`Calling routine at 0x${routineAddress.toString(16)} with ${args.length} args, ${numLocals} locals`);
+
     // Initialize locals array
-    const locals = new Uint16Array(15);
+    const locals = new Uint16Array(numLocals);
 
     if (this._version >= 5) {
       // In version 5+, locals default to 0
-      for (let i = 0; i < numLocals; i++) {
-        locals[i] = 0;
-      }
+      // No need to initialize, Uint16Array already has zeros
     } else {
       // In earlier versions, locals are initialized from values after the count
       for (let i = 0; i < numLocals; i++) {
@@ -216,7 +317,7 @@ export class GameState {
       routineAddress // Routine address for debugging
     );
 
-    // Update locals in the created frame
+    // Copy locals to the frame
     for (let i = 0; i < numLocals; i++) {
       frame.locals[i] = locals[i];
     }
@@ -226,12 +327,17 @@ export class GameState {
     this._pc = currentAddress;
   }
 
+  /**
+   * Return from a routine
+   * @param value Value to return
+   */
   returnFromRoutine(value: number): void {
     if (this._callstack.length === 0) {
       throw new Error("Cannot return - callstack is empty");
     }
 
-    const frame = this._callstack.pop();
+    const frame = this._callstack.pop()!;
+    this.logger.debug(`Returning from routine with value ${value} (0x${value.toString(16)})`);
 
     // Store return value if needed
     if (frame.storesResult) {
@@ -242,6 +348,9 @@ export class GameState {
     this._pc = frame.returnPC;
   }
 
+  /**
+   * Get the number of arguments passed to the current routine
+   */
   getArgumentCount(): number {
     if (this._callstack.length === 0) {
       return 0;
@@ -249,29 +358,28 @@ export class GameState {
     return this._callstack[this._callstack.length - 1].argumentCount;
   }
 
+  /**
+   * Get a game object by its number
+   * @param objNum Object number
+   * @returns The game object or null
+   */
   getObject(objNum: number): GameObject | null {
-    if (objNum === 0) {
-      return null;
-    }
-
-    // Validate object number
-    if (
-      (this._version <= 3 && objNum > 255) ||
-      (this._version >= 4 && objNum > 65535)
-    ) {
-      throw new Error(`Invalid object number: ${objNum}`);
-    }
-
-    // Return cached object or create new one
-    let obj = this._gameObjects.get(objNum);
-    if (!obj) {
-      obj = new GameObject(this, objNum);
-      this._gameObjects.set(objNum, obj);
-    }
-
-    return obj;
+    return this._objectFactory.getObject(objNum);
   }
 
+  /**
+   * Find all root objects (objects with no parent)
+   * @returns Array of root objects
+   */
+  getRootObjects(): GameObject[] {
+    return this._objectFactory.findRootObjects();
+  }
+
+  /**
+   * Unpack a routine address based on Z-machine version
+   * @param packedAddr Packed address
+   * @returns Unpacked memory address
+   */
   unpackRoutineAddress(packedAddr: Address): Address {
     if (this._version <= 3) {
       return 2 * packedAddr;
@@ -286,6 +394,11 @@ export class GameState {
     }
   }
 
+  /**
+   * Unpack a string address based on Z-machine version
+   * @param packedAddr Packed address
+   * @returns Unpacked memory address
+   */
   unpackStringAddress(packedAddr: Address): Address {
     if (this._version <= 3) {
       return 2 * packedAddr;
@@ -300,6 +413,10 @@ export class GameState {
     }
   }
 
+  /**
+   * Create a snapshot of the current game state
+   * @returns Snapshot object
+   */
   createSnapshot(): Snapshot {
     return {
       mem: Buffer.from(this._memory.buffer),
@@ -309,7 +426,14 @@ export class GameState {
     };
   }
 
+  /**
+   * Restore the game state from a snapshot
+   * @param snapshot Snapshot to restore from
+   */
   restoreFromSnapshot(snapshot: Snapshot): void {
+    // Reset object cache since we're loading new state
+    this._objectFactory.resetCache();
+
     // Restore PC
     this._pc = snapshot.pc;
 
@@ -319,37 +443,17 @@ export class GameState {
     // Restore callstack
     this._callstack = [...snapshot.callstack];
 
-    // Restore memory (no need to re-read header values as they should be the same)
-    // If headers need to be re-read, call this._readHeaderValues() after restoring memory
-  }
-
-  /**
-   * Process a branch instruction
-   * @param cond Branch condition
-   * @param condfalse Whether to branch on false instead of true
-   * @param offset Branch offset
-   */
-  doBranch(cond: boolean, condfalse: boolean, offset: number): void {
-    this.logger.debug(
-      `     Branch condition: ${cond}, invert: ${!condfalse}, offset: ${offset}`
-    );
-
-    // Branch if (condition is true and !condfalse) or (condition is false and condfalse)
-    if ((cond && !condfalse) || (!cond && condfalse)) {
-      if (offset === 0) {
-        this.logger.debug("     Returning false");
-        this.returnFromRoutine(0);
-      } else if (offset === 1) {
-        this.logger.debug("     Returning true");
-        this.returnFromRoutine(1);
-      } else {
-        this.pc = this.pc + offset - 2;
-        if (this.pc < 0 || this.pc > this.memory.size) {
-          throw new Error(`Branch out of bounds: ${this.pc}`);
-        }
-        this.logger.debug(`     Taking branch to ${this.pc.toString(16)}!`);
-      }
+    // Restore memory
+    // We need to copy the contents, not replace the buffer
+    const newBuffer = Buffer.from(snapshot.mem);
+    for (let i = 0; i < newBuffer.length; i++) {
+      this._memory.buffer[i] = newBuffer[i];
     }
+
+    // Re-read header values
+    this._readHeaderValues();
+
+    this.logger.info('Game state restored from snapshot');
   }
 
   /**
@@ -409,5 +513,62 @@ export class GameState {
 
     // Branch conditions: 0 in bit 7 means "branch on true"
     return [offset, (branchData & 0x80) === 0x00];
+  }
+
+  /**
+   * Process a branch instruction
+   * @param cond Branch condition
+   * @param condfalse Whether to branch on false instead of true
+   * @param offset Branch offset
+   */
+  doBranch(cond: boolean, condfalse: boolean, offset: number): void {
+    this.logger.debug(
+      `Branch condition: ${cond}, invert: ${!condfalse}, offset: ${offset}`
+    );
+
+    // Branch if (condition is true and !condfalse) or (condition is false and condfalse)
+    if ((cond && !condfalse) || (!cond && condfalse)) {
+      if (offset === 0) {
+        this.logger.debug("Returning false from branch");
+        this.returnFromRoutine(0);
+      } else if (offset === 1) {
+        this.logger.debug("Returning true from branch");
+        this.returnFromRoutine(1);
+      } else {
+        this.pc = this.pc + offset - 2;
+        if (this.pc < 0 || this.pc > this.memory.size) {
+          throw new Error(`Branch out of bounds: ${this.pc}`);
+        }
+        this.logger.debug(`Taking branch to 0x${this.pc.toString(16)}`);
+      }
+    }
+  }
+
+  /**
+   * Tokenize a line of text
+   * @param textBuffer Address of text buffer
+   * @param parseBuffer Address of parse buffer
+   * @param dict Dictionary address (0 for default)
+   * @param flag If true, only recognized words are included in parse buffer
+   */
+  tokenizeLine(
+    textBuffer: number,
+    parseBuffer: number,
+    dict: number = 0,
+    flag: boolean = false
+  ): void {
+    if (!this._textParser) {
+      // Lazy-initialize the text parser
+      this._textParser = new TextParser(this._memory, this.logger);
+    }
+
+    this._textParser.tokeniseLine(textBuffer, parseBuffer, dict || this._dict, flag);
+  }
+
+  /**
+   * Update the status bar (for versions <= 3)
+   */
+  updateStatusBar(): void {
+    // This will be implemented in the ZMachine class
   }
 }

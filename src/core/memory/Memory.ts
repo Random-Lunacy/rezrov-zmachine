@@ -40,7 +40,7 @@ export class Memory {
     if (addr < 0 || addr >= this._mem.length) {
       throw new Error(`Memory access out of bounds: ${addr}`);
     }
-    this._mem[addr] = b;
+    this._mem[addr] = b & 0xFF; // Ensure it's a byte
   }
 
   /**
@@ -53,9 +53,10 @@ export class Memory {
     if (addr < 0 || addr > this._mem.length - 2) {
       throw new Error(`Memory access out of bounds: ${addr}`);
     }
+    // Z-machine uses big-endian byte order for words
     const ub = this._mem[addr + 0];
     const lb = this._mem[addr + 1];
-    return ub * 256 + lb;
+    return (ub << 8) + lb;
   }
 
   /**
@@ -68,10 +69,9 @@ export class Memory {
     if (addr < 0 || addr > this._mem.length - 2) {
       throw new Error(`Memory access out of bounds: ${addr}`);
     }
-    const lb = value & 255;
-    const ub = value >> 8;
-    this._mem[addr + 0] = ub;
-    this._mem[addr + 1] = lb;
+    // Z-machine uses big-endian byte order for words
+    this._mem[addr + 0] = (value >> 8) & 0xFF; // High byte
+    this._mem[addr + 1] = value & 0xFF;        // Low byte
   }
 
   /**
@@ -81,14 +81,27 @@ export class Memory {
    */
   getZString(addr: Address): ZString {
     const chars: Array<number> = [];
-    while (true) {
-      const w = this.getWord(addr);
-      chars.push((w >> 10) & 0x1f, (w >> 5) & 0x1f, (w >> 0) & 0x1f);
-      if ((w & 0x8000) !== 0) {
+    let word: number;
+
+    do {
+      word = this.getWord(addr);
+      chars.push((word >> 10) & 0x1f);  // First Z-character (bits 15-11)
+      chars.push((word >> 5) & 0x1f);   // Second Z-character (bits 10-6)
+      chars.push(word & 0x1f);          // Third Z-character (bits 5-1)
+
+      // If the top bit is set, this is the last word of the string
+      if ((word & 0x8000) !== 0) {
         break;
       }
+
       addr += 2;
-    }
+
+      // Safety check to prevent infinite loops
+      if (addr >= this._mem.length - 1) {
+        break;
+      }
+    } while (true);
+
     return chars;
   }
 
@@ -101,15 +114,28 @@ export class Memory {
     let len = this.getByte(addr);
     addr++;
     const chars: Array<number> = [];
+
+    // Process each word in the string
     while (len-- > 0) {
-      const w = this.getWord(addr);
-      chars.push((w >> 10) & 0x1f, (w >> 5) & 0x1f, (w >> 0) & 0x1f);
-      if ((w & 0x8000) !== 0) {
-        // High bit found in length string - this is unusual but we'll handle it
+      const word = this.getWord(addr);
+
+      chars.push((word >> 10) & 0x1f);  // First Z-character
+      chars.push((word >> 5) & 0x1f);   // Second Z-character
+      chars.push(word & 0x1f);          // Third Z-character
+
+      // If high bit is set, we're done (although this is unusual in a length-prefixed string)
+      if ((word & 0x8000) !== 0) {
         break;
       }
+
       addr += 2;
+
+      // Safety check
+      if (addr >= this._mem.length - 1) {
+        break;
+      }
     }
+
     return chars;
   }
 
@@ -127,6 +153,7 @@ export class Memory {
         }`
       );
     }
+
     if (destAddr < 0 || destAddr + length > this._mem.length) {
       throw new Error(
         `Destination memory access out of bounds: ${destAddr} to ${
@@ -135,7 +162,7 @@ export class Memory {
       );
     }
 
-    // Handle overlapping memory regions correctly
+    // Handle overlapping regions correctly
     if (destAddr > sourceAddr && destAddr < sourceAddr + length) {
       // Copy backwards to avoid overwriting source data
       for (let i = length - 1; i >= 0; i--) {
@@ -147,6 +174,36 @@ export class Memory {
         this._mem[destAddr + i] = this._mem[sourceAddr + i];
       }
     }
+  }
+
+  /**
+   * Compare two memory regions
+   * @param addr1 First memory address
+   * @param addr2 Second memory address
+   * @param length Number of bytes to compare
+   * @returns 0 if equal, negative if addr1 < addr2, positive if addr1 > addr2
+   */
+  compareBlock(addr1: Address, addr2: Address, length: number): number {
+    if (addr1 < 0 || addr1 + length > this._mem.length) {
+      throw new Error(
+        `First memory address out of bounds: ${addr1} to ${addr1 + length}`
+      );
+    }
+
+    if (addr2 < 0 || addr2 + length > this._mem.length) {
+      throw new Error(
+        `Second memory address out of bounds: ${addr2} to ${addr2 + length}`
+      );
+    }
+
+    for (let i = 0; i < length; i++) {
+      const diff = this._mem[addr1 + i] - this._mem[addr2 + i];
+      if (diff !== 0) {
+        return diff;
+      }
+    }
+
+    return 0;
   }
 
   /**

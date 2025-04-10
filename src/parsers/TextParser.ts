@@ -1,19 +1,18 @@
 // src/parsers/TextParser.ts
-
 import { Memory } from "../core/memory/Memory";
-import { Dictionary } from "./Dictionary";
 import { Logger } from "../utils/log";
 import { Address } from "../types";
 import { HeaderLocation } from "../utils/constants";
 
+/**
+ * Handles parsing and tokenizing text input for the Z-machine
+ */
 export class TextParser {
   private memory: Memory;
-  private dictionary: Dictionary;
   private logger: Logger;
 
-  constructor(memory: Memory, dictionary: Dictionary, logger: Logger) {
+  constructor(memory: Memory, logger: Logger) {
     this.memory = memory;
-    this.dictionary = dictionary;
     this.logger = logger;
   }
 
@@ -21,7 +20,7 @@ export class TextParser {
    * Tokenize a line of text and populate the parse buffer
    * @param textBuffer Address of text buffer containing input
    * @param parseBuffer Address of parse buffer to populate
-   * @param dict Optional custom dictionary address (0 for default)
+   * @param dict Dictionary address (0 for default)
    * @param flag If true, only recognized words are added to parse buffer
    */
   tokeniseLine(
@@ -166,9 +165,7 @@ export class TextParser {
       this.memory.setByte(tokenStorage + 3, from);
 
       this.logger.debug(
-        `Token stored: addr=${this.hexString(
-          tokenAddr
-        )}, length=${length}, position=${from}`
+        `Token stored: addr=0x${tokenAddr.toString(16)}, length=${length}, position=${from}`
       );
     }
   }
@@ -267,7 +264,7 @@ export class TextParser {
    * @param padding Padding character (default 5)
    * @returns Array of encoded words
    */
-  encodeToken(text: string, padding: number = 5): number[] {
+  private encodeToken(text: string, padding: number = 5): number[] {
     this.logger.debug(`Encoding token: "${text}"`);
 
     const version = this.memory.getByte(HeaderLocation.Version);
@@ -326,125 +323,14 @@ export class TextParser {
     words[resolution - 1] |= 0x8000;
 
     this.logger.debug(
-      `Encoded words: ${words.map((w) => this.hexString(w)).join(",")}`
+      `Encoded words: ${words.map((w) => "0x" + w.toString(16)).join(",")}`
     );
 
     return words;
   }
 
   /**
-   * For direct string tokenization (used in test input)
-   * @param input Input string
-   * @param parseBuffer Address of parse buffer
-   */
-  tokenizeString(input: string, parseBuffer: Address): void {
-    // Reset parse buffer
-    this.memory.setByte(parseBuffer + 1, 0);
-
-    const dictAddr = this.memory.getWord(HeaderLocation.Dictionary);
-
-    // Read separators
-    const numSep = this.memory.getByte(dictAddr);
-    const separators: number[] = [];
-
-    for (let i = 0; i < numSep; i++) {
-      separators.push(this.memory.getByte(dictAddr + 1 + i));
-    }
-
-    // Helper functions for character classification
-    const isSeparator = (c: string): boolean => {
-      return separators.includes(c.charCodeAt(0));
-    };
-
-    const CHAR_CLASS_SPACE = 2;
-    const CHAR_CLASS_SEP = 1;
-    const CHAR_CLASS_WORD = 0;
-
-    const charClass = (c: string): number => {
-      if (c === " ") return CHAR_CLASS_SPACE;
-      if (isSeparator(c)) return CHAR_CLASS_SEP;
-      return CHAR_CLASS_WORD;
-    };
-
-    // Process input characters
-    const chars = input.split("");
-    const classes = chars.map(charClass);
-
-    for (let start = 0; start < chars.length; start++) {
-      if (classes[start] === CHAR_CLASS_SPACE) {
-        continue;
-      }
-
-      if (classes[start] === CHAR_CLASS_SEP) {
-        this.tokenizeWord(input, start, start + 1, parseBuffer);
-        continue;
-      }
-
-      // Process word characters
-      let end;
-      for (end = start + 1; end < chars.length; end++) {
-        if (classes[end] !== CHAR_CLASS_WORD) {
-          this.tokenizeWord(input, start, end, parseBuffer);
-          start = end - 1;
-          break;
-        }
-      }
-
-      if (end === chars.length) {
-        this.tokenizeWord(input, start, end, parseBuffer);
-        break;
-      }
-    }
-
-    this.dumpParseBuffer(parseBuffer);
-  }
-
-  /**
-   * Tokenize a single word and add it to the parse buffer
-   * @param input Complete input string
-   * @param start Start position of word
-   * @param end End position of word
-   * @param parseBuffer Parse buffer address
-   */
-  private tokenizeWord(
-    input: string,
-    start: number,
-    end: number,
-    parseBuffer: Address
-  ): void {
-    const maxTokens = this.memory.getByte(parseBuffer);
-    let countTokens = this.memory.getByte(parseBuffer + 1);
-
-    if (countTokens >= maxTokens) {
-      return;
-    }
-
-    const word = input.slice(start, end).toLowerCase();
-    this.logger.debug(`Tokenizing word: "${word}"`);
-
-    const dictAddr = this.memory.getWord(HeaderLocation.Dictionary);
-    const encodedWords = this.encodeToken(word);
-    const tokenAddr = this.lookupToken(dictAddr, encodedWords);
-
-    if (tokenAddr !== 0) {
-      const tokenStorage = 4 * countTokens + parseBuffer + 2;
-      this.memory.setByte(parseBuffer + 1, ++countTokens);
-      this.memory.setWord(tokenStorage, tokenAddr);
-      this.memory.setByte(tokenStorage + 2, end - start);
-      this.memory.setByte(tokenStorage + 3, start + 1);
-
-      this.logger.debug(
-        `Word stored: addr=${this.hexString(tokenAddr)}, len=${
-          end - start
-        }, pos=${start + 1}`
-      );
-    } else {
-      this.logger.debug(`Word not found in dictionary`);
-    }
-  }
-
-  /**
-   * Dump parse buffer contents for debugging
+   * Debug method to dump parse buffer contents
    * @param parseBuffer Parse buffer address
    */
   private dumpParseBuffer(parseBuffer: Address): void {
@@ -459,9 +345,7 @@ export class TextParser {
       const from = this.memory.getByte(parseBuffer + 5 + i * 4);
 
       this.logger.debug(
-        `  (${this.hexString(addr)}, ${this.hexString(
-          length
-        )}, ${this.hexString(from)})`
+        `  (0x${addr.toString(16)}, ${length}, ${from})`
       );
     }
 
@@ -469,11 +353,113 @@ export class TextParser {
   }
 
   /**
-   * Convert number to hex string
-   * @param value Number to convert
-   * @returns Hex string representation
-   */
-  private hexString(value: number): string {
-    return value !== undefined ? "0x" + value.toString(16) : "";
-  }
+  * For direct string tokenization (used in test input)
+  * @param input Input string
+  * @param parseBuffer Address of parse buffer
+  */
+  tokenizeString(input: string, parseBuffer: Address): void {
+   // Reset parse buffer
+   this.memory.setByte(parseBuffer + 1, 0);
+
+   const dictAddr = this.memory.getWord(HeaderLocation.Dictionary);
+
+   // Read separators
+   const numSep = this.memory.getByte(dictAddr);
+   const separators: number[] = [];
+
+   for (let i = 0; i < numSep; i++) {
+     separators.push(this.memory.getByte(dictAddr + 1 + i));
+   }
+
+   // Helper functions for character classification
+   const isSeparator = (c: string): boolean => {
+     return separators.includes(c.charCodeAt(0));
+   };
+
+   const CHAR_CLASS_SPACE = 2;
+   const CHAR_CLASS_SEP = 1;
+   const CHAR_CLASS_WORD = 0;
+
+   const charClass = (c: string): number => {
+     if (c === " ") return CHAR_CLASS_SPACE;
+     if (isSeparator(c)) return CHAR_CLASS_SEP;
+     return CHAR_CLASS_WORD;
+   };
+
+   // Process input characters
+   const chars = input.split("");
+   const classes = chars.map(charClass);
+
+   for (let start = 0; start < chars.length; start++) {
+     if (classes[start] === CHAR_CLASS_SPACE) {
+       continue;
+     }
+
+     if (classes[start] === CHAR_CLASS_SEP) {
+       this.tokenizeWord(input, start, start + 1, parseBuffer);
+       continue;
+     }
+
+     // Process word characters
+     let end;
+     for (end = start + 1; end < chars.length; end++) {
+       if (classes[end] !== CHAR_CLASS_WORD) {
+         this.tokenizeWord(input, start, end, parseBuffer);
+         start = end - 1;
+         break;
+       }
+     }
+
+     if (end === chars.length) {
+       this.tokenizeWord(input, start, end, parseBuffer);
+       break;
+     }
+   }
+
+   this.dumpParseBuffer(parseBuffer);
+ }
+
+ /**
+  * Tokenize a single word and add it to the parse buffer
+  * @param input Complete input string
+  * @param start Start position of word
+  * @param end End position of word
+  * @param parseBuffer Parse buffer address
+  */
+ private tokenizeWord(
+   input: string,
+   start: number,
+   end: number,
+   parseBuffer: Address
+ ): void {
+   const maxTokens = this.memory.getByte(parseBuffer);
+   let countTokens = this.memory.getByte(parseBuffer + 1);
+
+   if (countTokens >= maxTokens) {
+     return;
+   }
+
+   const word = input.slice(start, end).toLowerCase();
+   this.logger.debug(`Tokenizing word: "${word}"`);
+
+   const dictAddr = this.memory.getWord(HeaderLocation.Dictionary);
+   const encodedWords = this.encodeToken(word);
+   const tokenAddr = this.lookupToken(dictAddr, encodedWords);
+
+   if (tokenAddr !== 0) {
+     const tokenStorage = 4 * countTokens + parseBuffer + 2;
+     this.memory.setByte(parseBuffer + 1, ++countTokens);
+     this.memory.setWord(tokenStorage, tokenAddr);
+     this.memory.setByte(tokenStorage + 2, end - start);
+     this.memory.setByte(tokenStorage + 3, start + 1);
+
+     this.logger.debug(
+       `Word stored: addr=${this.hexString(tokenAddr)}, len=${
+         end - start
+       }, pos=${start + 1}`
+     );
+   } else {
+     this.logger.debug(`Word not found in dictionary`);
+   }
+ }
 }
