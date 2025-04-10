@@ -2,6 +2,7 @@
 import { Memory } from "../core/memory/Memory";
 import { Logger } from "../utils/log";
 import { Address } from "../types";
+import { Dictionary } from "./Dictionary";
 import { HeaderLocation } from "../utils/constants";
 
 /**
@@ -10,10 +11,36 @@ import { HeaderLocation } from "../utils/constants";
 export class TextParser {
   private memory: Memory;
   private logger: Logger;
+  private version: number;
+  private dictionaries: Map<Address, Dictionary>;
 
   constructor(memory: Memory, logger: Logger) {
     this.memory = memory;
     this.logger = logger;
+    this.version = this.memory.getByte(HeaderLocation.Version);
+    this.dictionaries = new Map();
+  }
+
+  /**
+   * Get a Dictionary instance for the given address
+   * @param dictAddr Dictionary address (0 for default)
+   * @returns Dictionary instance
+   */
+  private getDictionary(dictAddr: Address = 0): Dictionary {
+    // Use default dictionary if none specified
+    if (dictAddr === 0) {
+      dictAddr = this.memory.getWord(HeaderLocation.Dictionary);
+    }
+
+    // Create dictionary instance if not cached
+    if (!this.dictionaries.has(dictAddr)) {
+      this.dictionaries.set(
+        dictAddr,
+        new Dictionary(this.memory, this.logger, dictAddr, this.version)
+      );
+    }
+
+    return this.dictionaries.get(dictAddr)!;
   }
 
   /**
@@ -29,437 +56,288 @@ export class TextParser {
     dict: Address = 0,
     flag: boolean = false
   ): void {
-    // Use default dictionary if none specified
-    if (dict === 0) {
-      dict = this.memory.getWord(HeaderLocation.Dictionary);
-    }
+    this.logger.debug(`Tokenizing line: textBuffer=${textBuffer}, parseBuffer=${parseBuffer}`);
+
+    // Get dictionary to use
+    const dictionary = this.getDictionary(dict);
 
     // Reset token count to 0
     this.memory.setByte(parseBuffer + 1, 0);
 
-    const version = this.memory.getByte(HeaderLocation.Version);
-    let addr1 = textBuffer;
-    let addr2 = 0;
-    let length = 0;
+    // Get text buffer content based on version
+    let text = this.getTextBufferContent(textBuffer);
+    this.logger.debug(`Input text: "${text}"`);
 
-    if (version >= 5) {
-      addr1++; // Skip the max length byte
-      length = this.memory.getByte(addr1);
-      this.logger.debug(`Text length: ${length}`);
+    // Get separators
+    const separators = dictionary.getSeparators();
+    this.logger.debug(`Separators: ${dictionary.getSeparatorsAsString()}`);
+
+    // Helper functions for character classification
+    const isSpace = (c: string): boolean => c === ' ';
+    const isSeparator = (c: string): boolean => separators.includes(c.charCodeAt(0));
+
+    // Tokenize the text
+    let wordStart = -1;
+
+    for (let i = 0; i <= text.length; i++) {
+      const c = i < text.length ? text[i] : null;
+      const isWordChar = c !== null && !isSpace(c) && !isSeparator(c);
+
+      // Start of a word
+      if (isWordChar && wordStart === -1) {
+        wordStart = i;
+      }
+
+      // End of a word or end of input
+      if ((!isWordChar || i === text.length) && wordStart !== -1) {
+        this.processWord(text.substring(wordStart, i), wordStart, parseBuffer, dictionary, flag);
+        wordStart = -1;
+      }
+
+      // Process separator as a single character token
+      if (c !== null && isSeparator(c)) {
+        this.processWord(c, i, parseBuffer, dictionary, flag);
+      }
     }
-
-    // Get separators from dictionary
-    const numSep = this.memory.getByte(dict);
-    let sepAddr = dict + 1;
-    const separators: number[] = [];
-    for (let i = 0; i < numSep; i++) {
-      separators.push(this.memory.getByte(sepAddr++));
-    }
-
-    this.logger.debug(
-      `Separators: ${separators.map((s) => String.fromCharCode(s)).join(" ")}`
-    );
-
-    let c: number;
-    do {
-      addr1++;
-
-      // Fetch next character
-      if (version >= 5 && addr1 === textBuffer + 2 + length) {
-        c = 0;
-      } else {
-        c = this.memory.getByte(addr1);
-      }
-
-      // Check if this character is a separator
-      let isSeparator = false;
-      for (let i = 0; i < numSep; i++) {
-        if (c === separators[i]) {
-          isSeparator = true;
-          break;
-        }
-      }
-
-      // Handle word boundaries
-      if (!isSeparator && c !== 32 && c !== 0) {
-        // Start of a word
-        if (addr2 === 0) {
-          addr2 = addr1;
-        }
-      } else if (addr2 !== 0) {
-        // End of a word
-        this.tokeniseText(
-          textBuffer,
-          addr1 - addr2,
-          addr2 - textBuffer,
-          parseBuffer,
-          dict,
-          flag
-        );
-        addr2 = 0;
-      }
-
-      // Handle separator as a single-character word
-      if (isSeparator) {
-        this.tokeniseText(
-          textBuffer,
-          1,
-          addr1 - textBuffer,
-          parseBuffer,
-          dict,
-          flag
-        );
-      }
-    } while (c !== 0);
 
     this.dumpParseBuffer(parseBuffer);
   }
 
   /**
-   * Tokenize a specific part of text
-   * @param textBuffer Text buffer address
-   * @param length Length of the word
-   * @param from Starting position in the text buffer
+   * Get text content from the text buffer
+   * @param textBuffer Address of text buffer
+   * @returns Text content
+   */
+  private getTextBufferContent(textBuffer: Address): string {
+    let result = "";
+
+    if (this.version <= 4) {
+      // V1-4: Text buffer format is:
+      // Byte 0: Max length
+      // Byte 1+: Characters until 0 byte
+      const maxLength = this.memory.getByte(textBuffer);
+      let addr = textBuffer + 1;
+
+      while (addr - textBuffer <= maxLength) {
+        const c = this.memory.getByte(addr++);
+        if (c === 0) break;
+        result += String.fromCharCode(c);
+      }
+    } else {
+      // V5+: Text buffer format is:
+      // Byte 0: Max length
+      // Byte 1: Actual length
+      // Byte 2+: Characters (no terminator)
+      const length = this.memory.getByte(textBuffer + 1);
+      let addr = textBuffer + 2;
+
+      for (let i = 0; i < length; i++) {
+        const c = this.memory.getByte(addr++);
+        result += String.fromCharCode(c);
+      }
+    }
+
+    return result.toLowerCase();
+  }
+
+  /**
+   * Process a word and add it to the parse buffer
+   * @param word Word to process
+   * @param position Position in the input
    * @param parseBuffer Parse buffer address
-   * @param dict Dictionary address
+   * @param dictionary Dictionary to use
    * @param flag If true, only recognized words are added
    */
-  private tokeniseText(
-    textBuffer: Address,
-    length: number,
-    from: Address,
+  private processWord(
+    word: string,
+    position: number,
     parseBuffer: Address,
-    dict: Address,
+    dictionary: Dictionary,
     flag: boolean
   ): void {
-    const tokenMax = this.memory.getByte(parseBuffer);
+    this.logger.debug(`Processing word: "${word}" at position ${position}`);
+
+    // Check if we have room for more tokens
+    const maxTokens = this.memory.getByte(parseBuffer);
     const tokenCount = this.memory.getByte(parseBuffer + 1);
 
-    if (tokenCount >= tokenMax) {
-      // No space for more tokens
+    if (tokenCount >= maxTokens) {
+      this.logger.debug("Parse buffer full, cannot add more tokens");
       return;
     }
 
-    // Extract the word characters
-    const wordChars: string[] = [];
-    for (let i = 0; i < length; i++) {
-      const charCode = this.memory.getByte(textBuffer + from + i);
-      wordChars.push(String.fromCharCode(charCode));
-    }
-    const word = wordChars.join("").toLowerCase();
+    // Encode the word
+    const encodedWord = this.encodeWord(word);
 
-    this.logger.debug(`Tokenizing word: "${word}"`);
-
-    // Encode the word into Z-machine format
-    const tokenWords = this.encodeToken(word);
-
-    // Look up the token in the dictionary
-    const tokenAddr = this.lookupToken(dict, tokenWords);
+    // Look up in dictionary
+    const dictEntry = dictionary.lookupToken(encodedWord);
 
     // Store the token if found or if flag is false
-    if (tokenAddr !== 0 || !flag) {
-      const tokenStorage = 4 * tokenCount + parseBuffer + 2;
+    if (dictEntry !== 0 || !flag) {
+      const tokenOffset = 2 + tokenCount * 4;
+
+      // Store dictionary address
+      this.memory.setWord(parseBuffer + tokenOffset, dictEntry);
+
+      // Store word length
+      this.memory.setByte(parseBuffer + tokenOffset + 2, word.length);
+
+      // Store word position (1-based)
+      this.memory.setByte(parseBuffer + tokenOffset + 3, position + 1);
+
+      // Increment token count
       this.memory.setByte(parseBuffer + 1, tokenCount + 1);
-      this.memory.setWord(tokenStorage, tokenAddr);
-      this.memory.setByte(tokenStorage + 2, length);
-      this.memory.setByte(tokenStorage + 3, from);
 
       this.logger.debug(
-        `Token stored: addr=0x${tokenAddr.toString(16)}, length=${length}, position=${from}`
+        `Token stored: addr=${dictEntry !== 0 ? '0x' + dictEntry.toString(16) : 'not found'}, ` +
+        `length=${word.length}, position=${position + 1}`
       );
     }
   }
 
   /**
-   * Look up a token in the dictionary
-   * @param dict Dictionary address
-   * @param encodedToken Encoded token words
-   * @returns Address of dictionary entry or 0 if not found
+   * Encode a word for dictionary lookup
+   * @param word Word to encode
+   * @returns Encoded word as an array of word values
    */
-  private lookupToken(dict: Address, encodedToken: number[]): Address {
-    const version = this.memory.getByte(HeaderLocation.Version);
+  private encodeWord(word: string): Array<number> {
+    this.logger.debug(`Encoding word: "${word}"`);
 
-    // Skip separators
-    const numSep = this.memory.getByte(dict);
-    const dictStart = dict + numSep + 1;
+    // Use default alphabet tables
+    const a0 = "abcdefghijklmnopqrstuvwxyz";
+    const a1 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    const a2 = " \n0123456789.,!?_#'\"/\\-:()";
 
-    // Get entry length and count
-    const entryLen = this.memory.getByte(dictStart);
-    const entryCount = this.memory.getWord(dictStart + 1);
-    const entriesStart = dictStart + 3;
+    // Convert to lowercase
+    word = word.toLowerCase();
 
-    this.logger.debug(
-      `Dictionary: ${entryCount} entries, each ${entryLen} bytes`
-    );
+    // Limit length based on version
+    const maxZChars = this.version <= 3 ? 6 : 9;
 
-    // Check if entries are sorted (negative count means unsorted)
-    if (entryCount < 0) {
-      // Linear search
-      this.logger.debug("Using linear search");
-      const count = -entryCount;
+    // Prepare Z-characters array
+    const zchars: Array<number> = [];
 
-      for (let i = 0; i < count; i++) {
-        const entryAddr = entriesStart + i * entryLen;
-        if (this.compareTokenWords(entryAddr, encodedToken, version) === 0) {
-          return entryAddr;
-        }
-      }
-    } else {
-      // Binary search
-      this.logger.debug("Using binary search");
-      let low = 0;
-      let high = entryCount - 1;
+    // Encode each character
+    for (let i = 0; i < word.length && zchars.length < maxZChars; i++) {
+      const char = word[i];
 
-      while (low <= high) {
-        const mid = Math.floor((low + high) / 2);
-        const entryAddr = entriesStart + mid * entryLen;
-        const comparison = this.compareTokenWords(
-          entryAddr,
-          encodedToken,
-          version
-        );
-
-        if (comparison < 0) {
-          low = mid + 1;
-        } else if (comparison > 0) {
-          high = mid - 1;
-        } else {
-          return entryAddr;
-        }
-      }
-    }
-
-    // Not found
-    return 0;
-  }
-
-  /**
-   * Compare encoded token words with a dictionary entry
-   * @param entryAddr Address of dictionary entry
-   * @param encodedTokenWords Array of encoded token words
-   * @param version Z-machine version
-   * @returns Comparison result (-1, 0, 1)
-   */
-  private compareTokenWords(
-    entryAddr: Address,
-    encodedTokenWords: number[],
-    version: number
-  ): number {
-    let c = this.memory.getWord(entryAddr) - encodedTokenWords[0];
-
-    if (c === 0 && encodedTokenWords.length > 1) {
-      c = this.memory.getWord(entryAddr + 2) - encodedTokenWords[1];
-    }
-
-    if (version > 3 && c === 0 && encodedTokenWords.length > 2) {
-      c = this.memory.getWord(entryAddr + 4) - encodedTokenWords[2];
-    }
-
-    return c;
-  }
-
-  /**
-   * Encode a token string to Z-machine format
-   * @param text Token text
-   * @param padding Padding character (default 5)
-   * @returns Array of encoded words
-   */
-  private encodeToken(text: string, padding: number = 5): number[] {
-    this.logger.debug(`Encoding token: "${text}"`);
-
-    const version = this.memory.getByte(HeaderLocation.Version);
-    const resolution = version > 3 ? 3 : 2;
-
-    // Truncate to max length
-    text = text.slice(0, resolution * 3);
-
-    // Convert to Z-characters
-    const zchars: number[] = [];
-
-    for (let i = 0; i < text.length; i++) {
-      const char = text.charAt(i);
-      let zchar: number;
-
-      if (char >= "a" && char <= "z") {
-        // A0: a-z -> 6-31
-        zchar = char.charCodeAt(0) - "a".charCodeAt(0) + 6;
-      } else if (char >= "A" && char <= "Z") {
-        // Shift to A1 + a-z -> 6-31
-        zchars.push(4); // Shift to A1
-        zchar = char.charCodeAt(0) - "A".charCodeAt(0) + 6;
+      if (a0.includes(char)) {
+        // Alphabet 0 (lowercase)
+        zchars.push(a0.indexOf(char) + 6);
+      } else if (a2.includes(char)) {
+        // Alphabet 2 (symbols)
+        zchars.push(5); // Shift to A2
+        zchars.push(a2.indexOf(char) + 6);
       } else {
-        // Try to find in A2
-        const a2Chars = " \n0123456789.,!?_#'\"/\\-:()";
-        const a2Index = a2Chars.indexOf(char);
+        // Unknown character
+        zchars.push(5); // Shift to A2
+        zchars.push(a2.indexOf(' ') + 6); // Default to space
+      }
+    }
 
-        if (a2Index >= 0) {
-          zchars.push(5); // Shift to A2
-          zchar = a2Index + 6;
-        } else {
-          // Unknown character, use padding
-          zchar = padding;
-        }
+    // Pad with shift+space (5 for A2, then 6 for space)
+    while (zchars.length < maxZChars) {
+      zchars.push(5);
+      zchars.push(6);
+    }
+
+    // Pack Z-characters into words (3 Z-chars per word)
+    const result: Array<number> = [];
+    const wordCount = this.version <= 3 ? 2 : 3;
+
+    for (let i = 0; i < wordCount; i++) {
+      const char1 = i * 3 < zchars.length ? zchars[i * 3] : 5;
+      const char2 = i * 3 + 1 < zchars.length ? zchars[i * 3 + 1] : 5;
+      const char3 = i * 3 + 2 < zchars.length ? zchars[i * 3 + 2] : 5;
+
+      let word = (char1 << 10) | (char2 << 5) | char3;
+
+      // Set terminator bit in last word
+      if (i === wordCount - 1) {
+        word |= 0x8000;
       }
 
-      zchars.push(zchar);
+      result.push(word);
     }
 
-    // Pad to full length
-    while (zchars.length < resolution * 3) {
-      zchars.push(padding);
-    }
-
-    this.logger.debug(`Z-characters: ${zchars.join(",")}`);
-
-    // Pack into words
-    const words: number[] = [];
-    for (let i = 0; i < resolution; i++) {
-      const word =
-        (zchars[i * 3] << 10) | (zchars[i * 3 + 1] << 5) | zchars[i * 3 + 2];
-      words.push(word);
-    }
-
-    // Set terminator bit in the last word
-    words[resolution - 1] |= 0x8000;
-
-    this.logger.debug(
-      `Encoded words: ${words.map((w) => "0x" + w.toString(16)).join(",")}`
-    );
-
-    return words;
+    this.logger.debug(`Encoded to: [${result.map(w => '0x' + w.toString(16)).join(', ')}]`);
+    return result;
   }
 
   /**
-   * Debug method to dump parse buffer contents
+   * Debug utility to dump the parse buffer contents
    * @param parseBuffer Parse buffer address
    */
   private dumpParseBuffer(parseBuffer: Address): void {
-    const max = this.memory.getByte(parseBuffer);
-    const count = this.memory.getByte(parseBuffer + 1);
+    const maxTokens = this.memory.getByte(parseBuffer);
+    const tokenCount = this.memory.getByte(parseBuffer + 1);
 
-    this.logger.debug(`Parse buffer: max=${max}, count=${count}, tokens=[`);
+    this.logger.debug(`Parse buffer: max=${maxTokens}, count=${tokenCount}, tokens=[`);
 
-    for (let i = 0; i < count; i++) {
-      const addr = this.memory.getWord(parseBuffer + 2 + i * 4);
-      const length = this.memory.getByte(parseBuffer + 4 + i * 4);
-      const from = this.memory.getByte(parseBuffer + 5 + i * 4);
+    for (let i = 0; i < tokenCount; i++) {
+      const offset = parseBuffer + 2 + i * 4;
+      const dictAddr = this.memory.getWord(offset);
+      const length = this.memory.getByte(offset + 2);
+      const position = this.memory.getByte(offset + 3);
 
-      this.logger.debug(
-        `  (0x${addr.toString(16)}, ${length}, ${from})`
-      );
+      this.logger.debug(`  Token ${i}: dictAddr=0x${dictAddr.toString(16)}, length=${length}, position=${position}`);
     }
 
     this.logger.debug("]");
   }
 
   /**
-  * For direct string tokenization (used in test input)
-  * @param input Input string
-  * @param parseBuffer Address of parse buffer
-  */
-  tokenizeString(input: string, parseBuffer: Address): void {
-   // Reset parse buffer
-   this.memory.setByte(parseBuffer + 1, 0);
+   * Convenience method for direct string tokenization
+   * @param text Text to tokenize
+   * @param parseBuffer Parse buffer address
+   * @param dict Dictionary address (0 for default)
+   * @param flag If true, only recognized words are added
+   */
+  tokenizeString(
+    text: string,
+    parseBuffer: Address,
+    dict: Address = 0,
+    flag: boolean = false
+  ): void {
+    this.logger.debug(`Tokenizing string: "${text}"`);
 
-   const dictAddr = this.memory.getWord(HeaderLocation.Dictionary);
+    // Reset parse buffer
+    this.memory.setByte(parseBuffer + 1, 0);
 
-   // Read separators
-   const numSep = this.memory.getByte(dictAddr);
-   const separators: number[] = [];
+    // Get dictionary
+    const dictionary = this.getDictionary(dict);
 
-   for (let i = 0; i < numSep; i++) {
-     separators.push(this.memory.getByte(dictAddr + 1 + i));
-   }
+    // Get separators
+    const separators = dictionary.getSeparators();
 
-   // Helper functions for character classification
-   const isSeparator = (c: string): boolean => {
-     return separators.includes(c.charCodeAt(0));
-   };
+    // Helper functions for character classification
+    const isSpace = (c: string): boolean => c === ' ';
+    const isSeparator = (c: string): boolean => separators.includes(c.charCodeAt(0));
 
-   const CHAR_CLASS_SPACE = 2;
-   const CHAR_CLASS_SEP = 1;
-   const CHAR_CLASS_WORD = 0;
+    // Tokenize the text
+    let wordStart = -1;
 
-   const charClass = (c: string): number => {
-     if (c === " ") return CHAR_CLASS_SPACE;
-     if (isSeparator(c)) return CHAR_CLASS_SEP;
-     return CHAR_CLASS_WORD;
-   };
+    for (let i = 0; i <= text.length; i++) {
+      const c = i < text.length ? text[i] : null;
+      const isWordChar = c !== null && !isSpace(c) && !isSeparator(c);
 
-   // Process input characters
-   const chars = input.split("");
-   const classes = chars.map(charClass);
+      // Start of a word
+      if (isWordChar && wordStart === -1) {
+        wordStart = i;
+      }
 
-   for (let start = 0; start < chars.length; start++) {
-     if (classes[start] === CHAR_CLASS_SPACE) {
-       continue;
-     }
+      // End of a word or end of input
+      if ((!isWordChar || i === text.length) && wordStart !== -1) {
+        this.processWord(text.substring(wordStart, i), wordStart, parseBuffer, dictionary, flag);
+        wordStart = -1;
+      }
 
-     if (classes[start] === CHAR_CLASS_SEP) {
-       this.tokenizeWord(input, start, start + 1, parseBuffer);
-       continue;
-     }
+      // Process separator as a single character token
+      if (c !== null && isSeparator(c)) {
+        this.processWord(c, i, parseBuffer, dictionary, flag);
+      }
+    }
 
-     // Process word characters
-     let end;
-     for (end = start + 1; end < chars.length; end++) {
-       if (classes[end] !== CHAR_CLASS_WORD) {
-         this.tokenizeWord(input, start, end, parseBuffer);
-         start = end - 1;
-         break;
-       }
-     }
-
-     if (end === chars.length) {
-       this.tokenizeWord(input, start, end, parseBuffer);
-       break;
-     }
-   }
-
-   this.dumpParseBuffer(parseBuffer);
- }
-
- /**
-  * Tokenize a single word and add it to the parse buffer
-  * @param input Complete input string
-  * @param start Start position of word
-  * @param end End position of word
-  * @param parseBuffer Parse buffer address
-  */
- private tokenizeWord(
-   input: string,
-   start: number,
-   end: number,
-   parseBuffer: Address
- ): void {
-   const maxTokens = this.memory.getByte(parseBuffer);
-   let countTokens = this.memory.getByte(parseBuffer + 1);
-
-   if (countTokens >= maxTokens) {
-     return;
-   }
-
-   const word = input.slice(start, end).toLowerCase();
-   this.logger.debug(`Tokenizing word: "${word}"`);
-
-   const dictAddr = this.memory.getWord(HeaderLocation.Dictionary);
-   const encodedWords = this.encodeToken(word);
-   const tokenAddr = this.lookupToken(dictAddr, encodedWords);
-
-   if (tokenAddr !== 0) {
-     const tokenStorage = 4 * countTokens + parseBuffer + 2;
-     this.memory.setByte(parseBuffer + 1, ++countTokens);
-     this.memory.setWord(tokenStorage, tokenAddr);
-     this.memory.setByte(tokenStorage + 2, end - start);
-     this.memory.setByte(tokenStorage + 3, start + 1);
-
-     this.logger.debug(
-       `Word stored: addr=${this.hexString(tokenAddr)}, len=${
-         end - start
-       }, pos=${start + 1}`
-     );
-   } else {
-     this.logger.debug(`Word not found in dictionary`);
-   }
- }
+    this.dumpParseBuffer(parseBuffer);
+  }
 }
