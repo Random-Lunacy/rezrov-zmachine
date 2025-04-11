@@ -1,32 +1,27 @@
-// src/core/opcodes/index.ts - updated
-
 import { mathOpcodes } from './math';
 import { stackOpcodes } from './stack';
 import { objectOpcodes } from './object';
 import { stringOpcodes } from './string';
 import { ioOpcodes } from './io';
 import { gameOpcodes } from './game';
+import { controlOpcodes } from './control';
+import { callOpcodes } from './call';
+import { extendedOpcodes } from './extended';
 import { Opcode, opcode } from './base';
 
-/**
- * Creates a placeholder opcode that throws a "not implemented" error
- * @param name Name of the opcode
- * @returns An opcode implementation that throws an error
- */
+// Function to create an unimplemented opcode
 function unimplementedOpcode(name: string): Opcode {
   return opcode(name, () => {
     throw new Error(`Opcode ${name} is not implemented`);
   });
 }
 
-/**
- * Creates a no-operation opcode
- */
+// No operation
 const nopcode = opcode("nop", () => {
-  // Do nothing
+  // Does nothing
 });
 
-// Combine all opcode implementations
+// Consolidate all opcodes
 const allOpcodes = {
   ...mathOpcodes,
   ...stackOpcodes,
@@ -34,41 +29,40 @@ const allOpcodes = {
   ...stringOpcodes,
   ...ioOpcodes,
   ...gameOpcodes,
+  ...controlOpcodes,
+  ...callOpcodes,
+  ...extendedOpcodes,
 
-  // Add placeholders for any missing opcodes
+  // Add any other opcodes not defined in those modules
   piracy: opcode("piracy", (machine) => {
     const [offset, condfalse] = machine.getGameState().readBranchOffset();
-    // Always indicate the game is genuine
     machine.getGameState().doBranch(true, condfalse, offset);
   }),
 
-  // Extended opcodes (V5+)
-  save_undo: unimplementedOpcode("save_undo"),
-  restore_undo: unimplementedOpcode("restore_undo"),
-  log_shift: unimplementedOpcode("log_shift"),
-  art_shift: unimplementedOpcode("art_shift"),
-  set_font: unimplementedOpcode("set_font"),
+  // Placeholder for opcodes that are defined in spec but not implemented yet
   draw_picture: unimplementedOpcode("draw_picture"),
   picture_data: unimplementedOpcode("picture_data"),
   erase_picture: unimplementedOpcode("erase_picture"),
   set_margins: unimplementedOpcode("set_margins"),
-  print_unicode: unimplementedOpcode("print_unicode"),
-  check_unicode: unimplementedOpcode("check_unicode"),
-  set_true_colour: unimplementedOpcode("set_true_colour"),
+  move_window: unimplementedOpcode("move_window"),
+  window_size: unimplementedOpcode("window_size"),
+  window_style: unimplementedOpcode("window_style"),
+  get_wind_prop: unimplementedOpcode("get_wind_prop"),
+  scroll_window: unimplementedOpcode("scroll_window"),
+  pop_stack: unimplementedOpcode("pop_stack"),
+  read_mouse: unimplementedOpcode("read_mouse"),
+  mouse_window: unimplementedOpcode("mouse_window"),
+  push_stack: unimplementedOpcode("push_stack"),
+  put_wind_prop: unimplementedOpcode("put_wind_prop"),
+  print_form: unimplementedOpcode("print_form"),
+  make_menu: unimplementedOpcode("make_menu"),
+  picture_table: unimplementedOpcode("picture_table"),
   buffer_screen: unimplementedOpcode("buffer_screen"),
+  encode_text: unimplementedOpcode("encode_text"),
 };
 
-// Create opcode tables based on Z-machine specifications
+// Fill Zero operand opcode array
 const op0: Array<Opcode> = new Array(16).fill(unimplementedOpcode("illegal_0OP"));
-const op1: Array<Opcode> = new Array(16).fill(unimplementedOpcode("illegal_1OP"));
-const op2: Array<Opcode> = new Array(32).fill(unimplementedOpcode("illegal_2OP"));
-const opv: Array<Opcode> = new Array(32).fill(unimplementedOpcode("illegal_VAR"));
-const op3: Array<Opcode> = new Array(32).fill(unimplementedOpcode("illegal_3OP"));
-const op4: Array<Opcode> = new Array(32).fill(unimplementedOpcode("illegal_4OP"));
-const opext: Array<Opcode> = new Array(256).fill(unimplementedOpcode("illegal_EXT"));
-
-// Fill in the opcode tables with implementations where available
-// 0OP opcodes (0-15)
 op0[0] = allOpcodes.rtrue || unimplementedOpcode("rtrue");
 op0[1] = allOpcodes.rfalse || unimplementedOpcode("rfalse");
 op0[2] = allOpcodes.print || unimplementedOpcode("print");
@@ -83,10 +77,11 @@ op0[10] = allOpcodes.quit || unimplementedOpcode("quit");
 op0[11] = allOpcodes.new_line || unimplementedOpcode("new_line");
 op0[12] = allOpcodes.show_status || unimplementedOpcode("show_status");
 op0[13] = allOpcodes.verify || unimplementedOpcode("verify");
-// 14 is extended opcode in Z-machine V5+
+op0[14] = unimplementedOpcode("illegal_0OP_14");
 op0[15] = allOpcodes.piracy || unimplementedOpcode("piracy");
 
-// 1OP opcodes (0-15)
+// Fill One operand opcode array
+const op1: Array<Opcode> = new Array(16).fill(unimplementedOpcode("illegal_1OP"));
 op1[0] = allOpcodes.jz || unimplementedOpcode("jz");
 op1[1] = allOpcodes.get_sibling || unimplementedOpcode("get_sibling");
 op1[2] = allOpcodes.get_child || unimplementedOpcode("get_child");
@@ -104,8 +99,9 @@ op1[13] = allOpcodes.print_paddr || unimplementedOpcode("print_paddr");
 op1[14] = allOpcodes.load || unimplementedOpcode("load");
 op1[15] = allOpcodes.call_1n || unimplementedOpcode("call_1n");
 
-// 2OP opcodes (0-31)
-op2[0] = unimplementedOpcode("illegal_2OP_0");  // Opcode 0 is typically illegal
+// Fill Two operand opcode array
+const op2: Array<Opcode> = new Array(32).fill(unimplementedOpcode("illegal_2OP"));
+op2[0] = unimplementedOpcode("illegal_2OP_0");
 op2[1] = allOpcodes.je || unimplementedOpcode("je");
 op2[2] = allOpcodes.jl || unimplementedOpcode("jl");
 op2[3] = allOpcodes.jg || unimplementedOpcode("jg");
@@ -132,13 +128,14 @@ op2[23] = allOpcodes.div || unimplementedOpcode("div");
 op2[24] = allOpcodes.mod || unimplementedOpcode("mod");
 op2[25] = allOpcodes.call_2s || unimplementedOpcode("call_2s");
 op2[26] = allOpcodes.call_2n || unimplementedOpcode("call_2n");
-op2[27] = allOpcodes.set_color || unimplementedOpcode("set_color");
+op2[27] = allOpcodes.set_colour || unimplementedOpcode("set_colour");
 op2[28] = allOpcodes.throw || unimplementedOpcode("throw");
 op2[29] = unimplementedOpcode("illegal_2OP_29");
 op2[30] = unimplementedOpcode("illegal_2OP_30");
 op2[31] = unimplementedOpcode("illegal_2OP_31");
 
-// VAR opcodes (0-31)
+// Fill Variable operand opcode array
+const opv: Array<Opcode> = new Array(32).fill(unimplementedOpcode("illegal_VAR"));
 opv[0] = allOpcodes.call || unimplementedOpcode("call");
 opv[1] = allOpcodes.storew || unimplementedOpcode("storew");
 opv[2] = allOpcodes.storeb || unimplementedOpcode("storeb");
@@ -167,25 +164,49 @@ opv[24] = allOpcodes.not || unimplementedOpcode("not");
 opv[25] = allOpcodes.call_vn || unimplementedOpcode("call_vn");
 opv[26] = allOpcodes.call_vn2 || unimplementedOpcode("call_vn2");
 opv[27] = allOpcodes.tokenise || unimplementedOpcode("tokenise");
-opv[28] = unimplementedOpcode("encode_text");
-opv[29] = unimplementedOpcode("copy_table");
+opv[28] = allOpcodes.encode_text || unimplementedOpcode("encode_text");
+opv[29] = allOpcodes.copy_table || unimplementedOpcode("copy_table");
 opv[30] = allOpcodes.print_table || unimplementedOpcode("print_table");
 opv[31] = allOpcodes.check_arg_count || unimplementedOpcode("check_arg_count");
 
-// Extended opcodes (V5+)
-// We'll add a few common ones as placeholders
-opext[0] = unimplementedOpcode("save_ext");
-opext[1] = unimplementedOpcode("restore_ext");
-opext[2] = unimplementedOpcode("log_shift");
-opext[3] = unimplementedOpcode("art_shift");
-opext[4] = unimplementedOpcode("set_font");
-// ... additional extended opcodes would go here
+// These opcode arrays are for extended opcodes and operand counts > 2
+const op3: Array<Opcode> = new Array(32).fill(unimplementedOpcode("illegal_3OP"));
+const op4: Array<Opcode> = new Array(32).fill(unimplementedOpcode("illegal_4OP"));
 
-// Export the opcode tables and utilities
+// Fill Extended opcode array
+const opext: Array<Opcode> = new Array(256).fill(unimplementedOpcode("illegal_EXT"));
+opext[0] = allOpcodes.save || unimplementedOpcode("save_ext");
+opext[1] = allOpcodes.restore || unimplementedOpcode("restore_ext");
+opext[2] = allOpcodes.log_shift || unimplementedOpcode("log_shift");
+opext[3] = allOpcodes.art_shift || unimplementedOpcode("art_shift");
+opext[4] = allOpcodes.set_font || unimplementedOpcode("set_font");
+opext[5] = allOpcodes.draw_picture || unimplementedOpcode("draw_picture");
+opext[6] = allOpcodes.picture_data || unimplementedOpcode("picture_data");
+opext[7] = allOpcodes.erase_picture || unimplementedOpcode("erase_picture");
+opext[8] = allOpcodes.set_margins || unimplementedOpcode("set_margins");
+opext[9] = allOpcodes.save_undo || unimplementedOpcode("save_undo");
+opext[10] = allOpcodes.restore_undo || unimplementedOpcode("restore_undo");
+opext[11] = allOpcodes.print_unicode || unimplementedOpcode("print_unicode");
+opext[12] = allOpcodes.check_unicode || unimplementedOpcode("check_unicode");
+opext[13] = allOpcodes.set_true_colour || unimplementedOpcode("set_true_colour");
+opext[14] = allOpcodes.move_window || unimplementedOpcode("move_window");
+opext[15] = allOpcodes.window_size || unimplementedOpcode("window_size");
+opext[16] = allOpcodes.window_style || unimplementedOpcode("window_style");
+opext[17] = allOpcodes.get_wind_prop || unimplementedOpcode("get_wind_prop");
+opext[18] = allOpcodes.scroll_window || unimplementedOpcode("scroll_window");
+opext[19] = allOpcodes.pop_stack || unimplementedOpcode("pop_stack");
+opext[20] = allOpcodes.read_mouse || unimplementedOpcode("read_mouse");
+opext[21] = allOpcodes.mouse_window || unimplementedOpcode("mouse_window");
+opext[22] = allOpcodes.push_stack || unimplementedOpcode("push_stack");
+opext[23] = allOpcodes.put_wind_prop || unimplementedOpcode("put_wind_prop");
+opext[24] = allOpcodes.print_form || unimplementedOpcode("print_form");
+opext[25] = allOpcodes.make_menu || unimplementedOpcode("make_menu");
+opext[26] = allOpcodes.picture_table || unimplementedOpcode("picture_table");
+opext[27] = allOpcodes.buffer_screen || unimplementedOpcode("buffer_screen");
+
 export {
   op0, op1, op2, op3, op4, opv, opext,
   nopcode, unimplementedOpcode
 };
 
-// Also re-export the base opcode utilities
 export * from './base';

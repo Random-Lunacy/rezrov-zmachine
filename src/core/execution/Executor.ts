@@ -7,6 +7,7 @@ import { Opcode } from "../opcodes/base";
 import { Address, InstructionForm, OperandType } from "../../types";
 import { toI16 } from "../memory/cast16";
 import { hex } from "../../utils/debug";
+import * as opcodes from "../opcodes/index";
 
 /**
  * Handles execution of Z-machine instructions
@@ -32,16 +33,7 @@ export class Executor {
 
   constructor(
     gameState: GameState,
-    logger: Logger,
-    opcodes: {
-      op0: Array<Opcode>;
-      op1: Array<Opcode>;
-      op2: Array<Opcode>;
-      op3: Array<Opcode>;
-      op4: Array<Opcode>;
-      opv: Array<Opcode>;
-      opext: Array<Opcode>;
-    }
+    logger: Logger
   ) {
     this.gameState = gameState;
     this.logger = logger;

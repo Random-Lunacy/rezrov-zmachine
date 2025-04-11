@@ -1,4 +1,3 @@
-// src/interpreter/ZMachine.ts
 import { Memory } from "../core/memory/Memory";
 import { Executor } from "../core/execution/Executor";
 import { GameState } from "./GameState";
@@ -9,18 +8,41 @@ import { Logger } from "../utils/log";
 import { HeaderLocation } from "../utils/constants";
 import { ZMachineVersion, getVersionCapabilities } from "./Version";
 
+
 /**
  * Main Z-Machine interpreter class
  * This class serves as the main interface to the Z-Machine interpreter
  */
 export class ZMachine {
-  private memory: Memory;
-  private executor: Executor;
-  private state: GameState;
-  private screen: Screen;
-  private storage: Storage;
-  private inputHandler: InputHandler;
-  private logger: Logger;
+  private _memory: Memory;
+  private _executor: Executor;
+  private _state: GameState;
+  private _screen: Screen;
+  private _storage: Storage;
+  private _inputHandler: InputHandler;
+  private _logger: Logger;
+
+  public get memory(): Memory {
+    return this._memory;
+  }
+  public get executor(): Executor {
+    return this._executor;
+  }
+  public get state(): GameState {
+    return this._state;
+  }
+  public get screen(): Screen {
+    return this._screen;
+  }
+  public get storage(): Storage {
+    return this._storage;
+  }
+  public get inputHandler(): InputHandler {
+    return this._inputHandler;
+  }
+  public get logger(): Logger {
+    return this._logger;
+  }
 
   /**
    * Creates a new Z-Machine interpreter
@@ -35,22 +57,23 @@ export class ZMachine {
     screen: Screen,
     storage: Storage
   ) {
-    this.memory = new Memory(storyBuffer);
-    this.logger = logger;
-    this.screen = screen;
-    this.storage = storage;
+    this._memory = new Memory(storyBuffer);
+    this._logger = logger;
+    this._screen = screen;
+    this._storage = storage;
 
     // Initialize state
-    const version = this.memory.getByte(
+    const version = this._memory.getByte(
       HeaderLocation.Version
     ) as ZMachineVersion;
-    this.state = new GameState(this.memory, version);
+
+    this._state = new GameState(this._memory, logger);
 
     // Initialize executor
-    this.executor = new Executor(this.memory, this.state, this.logger);
+    this._executor = new Executor(this._state, this._logger);
 
     // Initialize input handler
-    this.inputHandler = new InputHandler(this, this.screen);
+    this._inputHandler = new InputHandler(this, this._screen);
 
     // Configure screen capabilities
     this.configureScreenCapabilities();
@@ -60,17 +83,17 @@ export class ZMachine {
    * Configure screen capabilities based on the Z-Machine version
    */
   private configureScreenCapabilities(): void {
-    const { rows, cols } = this.screen.getSize();
+    const { rows, cols } = this._screen.getSize();
 
     // Set screen dimensions in header
-    this.memory.setByte(HeaderLocation.ScreenHeightInLines, rows);
-    this.memory.setByte(HeaderLocation.ScreenWidthInChars, cols);
+    this._memory.setByte(HeaderLocation.ScreenHeightInLines, rows);
+    this._memory.setByte(HeaderLocation.ScreenWidthInChars, cols);
 
     // Configure capabilities in header flags
-    const screenCapabilities = this.screen.getCapabilities();
-    const version = this.state.version;
+    const screenCapabilities = this._screen.getCapabilities();
+    const version = this._state.version;
 
-    let flags1 = this.memory.getByte(HeaderLocation.Flags1);
+    let flags1 = this._memory.getByte(HeaderLocation.Flags1);
 
     if (version <= 3) {
       // Clear bits 4, 5, 6 before setting them
@@ -119,7 +142,7 @@ export class ZMachine {
       }
     }
 
-    this.memory.setByte(HeaderLocation.Flags1, flags1);
+    this._memory.setByte(HeaderLocation.Flags1, flags1);
   }
 
   /**
@@ -127,17 +150,17 @@ export class ZMachine {
    */
   execute(): void {
     // Set initial PC from the header
-    this.state.pc = this.memory.getWord(HeaderLocation.InitialPC);
+    this._state.pc = this._memory.getWord(HeaderLocation.InitialPC);
 
     // Start the execution loop
-    this.executor.executeLoop();
+    this._executor.executeLoop();
   }
 
   /**
    * Get the current input state if execution is suspended
    */
   getInputState(): InputState | null {
-    return this.executor.suspendedInputState;
+    return this._executor.suspendedInputState;
   }
 
   /**
@@ -145,7 +168,7 @@ export class ZMachine {
    * @param input The user input
    */
   handleInputCompletion(input: string): void {
-    this.inputHandler.processInput(input);
+    this._inputHandler.processInput(input);
     this.resumeExecution();
   }
 
@@ -155,7 +178,7 @@ export class ZMachine {
    */
    */
   handleKeyCompletion(key: string): void {
-    this.inputHandler.processKeypress(key);
+    this._inputHandler.processKeypress(key);
     this.resumeExecution();
   }
 
@@ -165,10 +188,10 @@ export class ZMachine {
    */
   saveGame(): boolean {
     try {
-      this.storage.saveSnapshot(this.state.createSnapshot());
+      this._storage.saveSnapshot(this._state.createSnapshot());
       return true;
     } catch (e) {
-      this.logger.error(`Failed to save game: ${e}`);
+      this._logger.error(`Failed to save game: ${e}`);
       return false;
     }
   }
@@ -179,11 +202,11 @@ export class ZMachine {
    */
   restoreGame(): boolean {
     try {
-      const snapshot = this.storage.loadSnapshot();
-      this.state.restoreFromSnapshot(snapshot);
+      const snapshot = this._storage.loadSnapshot();
+      this._state.restoreFromSnapshot(snapshot);
       return true;
     } catch (e) {
-      this.logger.error(`Failed to restore game: ${e}`);
+      this._logger.error(`Failed to restore game: ${e}`);
       return false;
     }
   }
@@ -193,7 +216,7 @@ export class ZMachine {
    * @returns The Z-Machine version
    */
   getVersion(): ZMachineVersion {
-    return this.state.version;
+    return this._state.version;
   }
 
   /**
@@ -201,7 +224,7 @@ export class ZMachine {
    * @returns The game state
    */
   getGameState(): GameState {
-    return this.state;
+    return this._state;
   }
 
   /**
@@ -209,7 +232,7 @@ export class ZMachine {
    * @returns The screen interface
    */
   getScreen(): Screen {
-    return this.screen;
+    return this._screen;
   }
 
   /**
@@ -217,7 +240,7 @@ export class ZMachine {
    * @param input The user input
    */
   handleInputCompletion(input: string): void {
-    this.inputHandler.processInput(input);
+    this._inputHandler.processInput(input);
   }
 
   /**
@@ -225,7 +248,7 @@ export class ZMachine {
    * @param key The key pressed
    */
   handleKeyCompletion(key: string): void {
-    this.inputHandler.processKeypress(key);
+    this._inputHandler.processKeypress(key);
   }
 
 /**
@@ -234,23 +257,23 @@ export class ZMachine {
  */
 updateStatusLine(): void {
   // Skip for version 4+ games which handle status differently
-  if (this.state.version > 3) {
+  if (this._state.version > 3) {
     return;
   }
 
   // Get memory and required data
-  const memory = this.state.memory;
-  const globalVarsBase = this.state.globalVariablesAddress;
+  const memory = this._state.memory;
+  const globalVarsBase = this._state.globalVariablesAddress;
 
   // First global variable is always the current location
   const locationVar = 0;
   const locationObjNum = memory.getWord(globalVarsBase + 2 * locationVar);
-  const locationObj = this.state.getObject(locationObjNum);
+  const locationObj = this._state.getObject(locationObjNum);
 
   // Determine if it's a score game or time game
   // It's a score game if version < 3 or bit 1 of Flags1 is clear
   const isScoreGame =
-    this.state.version < 3 ||
+    this._state.version < 3 ||
     (memory.getByte(HeaderLocation.Flags1) & 0x02) === 0;
 
   // Content for left side of status bar is always the location name
@@ -274,15 +297,15 @@ updateStatusLine(): void {
   }
 
   // Pass to the screen implementation to actually display
-  this.screen.updateStatusBar(lhs, rhs);
+  this._screen.updateStatusBar(lhs, rhs);
 
-  this.logger.debug(`Updated status bar: [${lhs}] [${rhs}]`);
+  this._logger.debug(`Updated status bar: [${lhs}] [${rhs}]`);
 }
 
   /**
    * Quit the Z-Machine
    */
   quit(): void {
-    this.executor.quit();
+    this._executor.quit();
   }
 }

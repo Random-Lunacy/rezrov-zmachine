@@ -67,45 +67,6 @@ function not(machine: ZMachine, value: number): void {
   machine.storeVariable(machine.readByte(), value ^ 0xffff);
 }
 
-/**
- * Performs a binary left shift.
- * This is a v5+ opcode.
- */
-function art_shift(machine: ZMachine, value: number, places: number): void {
-  // Convert places to a signed 16-bit value
-  const signedPlaces = toI16(places);
-  let result: number;
-
-  if (signedPlaces >= 0) {
-    // Left shift
-    result = (value << signedPlaces) & 0xffff;
-  } else {
-    // Right shift, preserving sign
-    result = toU16(toI16(value) >> Math.abs(signedPlaces));
-  }
-
-  machine.storeVariable(machine.readByte(), result);
-}
-
-/**
- * Performs a binary right shift.
- * This is a v5+ opcode.
- */
-function log_shift(machine: ZMachine, value: number, places: number): void {
-  // Convert places to a signed 16-bit value
-  const signedPlaces = toI16(places);
-  let result: number;
-
-  if (signedPlaces >= 0) {
-    // Left shift
-    result = (value << signedPlaces) & 0xffff;
-  } else {
-    // Logical right shift (zero-fill)
-    result = (value >>> Math.abs(signedPlaces)) & 0xffff;
-  }
-
-  machine.storeVariable(machine.readByte(), result);
-}
 
 /**
  * Export all math opcodes
@@ -122,8 +83,4 @@ export const mathOpcodes = {
 
   // 1OP opcodes
   not: opcode("not", not),
-
-  // VAR opcodes (v5+)
-  art_shift: opcode("art_shift", art_shift),
-  log_shift: opcode("log_shift", log_shift),
 };

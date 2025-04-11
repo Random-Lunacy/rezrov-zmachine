@@ -1,65 +1,12 @@
 import { ZMachine } from "../../interpreter/ZMachine";
 import { opcode } from "./base";
 import { SuspendState, InputState } from "../../core/execution/SuspendState";
-import { decodeZString } from "../../parsers/ZString";
-
-/**
- * Print a string at a given address
- */
-function print_addr(machine: ZMachine, stringAddr: number): void {
-  machine.logger.debug(`print_addr ${machine.hexString(stringAddr)}`);
-  machine.screen.print(
-    machine,
-    decodeZString(machine.memory, machine.memory.getZString(stringAddr), true)
-  );
-}
-
-/**
- * Print the name of an object
- */
-function print_obj(machine: ZMachine, obj: number): void {
-  machine.logger.debug(`print_obj ${machine.hexString(obj)}`);
-  const gameObj = machine.state.getObject(obj);
-  if (gameObj === null) {
-    machine.logger.warn(
-      `print_obj: object ${machine.hexString(obj)} not found`
-    );
-    return;
-  }
-  machine.screen.print(machine, gameObj.name);
-}
-
-/**
- * Print a string at a packed address
- */
-function print_paddr(machine: ZMachine, packed_addr: number): void {
-  const addr = machine.state.unpackStringAddress(packed_addr);
-  machine.screen.print(
-    machine,
-    decodeZString(machine.memory, machine.memory.getZString(addr), true)
-  );
-}
-
-/**
- * Print a newline character
- */
-function new_line(machine: ZMachine): void {
-  machine.screen.print(machine, "\n");
-}
 
 /**
  * Update the status bar (for versions <= 3)
  */
 function show_status(machine: ZMachine): void {
   machine.state.updateStatusBar();
-}
-
-/**
- * Print the Z-string at the current PC
- */
-function print(machine: ZMachine): void {
-  const zstring = machine.state.readZString();
-  machine.screen.print(machine, decodeZString(machine.memory, zstring, true));
 }
 
 /**
@@ -201,24 +148,6 @@ function sread(
 }
 
 /**
- * Print a single character
- */
-function print_char(machine: ZMachine, ...chars: Array<number>): void {
-  machine.logger.debug(`print_char(${chars})`);
-  machine.screen.print(
-    machine,
-    chars.map((c) => String.fromCharCode(c)).join("")
-  );
-}
-
-/**
- * Print a number
- */
-function print_num(machine: ZMachine, value: number): void {
-  machine.screen.print(machine, machine.toI16(value).toString());
-}
-
-/**
  * Play a sound effect
  */
 function sound_effect(
@@ -247,45 +176,6 @@ function read_char(
     time,
     routine,
   });
-}
-
-/**
- * Print a table of text
- */
-function print_table(
-  machine: ZMachine,
-  zscii_text: number,
-  width: number,
-  height: number = 1,
-  skip: number = 0
-): void {
-  machine.logger.debug("print_table");
-  if (width) {
-    machine.logger.debug(`width = ${width}`);
-  }
-  if (height) {
-    machine.logger.debug(`height = ${height}`);
-  }
-  if (skip) {
-    machine.logger.debug(`skip = ${skip}`);
-  }
-  // TODO: Implement proper table printing
-}
-
-/**
- * Print a string and return 1
- * This opcode prints the Z-string immediately following it in memory,
- * then returns from the current routine with the value 1.
- */
-function print_ret(state: GameState): void {
-  state.logger.debug(`${hex(state.pc)} print_ret`);
-
-  // Read and print the embedded Z-string
-  const zstring = state.readZString();
-  state.screen.print(state, decodeZString(state.memory, zstring, true));
-
-  // Return from the routine with value 1
-  state.returnFromRoutine(1);
 }
 
 /**
@@ -369,13 +259,7 @@ function random(machine: ZMachine, range: number): void {
  * Export all I/O opcodes
  */
 export const ioOpcodes = {
-  print_addr: opcode("print_addr", print_addr),
-  print_obj: opcode("print_obj", print_obj),
-  print_paddr: opcode("print_paddr", print_paddr),
-  new_line: opcode("new_line", new_line),
   show_status: opcode("show_status", show_status),
-  print: opcode("print", print),
-  print_ret: opcode("print_ret", print_ret), // Added print_ret export here
   split_window: opcode("split_window", split_window),
   set_window: opcode("set_window", set_window),
   erase_window: opcode("erase_window", erase_window),
@@ -387,11 +271,8 @@ export const ioOpcodes = {
   output_stream: opcode("output_stream", output_stream),
   input_stream: opcode("input_stream", input_stream),
   sread: opcode("sread", sread),
-  print_char: opcode("print_char", print_char),
-  print_num: opcode("print_num", print_num),
   sound_effect: opcode("sound_effect", sound_effect),
   read_char: opcode("read_char", read_char),
-  print_table: opcode("print_table", print_table),
   save: opcode("save", save),
   restore: opcode("restore", restore),
   quit: opcode("quit", quit),

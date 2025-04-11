@@ -1,147 +1,168 @@
-// src/core/opcodes/control.ts
-import { GameState } from "../../interpreter/GameState";
+/**
+ * Collection of control flow opcodes for the Z-Machine interpreter.
+ * These opcodes handle branching, conditional jumps, routine returns,
+ * and other control flow operations.
+ *
+ * Each opcode function is wrapped using the `opcode` utility to provide
+ * metadata and ensure consistent behavior.
+ *
+ * Exported Opcodes:
+ * - `je`: Jump if equal. Compares up to four values and branches if any are equal.
+ * - `jl`: Jump if less than. Compares two signed 16-bit values and branches if the first is less than the second.
+ * - `jg`: Jump if greater than. Compares two signed 16-bit values and branches if the first is greater than the second.
+ * - `jz`: Jump if zero. Branches if the given value is zero.
+ * - `jump`: Unconditional jump. Adjusts the program counter by a signed offset.
+ * - `test`: Tests bits. Branches if all bits in the `flags` argument are set in the `bitmap`.
+ * - `check_arg_count`: Checks the argument count. Branches if the number of arguments passed to the current routine is greater than or equal to the specified number.
+ * - `rtrue`: Returns true (1) from the current routine.
+ * - `rfalse`: Returns false (0) from the current routine.
+ * - `ret_popped`: Returns a value popped from the stack.
+ * - `ret`: Returns a specified value from the current routine.
+ * - `nop`: No-op instruction. Does nothing.
+ */
 import { opcode } from "./base";
 import { hex } from "../../utils/debug";
 import { toI16 } from "../memory/cast16";
+import { ZMachine } from "../../interpreter/ZMachine";
 
 /**
  * Jumps if equal
  */
 function je(
-  state: GameState,
+  machine: ZMachine,
   a: number,
   b: number,
   c?: number,
   d?: number
 ): void {
-  const [offset, condfalse] = state.readBranchOffset();
-  state.logger.debug(
-    `${hex(state.pc)} je ${hex(a)} ${hex(b)} ${c !== undefined ? hex(c) : ""} ${
+  const [offset, condfalse] = machine.state.readBranchOffset();
+  machine.state.logger.debug(
+    `${hex(machine.state.pc)} je ${hex(a)} ${hex(b)} ${c !== undefined ? hex(c) : ""} ${
       d !== undefined ? hex(d) : ""
-    } -> [${!condfalse}] ${hex(state.pc + offset - 2)}`
+    } -> [${!condfalse}] ${hex(machine.state.pc + offset - 2)}`
   );
 
   const cond =
     a === b || (c !== undefined && a === c) || (d !== undefined && a === d);
 
-  state.doBranch(cond, condfalse, offset);
+  machine.state.doBranch(cond, condfalse, offset);
 }
 
 /**
  * Jumps if less than
  */
-function jl(state: GameState, a: number, b: number): void {
-  const [offset, condfalse] = state.readBranchOffset();
-  state.logger.debug(
-    `${hex(state.pc)} jl ${hex(a)} ${hex(b)} -> [${!condfalse}] ${hex(
-      state.pc + offset - 2
+function jl(machine: ZMachine, a: number, b: number): void {
+  const [offset, condfalse] = machine.state.readBranchOffset();
+  machine.state.logger.debug(
+    `${hex(machine.state.pc)} jl ${hex(a)} ${hex(b)} -> [${!condfalse}] ${hex(
+      machine.state.pc + offset - 2
     )}`
   );
 
-  state.doBranch(toI16(a) < toI16(b), condfalse, offset);
+  machine.state.doBranch(toI16(a) < toI16(b), condfalse, offset);
 }
 
 /**
  * Jumps if greater than
  */
-function jg(state: GameState, a: number, b: number): void {
-  const [offset, condfalse] = state.readBranchOffset();
-  state.logger.debug(
-    `${hex(state.pc)} jg ${hex(a)} ${hex(b)} -> [${!condfalse}] ${hex(
-      state.pc + offset - 2
+function jg(machine: ZMachine, a: number, b: number): void {
+  const [offset, condfalse] = machine.state.readBranchOffset();
+  machine.state.logger.debug(
+    `${hex(machine.state.pc)} jg ${hex(a)} ${hex(b)} -> [${!condfalse}] ${hex(
+      machine.state.pc + offset - 2
     )}`
   );
 
-  state.doBranch(toI16(a) > toI16(b), condfalse, offset);
+  machine.state.doBranch(toI16(a) > toI16(b), condfalse, offset);
 }
 
 /**
  * Jumps if zero
  */
-function jz(state: GameState, a: number): void {
-  const [offset, condfalse] = state.readBranchOffset();
-  state.logger.debug(
-    `${hex(state.pc)} jz ${hex(a)} -> [${!condfalse}] ${hex(
-      state.pc + offset - 2
+function jz(machine: ZMachine, a: number): void {
+  const [offset, condfalse] = machine.state.readBranchOffset();
+  machine.state.logger.debug(
+    `${hex(machine.state.pc)} jz ${hex(a)} -> [${!condfalse}] ${hex(
+      machine.state.pc + offset - 2
     )}`
   );
 
-  state.doBranch(a === 0, condfalse, offset);
+  machine.state.doBranch(a === 0, condfalse, offset);
 }
 
 /**
  * Unconditional jump
  */
-function jump(state: GameState, offset: number): void {
-  state.logger.debug(`${hex(state.pc)} jump ${hex(offset)}`);
-  state.pc = state.pc + toI16(offset) - 2;
+function jump(machine: ZMachine, offset: number): void {
+  machine.state.logger.debug(`${hex(machine.state.pc)} jump ${hex(offset)}`);
+  machine.state.pc = machine.state.pc + toI16(offset) - 2;
 }
 
 /**
  * Tests bits
  */
-function test(state: GameState, bitmap: number, flags: number): void {
-  const [offset, condfalse] = state.readBranchOffset();
-  state.logger.debug(
-    `${hex(state.pc)} test ${hex(bitmap)} ${hex(
+function test(machine: ZMachine, bitmap: number, flags: number): void {
+  const [offset, condfalse] = machine.state.readBranchOffset();
+  machine.state.logger.debug(
+    `${hex(machine.state.pc)} test ${hex(bitmap)} ${hex(
       flags
-    )} -> [${!condfalse}] ${hex(state.pc + offset - 2)}`
+    )} -> [${!condfalse}] ${hex(machine.state.pc + offset - 2)}`
   );
 
-  state.doBranch((bitmap & flags) === flags, condfalse, offset);
+  machine.state.doBranch((bitmap & flags) === flags, condfalse, offset);
 }
 
 /**
  * Checks the argument count
  */
-function check_arg_count(state: GameState, argNumber: number): void {
-  const [offset, condfalse] = state.readBranchOffset();
-  state.logger.debug(
-    `${hex(state.pc)} check_arg_count ${hex(
+function check_arg_count(machine: ZMachine, argNumber: number): void {
+  const [offset, condfalse] = machine.state.readBranchOffset();
+  machine.state.logger.debug(
+    `${hex(machine.state.pc)} check_arg_count ${hex(
       argNumber
-    )} -> [${!condfalse}] ${hex(state.pc + offset - 2)}`
+    )} -> [${!condfalse}] ${hex(machine.state.pc + offset - 2)}`
   );
 
-  state.doBranch(state.getArgumentCount() >= argNumber, condfalse, offset);
+  machine.state.doBranch(machine.state.getArgumentCount() >= argNumber, condfalse, offset);
 }
 
 /**
  * Returns true (1)
  */
-function rtrue(state: GameState): void {
-  state.logger.debug(`${hex(state.pc)} rtrue`);
-  state.returnFromRoutine(1);
+function rtrue(machine: ZMachine): void {
+  machine.state.logger.debug(`${hex(machine.state.pc)} rtrue`);
+  machine.state.returnFromRoutine(1);
 }
 
 /**
  * Returns false (0)
  */
-function rfalse(state: GameState): void {
-  state.logger.debug(`${hex(state.pc)} rfalse`);
-  state.returnFromRoutine(0);
+function rfalse(machine: ZMachine): void {
+  machine.state.logger.debug(`${hex(machine.state.pc)} rfalse`);
+  machine.state.returnFromRoutine(0);
 }
 
 /**
  * Returns value popped from the stack
  */
-function ret_popped(state: GameState): void {
-  state.logger.debug(`${hex(state.pc)} ret_popped`);
-  state.returnFromRoutine(state.popStack());
+function ret_popped(machine: ZMachine): void {
+  machine.state.logger.debug(`${hex(machine.state.pc)} ret_popped`);
+  machine.state.returnFromRoutine(machine.state.popStack());
 }
 
 /**
  * Returns from a routine with the specified value
  */
-function ret(state: GameState, value: number): void {
-  state.logger.debug(`${hex(state.pc)} ret ${hex(value)}`);
-  state.returnFromRoutine(value);
+function ret(machine: ZMachine, value: number): void {
+  machine.state.logger.debug(`${hex(machine.state.pc)} ret ${hex(value)}`);
+  machine.state.returnFromRoutine(value);
 }
 
 /**
  * Placeholder for no-op instruction
  */
-function nop(state: GameState): void {
-  state.logger.debug(`${hex(state.pc)} nop`);
+function nop(machine: ZMachine): void {
+  machine.state.logger.debug(`${hex(machine.state.pc)} nop`);
   // Do nothing
 }
 
