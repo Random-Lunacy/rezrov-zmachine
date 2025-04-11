@@ -6,14 +6,14 @@ import { toI16 } from "../memory/cast16";
  * Save the machine state to a given table
  */
 function save_undo(machine: ZMachine): void {
-  const resultVar = machine.getGameState().readByte();
+  const resultVar = machine.state.readByte();
 
   try {
     machine.saveUndo();
-    machine.getGameState().storeVariable(resultVar, 1);
+    machine.state.storeVariable(resultVar, 1);
   } catch (error) {
     machine.logger.error(`Failed to save undo state: ${error}`);
-    machine.getGameState().storeVariable(resultVar, 0);
+    machine.state.storeVariable(resultVar, 0);
   }
 }
 
@@ -21,14 +21,14 @@ function save_undo(machine: ZMachine): void {
  * Restore the machine state from the last save_undo
  */
 function restore_undo(machine: ZMachine): void {
-  const resultVar = machine.getGameState().readByte();
+  const resultVar = machine.state.readByte();
 
   try {
     const success = machine.restoreUndo();
-    machine.getGameState().storeVariable(resultVar, success ? 2 : 0);
+    machine.state.storeVariable(resultVar, success ? 2 : 0);
   } catch (error) {
     machine.logger.error(`Failed to restore undo state: ${error}`);
-    machine.getGameState().storeVariable(resultVar, 0);
+    machine.state.storeVariable(resultVar, 0);
   }
 }
 
@@ -37,15 +37,15 @@ function restore_undo(machine: ZMachine): void {
  * (Alternative version in V5+)
  */
 function save_v5(machine: ZMachine, table: number, bytes: number, name: number): void {
-  const resultVar = machine.getGameState().readByte();
+  const resultVar = machine.state.readByte();
 
   try {
     // Save to external storage
     const success = machine.saveToTable(table, bytes);
-    machine.getGameState().storeVariable(resultVar, success ? 1 : 0);
+    machine.state.storeVariable(resultVar, success ? 1 : 0);
   } catch (error) {
     machine.logger.error(`Failed to save: ${error}`);
-    machine.getGameState().storeVariable(resultVar, 0);
+    machine.state.storeVariable(resultVar, 0);
   }
 }
 
@@ -54,64 +54,19 @@ function save_v5(machine: ZMachine, table: number, bytes: number, name: number):
  * (Alternative version in V5+)
  */
 function restore_v5(machine: ZMachine, table: number, bytes: number, name: number): void {
-  const resultVar = machine.getGameState().readByte();
+  const resultVar = machine.state.readByte();
 
   try {
     // Restore from external storage
     const success = machine.restoreFromTable(table, bytes);
-    machine.getGameState().storeVariable(resultVar, success ? 2 : 0);
+    machine.state.storeVariable(resultVar, success ? 2 : 0);
   } catch (error) {
     machine.logger.error(`Failed to restore: ${error}`);
-    machine.getGameState().storeVariable(resultVar, 0);
+    machine.state.storeVariable(resultVar, 0);
   }
 }
 
-/**
- * Reset flags after restoring a game
- */
-function restore_undo(machine: ZMachine): void {
-  const resultVar = machine.getGameState().readByte();
 
-  try {
-    const success = machine.restoreUndo();
-    machine.getGameState().storeVariable(resultVar, success ? 2 : 0);
-  } catch (error) {
-    machine.logger.error(`Failed to restore undo: ${error}`);
-    machine.getGameState().storeVariable(resultVar, 0);
-  }
-}
-
-/**
- * Save the current game state (V5+ version)
- */
-function save_v5(machine: ZMachine, ...args: number[]): void {
-  const resultVar = machine.getGameState().readByte();
-
-  try {
-    // Save the game state
-    const success = machine.saveGame();
-    machine.getGameState().storeVariable(resultVar, success ? 1 : 0);
-  } catch (error) {
-    machine.logger.error(`Failed to save game: ${error}`);
-    machine.getGameState().storeVariable(resultVar, 0);
-  }
-}
-
-/**
- * Restore a saved game (V5+ version)
- */
-function restore_v5(machine: ZMachine, ...args: number[]): void {
-  const resultVar = machine.getGameState().readByte();
-
-  try {
-    // Restore the game state
-    const success = machine.restoreGame();
-    machine.getGameState().storeVariable(resultVar, success ? 2 : 0);
-  } catch (error) {
-    machine.logger.error(`Failed to restore game: ${error}`);
-    machine.getGameState().storeVariable(resultVar, 0);
-  }
-}
 
 /**
  * Restart the game from the beginning
@@ -124,16 +79,16 @@ function restart(machine: ZMachine): void {
  * Verify the game file checksum
  */
 function verify(machine: ZMachine): void {
-  const [offset, condfalse] = machine.getGameState().readBranchOffset();
+  const [offset, condfalse] = machine.state.readBranchOffset();
 
   try {
     // In a real implementation, we would compute the checksum
     // For now, always return true
     const verified = true;
-    machine.getGameState().doBranch(verified, condfalse, offset);
+    machine.state.doBranch(verified, condfalse, offset);
   } catch (error) {
     machine.logger.error(`Error verifying checksum: ${error}`);
-    machine.getGameState().doBranch(false, condfalse, offset);
+    machine.state.doBranch(false, condfalse, offset);
   }
 }
 
@@ -141,11 +96,11 @@ function verify(machine: ZMachine): void {
  * Test if the interpreter claims to provide the given feature
  */
 function check_arg_count(machine: ZMachine, argNum: number): void {
-  const [offset, condfalse] = machine.getGameState().readBranchOffset();
+  const [offset, condfalse] = machine.state.readBranchOffset();
 
   // Check if the current routine was called with at least argNum arguments
-  const argCount = machine.getGameState().getArgumentCount();
-  machine.getGameState().doBranch(argCount >= argNum, condfalse, offset);
+  const argCount = machine.state.getArgumentCount();
+  machine.state.doBranch(argCount >= argNum, condfalse, offset);
 }
 
 /**
@@ -158,8 +113,8 @@ function scan_table(
   length: number,
   form: number = 0x82
 ): void {
-  const resultVar = machine.getGameState().readByte();
-  const [offset, condfalse] = machine.getGameState().readBranchOffset();
+  const resultVar = machine.state.readByte();
+  const [offset, condfalse] = machine.state.readBranchOffset();
 
   machine.logger.debug(`scan_table ${value} ${table} ${length} ${form}`);
 
@@ -185,11 +140,11 @@ function scan_table(
   }
 
   if (found) {
-    machine.getGameState().storeVariable(resultVar, foundAddr);
-    machine.getGameState().doBranch(true, condfalse, offset);
+    machine.state.storeVariable(resultVar, foundAddr);
+    machine.state.doBranch(true, condfalse, offset);
   } else {
-    machine.getGameState().storeVariable(resultVar, 0);
-    machine.getGameState().doBranch(false, condfalse, offset);
+    machine.state.storeVariable(resultVar, 0);
+    machine.state.doBranch(false, condfalse, offset);
   }
 }
 
@@ -197,10 +152,10 @@ function scan_table(
  * Piracy check - always returns true (game is genuine)
  */
 function piracy(machine: ZMachine): void {
-  const [offset, condfalse] = machine.getGameState().readBranchOffset();
+  const [offset, condfalse] = machine.state.readBranchOffset();
 
   // Always indicate the game is genuine
-  machine.getGameState().doBranch(true, condfalse, offset);
+  machine.state.doBranch(true, condfalse, offset);
 }
 
 /**
@@ -214,4 +169,6 @@ export const gameOpcodes = {
   check_arg_count: opcode("check_arg_count", check_arg_count),
   scan_table: opcode("scan_table", scan_table),
   piracy: opcode("piracy", piracy),
+  save_v5: opcode("save_v5", save_v5),
+  restore_v5: opcode("restore_v5", restore_v5),
 };

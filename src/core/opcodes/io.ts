@@ -1,6 +1,7 @@
 import { ZMachine } from "../../interpreter/ZMachine";
 import { opcode } from "./base";
 import { SuspendState, InputState } from "../../core/execution/SuspendState";
+import { toI16, toU16 } from "../memory/cast16";
 
 /**
  * Update the status bar (for versions <= 3)
@@ -94,7 +95,7 @@ function output_stream(
   table: number = 0,
   width: number = 0
 ): void {
-  const streamNumber = machine.toI16(streamNum);
+  const streamNumber = toI16(streamNum);
   if (streamNumber === 0) {
     // why emit this opcode at all?
     return;
@@ -110,7 +111,7 @@ function output_stream(
  * Select an input stream
  */
 function input_stream(machine: ZMachine, streamNum: number): void {
-  machine.screen.selectInputStream(machine, machine.toI16(streamNum));
+  machine.screen.selectInputStream(machine, toI16(streamNum));
 }
 
 /**

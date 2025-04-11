@@ -219,21 +219,7 @@ export class ZMachine {
     return this._state.version;
   }
 
-  /**
-   * Get the game state
-   * @returns The game state
-   */
-  getGameState(): GameState {
-    return this._state;
-  }
 
-  /**
-   * Get the screen interface
-   * @returns The screen interface
-   */
-  getScreen(): Screen {
-    return this._screen;
-  }
 
   /**
    * Handle input completion from the user

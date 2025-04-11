@@ -8,7 +8,7 @@ import { toI16, toU16 } from "../memory/cast16";
  * Binary left arithmetic shift (preserves sign)
  */
 function art_shift(machine: ZMachine, value: number, places: number): void {
-  const resultVar = machine.getGameState().readByte();
+  const resultVar = machine.state.readByte();
 
   const signedPlaces = toI16(places);
   let result: number;
@@ -21,14 +21,14 @@ function art_shift(machine: ZMachine, value: number, places: number): void {
     result = toU16(toI16(value) >> Math.abs(signedPlaces));
   }
 
-  machine.getGameState().storeVariable(resultVar, result);
+  machine.state.storeVariable(resultVar, result);
 }
 
 /**
  * Binary logical shift (does not preserve sign on right shift)
  */
 function log_shift(machine: ZMachine, value: number, places: number): void {
-  const resultVar = machine.getGameState().readByte();
+  const resultVar = machine.state.readByte();
 
   const signedPlaces = toI16(places);
   let result: number;
@@ -41,18 +41,18 @@ function log_shift(machine: ZMachine, value: number, places: number): void {
     result = (value >>> Math.abs(signedPlaces)) & 0xffff;
   }
 
-  machine.getGameState().storeVariable(resultVar, result);
+  machine.state.storeVariable(resultVar, result);
 }
 
 /**
  * Set the font for text output
  */
 function set_font(machine: ZMachine, font: number): void {
-  const resultVar = machine.getGameState().readByte();
+  const resultVar = machine.state.readByte();
 
   // In a real implementation, this would change the font
   // For now, just return the previous font (always 1)
-  machine.getGameState().storeVariable(resultVar, 1);
+  machine.state.storeVariable(resultVar, 1);
 }
 
 /**
@@ -104,11 +104,11 @@ function print_unicode(machine: ZMachine, charCode: number): void {
  * Check if a Unicode character can be displayed
  */
 function check_unicode(machine: ZMachine, charCode: number): void {
-  const resultVar = machine.getGameState().readByte();
+  const resultVar = machine.state.readByte();
 
   // For now, we'll just check if it's in the basic ASCII range
   const canDisplay = charCode >= 32 && charCode <= 126;
-  machine.getGameState().storeVariable(resultVar, canDisplay ? 3 : 0);
+  machine.state.storeVariable(resultVar, canDisplay ? 3 : 0);
 }
 
 /**

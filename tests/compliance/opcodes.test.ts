@@ -20,6 +20,6 @@ describe('Z-machine compliance', () => {
     machine.execute();
 
     // Verify the results captured in our TestScreen
-    expect(screen.getOutput()).toContain('Test passed');
+    expect(screen.getOutput()).toContain('Multiple equality test passed');
   });
 });
