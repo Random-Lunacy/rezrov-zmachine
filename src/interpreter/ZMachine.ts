@@ -197,16 +197,6 @@ export class ZMachine {
   }
 
   /**
-   * Save to an external file (V5+)
-   * @param table The table number
-   * @param bytes The number of bytes to save
-   * @returns True if the save was successful
-   */
-  saveToTable(table: number, bytes: number): boolean {
-    throw new Error("Method not implemented.");
-  }
-
-  /**
    * Restore a saved game state
    * @returns True if the restore was successful
    */
@@ -222,13 +212,112 @@ export class ZMachine {
   }
 
   /**
+   * Save to an external file (V5+)
+   * @param table The table number
+   * @param bytes The number of bytes to save
+   * @param name The name of the file (optional)
+   * @param shouldPrompt Whether to prompt the user for a filename (optional)
+   * @returns True if the save was successful
+   */
+  saveToTable(table: number, bytes: number, name: number = 0, shouldPrompt: boolean = true): boolean {
+    try {
+      // Implementation will  depend on how we handle saving
+      // For a basic approach:
+      let filename = "";
+
+      if (name !== 0) {
+        // Extract filename from the provided address
+        filename = this.extractFilename(name);
+      }
+
+      if (shouldPrompt && filename === "") {
+        // Prompt user for filename if required
+        filename = this.promptForFilename("save");
+        if (filename === "") {
+          return false; // User cancelled
+        }
+      }
+
+      // Save the specified memory range to the file
+      const dataToSave = this.memory.getBytes(table, bytes);
+      this.saveDataToFile(filename, dataToSave);
+
+      return true;
+    } catch (e) {
+      this._logger.error(`Failed to save to table: ${e}`);
+      return false;
+    }
+  }
+
+  /**
    * Restore from an external file (V5+)
    * @param table The table number
    * @param bytes The number of bytes to restore
+   * @param name The name of the file (optional)
+   * @param shouldPrompt Whether to prompt the user for a filename (optional)
    * @returns True if the restore was successful
    */
-  restoreFromTable(table: number, bytes: number): boolean {
-    throw new Error("Method not implemented.");
+  restoreFromTable(table: number, bytes: number, name: number = 0, shouldPrompt: boolean = true): boolean {
+    try {
+      // Implementation would depend on how you handle restoration
+      // For a basic approach:
+      let filename = "";
+
+      if (name !== 0) {
+        // Extract filename from the provided address
+        filename = this.extractFilename(name);
+      }
+
+      if (shouldPrompt && filename === "") {
+        // Prompt user for filename if required
+        filename = this.promptForFilename("restore");
+        if (filename === "") {
+          return false; // User cancelled
+        }
+      }
+
+      // Load data from the file
+      const loadedData = this.loadDataFromFile(filename);
+
+      // Check if data size matches expected bytes
+      if (loadedData.length !== bytes) {
+        this._logger.warn(`Restored data size mismatch: expected ${bytes}, got ${loadedData.length}`);
+        return false;
+      }
+
+      // Write the loaded data to the specified memory range
+      for (let i = 0; i < bytes; i++) {
+        this.memory.setByte(table + i, loadedData[i]);
+      }
+
+      return true;
+    } catch (e) {
+      this._logger.error(`Failed to restore from table: ${e}`);
+      return false;
+    }
+  }
+
+  // Helper method to extract a filename from memory
+  private extractFilename(address: number): string {
+    // This implementation depends on how filenames are stored in your Z-machine
+    // For a simple approach, assuming ASCIIZ string:
+    let filename = "";
+    let i = 0;
+    let char;
+
+    while ((char = this.memory.getByte(address + i)) !== 0) {
+      filename += String.fromCharCode(char);
+      i++;
+    }
+
+    return filename;
+  }
+
+  // Helper method to prompt the user for a filename
+  private promptForFilename(operation: string): string {
+    // This would need to be implemented according to your UI system
+    // For now, just a placeholder
+    return ""; // Would be replaced with actual UI prompt
   }
 
   /**
@@ -311,6 +400,30 @@ export class ZMachine {
    */
   restart(): boolean {
     throw new Error("Method not implemented.");
+  }
+
+  /**
+   * Method to handle timed input
+   * @param time The time in tenths of seconds
+   * @param routine The routine to call
+   */
+  handleTimedInput(time: number, routine: number): void {
+    if (time <= 0 || routine <= 0) {
+      return; // No timer active
+    }
+
+    // Setup timeout
+    setTimeout(() => {
+      // If we're still waiting for input
+      if (this._executor.isSuspended) {
+        // Call the routine
+        const routineAddr = this._state.unpackRoutineAddress(routine);
+        this._state.callRoutine(routineAddr, null);
+
+        // Resume execution
+        this._executor.resume();
+      }
+    }, time * 100); // Z-machine time is in 1/10 seconds
   }
 
   /**

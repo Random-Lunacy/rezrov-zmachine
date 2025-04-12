@@ -6,10 +6,12 @@ import { Logger } from "../../utils/log";
 export class BaseScreen implements Screen {
   protected logger: Logger;
   protected id: string;
+  protected currentStyles: number;
 
   constructor(logger: Logger, id: string) {
     this.logger = logger;
     this.id = id;
+    this.currentStyles = 0;
   }
 
   getCapabilities(): Capabilities {
@@ -99,10 +101,45 @@ export class BaseScreen implements Screen {
     this.logger.debug(`not implemented: ${this.id} setBufferMode mode=${mode}`);
   }
 
+
   setTextStyle(machine: ZMachine, style: number): void {
-    this.logger.debug(
-      `not implemented: ${this.id} setTextStyle style=${style}`
-    );
+    this.logger.debug(`${this.id} setTextStyle ${style}`);
+
+    // Handle style activation/deactivation
+    if (style === 0) {
+      // Clear all styles
+      this.currentStyles = 0;
+    } else {
+      // Set the specified styles
+      this.currentStyles = style;
+    }
+
+    // Apply the styles according to the priority rules
+    this.applyStyles();
+
+    // For V6, update window property 10 to show the actual style combination in use
+    if (machine.state.version === 6) {
+      this.updateWindowStyleProperty(machine);
+    }
+  }
+
+  // Helper method to apply styles based on priority
+  private applyStyles(): void {
+    // If the interpreter can't provide the requested style combination,
+    // it should give precedence to styles in this order:
+    // Fixed, Italic, Bold, Reverse
+
+    // This implementation would depend on your rendering system
+
+    // TODO: Implement the actual style application logic
+  }
+
+  // For V6, update window property 10 with the actual style in use
+  private updateWindowStyleProperty(machine: ZMachine): void {
+    const currentWindow = machine.screen.getOutputWindow(machine);
+
+    // This would need integration with your window property system
+    // setWindowProperty(machine, currentWindow, 10, this.currentStyles);
   }
 
   setTextColors(
@@ -149,6 +186,54 @@ export class BaseScreen implements Screen {
       `not implemented: ${this.id} updateStatusBar lhs=${lhs} rhs=${rhs}`
     );
   }
+
+  getBufferMode(machine: ZMachine): number {
+    this.logger.debug(`${this.id} getBufferMode`);
+    return 0; // Default implementation always returns 0 (unbuffered)
+  }
+
+  updateDisplay(machine: ZMachine): void {
+    this.logger.debug(`${this.id} updateDisplay`);
+    // Default implementation does nothing
+  }
+
+getCurrentFont(machine: ZMachine): number {
+  this.logger.debug(`${this.id} getCurrentFont`);
+  return 1; // Default implementation returns font 1
+}
+
+setFont(machine: ZMachine, font: number): boolean {
+  this.logger.debug(`${this.id} setFont ${font}`);
+  // Return false if font 2 is requested (picture font is undefined)
+  if (font === 2) return false;
+  // In base implementation, pretend success for other fonts
+  return font === 1 || font === 3 || font === 4;
+}
+
+getFontForWindow(machine: ZMachine, window: number): number {
+  this.logger.debug(`${this.id} getFontForWindow ${window}`);
+  return 1; // Default implementation returns font 1
+}
+
+setFontForWindow(machine: ZMachine, font: number, window: number): boolean {
+  this.logger.debug(`${this.id} setFontForWindow ${font} ${window}`);
+  // Return false if font 2 is requested (picture font is undefined)
+  if (font === 2) return false;
+  // In base implementation, pretend success for other fonts
+  return font === 1 || font === 3 || font === 4;
+}
+
+getWindowTrueForeground(machine: ZMachine, window: number): number {
+  this.logger.debug(`${this.id} getWindowTrueForeground ${window}`);
+  // Default implementation returns -1 (default color)
+  return -1;
+}
+
+getWindowTrueBackground(machine: ZMachine, window: number): number {
+  this.logger.debug(`${this.id} getWindowTrueBackground ${window}`);
+  // Default implementation returns -1 (default color)
+  return -1;
+}
 
   quit(): void {
     this.logger.debug(`not implemented: ${this.id} quit`);

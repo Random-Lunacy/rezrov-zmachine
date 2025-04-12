@@ -1,3 +1,7 @@
+/**
+ * This file contains the interfaces for the screen module.
+ * It defines the Screen interface and the various types and enums used in the screen module.
+ */
 import { ZMachine } from "../../interpreter/ZMachine";
 import { InputState } from "../input/InputHandler";
 
@@ -73,6 +77,7 @@ export type Capabilities = {
 };
 
 export interface Screen {
+  getWindowProperty(machine: ZMachine, window: number, property: number): number;
   getCapabilities(): Capabilities;
   getInputFromUser(machine: ZMachine, inputState: InputState): void;
   getKeyFromUser(machine: ZMachine, inputState: InputState): void;
@@ -113,5 +118,13 @@ export interface Screen {
   selectInputStream(machine: ZMachine, streamId: number): void;
   getSize(): ScreenSize;
   updateStatusBar(lhs: string, rhs: string): void;
+  getBufferMode(machine: ZMachine): number;
+  updateDisplay(machine: ZMachine): void;
+  getCurrentFont(machine: ZMachine): number;
+  setFont(machine: ZMachine, font: number): boolean;
+  getFontForWindow(machine: ZMachine, window: number): number;
+  setFontForWindow(machine: ZMachine, font: number, window: number): boolean;
+  getWindowTrueForeground(machine: ZMachine, window: number): number;
+  getWindowTrueBackground(machine: ZMachine, window: number): number;
   quit(): void;
 }

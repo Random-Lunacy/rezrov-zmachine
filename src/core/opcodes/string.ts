@@ -18,9 +18,12 @@
  * - `tokenise`: Tokenizes input text.
  * - `set_text_style`: Sets the text style for printing.
  * - `set_colour`: Sets the text colors for printing.
+ * - `print_unicode`: Prints a Unicode character.
+ * - `check_unicode`: Checks if a Unicode character can be displayed.
  */
 import { ZMachine } from "../../interpreter/ZMachine";
 import { decodeZString } from "../../parsers/ZString";
+import { HeaderLocation } from "../../utils/constants";
 import { toI16 } from "../memory/cast16";
 import { opcode } from "./base";
 
@@ -65,6 +68,7 @@ function print_paddr(machine: ZMachine, packedAddr: number): void {
  * Print a newline
  */
 function new_line(machine: ZMachine): void {
+  machine.logger.debug(`new_line`);
   machine.screen.print(machine, "\n");
 }
 
@@ -73,6 +77,7 @@ function new_line(machine: ZMachine): void {
  */
 function print(machine: ZMachine): void {
   const zstring = machine.state.readZString();
+  machine.logger.debug(`print ${zstring}`);
   machine.screen.print(
     machine,
     decodeZString(machine.memory, zstring, true)
@@ -150,6 +155,8 @@ function output_stream(
 ): void {
   const streamNumber = toI16(streamNum);
 
+  machine.logger.debug(`output_stream: streamNum=${streamNum}, table=${table}, width=${width}`);
+
   if (streamNumber === 0) {
     return; // No-op
   }
@@ -165,6 +172,7 @@ function output_stream(
  * Input stream selection
  */
 function input_stream(machine: ZMachine, streamNum: number): void {
+  machine.logger.debug(`input_stream: streamNum=${streamNum}`);
   machine.screen.selectInputStream(machine, toI16(streamNum));
 }
 
@@ -200,10 +208,82 @@ function set_colour(
   window: number = 0
 ): void {
   if (machine.state.version < 5) {
+    machine.logger.debug(`set_colour: ignoring in version < 5`);
     window = 0;
   }
 
+  machine.logger.debug(
+    `${machine.executor.op_pc.toString(16)} set_colour ${foreground} ${background} ${window}`
+  );
+
+  // Handle transparency (color 15) in Version 6
+  if (machine.state.version === 6) {
+    // Check if background is set to transparent
+    if (background === 15) {
+      // Check if the interpreter supports transparency
+      const flags3Addr = machine.state.memory.getWord(HeaderLocation.HeaderExtTable) + 4;
+      if (flags3Addr > 0) {
+        const flags3 = machine.state.memory.getWord(flags3Addr);
+        const supportsTransparency = (flags3 & 0x0001) !== 0;
+
+        if (!supportsTransparency) {
+          // If transparency is not supported, ignore the request
+          machine.logger.warn("Transparency requested but not supported by interpreter");
+          return;
+        }
+      } else {
+        // No header extension table, assume no transparency support
+        machine.logger.warn("Transparency requested but header extension not present");
+        return;
+      }
+
+      // Check if foreground is also set to transparent (invalid)
+      if (foreground === 15) {
+        machine.logger.warn("Transparent foreground not allowed, request ignored");
+        return;
+      }
+
+      // Check if current text style includes reverse video (invalid with transparency)
+      const currentWindow = machine.screen.getOutputWindow(machine);
+      const currentStyle = machine.screen.getWindowProperty(machine, currentWindow, 10);
+      if ((currentStyle & 1) !== 0) { // Reverse video bit
+        machine.logger.warn("Reverse video style not allowed with transparent background");
+        return;
+      }
+    }
+
+    // Ensure foreground is never transparent
+    if (foreground === 15) {
+      machine.logger.warn("Transparent foreground not allowed, using default instead");
+      foreground = 1; // Use default foreground color instead
+    }
+  }
+
+  // Pass to screen implementation
   machine.screen.setTextColors(machine, window, foreground, background);
+}
+
+/**
+ * Print a Unicode character
+ */
+function print_unicode(machine: ZMachine, charCode: number): void {
+  machine.logger.debug(`print_unicode ${charCode}`);
+  // For now, we'll just convert to the nearest ASCII equivalent
+  // In a real implementation, this would handle proper Unicode
+  const char = String.fromCodePoint(charCode);
+  machine.screen.print(machine, char);
+}
+
+/**
+ * Check if a Unicode character can be displayed
+ */
+function check_unicode(machine: ZMachine, charCode: number): void {
+  const resultVar = machine.state.readByte();
+  machine.logger.debug(`check_unicode ${charCode} -> ${resultVar}`);
+
+  // For now, we'll just check if it's in the basic ASCII range
+  const canDisplay = charCode >= 32 && charCode <= 126;
+  machine.state.storeVariable(resultVar, canDisplay ? 3 : 0);
 }
 
 /**
@@ -224,4 +304,6 @@ export const stringOpcodes = {
   tokenise: opcode("tokenise", tokenise),
   set_text_style: opcode("set_text_style", set_text_style),
   set_colour: opcode("set_colour", set_colour),
+  print_unicode: opcode("print_unicode", print_unicode),
+  check_unicode: opcode("check_unicode", check_unicode),
 };

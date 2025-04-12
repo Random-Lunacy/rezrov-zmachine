@@ -27,6 +27,7 @@ function call_1s(machine: ZMachine, routine: number): void {
   const resultVar = machine.state.readByte();
 
   if (routine === 0) {
+    machine.state.logger.debug(`${hex(machine.state.pc)} call_1s ${hex(routine)} -> (${hex(resultVar)})`);
     machine.state.storeVariable(resultVar, 0);
     return;
   }
@@ -43,6 +44,7 @@ function call_1s(machine: ZMachine, routine: number): void {
  */
 function call_1n(machine: ZMachine, routine: number): void {
   if (routine === 0) {
+    machine.state.logger.debug(`${hex(machine.state.pc)} call_1n ${hex(routine)}`);
     return;
   }
 
@@ -57,7 +59,8 @@ function call_1n(machine: ZMachine, routine: number): void {
 function call_2s(machine :ZMachine, routine: number, arg1: number): void {
   const resultVar = machine.state.readByte();
 
-  if (routine === 0) {
+   if (routine === 0) {
+    machine.state.logger.debug(`${hex(machine.state.pc)} call_2s ${hex(routine)} -> (${hex(resultVar)})`);
     machine.state.storeVariable(resultVar, 0);
     return;
   }
@@ -76,6 +79,7 @@ function call_2s(machine :ZMachine, routine: number, arg1: number): void {
  */
 function call_2n(machine: ZMachine, routine: number, arg1: number): void {
   if (routine === 0) {
+    machine.state.logger.debug(`${hex(machine.state.pc)} call_2n ${hex(routine)}`);
     return;
   }
 
@@ -85,7 +89,8 @@ function call_2n(machine: ZMachine, routine: number, arg1: number): void {
 }
 
 /**
- * Call a routine with variable number of arguments, storing the result
+ * Call a routine with variable number of arguments, storing the result.
+ * 'call' in v1-3 and 'call_vs' in v4+. Functionality is the same.
  */
 function call_vs(
   machine: ZMachine,
@@ -95,6 +100,7 @@ function call_vs(
   const resultVar = machine.state.readByte();
 
   if (routine === 0) {
+    machine.state.logger.debug(`${hex(machine.state.pc)} call_vs ${hex(routine)} -> (${hex(resultVar)})`);
     machine.state.storeVariable(resultVar, 0);
     return;
   }
@@ -119,6 +125,7 @@ function call_vs2(
   const resultVar = machine.state.readByte();
 
   if (routine === 0) {
+    machine.state.logger.debug(`${hex(machine.state.pc)} call_vs2 ${hex(routine)} -> (${hex(resultVar)})`);
     machine.state.storeVariable(resultVar, 0);
     return;
   }
@@ -141,6 +148,7 @@ function call_vn(
   ...args: Array<number>
 ): void {
   if (routine === 0) {
+    machine.state.logger.debug(`${hex(machine.state.pc)} call_vn ${hex(routine)}`);
     return;
   }
 
@@ -162,6 +170,7 @@ function call_vn2(
   ...args: Array<number>
 ): void {
   if (routine === 0) {
+    machine.state.logger.debug(`${hex(machine.state.pc)} call_vn2 ${hex(routine)}`);
     return;
   }
 
@@ -172,14 +181,6 @@ function call_vn2(
       .join(", ")}`
   );
   machine.state.callRoutine(packedAddress, null, ...args);
-}
-
-/**
- * Main VAR opcode for calling routines with variable arguments and storing the result
- * This is the most general form of call
- */
-function call(machine: ZMachine, routine: number, ...args: Array<number>): void {
-  return call_vs(machine, routine, ...args);
 }
 
 /**
@@ -222,7 +223,6 @@ export const callOpcodes = {
   call_vs2: opcode("call_vs2", call_vs2),
   call_vn: opcode("call_vn", call_vn),
   call_vn2: opcode("call_vn2", call_vn2),
-  call: opcode("call", call),
-  zCatch: opcode("catch", zCatch),
-  zThrow: opcode("throw", zThrow),
+  Catch: opcode("catch", zCatch), // 'catch' is a reserved word
+  Throw: opcode("throw", zThrow), // 'throw' is a reserved word
 };

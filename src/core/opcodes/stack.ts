@@ -12,10 +12,6 @@
  * - dec: Decrements a variable by 1.
  * - inc_chk: Increments a variable, then checks if it's greater than a value.
  * - dec_chk: Decrements a variable, then checks if it's less than a value.
- * - loadw: Loads a word from an array.
- * - loadb: Loads a byte from an array.
- * - storew: Stores a word in an array.
- * - storeb: Stores a byte in an array.
  */
 import { ZMachine } from "../../interpreter/ZMachine";
 import { toI16, toU16 } from "../memory/cast16";
@@ -25,6 +21,7 @@ import { opcode } from "./base";
  * Pushes a value onto the stack.
  */
 function push(machine: ZMachine, value: number): void {
+  machine.logger.debug(`push ${value}`);
   machine.state.pushStack(value);
 }
 
@@ -33,6 +30,7 @@ function push(machine: ZMachine, value: number): void {
  * The value is discarded.
  */
 function pop(machine: ZMachine): void {
+  machine.logger.debug(`pop`);
   machine.state.popStack();
 }
 
@@ -41,6 +39,9 @@ function pop(machine: ZMachine): void {
  */
 function pull(machine: ZMachine, variable: number): void {
   const value = machine.state.popStack();
+  machine.logger.debug(
+    `${machine.executor.op_pc.toString(16)} pull ${variable} (${value})`
+  );
   machine.state.storeVariable(variable, value);
 }
 
@@ -70,6 +71,9 @@ function store(machine: ZMachine, variable: number, value: number): void {
  */
 function inc(machine: ZMachine, variable: number): void {
   const currentValue = machine.state.loadVariable(variable, true);
+  machine.logger.debug(
+    `${machine.executor.op_pc.toString(16)} inc (${variable}) ${currentValue}`
+  );
   machine.state.storeVariable(variable, toU16(toI16(currentValue) + 1), true);
 }
 
@@ -78,6 +82,9 @@ function inc(machine: ZMachine, variable: number): void {
  */
 function dec(machine: ZMachine, variable: number): void {
   const currentValue = machine.state.loadVariable(variable, true);
+  machine.logger.debug(
+    `${machine.executor.op_pc.toString(16)} dec (${variable}) ${currentValue}`
+  );
   machine.state.storeVariable(variable, toU16(toI16(currentValue) - 1), true);
 }
 
@@ -123,69 +130,6 @@ function dec_chk(machine: ZMachine, variable: number, value: number): void {
   machine.state.doBranch(newValue < toI16(value), branchOnFalse, offset);
 }
 
-/**
- * Loads a word from an array.
- */
-function loadw(machine: ZMachine, array: number, wordIndex: number): void {
-  const resultVar = machine.state.readByte();
-  machine.logger.debug(
-    `${machine.executor.op_pc.toString(
-      16
-    )} loadw ${array} ${wordIndex} -> (${resultVar})`
-  );
-
-  const address = (array + 2 * wordIndex) & 0xffff;
-  machine.state.storeVariable(resultVar, machine.memory.getWord(address));
-}
-
-/**
- * Loads a byte from an array.
- */
-function loadb(machine: ZMachine, array: number, byteIndex: number): void {
-  const resultVar = machine.state.readByte();
-  machine.logger.debug(
-    `${machine.executor.op_pc.toString(
-      16
-    )} loadb ${array} ${byteIndex} -> (${resultVar})`
-  );
-
-  const address = (array + byteIndex) & 0xffff;
-  machine.state.storeVariable(resultVar, machine.memory.getByte(address));
-}
-
-/**
- * Stores a word in an array.
- */
-function storew(
-  machine: ZMachine,
-  array: number,
-  wordIndex: number,
-  value: number
-): void {
-  machine.logger.debug(
-    `${machine.executor.op_pc.toString(16)} storew ${array} ${wordIndex} ${value}`
-  );
-
-  const address = (array + 2 * wordIndex) & 0xffff;
-  machine.memory.setWord(address, value);
-}
-
-/**
- * Stores a byte in an array.
- */
-function storeb(
-  machine: ZMachine,
-  array: number,
-  byteIndex: number,
-  value: number
-): void {
-  machine.logger.debug(
-    `${machine.executor.op_pc.toString(16)} storeb ${array} ${byteIndex} ${value}`
-  );
-
-  const address = (array + byteIndex) & 0xffff;
-  machine.memory.setByte(address, value & 0xff);
-}
 
 /**
  * Export all stack manipulation opcodes
@@ -203,10 +147,4 @@ export const stackOpcodes = {
   dec: opcode("dec", dec),
   inc_chk: opcode("inc_chk", inc_chk),
   dec_chk: opcode("dec_chk", dec_chk),
-
-  // Memory access operations
-  loadw: opcode("loadw", loadw),
-  loadb: opcode("loadb", loadb),
-  storew: opcode("storew", storew),
-  storeb: opcode("storeb", storeb),
 };

@@ -8,11 +8,11 @@
  * - `restore_undo`: Restores the last saved state.
  * - `restart`: Restarts the game from the beginning.
  * - `verify`: Verifies the game file checksum.
- * - `check_arg_count`: Checks the argument count for the current routine.
- * - `scan_table`: Scans a table for a specific value.
  * - `piracy`: Performs a piracy check (always returns true).
- * - `save_v5`: Saves the current state to an external file (V5+).
- * - `restore_v5`: Restores the state from an external file (V5+).
+ * - `save`: Saves the game state to a specified table.
+ * - `restore`: Restores the game state from a specified table.
+ * - `quit`: Quits the game.
+ * - `show_status`: Updates the status bar (for versions <= 3).
  */
 import { ZMachine } from "../../interpreter/ZMachine";
 import { opcode } from "./base";
@@ -22,6 +22,8 @@ import { opcode } from "./base";
  */
 function save_undo(machine: ZMachine): void {
   const resultVar = machine.state.readByte();
+
+  machine.logger.debug(`${machine.executor.op_pc.toString(16)} save_undo ${resultVar}`);
 
   try {
     machine.saveUndo();
@@ -38,6 +40,8 @@ function save_undo(machine: ZMachine): void {
 function restore_undo(machine: ZMachine): void {
   const resultVar = machine.state.readByte();
 
+  machine.logger.debug(`${machine.executor.op_pc.toString(16)} restore_undo ${resultVar}`);
+
   try {
     const success = machine.restoreUndo();
     machine.state.storeVariable(resultVar, success ? 2 : 0);
@@ -48,43 +52,10 @@ function restore_undo(machine: ZMachine): void {
 }
 
 /**
- * Save the current state to an external file
- * (Alternative version in V5+)
- */
-function save_v5(machine: ZMachine, table: number, bytes: number, name: number): void {
-  const resultVar = machine.state.readByte();
-
-  try {
-    // Save to external storage
-    const success = machine.saveToTable(table, bytes);
-    machine.state.storeVariable(resultVar, success ? 1 : 0);
-  } catch (error) {
-    machine.logger.error(`Failed to save: ${error}`);
-    machine.state.storeVariable(resultVar, 0);
-  }
-}
-
-/**
- * Restore state from an external file
- * (Alternative version in V5+)
- */
-function restore_v5(machine: ZMachine, table: number, bytes: number, name: number): void {
-  const resultVar = machine.state.readByte();
-
-  try {
-    // Restore from external storage
-    const success = machine.restoreFromTable(table, bytes);
-    machine.state.storeVariable(resultVar, success ? 2 : 0);
-  } catch (error) {
-    machine.logger.error(`Failed to restore: ${error}`);
-    machine.state.storeVariable(resultVar, 0);
-  }
-}
-
-/**
  * Restart the game from the beginning
  */
 function restart(machine: ZMachine): void {
+  machine.state.logger.debug(`${machine.executor.op_pc.toString(16)} restart`);
   machine.restart();
 }
 
@@ -92,83 +63,125 @@ function restart(machine: ZMachine): void {
  * Verify the game file checksum
  */
 function verify(machine: ZMachine): void {
-  const [offset, condfalse] = machine.state.readBranchOffset();
+  const [offset, branchOnFalse] = machine.state.readBranchOffset();
+
+  machine.logger.debug(
+    `${machine.executor.op_pc.toString(16)} verify -> [${!branchOnFalse}] ${offset}`
+  );
 
   try {
     // In a real implementation, we would compute the checksum
     // For now, always return true
     const verified = true;
-    machine.state.doBranch(verified, condfalse, offset);
+    machine.state.doBranch(verified, branchOnFalse, offset);
   } catch (error) {
     machine.logger.error(`Error verifying checksum: ${error}`);
-    machine.state.doBranch(false, condfalse, offset);
+    machine.state.doBranch(false, branchOnFalse, offset);
   }
 }
 
-/**
- * Test if the interpreter claims to provide the given feature
- */
-function check_arg_count(machine: ZMachine, argNum: number): void {
-  const [offset, condfalse] = machine.state.readBranchOffset();
 
-  // Check if the current routine was called with at least argNum arguments
-  const argCount = machine.state.getArgumentCount();
-  machine.state.doBranch(argCount >= argNum, condfalse, offset);
-}
-
-/**
- * Scan through a table looking for a particular word/byte
- */
-function scan_table(
-  machine: ZMachine,
-  value: number,
-  table: number,
-  length: number,
-  form: number = 0x82
-): void {
-  const resultVar = machine.state.readByte();
-  const [offset, condfalse] = machine.state.readBranchOffset();
-
-  machine.logger.debug(`scan_table ${value} ${table} ${length} ${form}`);
-
-  // Determine if we're looking for a word or byte
-  const isWord = (form & 0x80) !== 0;
-  const elementSize = form & 0x7f;
-
-  let found = false;
-  let foundAddr = 0;
-
-  // Scan the table
-  for (let i = 0; i < length; i++) {
-    const addr = table + i * elementSize;
-    const tableValue = isWord
-      ? machine.memory.getWord(addr)
-      : machine.memory.getByte(addr);
-
-    if (tableValue === value) {
-      found = true;
-      foundAddr = addr;
-      break;
-    }
-  }
-
-  if (found) {
-    machine.state.storeVariable(resultVar, foundAddr);
-    machine.state.doBranch(true, condfalse, offset);
-  } else {
-    machine.state.storeVariable(resultVar, 0);
-    machine.state.doBranch(false, condfalse, offset);
-  }
-}
 
 /**
  * Piracy check - always returns true (game is genuine)
  */
 function piracy(machine: ZMachine): void {
-  const [offset, condfalse] = machine.state.readBranchOffset();
+  const [offset, branchOnFalse] = machine.state.readBranchOffset();
+
+  machine.logger.debug(
+    `${machine.executor.op_pc.toString(16)} piracy -> [${!branchOnFalse}] ${offset}`
+  );
 
   // Always indicate the game is genuine
-  machine.state.doBranch(true, condfalse, offset);
+  machine.state.doBranch(true, branchOnFalse, offset);
+}
+
+function save(machine: ZMachine, table: number, bytes: number, name: number = 0, prompt: number = -1): void {
+  // For Version 5 and later, use the extended format
+  if (machine.state.version >= 5) {
+    const resultVar = machine.state.readByte();
+
+    machine.logger.debug(
+      `${machine.executor.op_pc.toString(16)} save (ext) ${table} ${bytes} ${name} ${prompt}`
+    );
+
+    try {
+      // If prompt parameter is provided and is 0, don't prompt
+      // If prompt is 1 or not provided (or -1 in our case), prompt behavior is determined by the interpreter
+      const shouldPrompt = (prompt === -1 || prompt === 1);
+
+      // This would need to save the table data to a file
+      const success = machine.saveToTable(table, bytes, name, shouldPrompt);
+
+      // Store the result (1 for success, 0 for failure)
+      machine.state.storeVariable(resultVar, success ? 1 : 0);
+    } catch (error) {
+      machine.logger.error(`Failed to save: ${error}`);
+      machine.state.storeVariable(resultVar, 0);
+    }
+  } else {
+    // For earlier versions, use the branch format
+    const [offset, branchOnFalse] = machine.state.readBranchOffset();
+
+    machine.logger.debug(
+      `${machine.executor.op_pc.toString(16)} save -> [${!branchOnFalse}] ${offset}`
+    );
+
+    const saved = machine.saveGame();
+    machine.state.doBranch(saved, branchOnFalse, offset);
+  }
+}
+
+function restore(machine: ZMachine, table: number, bytes: number, name: number = 0, prompt: number = -1): void {
+  // For Version 5 and later, use the extended format
+  if (machine.state.version >= 5) {
+    const resultVar = machine.state.readByte();
+
+    machine.logger.debug(
+      `${machine.executor.op_pc.toString(16)} restore (ext) ${table} ${bytes} ${name} ${prompt}`
+    );
+
+    try {
+      // If prompt parameter is provided and is 0, don't prompt
+      // If prompt is 1 or not provided (or -1 in our case), prompt behavior is determined by the interpreter
+      const shouldPrompt = (prompt === -1 || prompt === 1);
+
+      // This would need to restore the table data from a file
+      const success = machine.restoreFromTable(table, bytes, name, shouldPrompt);
+
+      // Store the result (2 for success after restoring, 0 for failure)
+      machine.state.storeVariable(resultVar, success ? 2 : 0);
+    } catch (error) {
+      machine.logger.error(`Failed to restore: ${error}`);
+      machine.state.storeVariable(resultVar, 0);
+    }
+  } else {
+    // For earlier versions, use the branch format
+    const [offset, branchOnFalse] = machine.state.readBranchOffset();
+
+    machine.logger.debug(
+      `${machine.executor.op_pc.toString(16)} restore -> [${!branchOnFalse}] ${offset}`
+    );
+
+    const restored = machine.restoreGame();
+    machine.state.doBranch(restored, branchOnFalse, offset);
+  }
+}
+
+/**
+ * Quit the game
+ */
+function quit(machine: ZMachine): void {
+  machine.state.logger.debug(`${machine.executor.op_pc.toString(16)} quit`);
+  machine.quit();
+}
+
+/**
+ * Update the status bar (for versions <= 3)
+ */
+function show_status(machine: ZMachine): void {
+  machine.state.logger.debug(`${machine.executor.op_pc.toString(16)} show_status`);
+  machine.state.updateStatusBar();
 }
 
 /**
@@ -179,9 +192,9 @@ export const gameOpcodes = {
   restore_undo: opcode("restore_undo", restore_undo),
   restart: opcode("restart", restart),
   verify: opcode("verify", verify),
-  check_arg_count: opcode("check_arg_count", check_arg_count),
-  scan_table: opcode("scan_table", scan_table),
   piracy: opcode("piracy", piracy),
-  save_v5: opcode("save_v5", save_v5),
-  restore_v5: opcode("restore_v5", restore_v5),
+  save: opcode("save", save),
+  restore: opcode("restore", restore),
+  quit: opcode("quit", quit),
+  show_status: opcode("show_status", show_status),
 };

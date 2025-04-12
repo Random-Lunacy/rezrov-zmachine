@@ -23,7 +23,7 @@ export class InputHandler {
    * Process a completed user input
    * @param input The input text from the user
    */
-  processInput(input: string): void {
+  processInput(input: string, terminatingChar: number = 13): void {
     const state = this.machine.getInputState();
     if (!state) {
       this.machine.logger.error("No pending input state");
@@ -35,7 +35,7 @@ export class InputHandler {
       return;
     }
 
-    // Convert to lowercase (Z-machine convention)
+    // Convert to lowercase as per Z-machine spec
     input = input.toLowerCase();
 
     const { textBuffer, parseBuffer, resultVar } = state;
@@ -46,19 +46,19 @@ export class InputHandler {
       throw new Error("parseBuffer undefined");
     }
 
-    const gameState = this.machine.getGameState();
+    const gameState = this.machine.state;
     const memory = gameState.memory;
     const version = gameState.version;
 
-    // Process the text input
+    // Store text in appropriate format based on version
     this.storeTextInput(input, textBuffer, version);
 
     // Tokenize the input
-    this.machine.tokenizeLine(textBuffer, parseBuffer, 0, false);
+    this.machine.state.tokenizeLine(textBuffer, parseBuffer, 0, false);
 
-    // For V5+, store the terminating key (assume Enter key)
-    if (version >= 5) {
-      gameState.storeVariable(resultVar, 0x0d);
+    // For V5+, we need to store the terminating character
+    if (version >= 5 && resultVar !== undefined) {
+      gameState.storeVariable(resultVar, terminatingChar);
     }
   }
 
@@ -92,30 +92,34 @@ export class InputHandler {
     textBuffer: number,
     version: number
   ): void {
-    const memory = this.machine.getGameState().memory;
+    const memory = this.machine.state.memory;
 
-    // Get the maximum input length
+    // Get max input length, handling differently based on version
     let maxInput = memory.getByte(textBuffer);
+
+    // For V1-4, max length is stored as maxLength-1
     if (version <= 4) {
-      // Need room for terminator
       maxInput--;
     }
 
-    // Truncate if needed
+    // Truncate input to max length
     input = input.slice(0, maxInput);
 
-    // Store the input text in memory
-    for (let i = 0; i < input.length; i++) {
-      const c = input.charCodeAt(i);
-      memory.setByte(textBuffer + (version <= 4 ? 1 : 2) + i, c);
-    }
-
+    // Store input in appropriate format based on version
     if (version <= 4) {
-      // Store terminating null
+      // V1-4: Store text starting at byte 1, terminate with null
+      for (let i = 0; i < input.length; i++) {
+        const c = input.charCodeAt(i);
+        memory.setByte(textBuffer + 1 + i, c);
+      }
       memory.setByte(textBuffer + 1 + input.length, 0);
     } else {
-      // Store length of string
+      // V5+: Store length at byte 1, text starting at byte 2
       memory.setByte(textBuffer + 1, input.length);
+      for (let i = 0; i < input.length; i++) {
+        const c = input.charCodeAt(i);
+        memory.setByte(textBuffer + 2 + i, c);
+      }
     }
   }
 }

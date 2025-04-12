@@ -32,59 +32,63 @@ function je(
   c?: number,
   d?: number
 ): void {
-  const [offset, condfalse] = machine.state.readBranchOffset();
+  // Validate that we have at least 2 operands
+  if (b === undefined) {
+    throw new Error("je opcode requires at least 2 operands");
+  }
+
+  const [offset, branchOnFalse] = machine.state.readBranchOffset();
   machine.state.logger.debug(
     `${hex(machine.state.pc)} je ${hex(a)} ${hex(b)} ${c !== undefined ? hex(c) : ""} ${
       d !== undefined ? hex(d) : ""
-    } -> [${!condfalse}] ${hex(machine.state.pc + offset - 2)}`
+    } -> [${!branchOnFalse}] ${hex(machine.state.pc + offset - 2)}`
   );
 
   const cond =
     a === b || (c !== undefined && a === c) || (d !== undefined && a === d);
 
-  machine.state.doBranch(cond, condfalse, offset);
+  machine.state.doBranch(cond, branchOnFalse, offset);
 }
-
 /**
  * Jumps if less than
  */
 function jl(machine: ZMachine, a: number, b: number): void {
-  const [offset, condfalse] = machine.state.readBranchOffset();
+  const [offset, branchOnFalse] = machine.state.readBranchOffset();
   machine.state.logger.debug(
-    `${hex(machine.state.pc)} jl ${hex(a)} ${hex(b)} -> [${!condfalse}] ${hex(
+    `${hex(machine.state.pc)} jl ${hex(a)} ${hex(b)} -> [${!branchOnFalse}] ${hex(
       machine.state.pc + offset - 2
     )}`
   );
 
-  machine.state.doBranch(toI16(a) < toI16(b), condfalse, offset);
+  machine.state.doBranch(toI16(a) < toI16(b), branchOnFalse, offset);
 }
 
 /**
  * Jumps if greater than
  */
 function jg(machine: ZMachine, a: number, b: number): void {
-  const [offset, condfalse] = machine.state.readBranchOffset();
+  const [offset, branchOnFalse] = machine.state.readBranchOffset();
   machine.state.logger.debug(
-    `${hex(machine.state.pc)} jg ${hex(a)} ${hex(b)} -> [${!condfalse}] ${hex(
+    `${hex(machine.state.pc)} jg ${hex(a)} ${hex(b)} -> [${!branchOnFalse}] ${hex(
       machine.state.pc + offset - 2
     )}`
   );
 
-  machine.state.doBranch(toI16(a) > toI16(b), condfalse, offset);
+  machine.state.doBranch(toI16(a) > toI16(b), branchOnFalse, offset);
 }
 
 /**
  * Jumps if zero
  */
 function jz(machine: ZMachine, a: number): void {
-  const [offset, condfalse] = machine.state.readBranchOffset();
+  const [offset, branchOnFalse] = machine.state.readBranchOffset();
   machine.state.logger.debug(
-    `${hex(machine.state.pc)} jz ${hex(a)} -> [${!condfalse}] ${hex(
+    `${hex(machine.state.pc)} jz ${hex(a)} -> [${!branchOnFalse}] ${hex(
       machine.state.pc + offset - 2
     )}`
   );
 
-  machine.state.doBranch(a === 0, condfalse, offset);
+  machine.state.doBranch(a === 0, branchOnFalse, offset);
 }
 
 /**
@@ -99,28 +103,28 @@ function jump(machine: ZMachine, offset: number): void {
  * Tests bits
  */
 function test(machine: ZMachine, bitmap: number, flags: number): void {
-  const [offset, condfalse] = machine.state.readBranchOffset();
+  const [offset, branchOnFalse] = machine.state.readBranchOffset();
   machine.state.logger.debug(
     `${hex(machine.state.pc)} test ${hex(bitmap)} ${hex(
       flags
-    )} -> [${!condfalse}] ${hex(machine.state.pc + offset - 2)}`
+    )} -> [${!branchOnFalse}] ${hex(machine.state.pc + offset - 2)}`
   );
 
-  machine.state.doBranch((bitmap & flags) === flags, condfalse, offset);
+  machine.state.doBranch((bitmap & flags) === flags, branchOnFalse, offset);
 }
 
 /**
  * Checks the argument count
  */
 function check_arg_count(machine: ZMachine, argNumber: number): void {
-  const [offset, condfalse] = machine.state.readBranchOffset();
+  const [offset, branchOnFalse] = machine.state.readBranchOffset();
   machine.state.logger.debug(
     `${hex(machine.state.pc)} check_arg_count ${hex(
       argNumber
-    )} -> [${!condfalse}] ${hex(machine.state.pc + offset - 2)}`
+    )} -> [${!branchOnFalse}] ${hex(machine.state.pc + offset - 2)}`
   );
 
-  machine.state.doBranch(machine.state.getArgumentCount() >= argNumber, condfalse, offset);
+  machine.state.doBranch(machine.state.getArgumentCount() >= argNumber, branchOnFalse, offset);
 }
 
 /**
