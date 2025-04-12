@@ -1,6 +1,28 @@
+/**
+ * String handling opcodes
+ * These opcodes are responsible for printing strings, handling text input/output, and managing text styles.
+ * They provide functionality for displaying text on the screen, formatting text, and controlling the appearance of text.
+ *
+ * Exported Opcodes:
+ * - `print`: Prints a string at the current cursor position.
+ * - `print_ret`: Prints a string and returns from the current routine.
+ * - `print_addr`: Prints a string at the specified address.
+ * - `print_paddr`: Prints a string at a packed address.
+ * - `print_obj`: Prints the name of an object.
+ * - `print_char`: Prints a single character.
+ * - `print_num`: Prints a number.
+ * - `print_table`: Prints a table of characters.
+ * - `new_line`: Prints a newline character.
+ * - `output_stream`: Selects the output stream for printing.
+ * - `input_stream`: Selects the input stream for reading.
+ * - `tokenise`: Tokenizes input text.
+ * - `set_text_style`: Sets the text style for printing.
+ * - `set_colour`: Sets the text colors for printing.
+ */
 import { ZMachine } from "../../interpreter/ZMachine";
-import { opcode } from "./base";
 import { decodeZString } from "../../parsers/ZString";
+import { toI16 } from "../memory/cast16";
+import { opcode } from "./base";
 
 /**
  * Print the string at the given address
@@ -18,7 +40,7 @@ function print_addr(machine: ZMachine, stringAddr: number): void {
  */
 function print_obj(machine: ZMachine, obj: number): void {
   machine.logger.debug(`print_obj ${obj}`);
-  const object = machine.getGameState().getObject(obj);
+  const object = machine.state.getObject(obj);
   if (object === null) {
     machine.logger.warn(`print_obj: object ${obj} not found`);
     return;
@@ -30,7 +52,7 @@ function print_obj(machine: ZMachine, obj: number): void {
  * Print a string at a packed address
  */
 function print_paddr(machine: ZMachine, packedAddr: number): void {
-  const addr = machine.getGameState().unpackStringAddress(packedAddr);
+  const addr = machine.state.unpackStringAddress(packedAddr);
   machine.logger.debug(`print_paddr ${packedAddr} -> ${addr}`);
 
   machine.screen.print(
@@ -50,7 +72,7 @@ function new_line(machine: ZMachine): void {
  * Print a string embedded in the instruction stream
  */
 function print(machine: ZMachine): void {
-  const zstring = machine.getGameState().readZString();
+  const zstring = machine.state.readZString();
   machine.screen.print(
     machine,
     decodeZString(machine.memory, zstring, true)
@@ -61,17 +83,17 @@ function print(machine: ZMachine): void {
  * Print a string and return 1
  */
 function print_ret(machine: ZMachine): void {
-  machine.logger.debug(`${machine.pc.toString(16)} print_ret`);
+  machine.logger.debug(`${machine.state.pc.toString(16)} print_ret`);
 
   // Read and print the embedded Z-string
-  const zstring = machine.getGameState().readZString();
+  const zstring = machine.state.readZString();
   machine.screen.print(
     machine,
     decodeZString(machine.memory, zstring, true)
   );
 
   // Return from the routine with value 1
-  machine.getGameState().returnFromRoutine(1);
+  machine.state.returnFromRoutine(1);
 }
 
 /**
@@ -89,7 +111,7 @@ function print_char(machine: ZMachine, ...chars: Array<number>): void {
  * Print a number
  */
 function print_num(machine: ZMachine, value: number): void {
-  const numStr = machine.toI16(value).toString();
+  const numStr = toI16(value).toString();
   machine.logger.debug(`print_num ${value} -> ${numStr}`);
   machine.screen.print(machine, numStr);
 }
@@ -126,7 +148,7 @@ function output_stream(
   table: number = 0,
   width: number = 0
 ): void {
-  const streamNumber = machine.toI16(streamNum);
+  const streamNumber = toI16(streamNum);
 
   if (streamNumber === 0) {
     return; // No-op
@@ -143,7 +165,7 @@ function output_stream(
  * Input stream selection
  */
 function input_stream(machine: ZMachine, streamNum: number): void {
-  machine.screen.selectInputStream(machine, machine.toI16(streamNum));
+  machine.screen.selectInputStream(machine, toI16(streamNum));
 }
 
 /**
@@ -157,7 +179,7 @@ function tokenise(
   flag: number = 0
 ): void {
   machine.logger.debug(`tokenise: text=${text}, dict=${dict}, parse=${parse}, flag=${flag}`);
-  machine.getGameState().tokenizeLine(text, parse, dict, flag !== 0);
+  machine.state.tokenizeLine(text, parse, dict, flag !== 0);
 }
 
 /**
@@ -171,13 +193,13 @@ function set_text_style(machine: ZMachine, style: number): void {
 /**
  * Set text colors
  */
-function set_color(
+function set_colour(
   machine: ZMachine,
   foreground: number,
   background: number,
   window: number = 0
 ): void {
-  if (machine.getGameState().version < 5) {
+  if (machine.state.version < 5) {
     window = 0;
   }
 
@@ -201,5 +223,5 @@ export const stringOpcodes = {
   input_stream: opcode("input_stream", input_stream),
   tokenise: opcode("tokenise", tokenise),
   set_text_style: opcode("set_text_style", set_text_style),
-  set_color: opcode("set_color", set_color),
+  set_colour: opcode("set_colour", set_colour),
 };

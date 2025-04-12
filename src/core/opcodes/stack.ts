@@ -1,12 +1,31 @@
+/**
+ * Stack manipulation opcodes
+ * This module contains the implementation of stack manipulation opcodes for the Z-Machine.
+ *
+ * Exported functions:
+ * - push: Pushes a value onto the stack.
+ * - pop: Pops a value from the stack.
+ * - pull: Pops a value from the stack and stores it in a variable.
+ * - load: Loads a value from a variable and stores it in the result variable.
+ * - store: Stores a value in a variable.
+ * - inc: Increments a variable by 1.
+ * - dec: Decrements a variable by 1.
+ * - inc_chk: Increments a variable, then checks if it's greater than a value.
+ * - dec_chk: Decrements a variable, then checks if it's less than a value.
+ * - loadw: Loads a word from an array.
+ * - loadb: Loads a byte from an array.
+ * - storew: Stores a word in an array.
+ * - storeb: Stores a byte in an array.
+ */
 import { ZMachine } from "../../interpreter/ZMachine";
-import { opcode } from "./base";
 import { toI16, toU16 } from "../memory/cast16";
+import { opcode } from "./base";
 
 /**
  * Pushes a value onto the stack.
  */
 function push(machine: ZMachine, value: number): void {
-  machine.pushStack(value);
+  machine.state.pushStack(value);
 }
 
 /**
@@ -14,26 +33,26 @@ function push(machine: ZMachine, value: number): void {
  * The value is discarded.
  */
 function pop(machine: ZMachine): void {
-  machine.popStack();
+  machine.state.popStack();
 }
 
 /**
  * Pops a value from the stack and stores it in a variable.
  */
 function pull(machine: ZMachine, variable: number): void {
-  const value = machine.popStack();
-  machine.storeVariable(variable, value);
+  const value = machine.state.popStack();
+  machine.state.storeVariable(variable, value);
 }
 
 /**
  * Loads a value from a variable and stores it in the result variable.
  */
 function load(machine: ZMachine, variable: number): void {
-  const resultVar = machine.readByte();
+  const resultVar = machine.state.readByte();
   machine.logger.debug(
-    `${machine.op_pc.toString(16)} load ${variable} -> (${resultVar})`
+    `${machine.executor.op_pc.toString(16)} load ${variable} -> (${resultVar})`
   );
-  machine.storeVariable(resultVar, machine.loadVariable(variable, true), true);
+  machine.state.storeVariable(resultVar, machine.state.loadVariable(variable, true), true);
 }
 
 /**
@@ -41,97 +60,97 @@ function load(machine: ZMachine, variable: number): void {
  */
 function store(machine: ZMachine, variable: number, value: number): void {
   machine.logger.debug(
-    `${machine.op_pc.toString(16)} store (${variable}) ${value}`
+    `${machine.executor.op_pc.toString(16)} store (${variable}) ${value}`
   );
-  machine.storeVariable(variable, value, true);
+  machine.state.storeVariable(variable, value, true);
 }
 
 /**
  * Increments a variable by 1.
  */
 function inc(machine: ZMachine, variable: number): void {
-  const currentValue = machine.loadVariable(variable, true);
-  machine.storeVariable(variable, toU16(toI16(currentValue) + 1), true);
+  const currentValue = machine.state.loadVariable(variable, true);
+  machine.state.storeVariable(variable, toU16(toI16(currentValue) + 1), true);
 }
 
 /**
  * Decrements a variable by 1.
  */
 function dec(machine: ZMachine, variable: number): void {
-  const currentValue = machine.loadVariable(variable, true);
-  machine.storeVariable(variable, toU16(toI16(currentValue) - 1), true);
+  const currentValue = machine.state.loadVariable(variable, true);
+  machine.state.storeVariable(variable, toU16(toI16(currentValue) - 1), true);
 }
 
 /**
  * Increments a variable, then checks if it's greater than a value.
  */
 function inc_chk(machine: ZMachine, variable: number, value: number): void {
-  const [offset, condfalse] = machine.readBranchOffset();
+  const [offset, branchOnFalse] = machine.state.readBranchOffset();
   machine.logger.debug(
-    `${machine.op_pc.toString(
+    `${machine.executor.op_pc.toString(
       16
-    )} inc_chk ${variable} ${value} -> [${!condfalse}] ${
-      machine.pc + offset - 2
+    )} inc_chk ${variable} ${value} -> [${!branchOnFalse}] ${
+      machine.state.pc + offset - 2
     }`
   );
 
-  const currentValue = machine.loadVariable(variable, true);
+  const currentValue = machine.state.loadVariable(variable, true);
   const newValue = toI16(currentValue) + 1;
-  machine.storeVariable(variable, toU16(newValue), true);
+  machine.state.storeVariable(variable, toU16(newValue), true);
 
   machine.logger.debug(`     ${newValue} ?> ${value}`);
-  machine.doBranch(newValue > toI16(value), condfalse, offset);
+  machine.state.doBranch(newValue > toI16(value), branchOnFalse, offset);
 }
 
 /**
  * Decrements a variable, then checks if it's less than a value.
  */
 function dec_chk(machine: ZMachine, variable: number, value: number): void {
-  const [offset, condfalse] = machine.readBranchOffset();
+  const [offset, branchOnFalse] = machine.state.readBranchOffset();
   machine.logger.debug(
-    `${machine.op_pc.toString(
+    `${machine.executor.op_pc.toString(
       16
-    )} dec_chk ${variable} ${value} -> [${!condfalse}] ${
-      machine.pc + offset - 2
+    )} dec_chk ${variable} ${value} -> [${!branchOnFalse}] ${
+      machine.state.pc + offset - 2
     }`
   );
 
-  const currentValue = machine.loadVariable(variable, true);
+  const currentValue = machine.state.loadVariable(variable, true);
   const newValue = toI16(currentValue) - 1;
-  machine.storeVariable(variable, toU16(newValue), true);
+  machine.state.storeVariable(variable, toU16(newValue), true);
 
   machine.logger.debug(`     ${newValue} <? ${value}`);
-  machine.doBranch(newValue < toI16(value), condfalse, offset);
+  machine.state.doBranch(newValue < toI16(value), branchOnFalse, offset);
 }
 
 /**
  * Loads a word from an array.
  */
 function loadw(machine: ZMachine, array: number, wordIndex: number): void {
-  const resultVar = machine.readByte();
+  const resultVar = machine.state.readByte();
   machine.logger.debug(
-    `${machine.op_pc.toString(
+    `${machine.executor.op_pc.toString(
       16
     )} loadw ${array} ${wordIndex} -> (${resultVar})`
   );
 
   const address = (array + 2 * wordIndex) & 0xffff;
-  machine.storeVariable(resultVar, machine.getWord(address));
+  machine.state.storeVariable(resultVar, machine.memory.getWord(address));
 }
 
 /**
  * Loads a byte from an array.
  */
 function loadb(machine: ZMachine, array: number, byteIndex: number): void {
-  const resultVar = machine.readByte();
+  const resultVar = machine.state.readByte();
   machine.logger.debug(
-    `${machine.op_pc.toString(
+    `${machine.executor.op_pc.toString(
       16
     )} loadb ${array} ${byteIndex} -> (${resultVar})`
   );
 
   const address = (array + byteIndex) & 0xffff;
-  machine.storeVariable(resultVar, machine.getByte(address));
+  machine.state.storeVariable(resultVar, machine.memory.getByte(address));
 }
 
 /**
@@ -144,11 +163,11 @@ function storew(
   value: number
 ): void {
   machine.logger.debug(
-    `${machine.op_pc.toString(16)} storew ${array} ${wordIndex} ${value}`
+    `${machine.executor.op_pc.toString(16)} storew ${array} ${wordIndex} ${value}`
   );
 
   const address = (array + 2 * wordIndex) & 0xffff;
-  machine.setWord(address, value);
+  machine.memory.setWord(address, value);
 }
 
 /**
@@ -161,11 +180,11 @@ function storeb(
   value: number
 ): void {
   machine.logger.debug(
-    `${machine.op_pc.toString(16)} storeb ${array} ${byteIndex} ${value}`
+    `${machine.executor.op_pc.toString(16)} storeb ${array} ${byteIndex} ${value}`
   );
 
   const address = (array + byteIndex) & 0xffff;
-  machine.setByte(address, value & 0xff);
+  machine.memory.setByte(address, value & 0xff);
 }
 
 /**

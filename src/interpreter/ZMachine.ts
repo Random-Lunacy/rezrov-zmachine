@@ -176,7 +176,7 @@ export class ZMachine {
    * Handle keypress completion from the user
    * @param key The key pressed
    */
-   */
+
   handleKeyCompletion(key: string): void {
     this._inputHandler.processKeypress(key);
     this.resumeExecution();
@@ -197,6 +197,16 @@ export class ZMachine {
   }
 
   /**
+   * Save to an external file (V5+)
+   * @param table The table number
+   * @param bytes The number of bytes to save
+   * @returns True if the save was successful
+   */
+  saveToTable(table: number, bytes: number): boolean {
+    throw new Error("Method not implemented.");
+  }
+
+  /**
    * Restore a saved game state
    * @returns True if the restore was successful
    */
@@ -212,6 +222,16 @@ export class ZMachine {
   }
 
   /**
+   * Restore from an external file (V5+)
+   * @param table The table number
+   * @param bytes The number of bytes to restore
+   * @returns True if the restore was successful
+   */
+  restoreFromTable(table: number, bytes: number): boolean {
+    throw new Error("Method not implemented.");
+  }
+
+  /**
    * Get the Z-Machine version
    * @returns The Z-Machine version
    */
@@ -219,74 +239,79 @@ export class ZMachine {
     return this._state.version;
   }
 
-
-
   /**
-   * Handle input completion from the user
-   * @param input The user input
+   * Save the current state for undo
+   * @returns True if the save was successful
    */
-  handleInputCompletion(input: string): void {
-    this._inputHandler.processInput(input);
+  saveUndo():boolean {
+    throw new Error("Method not implemented.");
   }
 
   /**
-   * Handle keypress completion from the user
-   * @param key The key pressed
+   * Restore the last saved state
+   * @returns True if the restore was successful
    */
-  handleKeyCompletion(key: string): void {
-    this._inputHandler.processKeypress(key);
+  restoreUndo():boolean {
+    throw new Error("Method not implemented.");
   }
 
-/**
- * Updates the status line for V1-V3 games
- * Displays location name on the left and score/moves or time on the right
- */
-updateStatusLine(): void {
-  // Skip for version 4+ games which handle status differently
-  if (this._state.version > 3) {
-    return;
+  /**
+   * Updates the status line for V1-V3 games
+   * Displays location name on the left and score/moves or time on the right
+   */
+  updateStatusLine(): void {
+    // Skip for version 4+ games which handle status differently
+    if (this._state.version > 3) {
+      return;
+    }
+
+    // Get memory and required data
+    const memory = this._state.memory;
+    const globalVarsBase = this._state.globalVariablesAddress;
+
+    // First global variable is always the current location
+    const locationVar = 0;
+    const locationObjNum = memory.getWord(globalVarsBase + 2 * locationVar);
+    const locationObj = this._state.getObject(locationObjNum);
+
+    // Determine if it's a score game or time game
+    // It's a score game if version < 3 or bit 1 of Flags1 is clear
+    const isScoreGame =
+      this._state.version < 3 ||
+      (memory.getByte(HeaderLocation.Flags1) & 0x02) === 0;
+
+    // Content for left side of status bar is always the location name
+    const lhs = locationObj?.name || "Unknown location";
+
+    // Content for right side depends on game type
+    let rhs: string;
+
+    if (isScoreGame) {
+      // Score and moves are in globals 1 and 2
+      const score = memory.getWord(globalVarsBase + 2 * 1);
+      const moves = memory.getWord(globalVarsBase + 2 * 2);
+      rhs = `Score: ${score}   Moves: ${moves}`;
+    } else {
+      // Time (hours and minutes) are in globals 1 and 2
+      const hours = memory.getWord(globalVarsBase + 2 * 1);
+      const minutes = memory.getWord(globalVarsBase + 2 * 2);
+      // Ensure minutes is displayed with leading zero if needed
+      const paddedMinutes = minutes.toString().padStart(2, '0');
+      rhs = `Time: ${hours}:${paddedMinutes}`;
+    }
+
+    // Pass to the screen implementation to actually display
+    this._screen.updateStatusBar(lhs, rhs);
+
+    this._logger.debug(`Updated status bar: [${lhs}] [${rhs}]`);
   }
 
-  // Get memory and required data
-  const memory = this._state.memory;
-  const globalVarsBase = this._state.globalVariablesAddress;
-
-  // First global variable is always the current location
-  const locationVar = 0;
-  const locationObjNum = memory.getWord(globalVarsBase + 2 * locationVar);
-  const locationObj = this._state.getObject(locationObjNum);
-
-  // Determine if it's a score game or time game
-  // It's a score game if version < 3 or bit 1 of Flags1 is clear
-  const isScoreGame =
-    this._state.version < 3 ||
-    (memory.getByte(HeaderLocation.Flags1) & 0x02) === 0;
-
-  // Content for left side of status bar is always the location name
-  const lhs = locationObj?.name || "Unknown location";
-
-  // Content for right side depends on game type
-  let rhs: string;
-
-  if (isScoreGame) {
-    // Score and moves are in globals 1 and 2
-    const score = memory.getWord(globalVarsBase + 2 * 1);
-    const moves = memory.getWord(globalVarsBase + 2 * 2);
-    rhs = `Score: ${score}   Moves: ${moves}`;
-  } else {
-    // Time (hours and minutes) are in globals 1 and 2
-    const hours = memory.getWord(globalVarsBase + 2 * 1);
-    const minutes = memory.getWord(globalVarsBase + 2 * 2);
-    // Ensure minutes is displayed with leading zero if needed
-    const paddedMinutes = minutes.toString().padStart(2, '0');
-    rhs = `Time: ${hours}:${paddedMinutes}`;
+  /**
+   * Restart the game from the beginning
+   */
+  restart(): boolean {
+    throw new Error("Method not implemented.");
   }
-
-  // Pass to the screen implementation to actually display
-  this._screen.updateStatusBar(lhs, rhs);
-
-  this._logger.debug(`Updated status bar: [${lhs}] [${rhs}]`);
-}
 
   /**
    * Quit the Z-Machine

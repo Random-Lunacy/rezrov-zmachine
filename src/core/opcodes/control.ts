@@ -3,9 +3,6 @@
  * These opcodes handle branching, conditional jumps, routine returns,
  * and other control flow operations.
  *
- * Each opcode function is wrapped using the `opcode` utility to provide
- * metadata and ensure consistent behavior.
- *
  * Exported Opcodes:
  * - `je`: Jump if equal. Compares up to four values and branches if any are equal.
  * - `jl`: Jump if less than. Compares two signed 16-bit values and branches if the first is less than the second.
@@ -20,10 +17,10 @@
  * - `ret`: Returns a specified value from the current routine.
  * - `nop`: No-op instruction. Does nothing.
  */
-import { opcode } from "./base";
+import { ZMachine } from "../../interpreter/ZMachine";
 import { hex } from "../../utils/debug";
 import { toI16 } from "../memory/cast16";
-import { ZMachine } from "../../interpreter/ZMachine";
+import { opcode } from "./base";
 
 /**
  * Jumps if equal

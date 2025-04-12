@@ -94,7 +94,7 @@ export interface Screen {
   setTextStyle(machine: ZMachine, style: number): void;
   setTextColors(
     machine: ZMachine,
-    windowId: number,
+    window: number,
     foreground: number,
     background: number
   ): void;

@@ -1,7 +1,31 @@
+/**
+ * I/O opcodes for the Z-Machine interpreter
+ * These opcodes handle input and output operations, including text display,
+ * sound effects, and user input.
+ *
+ * Exported Opcodes:
+ * - `show_status`: Update the status bar (for versions <= 3)
+ * - `split_window`: Split the screen into two windows
+ * - `set_window`: Set the active output window
+ * - `erase_window`: Clear a window
+ * - `erase_line`: Clear the current line
+ * - `set_cursor`: Set the cursor position
+ * - `get_cursor`: Get the current cursor position
+ * - `set_text_style`: Set the text style
+ * - `buffer_mode`: Set buffer mode (buffered or unbuffered output)
+ * - `output_stream`: Enable or disable an output stream
+ * - `input_stream`: Select an input stream
+ * - `sread`: Read a line of input from the user
+ * - `sound_effect`: Play a sound effect
+ * - `read_char`: Read a single character from the user
+ * - `save`: Save the current game state
+ * - `restore`: Restore a saved game state
+ * - `quit`: Quit the game
+ */
 import { ZMachine } from "../../interpreter/ZMachine";
 import { opcode } from "./base";
-import { SuspendState, InputState } from "../../core/execution/SuspendState";
-import { toI16, toU16 } from "../memory/cast16";
+import { SuspendState } from "../../core/execution/SuspendState";
+import { toI16 } from "../memory/cast16";
 
 /**
  * Update the status bar (for versions <= 3)
@@ -183,11 +207,11 @@ function read_char(
  * Save the current game state
  */
 function save(machine: ZMachine): void {
-  const [offset, condfalse] = machine.state.readBranchOffset();
+  const [offset, branchOnFalse] = machine.state.readBranchOffset();
 
   const saved = machine.saveGame();
   if (machine.state.version < 5) {
-    machine.state.doBranch(saved, condfalse, offset);
+    machine.state.doBranch(saved, branchOnFalse, offset);
   } else {
     throw new Error("unimplemented save for version 5+");
   }
@@ -197,11 +221,11 @@ function save(machine: ZMachine): void {
  * Restore a saved game state
  */
 function restore(machine: ZMachine): void {
-  const [offset, condfalse] = machine.state.readBranchOffset();
+  const [offset, branchOnFalse] = machine.state.readBranchOffset();
 
   const restored = machine.restoreGame();
   if (machine.state.version < 5) {
-    machine.state.doBranch(restored, condfalse, offset);
+    machine.state.doBranch(restored, branchOnFalse, offset);
   } else {
     throw new Error("unimplemented restore for version 5+");
   }
@@ -218,42 +242,9 @@ function quit(machine: ZMachine): void {
  * Verify the game file checksum
  */
 function verify(machine: ZMachine): void {
-  const [offset, condfalse] = machine.state.readBranchOffset();
+  const [offset, branchOnFalse] = machine.state.readBranchOffset();
   // We assume verification always succeeds
-  machine.state.doBranch(true, condfalse, offset);
-}
-
-/**
- * Set the foreground and background colors
- */
-function set_color(
-  machine: ZMachine,
-  foreground: number,
-  background: number,
-  window: number = 0
-): void {
-  if (machine.state.version <= 5) {
-    window = 0;
-  }
-  // Flush any buffered text before changing colors
-  machine.screen.setTextColors(machine, window, foreground, background);
-}
-
-/**
- * Generate a random number
- */
-function random(machine: ZMachine, range: number): void {
-  const resultVar = machine.getGameState().readByte();
-
-  if (range <= 0) {
-    // Reseed the RNG
-    machine.reseedRandom(range);
-    machine.getGameState().storeVariable(resultVar, 0);
-  } else {
-    // Generate a random number between 1 and range
-    const value = machine.getRandomInt(range);
-    machine.getGameState().storeVariable(resultVar, value);
-  }
+  machine.state.doBranch(true, branchOnFalse, offset);
 }
 
 /**
@@ -278,7 +269,4 @@ export const ioOpcodes = {
   restore: opcode("restore", restore),
   quit: opcode("quit", quit),
   verify: opcode("verify", verify),
-  set_color: opcode("set_color", set_color),
-  random: opcode("random", random),
-
 };

@@ -1,40 +1,56 @@
+/**
+ * Math opcodes for the ZMachine interpreter.
+ * These opcodes perform various mathematical operations.
+ *
+ * Exported Opcodes:
+ * - `or`: Bitwise OR
+ * - `and`: Bitwise AND
+ * - `add`: Addition
+ * - `sub`: Subtraction
+ * - `mul`: Multiplication
+ * - `div`: Division
+ * - `mod`: Modulo
+ * - `not`: Bitwise NOT
+ * - `random`: Generate a random number
+ */
 import { ZMachine } from "../../interpreter/ZMachine";
-import { opcode } from "./base";
+import { initRandom, randomInt } from "../../utils/random";
 import { toI16, toU16 } from "../memory/cast16";
+import { opcode } from "./base";
 
 /**
  * Performs bitwise OR operation.
  */
 function or(machine: ZMachine, a: number, b: number): void {
-  machine.storeVariable(machine.readByte(), a | b);
+  machine.state.storeVariable(machine.state.readByte(), a | b);
 }
 
 /**
  * Performs bitwise AND operation.
  */
 function and(machine: ZMachine, a: number, b: number): void {
-  machine.storeVariable(machine.readByte(), a & b);
+  machine.state.storeVariable(machine.state.readByte(), a & b);
 }
 
 /**
  * Adds two numbers.
  */
 function add(machine: ZMachine, a: number, b: number): void {
-  machine.storeVariable(machine.readByte(), toU16(toI16(a) + toI16(b)));
+  machine.state.storeVariable(machine.state.readByte(), toU16(toI16(a) + toI16(b)));
 }
 
 /**
  * Subtracts the second number from the first.
  */
 function sub(machine: ZMachine, a: number, b: number): void {
-  machine.storeVariable(machine.readByte(), toU16(toI16(a) - toI16(b)));
+  machine.state.storeVariable(machine.state.readByte(), toU16(toI16(a) - toI16(b)));
 }
 
 /**
  * Multiplies two numbers.
  */
 function mul(machine: ZMachine, a: number, b: number): void {
-  machine.storeVariable(machine.readByte(), toU16(toI16(a) * toI16(b)));
+  machine.state.storeVariable(machine.state.readByte(), toU16(toI16(a) * toI16(b)));
 }
 
 /**
@@ -44,8 +60,8 @@ function div(machine: ZMachine, a: number, b: number): void {
   if (b === 0) {
     throw new Error("Division by zero");
   }
-  machine.storeVariable(
-    machine.readByte(),
+  machine.state.storeVariable(
+    machine.state.readByte(),
     toU16(Math.floor(toI16(a) / toI16(b)))
   );
 }
@@ -57,14 +73,31 @@ function mod(machine: ZMachine, a: number, b: number): void {
   if (b === 0) {
     throw new Error("Modulo by zero");
   }
-  machine.storeVariable(machine.readByte(), toU16(toI16(a) % toI16(b)));
+  machine.state.storeVariable(machine.state.readByte(), toU16(toI16(a) % toI16(b)));
 }
 
 /**
  * Performs bitwise NOT operation.
  */
 function not(machine: ZMachine, value: number): void {
-  machine.storeVariable(machine.readByte(), value ^ 0xffff);
+  machine.state.storeVariable(machine.state.readByte(), value ^ 0xffff);
+}
+
+/**
+ * Generate a random number
+ */
+function random(machine: ZMachine, range: number): void {
+  const resultVar = machine.state.readByte();
+
+  if (range <= 0) {
+    // Reseed the RNG
+    initRandom(range.toString());
+    machine.state.storeVariable(resultVar, 0);
+  } else {
+    // Generate a random number between 1 and range
+    const value = randomInt(range);
+    machine.state.storeVariable(resultVar, value);
+  }
 }
 
 
@@ -83,4 +116,6 @@ export const mathOpcodes = {
 
   // 1OP opcodes
   not: opcode("not", not),
+  random: opcode("random", random),
+
 };

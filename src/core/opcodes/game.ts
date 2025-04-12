@@ -1,6 +1,21 @@
+/**
+ * Game operation opcodes
+ * These opcodes provide functionality for saving and restoring game state,
+ * as well as handling piracy checks and other game-specific operations.
+ *
+ * Exported Opcodes:
+ * - `save_undo`: Saves the current state for undo operations.
+ * - `restore_undo`: Restores the last saved state.
+ * - `restart`: Restarts the game from the beginning.
+ * - `verify`: Verifies the game file checksum.
+ * - `check_arg_count`: Checks the argument count for the current routine.
+ * - `scan_table`: Scans a table for a specific value.
+ * - `piracy`: Performs a piracy check (always returns true).
+ * - `save_v5`: Saves the current state to an external file (V5+).
+ * - `restore_v5`: Restores the state from an external file (V5+).
+ */
 import { ZMachine } from "../../interpreter/ZMachine";
 import { opcode } from "./base";
-import { toI16 } from "../memory/cast16";
 
 /**
  * Save the machine state to a given table
@@ -65,8 +80,6 @@ function restore_v5(machine: ZMachine, table: number, bytes: number, name: numbe
     machine.state.storeVariable(resultVar, 0);
   }
 }
-
-
 
 /**
  * Restart the game from the beginning

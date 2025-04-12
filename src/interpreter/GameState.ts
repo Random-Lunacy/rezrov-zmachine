@@ -493,7 +493,9 @@ export class GameState {
 
   /**
    * Read a branch offset
-   * @returns [offset, condfalse]
+   * @returns [offset, branchOnFalse]
+   *
+   * The offset is the number of bytes to branch, and branchOnFalse indicates whether to branch on false
    */
   readBranchOffset(): [number, boolean] {
     const branchData = this.readByte();
@@ -518,16 +520,16 @@ export class GameState {
   /**
    * Process a branch instruction
    * @param cond Branch condition
-   * @param condfalse Whether to branch on false instead of true
+   * @param branchOnFalse Whether to branch on false instead of true
    * @param offset Branch offset
    */
-  doBranch(cond: boolean, condfalse: boolean, offset: number): void {
+  doBranch(cond: boolean, branchOnFalse: boolean, offset: number): void {
     this.logger.debug(
-      `Branch condition: ${cond}, invert: ${!condfalse}, offset: ${offset}`
+      `Branch condition: ${cond}, invert: ${!branchOnFalse}, offset: ${offset}`
     );
 
-    // Branch if (condition is true and !condfalse) or (condition is false and condfalse)
-    if ((cond && !condfalse) || (!cond && condfalse)) {
+    // Branch if (condition is true and !branchOnFalse) or (condition is false and branchOnFalse)
+    if ((cond && !branchOnFalse) || (!cond && branchOnFalse)) {
       if (offset === 0) {
         this.logger.debug("Returning false from branch");
         this.returnFromRoutine(0);

@@ -107,12 +107,12 @@ export class BaseScreen implements Screen {
 
   setTextColors(
     machine: ZMachine,
-    windowId: number,
+    window: number,
     foreground: number,
     background: number
   ): void {
     this.logger.debug(
-      `not implemented: ${this.id} setTextColors windowId=${windowId} foreground=${foreground} background=${background}`
+      `not implemented: ${this.id} setTextColors window=${window} foreground=${foreground} background=${background}`
     );
   }
 

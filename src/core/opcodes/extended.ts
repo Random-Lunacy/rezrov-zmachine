@@ -1,8 +1,19 @@
-// src/core/opcodes/extended.ts
-
+/**
+ * Collection of extended opcodes for the Z-Machine interpreter.
+ * These opcodes provide additional functionality beyond the standard set,
+ * including bitwise operations, memory manipulation, and Unicode support.
+ *
+ * Exported Opcodes:
+ * - `art_shift`: Performs a binary left arithmetic shift or right arithmetic shift.
+ * - `log_shift`: Performs a binary left logical shift or right logical shift.
+ * - `set_font`: Sets the font for text output.
+ * - `copy_table`: Copies a region of memory.
+ * - `print_unicode`: Prints a Unicode character.
+ * - `check_unicode`: Checks if a Unicode character can be displayed.
+ */
 import { ZMachine } from "../../interpreter/ZMachine";
-import { opcode } from "./base";
 import { toI16, toU16 } from "../memory/cast16";
+import { opcode } from "./base";
 
 /**
  * Binary left arithmetic shift (preserves sign)
@@ -111,18 +122,6 @@ function check_unicode(machine: ZMachine, charCode: number): void {
   machine.state.storeVariable(resultVar, canDisplay ? 3 : 0);
 }
 
-/**
- * Set true color (24-bit RGB)
- */
-function set_true_colour(
-  machine: ZMachine,
-  foreground: number,
-  background: number
-): void {
-  // In a real implementation, this would set 24-bit colors
-  // For now, we'll just pass it through to set_color
-  machine.screen.setTrueColors(machine, foreground, background);
-}
 
 /**
  * Export extended opcodes
@@ -134,5 +133,4 @@ export const extendedOpcodes = {
   copy_table: opcode("copy_table", copy_table),
   print_unicode: opcode("print_unicode", print_unicode),
   check_unicode: opcode("check_unicode", check_unicode),
-  set_true_colour: opcode("set_true_colour", set_true_colour),
 };

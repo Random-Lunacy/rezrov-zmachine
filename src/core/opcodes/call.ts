@@ -4,7 +4,6 @@
  * as well as stack manipulation for exception handling.
  *
  * Exported opcodes:
- *
  * - `call_1s`: Calls a routine with 1 argument and stores the result.
  * - `call_1n`: Calls a routine with 1 argument without storing the result.
  * - `call_2s`: Calls a routine with 2 arguments and stores the result.
@@ -14,12 +13,12 @@
  * - `call_vn`: Calls a routine with a variable number of arguments without storing the result.
  * - `call_vn2`: Calls a routine with a variable number of arguments (minimum 2) without storing the result.
  * - `call`: General-purpose call opcode for routines with variable arguments, storing the result.
- * - `zCatch`: Stores the current callstack frame for use with exception handling.
- * - `zThrow`: Throws an exception, unwinding the stack to a specified frame.
+ * - `catch`: Stores the current callstack frame for use with exception handling.
+ * - `throw`: Throws an exception, unwinding the stack to a specified frame.
  */
-import { opcode } from "./base";
-import { hex } from "../../utils/debug";
 import { ZMachine } from "../../interpreter/ZMachine";
+import { hex } from "../../utils/debug";
+import { opcode } from "./base";
 
 /**
  * Call a routine with 1 argument, storing the result
