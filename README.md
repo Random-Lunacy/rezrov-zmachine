@@ -2,6 +2,8 @@
 
 A modular Z-machine interpreter written in TypeScript.
 
+This project is based on the [ebozz](https://github.com/toshok/ebozz) Z-machine implementation by Chris Toshok.
+
 ## Project Structure
 
 ```text

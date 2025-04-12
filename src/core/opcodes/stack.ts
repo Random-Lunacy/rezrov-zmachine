@@ -12,6 +12,8 @@
  * - dec: Decrements a variable by 1.
  * - inc_chk: Increments a variable, then checks if it's greater than a value.
  * - dec_chk: Decrements a variable, then checks if it's less than a value.
+ * - pop_stack: Pops a value from the stack and discards it.
+ * - push_stack: Pushes a value onto the stack.
  */
 import { ZMachine } from "../../interpreter/ZMachine";
 import { toI16, toU16 } from "../memory/cast16";
@@ -130,6 +132,21 @@ function dec_chk(machine: ZMachine, variable: number, value: number): void {
   machine.state.doBranch(newValue < toI16(value), branchOnFalse, offset);
 }
 
+/**
+ * Remove items from a specified stack (V6)
+ */
+function pop_stack(machine: ZMachine): void {
+  machine.logger.debug(`pop_stack`);
+  throw new Error(`Unimplemented opcode: pop_stack`);
+}
+
+/**
+ * Push value onto user stack, branch if successful (V6)
+ */
+function push_stack(machine: ZMachine, value: number): void {
+  machine.logger.debug(`push_stack ${value}`);
+  throw new Error(`Unimplemented opcode: push_stack`);
+}
 
 /**
  * Export all stack manipulation opcodes
@@ -139,6 +156,8 @@ export const stackOpcodes = {
   push: opcode("push", push),
   pop: opcode("pop", pop),
   pull: opcode("pull", pull),
+  push_stack: opcode("push_stack", push_stack),
+  pop_stack: opcode("pop_stack", pop_stack),
 
   // Variable operations
   load: opcode("load", load),

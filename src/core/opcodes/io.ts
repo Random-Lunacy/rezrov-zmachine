@@ -11,6 +11,7 @@
  * - `set_cursor`: Set the cursor position
  * - `get_cursor`: Get the current cursor position
  * - `set_text_style`: Set the text style
+ * - `set_colour`: Sets the text colors for printing.
  * - `buffer_mode`: Set buffer mode (buffered or unbuffered output)
  * - `output_stream`: Enable or disable an output stream
  * - `input_stream`: Select an input stream
@@ -19,11 +20,23 @@
  * - `read_char`: Read a single character from the user
  * - `get_wind_prop`: Get a window property
  * - `set_font`: Set the font for text output
- */
+ * - `buffer_screen`: Buffer screen operation
+ * - `set_true_colour`: Set true color for text output
+ * - `set_margins`: Set margins for text output
+ * - `move_window`: Move a window to a new position
+ * - `window_size`: Set the size of a window
+ * - `window_style`: Set the style of a window
+ * - `read_mouse`: Read mouse input
+ * - `mouse_window`: Set the mouse window
+ * - `make_menu`: Create a menu
+ * - `scroll_window`: Scroll a window
+ * - `put_wind_prop`: Set a window property
+*/
 import { ZMachine } from "../../interpreter/ZMachine";
 import { opcode } from "./base";
 import { SuspendState } from "../../core/execution/SuspendState";
 import { toI16 } from "../memory/cast16";
+import { HeaderLocation } from "../../utils/constants";
 
 /**
  * Split the screen into two windows
@@ -351,6 +364,72 @@ function buffer_screen(machine: ZMachine, mode: number): void {
   machine.state.storeVariable(resultVar, currentMode);
 }
 
+/**
+ * Set text colors
+ */
+function set_colour(
+  machine: ZMachine,
+  foreground: number,
+  background: number,
+  window: number = 0
+): void {
+  if (machine.state.version < 5) {
+    machine.logger.debug(`set_colour: ignoring in version < 5`);
+    window = 0;
+  }
+
+  machine.logger.debug(
+    `${machine.executor.op_pc.toString(16)} set_colour ${foreground} ${background} ${window}`
+  );
+
+  // Handle transparency (color 15) in Version 6
+  if (machine.state.version === 6) {
+    // Check if background is set to transparent
+    if (background === 15) {
+      // Check if the interpreter supports transparency
+      const flags3Addr = machine.state.memory.getWord(HeaderLocation.HeaderExtTable) + 4;
+      if (flags3Addr > 0) {
+        const flags3 = machine.state.memory.getWord(flags3Addr);
+        const supportsTransparency = (flags3 & 0x0001) !== 0;
+
+        if (!supportsTransparency) {
+          // If transparency is not supported, ignore the request
+          machine.logger.warn("Transparency requested but not supported by interpreter");
+          return;
+        }
+      } else {
+        // No header extension table, assume no transparency support
+        machine.logger.warn("Transparency requested but header extension not present");
+        return;
+      }
+
+      // Check if foreground is also set to transparent (invalid)
+      if (foreground === 15) {
+        machine.logger.warn("Transparent foreground not allowed, request ignored");
+        return;
+      }
+
+      // Check if current text style includes reverse video (invalid with transparency)
+      const currentWindow = machine.screen.getOutputWindow(machine);
+      const currentStyle = machine.screen.getWindowProperty(machine, currentWindow, 10);
+      if ((currentStyle & 1) !== 0) { // Reverse video bit
+        machine.logger.warn("Reverse video style not allowed with transparent background");
+        return;
+      }
+    }
+
+    // Ensure foreground is never transparent
+    if (foreground === 15) {
+      machine.logger.warn("Transparent foreground not allowed, using default instead");
+      foreground = 1; // Use default foreground color instead
+    }
+  }
+
+  // Pass to screen implementation
+  machine.screen.setTextColors(machine, window, foreground, background);
+}
+
+
 function set_true_colour(
   machine: ZMachine,
   foreground: number,
@@ -457,6 +536,78 @@ function storeWindowTrueColors(
   );
 }
 
+function set_margins(machine: ZMachine, left: number, right: number): void {
+  machine.logger.debug(
+    `${machine.executor.op_pc.toString(16)} set_margins ${left} ${right}`
+  );
+  machine.logger.warn(`set_margins ${left} ${right} -- not implemented`);
+  throw new Error(`Unimplemented opcode: set_margins`);
+}
+
+function move_window(machine: ZMachine, window: number, x: number, y: number): void {
+  machine.logger.debug(
+    `${machine.executor.op_pc.toString(16)} move_window ${window} ${x} ${y}`
+  );
+  machine.logger.warn(`move_window ${window} ${x} ${y} -- not implemented`);
+  throw new Error(`Unimplemented opcode: move_window`);
+}
+
+function window_size(machine: ZMachine, window: number, width: number, height: number): void {
+  machine.logger.debug(
+    `${machine.executor.op_pc.toString(16)} window_size ${window} ${width} ${height}`
+  );
+  machine.logger.warn(`window_size ${window} ${width} ${height} -- not implemented`);
+  throw new Error(`Unimplemented opcode: window_size`);
+}
+
+function window_style(machine: ZMachine, window: number, style: number): void {
+  machine.logger.debug(
+    `${machine.executor.op_pc.toString(16)} window_style ${window} ${style}`
+  );
+  machine.logger.warn(`window_style ${window} ${style} -- not implemented`);
+  throw new Error(`Unimplemented opcode: window_style`);
+}
+
+function read_mouse(machine: ZMachine, window: number): void {
+  machine.logger.debug(
+    `${machine.executor.op_pc.toString(16)} read_mouse ${window}`
+  );
+  machine.logger.warn(`read_mouse ${window} -- not implemented`);
+  throw new Error(`Unimplemented opcode: read_mouse`);
+}
+
+function mouse_window(machine: ZMachine, window: number): void {
+  machine.logger.debug(
+    `${machine.executor.op_pc.toString(16)} mouse_window ${window}`
+  );
+  machine.logger.warn(`mouse_window ${window} -- not implemented`);
+  throw new Error(`Unimplemented opcode: mouse_window`);
+}
+
+function make_menu(machine: ZMachine, menu: number): void {
+  machine.logger.debug(
+    `${machine.executor.op_pc.toString(16)} make_menu ${menu}`
+  );
+  machine.logger.warn(`make_menu ${menu} -- not implemented`);
+  throw new Error(`Unimplemented opcode: make_menu`);
+}
+
+function scroll_window(machine: ZMachine, window: number, lines: number): void {
+  machine.logger.debug(
+    `${machine.executor.op_pc.toString(16)} scroll_window ${window} ${lines}`
+  );
+  machine.logger.warn(`scroll_window ${window} ${lines} -- not implemented`);
+  throw new Error(`Unimplemented opcode: scroll_window`);
+}
+
+function put_wind_prop(machine: ZMachine, window: number, property: number): void {
+  machine.logger.debug(
+    `${machine.executor.op_pc.toString(16)} put_wind_prop ${window} ${property}`
+  );
+  machine.logger.warn(`put_wind_prop ${window} ${property} -- not implemented`);
+  throw new Error(`Unimplemented opcode: put_wind_prop`);
+}
+
 /**
  * Export all I/O opcodes
  */
@@ -478,4 +629,14 @@ export const ioOpcodes = {
   set_font: opcode("set_font", set_font),
   buffer_screen: opcode("buffer_screen", buffer_screen),
   set_true_colour: opcode("set_true_colour", set_true_colour),
+  set_colour: opcode("set_colour", set_colour),
+  set_margins: opcode("set_margins", set_margins),
+  move_window: opcode("move_window", move_window),
+  window_size: opcode("window_size", window_size),
+  window_style: opcode("window_style", window_style),
+  read_mouse: opcode("read_mouse", read_mouse),
+  mouse_window: opcode("mouse_window", mouse_window),
+  make_menu: opcode("make_menu", make_menu),
+  scroll_window: opcode("scroll_window", scroll_window),
+  put_wind_prop: opcode("put_wind_prop", put_wind_prop),
 };

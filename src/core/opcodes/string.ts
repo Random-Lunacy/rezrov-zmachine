@@ -8,22 +8,16 @@
  * - `print_ret`: Prints a string and returns from the current routine.
  * - `print_addr`: Prints a string at the specified address.
  * - `print_paddr`: Prints a string at a packed address.
- * - `print_obj`: Prints the name of an object.
  * - `print_char`: Prints a single character.
  * - `print_num`: Prints a number.
  * - `print_table`: Prints a table of characters.
  * - `new_line`: Prints a newline character.
- * - `output_stream`: Selects the output stream for printing.
- * - `input_stream`: Selects the input stream for reading.
  * - `tokenise`: Tokenizes input text.
- * - `set_text_style`: Sets the text style for printing.
- * - `set_colour`: Sets the text colors for printing.
  * - `print_unicode`: Prints a Unicode character.
  * - `check_unicode`: Checks if a Unicode character can be displayed.
  */
 import { ZMachine } from "../../interpreter/ZMachine";
 import { decodeZString } from "../../parsers/ZString";
-import { HeaderLocation } from "../../utils/constants";
 import { toI16 } from "../memory/cast16";
 import { opcode } from "./base";
 
@@ -36,19 +30,6 @@ function print_addr(machine: ZMachine, stringAddr: number): void {
     machine,
     decodeZString(machine.memory, machine.memory.getZString(stringAddr), true)
   );
-}
-
-/**
- * Print the name of an object
- */
-function print_obj(machine: ZMachine, obj: number): void {
-  machine.logger.debug(`print_obj ${obj}`);
-  const object = machine.state.getObject(obj);
-  if (object === null) {
-    machine.logger.warn(`print_obj: object ${obj} not found`);
-    return;
-  }
-  machine.screen.print(machine, object.name);
 }
 
 /**
@@ -145,41 +126,9 @@ function print_table(
 }
 
 /**
- * Output stream selection
- */
-function output_stream(
-  machine: ZMachine,
-  streamNum: number,
-  table: number = 0,
-  width: number = 0
-): void {
-  const streamNumber = toI16(streamNum);
-
-  machine.logger.debug(`output_stream: streamNum=${streamNum}, table=${table}, width=${width}`);
-
-  if (streamNumber === 0) {
-    return; // No-op
-  }
-
-  if (streamNumber > 0) {
-    machine.screen.enableOutputStream(machine, streamNumber, table, width);
-  } else {
-    machine.screen.disableOutputStream(machine, -streamNumber, table, width);
-  }
-}
-
-/**
- * Input stream selection
- */
-function input_stream(machine: ZMachine, streamNum: number): void {
-  machine.logger.debug(`input_stream: streamNum=${streamNum}`);
-  machine.screen.selectInputStream(machine, toI16(streamNum));
-}
-
-/**
  * Tokenize input text
  */
-function tokenise(
+function tokenize(
   machine: ZMachine,
   text: number,
   dict: number,
@@ -188,79 +137,6 @@ function tokenise(
 ): void {
   machine.logger.debug(`tokenise: text=${text}, dict=${dict}, parse=${parse}, flag=${flag}`);
   machine.state.tokenizeLine(text, parse, dict, flag !== 0);
-}
-
-/**
- * Set the text style
- */
-function set_text_style(machine: ZMachine, style: number): void {
-  machine.logger.debug(`set_text_style ${style}`);
-  machine.screen.setTextStyle(machine, style);
-}
-
-/**
- * Set text colors
- */
-function set_colour(
-  machine: ZMachine,
-  foreground: number,
-  background: number,
-  window: number = 0
-): void {
-  if (machine.state.version < 5) {
-    machine.logger.debug(`set_colour: ignoring in version < 5`);
-    window = 0;
-  }
-
-  machine.logger.debug(
-    `${machine.executor.op_pc.toString(16)} set_colour ${foreground} ${background} ${window}`
-  );
-
-  // Handle transparency (color 15) in Version 6
-  if (machine.state.version === 6) {
-    // Check if background is set to transparent
-    if (background === 15) {
-      // Check if the interpreter supports transparency
-      const flags3Addr = machine.state.memory.getWord(HeaderLocation.HeaderExtTable) + 4;
-      if (flags3Addr > 0) {
-        const flags3 = machine.state.memory.getWord(flags3Addr);
-        const supportsTransparency = (flags3 & 0x0001) !== 0;
-
-        if (!supportsTransparency) {
-          // If transparency is not supported, ignore the request
-          machine.logger.warn("Transparency requested but not supported by interpreter");
-          return;
-        }
-      } else {
-        // No header extension table, assume no transparency support
-        machine.logger.warn("Transparency requested but header extension not present");
-        return;
-      }
-
-      // Check if foreground is also set to transparent (invalid)
-      if (foreground === 15) {
-        machine.logger.warn("Transparent foreground not allowed, request ignored");
-        return;
-      }
-
-      // Check if current text style includes reverse video (invalid with transparency)
-      const currentWindow = machine.screen.getOutputWindow(machine);
-      const currentStyle = machine.screen.getWindowProperty(machine, currentWindow, 10);
-      if ((currentStyle & 1) !== 0) { // Reverse video bit
-        machine.logger.warn("Reverse video style not allowed with transparent background");
-        return;
-      }
-    }
-
-    // Ensure foreground is never transparent
-    if (foreground === 15) {
-      machine.logger.warn("Transparent foreground not allowed, using default instead");
-      foreground = 1; // Use default foreground color instead
-    }
-  }
-
-  // Pass to screen implementation
-  machine.screen.setTextColors(machine, window, foreground, background);
 }
 
 /**
@@ -286,6 +162,21 @@ function check_unicode(machine: ZMachine, charCode: number): void {
   machine.state.storeVariable(resultVar, canDisplay ? 3 : 0);
 }
 
+
+function print_form(machine: ZMachine, form: number): void {
+  const string = machine.memory.getZString(form);
+  const encoded_text = decodeZString(machine.memory, string, true);
+  machine.logger.debug(`print_form ${form} -> ${encoded_text}`);
+  throw new Error(`Unimplemented opcode: print_form`);
+}
+
+function encode_text(machine: ZMachine, text: number): void {
+  const encoded_text = machine.memory.getZString(text);
+  machine.logger.debug(`encode_text ${text} -> ${encoded_text}`);
+  throw new Error(`Unimplemented opcode: encode_text`);
+}
+
+
 /**
  * Export string handling opcodes
  */
@@ -294,16 +185,13 @@ export const stringOpcodes = {
   print_ret: opcode("print_ret", print_ret),
   print_addr: opcode("print_addr", print_addr),
   print_paddr: opcode("print_paddr", print_paddr),
-  print_obj: opcode("print_obj", print_obj),
   print_char: opcode("print_char", print_char),
   print_num: opcode("print_num", print_num),
   print_table: opcode("print_table", print_table),
   new_line: opcode("new_line", new_line),
-  output_stream: opcode("output_stream", output_stream),
-  input_stream: opcode("input_stream", input_stream),
-  tokenise: opcode("tokenise", tokenise),
-  set_text_style: opcode("set_text_style", set_text_style),
-  set_colour: opcode("set_colour", set_colour),
+  tokenise: opcode("tokenise", tokenize),
   print_unicode: opcode("print_unicode", print_unicode),
   check_unicode: opcode("check_unicode", check_unicode),
+  print_form: opcode("print_form", print_form),
+  encode_text: opcode("encode_text", encode_text),
 };

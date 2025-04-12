@@ -26,8 +26,6 @@ export class Executor {
   private op0: Array<Opcode>;
   private op1: Array<Opcode>;
   private op2: Array<Opcode>;
-  private op3: Array<Opcode>;
-  private op4: Array<Opcode>;
   private opv: Array<Opcode>;
   private opext: Array<Opcode>;
 
@@ -42,8 +40,6 @@ export class Executor {
     this.op0 = opcodes.op0;
     this.op1 = opcodes.op1;
     this.op2 = opcodes.op2;
-    this.op3 = opcodes.op3;
-    this.op4 = opcodes.op4;
     this.opv = opcodes.opv;
     this.opext = opcodes.opext;
   }
@@ -96,7 +92,7 @@ export class Executor {
 
     let operandTypes: Array<OperandType> = [];
     let reallyVariable = false;
-    let form: InstructionForm;
+    let form: InstructionForm | InstructionForm.Extended;
 
     this.logger.debug(`${hex(op_pc)}: opbyte = ${hex(opcode)}`);
 
@@ -183,10 +179,11 @@ export class Executor {
         case OperandType.Small:
           operands.push(this.gameState.readByte());
           break;
-        case OperandType.Variable:
+        case OperandType.Variable: {
           const varnum = this.gameState.readByte();
           operands.push(this.gameState.loadVariable(varnum));
           break;
+        }
         default:
           throw new Error(`Unknown operand type: ${optype}`);
       }
@@ -196,9 +193,7 @@ export class Executor {
     let op: Opcode;
 
     try {
-      if (form === InstructionForm.Extended) {
-        op = this.opext[opcode];
-      } else if (reallyVariable) {
+      if (reallyVariable) {
         op = this.opv[opcode];
       } else {
         switch (operands.length) {
@@ -212,10 +207,7 @@ export class Executor {
             op = this.op2[opcode];
             break;
           case 3:
-            op = this.op3[opcode];
-            break;
-          case 4:
-            op = this.op4[opcode];
+            op = this.opext[opcode];
             break;
           default:
             throw new Error(`Unhandled number of operands: ${operands.length}`);

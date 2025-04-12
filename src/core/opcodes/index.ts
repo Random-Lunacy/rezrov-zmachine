@@ -6,6 +6,7 @@ import { Opcode, unimplementedOpcode } from './base';
 import { callOpcodes } from './call';
 import { controlOpcodes } from './control';
 import { gameOpcodes } from './game';
+import { graphicsOpcodes } from './graphics';
 import { ioOpcodes } from './io';
 import { mathOpcodes } from './math';
 import { memoryOpcodes } from './memory';
@@ -18,33 +19,13 @@ const allOpcodes = {
   ...callOpcodes,
   ...controlOpcodes,
   ...gameOpcodes,
+  ...graphicsOpcodes,
   ...ioOpcodes,
   ...mathOpcodes,
   ...memoryOpcodes,
   ...objectOpcodes,
   ...stackOpcodes,
   ...stringOpcodes,
-
-
-  // Placeholder for opcodes that are defined in spec but not implemented yet
-  draw_picture: unimplementedOpcode("draw_picture"),
-  picture_data: unimplementedOpcode("picture_data"),
-  erase_picture: unimplementedOpcode("erase_picture"),
-  set_margins: unimplementedOpcode("set_margins"),
-  move_window: unimplementedOpcode("move_window"),
-  window_size: unimplementedOpcode("window_size"),
-  window_style: unimplementedOpcode("window_style"),
-  get_wind_prop: unimplementedOpcode("get_wind_prop"),
-  scroll_window: unimplementedOpcode("scroll_window"),
-  pop_stack: unimplementedOpcode("pop_stack"),
-  read_mouse: unimplementedOpcode("read_mouse"),
-  mouse_window: unimplementedOpcode("mouse_window"),
-  push_stack: unimplementedOpcode("push_stack"),
-  put_wind_prop: unimplementedOpcode("put_wind_prop"),
-  print_form: unimplementedOpcode("print_form"),
-  make_menu: unimplementedOpcode("make_menu"),
-  picture_table: unimplementedOpcode("picture_table"),
-  encode_text: unimplementedOpcode("encode_text"),
 };
 
 // Version-specific operations
