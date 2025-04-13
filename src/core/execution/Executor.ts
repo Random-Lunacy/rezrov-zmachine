@@ -15,7 +15,10 @@ export class Executor {
   private _suspendedInputState: InputState | null = null;
   // Opcode tables
   private op0: Array<Opcode>;
-  constructor(private zMachine: ZMachine, private logger: Logger) {
+  constructor(
+    private zMachine: ZMachine,
+    private logger: Logger
+  ) {
     // Initialize opcode tables
     this.op0 = opcodes.op0;
     this.op1 = opcodes.op1;

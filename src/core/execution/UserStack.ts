@@ -35,7 +35,10 @@ export class UserStackManager {
    * @param memory The memory instance
    * @param logger The logger to use
    */
-  constructor(private memory: Memory, private logger: Logger) {}
+  constructor(
+    private memory: Memory,
+    private logger: Logger
+  ) {}
 
   /**
    * Pushes a value onto a user stack
