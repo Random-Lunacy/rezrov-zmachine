@@ -1,10 +1,10 @@
 // Updates to src/parsers/TextParser.ts
 
 import { Memory } from '../core/memory/Memory';
-import { Logger } from '../utils/log';
 import { Address } from '../types';
-import { Dictionary } from './Dictionary';
 import { HeaderLocation } from '../utils/constants';
+import { Logger } from '../utils/log';
+import { Dictionary } from './Dictionary';
 import { encodeZString, packZCharacters } from './ZString';
 
 export class TextParser {
@@ -12,7 +12,6 @@ export class TextParser {
   private logger: Logger;
   private version: number;
   private dictionaries: Map<Address, Dictionary>;
-
   constructor(memory: Memory, logger: Logger) {
     this.memory = memory;
     this.logger = logger;
@@ -55,7 +54,7 @@ export class TextParser {
     this.logger.debug(`Separators: ${dictionary.getSeparatorsAsString()}`);
 
     let text: string;
-    let version = this.version;
+    const version = this.version;
 
     // Read text based on version format
     if (version >= 5) {

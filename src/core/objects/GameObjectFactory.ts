@@ -1,7 +1,7 @@
-import { Memory } from '../memory/Memory';
-import { Logger } from '../../utils/log';
-import { GameObject } from './GameObject';
 import { MAX_OBJECTS_V3, MAX_OBJECTS_V4 } from '../../utils/constants';
+import { Logger } from '../../utils/log';
+import { Memory } from '../memory/Memory';
+import { GameObject } from './GameObject';
 
 /**
  * Extension of GameObject that overrides the getObject method
@@ -9,7 +9,6 @@ import { MAX_OBJECTS_V3, MAX_OBJECTS_V4 } from '../../utils/constants';
  */
 class ManagedGameObject extends GameObject {
   private factory: GameObjectFactory;
-
   constructor(
     memory: Memory,
     logger: Logger,
@@ -41,7 +40,6 @@ export class GameObjectFactory {
   private version: number;
   private objTable: number;
   private objectCache: Map<number, GameObject>;
-
   /**
    * Create a new GameObjectFactory
    * @param memory Memory access
@@ -131,7 +129,7 @@ export class GameObjectFactory {
    * @returns Array of objects with the attribute
    */
   findObjectsWithAttribute(attribute: number): GameObject[] {
-    return this.getAllObjects().filter(obj => obj.hasAttribute(attribute));
+    return this.getAllObjects().filter((obj) => obj.hasAttribute(attribute));
   }
 
   /**
@@ -140,7 +138,7 @@ export class GameObjectFactory {
    * @returns Array of objects with the property
    */
   findObjectsWithProperty(property: number): GameObject[] {
-    return this.getAllObjects().filter(obj => obj.getPropertyAddress(property) !== 0);
+    return this.getAllObjects().filter((obj) => obj.getPropertyAddress(property) !== 0);
   }
 
   /**
@@ -148,6 +146,6 @@ export class GameObjectFactory {
    * @returns Array of root objects
    */
   findRootObjects(): GameObject[] {
-    return this.getAllObjects().filter(obj => obj.parent === null);
+    return this.getAllObjects().filter((obj) => obj.parent === null);
   }
 }

@@ -1,6 +1,7 @@
 // src/core/memory/Memory.ts
-import { Address } from '../../types';
 import { ZString } from '../../parsers/ZString';
+import { Address } from '../../types';
+import { Logger } from '../../utils/log';
 
 /**
  * Provides access to the Z-machine's memory, handling byte and word operations
@@ -8,7 +9,7 @@ import { ZString } from '../../parsers/ZString';
  */
 export class Memory {
   private _mem: Buffer;
-
+  private logger = new Logger();
   /**
    * Creates a new Memory instance
    * @param buffer The raw story file buffer
@@ -98,9 +99,9 @@ export class Memory {
 
       // Safety check to prevent infinite loops
       if (addr >= this._mem.length - 1) {
-        break;
+        this.logger.warn(`Memory access out of bounds: ${addr}`);
       }
-    } while (true);
+    } while (addr < this._mem.length - 1);
 
     return chars;
   }

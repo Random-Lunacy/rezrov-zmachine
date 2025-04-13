@@ -1,10 +1,10 @@
 /**
  * Debugging utilities for the Z-machine interpreter
  */
-import { ZMachine } from '../interpreter/ZMachine';
 import { GameObject } from '../core/objects/GameObject';
+import { ZMachine } from '../interpreter/ZMachine';
 import { decodeZString } from '../parsers/ZString';
-import { ZSCII, Address } from '../types';
+import { Address, ZSCII } from '../types';
 import { HeaderLocation, KnownGlobals } from './constants';
 
 /**
@@ -69,7 +69,7 @@ export function dumpObjectTable(machine: ZMachine): void {
   }
 
   logger.debug(`Found ${rootObjects.length} root objects`);
-  rootObjects.forEach(obj => dumpObjectHierarchy(obj, logger));
+  rootObjects.forEach((obj) => dumpObjectHierarchy(obj, logger));
   logger.debug('');
 }
 
@@ -126,7 +126,7 @@ export function dumpDictionary(machine: ZMachine): void {
     separators.push(memory.getByte(currentAddr++));
   }
 
-  logger.debug(`Separators: ${separators.map(ch => String.fromCharCode(ch)).join(' ')}`);
+  logger.debug(`Separators: ${separators.map((ch) => String.fromCharCode(ch)).join(' ')}`);
 
   // Read entry information
   const entryLength = memory.getByte(currentAddr++);
@@ -184,7 +184,7 @@ export function dumpState(machine: ZMachine): void {
 
   logger.debug('=== Z-Machine State ===');
   logger.debug(`PC: ${hex(state.pc)}`);
-  logger.debug(`Stack: [${state.stack.map(v => hex(v)).join(', ')}]`);
+  logger.debug(`Stack: [${state.stack.map((v) => hex(v)).join(', ')}]`);
   logger.debug(`Call stack depth: ${state.callstack.length}`);
 
   // Dump global variables of interest

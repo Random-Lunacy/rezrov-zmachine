@@ -15,6 +15,11 @@ import { ZMachineVersion } from './Version';
  * This class serves as the main interface to the Z-Machine interpreter
  */
 export class ZMachine {
+  private _memory: Memory;
+  private _executor: Executor;
+  private _state: GameState;
+  private _screen: Screen;
+  private _storage: Storage;
   /**
    * Creates a new Z-Machine interpreter
    * @param storyBuffer Buffer containing the story file
@@ -48,11 +53,6 @@ export class ZMachine {
     }
   }
 
-  private _memory: Memory;
-  private _executor: Executor;
-  private _state: GameState;
-  private _screen: Screen;
-  private _storage: Storage;
   private _inputHandler: InputHandler;
   private _logger: Logger;
   private _userStackManager: UserStackManager | null = null;

@@ -97,7 +97,9 @@ function call_vs(machine: ZMachine, routine: number, ...args: Array<number>): vo
 
   const packedAddress = machine.state.unpackRoutineAddress(routine);
   machine.state.logger.debug(
-    `${hex(machine.state.pc)} call_vs ${hex(packedAddress)} ${args.map(a => hex(a)).join(', ')} -> (${hex(resultVar)})`
+    `${hex(machine.state.pc)} call_vs ${hex(packedAddress)} ${args.map((a) => hex(a)).join(', ')} -> (${hex(
+      resultVar
+    )})`
   );
   machine.state.callRoutine(packedAddress, resultVar, ...args);
 }
@@ -116,7 +118,9 @@ function call_vs2(machine: ZMachine, routine: number, ...args: Array<number>): v
 
   const packedAddress = machine.state.unpackRoutineAddress(routine);
   machine.state.logger.debug(
-    `${hex(machine.state.pc)} call_vs2 ${hex(packedAddress)} ${args.map(a => hex(a)).join(', ')} -> (${hex(resultVar)})`
+    `${hex(machine.state.pc)} call_vs2 ${hex(packedAddress)} ${args.map((a) => hex(a)).join(', ')} -> (${hex(
+      resultVar
+    )})`
   );
   machine.state.callRoutine(packedAddress, resultVar, ...args);
 }
@@ -132,7 +136,7 @@ function call_vn(machine: ZMachine, routine: number, ...args: Array<number>): vo
 
   const packedAddress = machine.state.unpackRoutineAddress(routine);
   machine.state.logger.debug(
-    `${hex(machine.state.pc)} call_vn ${hex(packedAddress)} ${args.map(a => hex(a)).join(', ')}`
+    `${hex(machine.state.pc)} call_vn ${hex(packedAddress)} ${args.map((a) => hex(a)).join(', ')}`
   );
   machine.state.callRoutine(packedAddress, null, ...args);
 }
@@ -148,7 +152,7 @@ function call_vn2(machine: ZMachine, routine: number, ...args: Array<number>): v
 
   const packedAddress = machine.state.unpackRoutineAddress(routine);
   machine.state.logger.debug(
-    `${hex(machine.state.pc)} call_vn2 ${hex(packedAddress)} ${args.map(a => hex(a)).join(', ')}`
+    `${hex(machine.state.pc)} call_vn2 ${hex(packedAddress)} ${args.map((a) => hex(a)).join(', ')}`
   );
   machine.state.callRoutine(packedAddress, null, ...args);
 }

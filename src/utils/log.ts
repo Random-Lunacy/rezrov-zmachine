@@ -18,7 +18,6 @@ export enum LogLevel {
 export class Logger {
   private level: LogLevel;
   private useColors: boolean;
-
   /**
    * Creates a new logger
    * @param level Minimum log level to display (defaults to INFO)

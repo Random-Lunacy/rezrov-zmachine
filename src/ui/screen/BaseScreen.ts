@@ -1,13 +1,12 @@
-import { Screen, Capabilities, ScreenSize } from './interfaces';
 import { ZMachine } from '../../interpreter/ZMachine';
-import { InputState } from '../input/InputHandler';
 import { Logger } from '../../utils/log';
+import { InputState } from '../input/InputHandler';
+import { Capabilities, Screen, ScreenSize } from './interfaces';
 
 export class BaseScreen implements Screen {
   protected logger: Logger;
   protected id: string;
   protected currentStyles: number;
-
   constructor(logger: Logger, id: string) {
     this.logger = logger;
     this.id = id;

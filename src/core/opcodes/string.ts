@@ -75,7 +75,7 @@ function print_ret(machine: ZMachine): void {
  */
 function print_char(machine: ZMachine, ...chars: Array<number>): void {
   machine.logger.debug(`print_char(${chars})`);
-  machine.screen.print(machine, chars.map(c => String.fromCharCode(c)).join(''));
+  machine.screen.print(machine, chars.map((c) => String.fromCharCode(c)).join(''));
 }
 
 /**

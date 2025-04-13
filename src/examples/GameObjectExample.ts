@@ -1,10 +1,11 @@
 // src/examples/GameObjectExample.ts
-import { Memory } from '../core/memory/Memory';
-import { GameObjectFactory } from '../core/objects/GameObjectFactory';
-import { Logger, LogLevel } from '../utils/log';
-import { HeaderLocation } from '../utils/constants';
 import * as fs from 'fs';
 import * as path from 'path';
+
+import { Memory } from '../core/memory/Memory';
+import { GameObjectFactory } from '../core/objects/GameObjectFactory';
+import { HeaderLocation } from '../utils/constants';
+import { Logger, LogLevel } from '../utils/log';
 
 /**
  * Example that demonstrates loading a Z-machine story file and
@@ -39,7 +40,7 @@ async function runGameObjectExample(storyFilePath: string): Promise<void> {
 
     // Display the object hierarchy
     logger.info('Object hierarchy:');
-    rootObjects.forEach(obj => {
+    rootObjects.forEach((obj) => {
       displayObjectTree(obj, 0);
     });
 
@@ -48,7 +49,7 @@ async function runGameObjectExample(storyFilePath: string): Promise<void> {
     const containersAttr = 21;
     const containers = factory.findObjectsWithAttribute(containersAttr);
     logger.info(`\nFound ${containers.length} objects with attribute ${containersAttr}:`);
-    containers.forEach(obj => {
+    containers.forEach((obj) => {
       logger.info(`  [${obj.objnum}] ${obj.name}`);
     });
 
@@ -57,7 +58,7 @@ async function runGameObjectExample(storyFilePath: string): Promise<void> {
     const capacityProp = 18;
     const objsWithCapacity = factory.findObjectsWithProperty(capacityProp);
     logger.info(`\nFound ${objsWithCapacity.length} objects with property ${capacityProp}:`);
-    objsWithCapacity.forEach(obj => {
+    objsWithCapacity.forEach((obj) => {
       const capacity = obj.getProperty(capacityProp);
       logger.info(`  [${obj.objnum}] ${obj.name} - capacity: ${capacity}`);
     });
@@ -89,7 +90,7 @@ if (require.main === module) {
 
   runGameObjectExample(storyPath)
     .then(() => process.exit(0))
-    .catch(err => {
+    .catch((err) => {
       console.error('Unhandled error:', err);
       process.exit(1);
     });

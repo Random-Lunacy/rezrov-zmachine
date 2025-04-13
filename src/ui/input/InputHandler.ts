@@ -13,7 +13,6 @@ export type InputState = {
 export class InputHandler {
   private machine: ZMachine;
   private screen: Screen;
-
   constructor(machine: ZMachine, screen: Screen) {
     this.machine = machine;
     this.screen = screen;

@@ -6,6 +6,10 @@ module.exports = {
   singleQuote: true,
   trailingComma: 'es5',
   bracketSpacing: true,
-  arrowParens: 'avoid',
+  arrowParens: 'always',
   endOfLine: 'lf',
+  quoteProps: 'as-needed',
+  proseWrap: 'preserve',
+  embeddedLanguageFormatting: 'auto',
+  plugins: ['prettier-plugin-organize-imports'],
 };

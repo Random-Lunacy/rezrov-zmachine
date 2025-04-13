@@ -1,25 +1,74 @@
-import { Memory } from '../memory/Memory';
-import { Address } from '../../types';
 import { decodeZString } from '../../parsers/ZString';
-import { Logger } from '../../utils/log';
+import { Address } from '../../types';
 import { MAX_ATTRIBUTES_V3, MAX_ATTRIBUTES_V4 } from '../../utils/constants';
+import { Logger } from '../../utils/log';
+import { Memory } from '../memory/Memory';
 
 /**
  * Represents an object in the Z-machine world with properties, attributes,
  * and hierarchical relationships (parent, child, sibling)
  */
 export class GameObject {
+  /**
+   * Calculate the length of property data
+   * @param memory Memory access
+   * @param version Z-machine version
+   * @param propAddr Address of the property
+   * @returns Length of the property data in bytes
+   */
+  static _propDataLen(memory: Memory, version: number, propAddr: Address): number {
+    let size = memory.getByte(propAddr);
+
+    if (version <= 3) {
+      // Top 3 bits encode size - 1
+      size = (size >> 5) + 1;
+    } else {
+      if (!(size & 0x80)) {
+        // Top 2 bits encode size - 1
+        size = (size >> 6) + 1;
+      } else {
+        // Size byte is in the next byte
+        size = memory.getByte(propAddr + 1) & 0x3f;
+        // A size of 0 means 64 bytes
+        if (size === 0) {
+          size = 64;
+        }
+      }
+    }
+
+    return size;
+  }
+  /**
+   * Convert a data pointer to its property entry address
+   * @param dataAddr Address of the property data
+   * @returns Address of the property entry
+   */
+  static entryFromDataPtr(dataAddr: Address, memory: Memory, version: number): Address {
+    // This is a bit tricky because the data could be 1 or 2 bytes after the entry
+    // We look at the byte before - if version <= 3 or the high bit is clear, it's 1 byte before
+    if (version <= 3 || !(memory.getByte(dataAddr - 1) & 0x80)) {
+      return dataAddr - 1;
+    } else {
+      return dataAddr - 2;
+    }
+  }
+  /**
+   * Get the length of a property from its data address
+   * @param memory Memory access
+   * @param version Z-machine version
+   * @param dataAddr Address of the property data
+   * @returns Length of the property in bytes
+   */
+  static getPropertyLength(memory: Memory, version: number, dataAddr: Address): number {
+    if (dataAddr === 0) {
+      return 0;
+    }
+
+    const entry = GameObject.entryFromDataPtr(dataAddr, memory, version);
+    return GameObject._propDataLen(memory, version, entry);
+  }
   private memory: Memory;
   private logger: Logger;
-  private version: number;
-  private objTable: number;
-
-  /** Object number in the object table */
-  readonly objnum: number;
-
-  /** Address of the object in memory */
-  private objaddr: Address;
-
   /**
    * Creates a new GameObject instance
    * @param memory Memory access
@@ -44,6 +93,15 @@ export class GameObject {
       this.objaddr = this.objTable + 63 * 2 + (objnum - 1) * 14;
     }
   }
+
+  private version: number;
+  private objTable: number;
+
+  /** Object number in the object table */
+  readonly objnum: number;
+
+  /** Address of the object in memory */
+  private objaddr: Address;
 
   /**
    * Get the object's name as a string
@@ -253,36 +311,6 @@ export class GameObject {
   }
 
   /**
-   * Calculate the length of property data
-   * @param memory Memory access
-   * @param version Z-machine version
-   * @param propAddr Address of the property
-   * @returns Length of the property data in bytes
-   */
-  static _propDataLen(memory: Memory, version: number, propAddr: Address): number {
-    let size = memory.getByte(propAddr);
-
-    if (version <= 3) {
-      // Top 3 bits encode size - 1
-      size = (size >> 5) + 1;
-    } else {
-      if (!(size & 0x80)) {
-        // Top 2 bits encode size - 1
-        size = (size >> 6) + 1;
-      } else {
-        // Size byte is in the next byte
-        size = memory.getByte(propAddr + 1) & 0x3f;
-        // A size of 0 means 64 bytes
-        if (size === 0) {
-          size = 64;
-        }
-      }
-    }
-
-    return size;
-  }
-
-  /**
    * Get the address of the property data
    * @param propAddr Address of the property entry
    * @returns Address of the property data
@@ -432,37 +460,6 @@ export class GameObject {
   }
 
   /**
-   * Convert a data pointer to its property entry address
-   * @param dataAddr Address of the property data
-   * @returns Address of the property entry
-   */
-  static entryFromDataPtr(dataAddr: Address, memory: Memory, version: number): Address {
-    // This is a bit tricky because the data could be 1 or 2 bytes after the entry
-    // We look at the byte before - if version <= 3 or the high bit is clear, it's 1 byte before
-    if (version <= 3 || !(memory.getByte(dataAddr - 1) & 0x80)) {
-      return dataAddr - 1;
-    } else {
-      return dataAddr - 2;
-    }
-  }
-
-  /**
-   * Get the length of a property from its data address
-   * @param memory Memory access
-   * @param version Z-machine version
-   * @param dataAddr Address of the property data
-   * @returns Length of the property in bytes
-   */
-  static getPropertyLength(memory: Memory, version: number, dataAddr: Address): number {
-    if (dataAddr === 0) {
-      return 0;
-    }
-
-    const entry = GameObject.entryFromDataPtr(dataAddr, memory, version);
-    return GameObject._propDataLen(memory, version, entry);
-  }
-
-  /**
    * Get the next property number after a specified property
    * @param prop Property number, or 0 to get the first property
    * @returns The next property number or 0 if none
@@ -506,7 +503,7 @@ export class GameObject {
       data.push(this.memory.getByte(propDataPtr + i));
     }
 
-    return data.map(val => this.hexString(val)).join(' ');
+    return data.map((val) => this.hexString(val)).join(' ');
   }
 
   /**

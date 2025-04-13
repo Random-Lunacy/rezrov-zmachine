@@ -1,6 +1,6 @@
 // src/parsers/ZString.ts
 import { Memory } from '../core/memory/Memory';
-import { Address, ZSCII } from '../types';
+import { ZSCII } from '../types';
 import { HeaderLocation } from '../utils/constants';
 
 /**

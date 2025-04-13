@@ -9,6 +9,12 @@ import { InputState } from './InputState';
 import { SuspendState } from './SuspendState';
 
 export class Executor {
+  private _quit: boolean = false;
+  private _op_pc: Address = 0;
+  private _suspended: boolean = false;
+  private _suspendedInputState: InputState | null = null;
+  // Opcode tables
+  private op0: Array<Opcode>;
   constructor(private zMachine: ZMachine, private logger: Logger) {
     // Initialize opcode tables
     this.op0 = opcodes.op0;
@@ -18,13 +24,6 @@ export class Executor {
     this.opext = opcodes.opext;
   }
 
-  private _quit: boolean = false;
-  private _op_pc: Address = 0;
-  private _suspended: boolean = false;
-  private _suspendedInputState: InputState | null = null;
-
-  // Opcode tables
-  private op0: Array<Opcode>;
   private op1: Array<Opcode>;
   private op2: Array<Opcode>;
   private opv: Array<Opcode>;
@@ -208,7 +207,7 @@ export class Executor {
       throw e;
     }
 
-    this.logger.debug(`Executing op = ${op.mnemonic} with operands [${operands.map(o => hex(o)).join(', ')}]`);
+    this.logger.debug(`Executing op = ${op.mnemonic} with operands [${operands.map((o) => hex(o)).join(', ')}]`);
 
     // 4. Execute the opcode
     op.impl(this.zMachine, ...operands);

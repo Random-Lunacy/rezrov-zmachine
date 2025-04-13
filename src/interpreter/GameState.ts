@@ -1,14 +1,13 @@
 // src/interpreter/GameState.ts
+import { createStackFrame, StackFrame } from '../core/execution/StackFrame';
 import { Memory } from '../core/memory/Memory';
-import { StackFrame, createStackFrame } from '../core/execution/StackFrame';
-import { Address } from '../types';
 import { GameObject } from '../core/objects/GameObject';
 import { GameObjectFactory } from '../core/objects/GameObjectFactory';
-import { HeaderLocation } from '../utils/constants';
-import { Snapshot } from '../storage/interfaces';
-import { Logger, LogLevel } from '../utils/log';
-import { decodeZString } from '../parsers/ZString';
 import { TextParser } from '../parsers/TextParser';
+import { Snapshot } from '../storage/interfaces';
+import { Address } from '../types';
+import { HeaderLocation } from '../utils/constants';
+import { Logger, LogLevel } from '../utils/log';
 
 /**
  * Represents the complete state of a Z-machine game
@@ -19,6 +18,17 @@ export class GameState {
   private _callstack: Array<StackFrame> = [];
   private _memory: Memory;
   private _version: number;
+  constructor(memory: Memory, logger?: Logger) {
+    this._memory = memory;
+    this.logger = logger || new Logger(LogLevel.INFO);
+    this._version = this._memory.getByte(HeaderLocation.Version);
+
+    // Read header values
+    this._readHeaderValues();
+
+    // Initialize object factory
+    this._objectFactory = new GameObjectFactory(this._memory, this.logger, this._version, this._objectTable);
+  }
 
   // Cached header values
   private _highmem: number = 0;
@@ -37,18 +47,6 @@ export class GameState {
 
   // Logger for output and debugging
   public logger: Logger;
-
-  constructor(memory: Memory, logger?: Logger) {
-    this._memory = memory;
-    this.logger = logger || new Logger(LogLevel.INFO);
-    this._version = this._memory.getByte(HeaderLocation.Version);
-
-    // Read header values
-    this._readHeaderValues();
-
-    // Initialize object factory
-    this._objectFactory = new GameObjectFactory(this._memory, this.logger, this._version, this._objectTable);
-  }
 
   /**
    * Read and cache header values

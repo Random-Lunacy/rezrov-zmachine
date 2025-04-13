@@ -1,6 +1,5 @@
-import { Snapshot } from './interfaces';
 import { StackFrame } from '../core/execution/StackFrame';
-import { Address } from '../types';
+import { Snapshot } from './interfaces';
 
 /**
  * Enum defining the different types of chunks in a snapshot file

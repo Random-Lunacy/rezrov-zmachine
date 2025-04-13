@@ -13,10 +13,6 @@ export class Dictionary {
   private dictAddr: Address;
   private separators: Array<number>;
   private entryLength: number;
-  private numEntries: number;
-  private entriesStart: Address;
-  private version: number;
-
   /**
    * Creates a new Dictionary instance
    * @param memory Memory instance
@@ -41,6 +37,10 @@ export class Dictionary {
     );
     this.logger.debug(`Separators: ${this.getSeparatorsAsString()}`);
   }
+
+  private numEntries: number;
+  private entriesStart: Address;
+  private version: number;
 
   /**
    * Reads the separator characters from the dictionary
@@ -70,7 +70,7 @@ export class Dictionary {
    * @returns String representation of separators
    */
   public getSeparatorsAsString(): string {
-    return this.separators.map(s => `'${String.fromCharCode(s)}'`).join(', ');
+    return this.separators.map((s) => `'${String.fromCharCode(s)}'`).join(', ');
   }
 
   /**

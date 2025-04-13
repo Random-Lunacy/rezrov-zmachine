@@ -1,7 +1,7 @@
 {
   "root": true,
   "parser": "@typescript-eslint/parser",
-  "plugins": ["@typescript-eslint", "prettier", "sort-class-members", "simple-import-sort"],
+  "plugins": ["@typescript-eslint", "prettier", "sort-class-members"],
   "extends": ["eslint:recommended", "plugin:@typescript-eslint/recommended", "plugin:prettier/recommended"],
   "parserOptions": {
     "ecmaVersion": "latest",
@@ -13,13 +13,21 @@
     "no-debugger": "warn",
     "eol-last": ["error", "always"],
     "sort-class-members/sort-class-members": [
-      2,
+      "error",
       {
-        "order": ["constructor", "[static-properties]", "[static-methods]", "[properties]", "[methods]"]
+        "order": ["[static-properties]", "[static-methods]", "[properties]", "constructor", "[methods]"],
+        "accessorPairPositioning": "getThenSet"
       }
     ],
-    "simple-import-sort/imports": "error",
-    "simple-import-sort/exports": "error"
+    "@typescript-eslint/no-unused-vars": ["warn", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }]
   },
+  "overrides": [
+    {
+      "files": ["*.test.ts", "*.spec.ts"],
+      "env": {
+        "jest": true
+      }
+    }
+  ],
   "ignorePatterns": ["dist/", "node_modules/", "tests/"]
 }
