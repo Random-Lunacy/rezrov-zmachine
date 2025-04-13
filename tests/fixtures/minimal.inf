@@ -1,0 +1,23 @@
+! minimal.inf - A minimal Z-machine test story
+
+Attribute light;
+Attribute container;
+Attribute openable;
+
+[ Main;
+   print "This is a minimal test story.^";
+   print "It contains a few objects for testing.^";
+];
+
+Object room "Test Room"
+  with description "A plain white room for testing.",
+  has  light;
+
+Object -> small_box "small box"
+  with name 'small' 'box',
+       description "A small wooden box.",
+  has  container openable;
+
+Object -> -> key "brass key"
+  with name 'brass' 'key',
+       description "A simple brass key.";

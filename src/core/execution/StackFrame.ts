@@ -1,57 +1,62 @@
 /**
- * Represents a Z-Machine stack frame according to the 1.1 specification.
- * Each routine call creates a new stack frame to track execution context.
+ * Represents a stack frame in the Z-Machine.
+ * Each stack frame contains information about the current execution context,
+ * including the return address, local variables, and the routine being executed.
  */
+// src/core/execution/StackFrame.ts
 export interface StackFrame {
-  // The return program counter (where execution will resume after return)
+  // Return address to resume at when routine finishes
   returnPC: number;
 
-  // Previous stack pointer (points to the previous frame's location)
+  // Original stack pointer value when frame was created
   previousSP: number;
 
-  // Storage for up to 15 local variables (0-14)
-  locals: Uint16Array; // Fixed size of 15
+  // Local variables for this routine (0-15)
+  locals: Uint16Array;
 
-  // Whether a result is expected from this routine call
-  storesResult: boolean;
+  // Variable to store result in (or null if discarding)
+  resultVariable: number | null;
 
-  // Where to store the result value (variable number)
-  resultVariable: number;
-
-  // Number of arguments originally passed to the routine
+  // Number of arguments passed to the routine
   argumentCount: number;
 
-  // Optional: For debugging/introspection purposes
+  // Starting address of the routine (for debugging)
   routineAddress: number;
 }
 
 /**
- * Factory function to create a new stack frame
+ * Creates a stack frame for a routine call
+ *
+ * @param returnPC Address to return to when routine completes
+ * @param previousSP Stack pointer value before this call
+ * @param numLocals Number of local variables (0-15)
+ * @param resultVar Variable to store result in (or null if discarding)
+ * @param argumentCount Number of arguments passed to the routine
+ * @param routineAddress Starting address of the routine
+ * @returns A new stack frame
  */
 export function createStackFrame(
   returnPC: number,
   previousSP: number,
   numLocals: number,
   storesResult: boolean,
-  resultVariable: number,
+  resultVar: number,
   argumentCount: number,
   routineAddress: number
 ): StackFrame {
-  // Ensure numLocals is within the Z-Machine specification limit (0-15)
   if (numLocals < 0 || numLocals > 15) {
     throw new Error(`Invalid number of locals: ${numLocals}. Z-Machine allows 0-15 locals.`);
   }
 
-  // Create local variables storage with the proper size
-  const locals = new Uint16Array(15);
+  // Create array for locals (16-bit values)
+  const locals = new Uint16Array(numLocals);
 
   return {
     returnPC,
     previousSP,
     locals,
-    storesResult,
-    resultVariable,
+    resultVariable: storesResult ? resultVar : null,
     argumentCount,
-    routineAddress
+    routineAddress,
   };
 }
