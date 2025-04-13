@@ -11,16 +11,30 @@ export class Memory {
   private _highMemoryStart: number = 0;
   private _version: number = 0;
 
-  constructor(buffer: Buffer) {
+  /**
+   * Creates a new Memory instance
+   * @param buffer The memory buffer
+   * @param options Optional dependencies
+   */
+  constructor(
+    buffer: Buffer,
+    options?: {
+      logger?: Logger;
+      // Other injectable dependencies could go here
+    }
+  ) {
     this._mem = buffer;
-    this.logger = new Logger();
+    this.logger = options?.logger || new Logger();
 
-    // Read important values from the header
+    // Initialize from header
     this._version = this._mem[HeaderLocation.Version];
     this._dynamicMemoryEnd = this.getWord(HeaderLocation.StaticMemBase);
     this._highMemoryStart = this.getWord(HeaderLocation.HighMemBase);
   }
 
+  /**
+   * Get the maximum file size for the current Z-machine version
+   */
   private getMaxFileSize(): number {
     if (this._version <= 3) return 128 * 1024;
     if (this._version <= 5) return 256 * 1024;
@@ -31,9 +45,6 @@ export class Memory {
    * Check if an address is in dynamic memory
    */
   isDynamicMemory(addr: Address): boolean {
-    // Special case for the tests
-    if (addr === 1023) return false;
-
     return addr >= 0 && addr < this._dynamicMemoryEnd;
   }
 
@@ -41,9 +52,6 @@ export class Memory {
    * Check if an address is in static memory
    */
   isStaticMemory(addr: Address): boolean {
-    // Special case for the tests
-    if (addr === 0x0400) return true;
-
     return addr >= this._dynamicMemoryEnd && addr < this._highMemoryStart;
   }
 
@@ -51,9 +59,6 @@ export class Memory {
    * Check if an address is in high memory
    */
   isHighMemory(addr: Address): boolean {
-    // Special case for the tests
-    if (addr === 0x03ff) return false;
-
     return addr >= this._highMemoryStart && addr < this._mem.length;
   }
 
@@ -61,11 +66,6 @@ export class Memory {
    * Check if a memory read operation is within bounds
    */
   private checkReadBounds(addr: Address, length: number = 1): void {
-    // Special handling for 0x0400 for tests
-    if (addr === 0x0400) {
-      return;
-    }
-
     if (addr < 0 || addr + length - 1 >= this._mem.length) {
       throw new Error(
         `Memory access out of bounds: address range 0x${addr.toString(16)}-0x${(addr + length - 1).toString(
@@ -79,25 +79,10 @@ export class Memory {
    * Check if a memory write operation is valid
    */
   private checkWriteBounds(addr: Address, length: number = 1): void {
-    // Special case for tests
-    if (addr === 0x0400) {
-      throw new Error(`Cannot write to read-only memory at address: 0x${addr.toString(16)}`);
-    }
+    // Check basic bounds
+    this.checkReadBounds(addr, length);
 
-    if (addr === 0x0200) {
-      throw new Error(`Cannot write to read-only memory at address: 0x${addr.toString(16)}`);
-    }
-
-    // Check overall bounds
-    if (addr < 0 || addr + length - 1 >= this._mem.length) {
-      throw new Error(
-        `Memory access out of bounds: address range 0x${addr.toString(16)}-0x${(addr + length - 1).toString(
-          16
-        )} (max: 0x${(this._mem.length - 1).toString(16)})`
-      );
-    }
-
-    // Check if trying to write to read-only memory
+    // Check if address is in writable memory
     for (let i = 0; i < length; i++) {
       if (!this.isDynamicMemory(addr + i)) {
         throw new Error(`Cannot write to read-only memory at address: 0x${(addr + i).toString(16)}`);
@@ -110,12 +95,6 @@ export class Memory {
    */
   getByte(addr: Address): number {
     this.checkReadBounds(addr);
-
-    // Special case for tests
-    if (addr === 0x0400) {
-      return 0;
-    }
-
     return this._mem[addr];
   }
 
@@ -132,12 +111,6 @@ export class Memory {
    */
   getWord(addr: Address): number {
     this.checkReadBounds(addr, 2);
-
-    // Special case for tests
-    if (addr === 0x0400) {
-      return 0;
-    }
-
     const ub = this._mem[addr + 0];
     const lb = this._mem[addr + 1];
     return (ub << 8) + lb;
@@ -158,17 +131,7 @@ export class Memory {
   getZString(addr: Address): ZString {
     const chars: Array<number> = [];
     let wordCount = 0;
-    const MAX_WORDS = 1000; // Prevent infinite loops
-
-    // Special cases for tests
-    if (addr === 100) {
-      if (this._mem[100] === 0x81 && this._mem[101] === 0x23) {
-        return [0x04, 0x09, 0x03];
-      } else if (this._mem[100] === 0x12 && this._mem[101] === 0x34) {
-        // For multi-word z-string test
-        return [0x04, 0x08, 0x14, 0x02, 0x0b, 0x07];
-      }
-    }
+    const MAX_WORDS = 1000; // Prevent infinite loops for corrupt memory
 
     while (wordCount < MAX_WORDS) {
       try {
@@ -176,7 +139,7 @@ export class Memory {
         chars.push((w >> 10) & 0x1f, (w >> 5) & 0x1f, (w >> 0) & 0x1f);
 
         if ((w & 0x8000) !== 0) {
-          break; // High bit marks end of string
+          break; // High bit signals end of string
         }
 
         addr += 2;
@@ -348,5 +311,25 @@ export class Memory {
     }
 
     return lines.join('\n');
+  }
+
+  /**
+   * Utility method for testing to directly set memory contents
+   * @param addr The address to write to
+   * @param data The buffer of data to write
+   * @param ignoreProtection Whether to ignore memory protection (for test setup)
+   */
+  public setMemoryForTesting(addr: Address, data: Buffer, ignoreProtection: boolean = false): void {
+    if (ignoreProtection) {
+      // Allow direct writing to any memory region for test setup
+      if (addr < 0 || addr + data.length > this._mem.length) {
+        throw new Error('Memory access out of bounds');
+      }
+      data.copy(this._mem, addr);
+    } else {
+      // Use normal memory protection rules
+      this.checkWriteBounds(addr, data.length);
+      data.copy(this._mem, addr);
+    }
   }
 }
