@@ -346,52 +346,58 @@ function set_colour(machine: ZMachine, foreground: number, background: number, w
 
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} set_colour ${foreground} ${background} ${window}`);
 
-  // Handle transparency (color 15) in Version 6
   if (machine.state.version === 6) {
-    // Check if background is set to transparent
-    if (background === 15) {
-      // Check if the interpreter supports transparency
-      const flags3Addr = machine.state.memory.getWord(HeaderLocation.HeaderExtTable) + 4;
-      if (flags3Addr > 0) {
-        const flags3 = machine.state.memory.getWord(flags3Addr);
-        const supportsTransparency = (flags3 & 0x0001) !== 0;
-
-        if (!supportsTransparency) {
-          // If transparency is not supported, ignore the request
-          machine.logger.warn('Transparency requested but not supported by interpreter');
-          return;
-        }
-      } else {
-        // No header extension table, assume no transparency support
-        machine.logger.warn('Transparency requested but header extension not present');
-        return;
-      }
-
-      // Check if foreground is also set to transparent (invalid)
-      if (foreground === 15) {
-        machine.logger.warn('Transparent foreground not allowed, request ignored');
-        return;
-      }
-
-      // Check if current text style includes reverse video (invalid with transparency)
-      const currentWindow = machine.screen.getOutputWindow(machine);
-      const currentStyle = machine.screen.getWindowProperty(machine, currentWindow, 10);
-      if ((currentStyle & 1) !== 0) {
-        // Reverse video bit
-        machine.logger.warn('Reverse video style not allowed with transparent background');
-        return;
-      }
+    if (!handleTransparency(machine, foreground, background)) {
+      return;
     }
-
-    // Ensure foreground is never transparent
-    if (foreground === 15) {
-      machine.logger.warn('Transparent foreground not allowed, using default instead');
-      foreground = 1; // Use default foreground color instead
-    }
+    foreground = ensureValidForeground(machine, foreground);
   }
 
-  // Pass to screen implementation
   machine.screen.setTextColors(machine, window, foreground, background);
+}
+
+function handleTransparency(machine: ZMachine, foreground: number, background: number): boolean {
+  if (background === 15) {
+    if (!supportsTransparency(machine)) {
+      machine.logger.warn('Transparency requested but not supported by interpreter');
+      return false;
+    }
+
+    if (foreground === 15) {
+      machine.logger.warn('Transparent foreground not allowed, request ignored');
+      return false;
+    }
+
+    if (isReverseVideoActive(machine)) {
+      machine.logger.warn('Reverse video style not allowed with transparent background');
+      return false;
+    }
+  }
+  return true;
+}
+
+function supportsTransparency(machine: ZMachine): boolean {
+  const flags3Addr = machine.state.memory.getWord(HeaderLocation.HeaderExtTable) + 4;
+  if (flags3Addr > 0) {
+    const flags3 = machine.state.memory.getWord(flags3Addr);
+    return (flags3 & 0x0001) !== 0;
+  }
+  machine.logger.warn('Transparency requested but header extension not present');
+  return false;
+}
+
+function isReverseVideoActive(machine: ZMachine): boolean {
+  const currentWindow = machine.screen.getOutputWindow(machine);
+  const currentStyle = machine.screen.getWindowProperty(machine, currentWindow, 10);
+  return (currentStyle & 1) !== 0;
+}
+
+function ensureValidForeground(machine: ZMachine, foreground: number): number {
+  if (foreground === 15) {
+    machine.logger.warn('Transparent foreground not allowed, using default instead');
+    return 1; // Use default foreground color instead
+  }
+  return foreground;
 }
 
 function set_true_colour(

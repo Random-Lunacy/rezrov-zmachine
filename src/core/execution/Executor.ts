@@ -1,36 +1,19 @@
 // src/core/execution/Executor.ts
-import { Memory } from '../memory/Memory';
-import { GameState } from '../../interpreter/GameState';
-import { Logger } from '../../utils/log';
-import { SuspendState } from './SuspendState';
-import { Opcode } from '../opcodes/base';
+import { ZMachine } from '../../interpreter/ZMachine';
 import { Address, InstructionForm, OperandType } from '../../types';
-import { toI16 } from '../memory/cast16';
 import { hex } from '../../utils/debug';
+import { Logger } from '../../utils/log';
+import { Opcode } from '../opcodes/base';
 import * as opcodes from '../opcodes/index';
+import { InputState } from './InputState';
+import { SuspendState } from './SuspendState';
 
 /**
  * Handles execution of Z-machine instructions
  */
 export class Executor {
-  private gameState: GameState;
-  private logger: Logger;
-  private _quit: boolean = false;
-  private _op_pc: Address = 0;
-
-  // Track suspended state
-  private _suspended: boolean = false;
-  private _suspendState: any = null;
-
-  // Opcode tables - these would be imported from the opcodes modules
-  private op0: Array<Opcode>;
-  private op1: Array<Opcode>;
-  private op2: Array<Opcode>;
-  private opv: Array<Opcode>;
-  private opext: Array<Opcode>;
-
-  constructor(gameState: GameState, logger: Logger) {
-    this.gameState = gameState;
+  constructor(zMachine: ZMachine, logger: Logger) {
+    this.zMachine = zMachine;
     this.logger = logger;
 
     // Store opcode tables
@@ -41,13 +24,29 @@ export class Executor {
     this.opext = opcodes.opext;
   }
 
+  private zMachine: ZMachine;
+  private logger: Logger;
+  private _quit: boolean = false;
+  private _op_pc: Address = 0;
+
+  // Track suspended state
+  private _suspended: boolean = false;
+  private _suspendedInputState: InputState | null = null;
+
+  // Opcode tables - these would be imported from the opcodes modules
+  private op0: Array<Opcode>;
+  private op1: Array<Opcode>;
+  private op2: Array<Opcode>;
+  private opv: Array<Opcode>;
+  private opext: Array<Opcode>;
+
   /**
    * Main execution loop for the Z-machine
    */
   executeLoop(): void {
     try {
       while (!this._quit && !this._suspended) {
-        this._op_pc = this.gameState.pc;
+        this._op_pc = this.zMachine.state.pc;
         this.executeInstruction();
       }
 
@@ -58,7 +57,7 @@ export class Executor {
       if (e instanceof SuspendState) {
         // Handle suspension for user input
         this._suspended = true;
-        this._suspendState = e.state;
+        this._suspendedInputState = e.state;
 
         // Unwind the stack before handling input
         setImmediate(() => {
@@ -82,8 +81,8 @@ export class Executor {
    */
   executeInstruction(): void {
     // Store the current PC for debugging/error reporting
-    const op_pc = this.gameState.pc;
-    let opcode = this.gameState.readByte();
+    const op_pc = this.zMachine.state.pc;
+    let opcode = this.zMachine.state.readByte();
 
     let operandTypes: Array<OperandType> = [];
     let reallyVariable = false;
@@ -104,7 +103,7 @@ export class Executor {
       }
 
       // Read operand types for variable form
-      const typesByte = this.gameState.readByte();
+      const typesByte = this.zMachine.state.readByte();
       for (let i = 0; i < 4; i++) {
         const optype = (typesByte >> ((3 - i) * 2)) & 0x03;
         if (optype !== OperandType.Omitted) {
@@ -128,15 +127,15 @@ export class Executor {
 
       // Mask to get the actual opcode
       opcode = opcode & 0x0f;
-    } else if (opcode === 190 && this.gameState.version >= 5) {
+    } else if (opcode === 190 && this.zMachine.state.version >= 5) {
       // Extended form (opcode 190/$BE) in version 5+
       form = InstructionForm.Extended;
 
       // Read extended opcode
-      opcode = this.gameState.readByte();
+      opcode = this.zMachine.state.readByte();
 
       // Read operand types (similar to variable form)
-      const typesByte = this.gameState.readByte();
+      const typesByte = this.zMachine.state.readByte();
       for (let i = 0; i < 4; i++) {
         const optype = (typesByte >> ((3 - i) * 2)) & 0x03;
         if (optype !== OperandType.Omitted) {
@@ -165,14 +164,14 @@ export class Executor {
     for (const optype of operandTypes) {
       switch (optype) {
         case OperandType.Large:
-          operands.push(this.gameState.readWord());
+          operands.push(this.zMachine.state.readWord());
           break;
         case OperandType.Small:
-          operands.push(this.gameState.readByte());
+          operands.push(this.zMachine.state.readByte());
           break;
         case OperandType.Variable: {
-          const varnum = this.gameState.readByte();
-          operands.push(this.gameState.loadVariable(varnum));
+          const varnum = this.zMachine.state.readByte();
+          operands.push(this.zMachine.state.loadVariable(varnum));
           break;
         }
         default:
@@ -212,7 +211,7 @@ export class Executor {
       this.logger.error(
         `Error resolving opcode at pc=${hex(op_pc)}, opcode=${hex(opcode)}, form=${form}, operands=${
           operands.length
-        }: ${e.toString()}`
+        }: ${e instanceof Error ? e.message : String(e)}`
       );
       throw e;
     }
@@ -220,7 +219,7 @@ export class Executor {
     this.logger.debug(`Executing op = ${op.mnemonic} with operands [${operands.map(o => hex(o)).join(', ')}]`);
 
     // Call the opcode implementation
-    op.impl(this.gameState, ...operands);
+    op.impl(this.zMachine, ...operands);
   }
 
   /**
@@ -233,8 +232,11 @@ export class Executor {
   /**
    * Gets the suspended input state if execution is suspended
    */
-  get suspendState(): any {
-    return this._suspendState;
+  get suspendedInputState(): InputState | null {
+    if (!this._suspended) {
+      return null;
+    }
+    return this._suspendedInputState;
   }
 
   /**
@@ -249,7 +251,7 @@ export class Executor {
    */
   resume(): void {
     this._suspended = false;
-    this._suspendState = null;
+    this._suspendedInputState = null;
     this.executeLoop();
   }
 

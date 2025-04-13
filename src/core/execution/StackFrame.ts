@@ -1,55 +1,47 @@
 /**
- * Represents a Z-Machine stack frame according to the 1.1 specification.
- * Each routine call creates a new stack frame to track execution context.
+ * Represents a stack frame in the Z-Machine.
+ * Each stack frame contains information about the current execution context,
+ * including the return address, local variables, and the routine being executed.
  */
 export interface StackFrame {
-  // The return program counter (where execution will resume after return)
+  // The PC to return to when the routine completes
   returnPC: number;
 
-  // Previous stack pointer (points to the previous frame's location)
+  // Stack pointer value at the time of call (for restoring on return)
   previousSP: number;
 
-  // Storage for up to 15 local variables (0-14)
+  // Local variables for the routine (0-15)
   locals: Uint16Array;
 
-  // Whether a result is expected from this routine call
-  storesResult: boolean;
+  // Variable to store the result in (null if no return value)
+  resultVariable: number | null;
 
-  // Where to store the result value (variable number)
-  resultVariable: number;
-
-  // Number of arguments originally passed to the routine
+  // Number of arguments passed
   argumentCount: number;
 
-  // Optional: For debugging/introspection purposes
+  // Address of the routine being executed
   routineAddress: number;
 }
 
-/**
- * Factory function to create a new stack frame
- */
 export function createStackFrame(
   returnPC: number,
   previousSP: number,
   numLocals: number,
-  storesResult: boolean,
-  resultVariable: number,
+  resultVariable: number | null,
   argumentCount: number,
   routineAddress: number
 ): StackFrame {
-  // Ensure numLocals is within the Z-Machine specification limit (0-15)
   if (numLocals < 0 || numLocals > 15) {
     throw new Error(`Invalid number of locals: ${numLocals}. Z-Machine allows 0-15 locals.`);
   }
 
-  // Create local variables storage with the proper size
-  const locals = new Uint16Array(15);
+  // Create array for local variables
+  const locals = new Uint16Array(numLocals);
 
   return {
     returnPC,
     previousSP,
     locals,
-    storesResult,
     resultVariable,
     argumentCount,
     routineAddress,

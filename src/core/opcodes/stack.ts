@@ -38,10 +38,25 @@ function pop(machine: ZMachine): void {
 
 /**
  * Pops a value from the stack and stores it in a variable.
+ * If a stack address is provided, it uses the user stack.
  */
-function pull(machine: ZMachine, variable: number): void {
-  const value = machine.state.popStack();
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} pull ${variable} (${value})`);
+function pull(machine: ZMachine, variable: number, stackAddr?: number): void {
+  machine.logger.debug(`${machine.executor.op_pc.toString(16)} pull ${variable} ${stackAddr || ''}`);
+
+  let value: number;
+
+  // If a stack address is provided and we're in Version 6, use the user stack
+  if (stackAddr !== undefined && machine.state.version === 6) {
+    const userStackValue = machine.getUserStackManager().pullStack(stackAddr);
+
+    // If undefined (stack empty), what should we do? The spec doesn't specify
+    // We'll use 0 as a default, but this might need adjustment
+    value = userStackValue !== undefined ? userStackValue : 0;
+  } else {
+    // Use system stack
+    value = machine.state.popStack();
+  }
+
   machine.state.storeVariable(variable, value);
 }
 
@@ -121,17 +136,43 @@ function dec_chk(machine: ZMachine, variable: number, value: number): void {
 /**
  * Remove items from a specified stack (V6)
  */
-function pop_stack(machine: ZMachine): void {
-  machine.logger.debug(`pop_stack`);
-  throw new Error(`Unimplemented opcode: pop_stack`);
+function pop_stack(machine: ZMachine, items: number, stackAddr?: number): void {
+  machine.logger.debug(`${machine.executor.op_pc.toString(16)} pop_stack ${items} ${stackAddr || ''}`);
+
+  // Only valid in Version 6
+  if (machine.state.version !== 6) {
+    machine.logger.warn('pop_stack opcode only available in Version 6');
+    return;
+  }
+
+  if (stackAddr !== undefined) {
+    // Pop from user stack
+    machine.getUserStackManager().popStack(stackAddr, items);
+  } else {
+    // Pop from system stack
+    for (let i = 0; i < items; i++) {
+      machine.state.popStack();
+    }
+  }
 }
 
 /**
  * Push value onto user stack, branch if successful (V6)
  */
-function push_stack(machine: ZMachine, value: number): void {
-  machine.logger.debug(`push_stack ${value}`);
-  throw new Error(`Unimplemented opcode: push_stack`);
+function push_stack(machine: ZMachine, value: number, stackAddr: number): void {
+  const [offset, branchOnFalse] = machine.state.readBranchOffset();
+  machine.logger.debug(`${machine.executor.op_pc.toString(16)} push_stack ${value} ${stackAddr}`);
+
+  // Only valid in Version 6
+  if (machine.state.version !== 6) {
+    machine.logger.warn('push_stack opcode only available in Version 6');
+    return;
+  }
+
+  const success = machine.getUserStackManager().pushStack(stackAddr, value);
+
+  // Branch if successful
+  machine.state.doBranch(success, branchOnFalse, offset);
 }
 
 /**

@@ -1,48 +1,20 @@
-import { Memory } from '../core/memory/Memory';
 import { Executor } from '../core/execution/Executor';
-import { GameState } from './GameState';
-import { Screen } from '../ui/screen/interfaces';
+import { InputState } from '../core/execution/InputState';
+import { UserStackManager } from '../core/execution/UserStack';
+import { Memory } from '../core/memory/Memory';
 import { Storage } from '../storage/interfaces';
 import { InputHandler } from '../ui/input/InputHandler';
-import { Logger } from '../utils/log';
+import { Screen } from '../ui/screen/interfaces';
 import { HeaderLocation } from '../utils/constants';
-import { ZMachineVersion, getVersionCapabilities } from './Version';
+import { Logger } from '../utils/log';
+import { GameState } from './GameState';
+import { ZMachineVersion } from './Version';
 
 /**
  * Main Z-Machine interpreter class
  * This class serves as the main interface to the Z-Machine interpreter
  */
 export class ZMachine {
-  private _memory: Memory;
-  private _executor: Executor;
-  private _state: GameState;
-  private _screen: Screen;
-  private _storage: Storage;
-  private _inputHandler: InputHandler;
-  private _logger: Logger;
-
-  public get memory(): Memory {
-    return this._memory;
-  }
-  public get executor(): Executor {
-    return this._executor;
-  }
-  public get state(): GameState {
-    return this._state;
-  }
-  public get screen(): Screen {
-    return this._screen;
-  }
-  public get storage(): Storage {
-    return this._storage;
-  }
-  public get inputHandler(): InputHandler {
-    return this._inputHandler;
-  }
-  public get logger(): Logger {
-    return this._logger;
-  }
-
   /**
    * Creates a new Z-Machine interpreter
    * @param storyBuffer Buffer containing the story file
@@ -69,6 +41,52 @@ export class ZMachine {
 
     // Configure screen capabilities
     this.configureScreenCapabilities();
+
+    // Initialize UserStackManager for Version 6
+    if (this._state.version === 6) {
+      this._userStackManager = new UserStackManager(this._memory, this._logger);
+    }
+  }
+
+  private _memory: Memory;
+  private _executor: Executor;
+  private _state: GameState;
+  private _screen: Screen;
+  private _storage: Storage;
+  private _inputHandler: InputHandler;
+  private _logger: Logger;
+  private _userStackManager: UserStackManager | null = null;
+
+  public get memory(): Memory {
+    return this._memory;
+  }
+  public get executor(): Executor {
+    return this._executor;
+  }
+  public get state(): GameState {
+    return this._state;
+  }
+  public get screen(): Screen {
+    return this._screen;
+  }
+  public get storage(): Storage {
+    return this._storage;
+  }
+  public get inputHandler(): InputHandler {
+    return this._inputHandler;
+  }
+  public get logger(): Logger {
+    return this._logger;
+  }
+
+  /**
+   * Gets the UserStackManager for Version 6 operations
+   */
+  getUserStackManager(): UserStackManager {
+    if (!this._userStackManager) {
+      throw new Error('User stacks are only available in Version 6');
+    }
+    return this._userStackManager;
   }
 
   /**
