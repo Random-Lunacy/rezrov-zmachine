@@ -39,9 +39,7 @@ export function createStackFrame(
 ): StackFrame {
   // Ensure numLocals is within the Z-Machine specification limit (0-15)
   if (numLocals < 0 || numLocals > 15) {
-    throw new Error(
-      `Invalid number of locals: ${numLocals}. Z-Machine allows 0-15 locals.`
-    );
+    throw new Error(`Invalid number of locals: ${numLocals}. Z-Machine allows 0-15 locals.`);
   }
 
   // Create local variables storage with the proper size

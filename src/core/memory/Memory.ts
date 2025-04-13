@@ -1,6 +1,6 @@
 // src/core/memory/Memory.ts
-import { Address } from "../../types";
-import { ZString } from "../../parsers/ZString";
+import { Address } from '../../types';
+import { ZString } from '../../parsers/ZString';
 
 /**
  * Provides access to the Z-machine's memory, handling byte and word operations
@@ -40,7 +40,7 @@ export class Memory {
     if (addr < 0 || addr >= this._mem.length) {
       throw new Error(`Memory access out of bounds: ${addr}`);
     }
-    this._mem[addr] = b & 0xFF; // Ensure it's a byte
+    this._mem[addr] = b & 0xff; // Ensure it's a byte
   }
 
   /**
@@ -70,8 +70,8 @@ export class Memory {
       throw new Error(`Memory access out of bounds: ${addr}`);
     }
     // Z-machine uses big-endian byte order for words
-    this._mem[addr + 0] = (value >> 8) & 0xFF; // High byte
-    this._mem[addr + 1] = value & 0xFF;        // Low byte
+    this._mem[addr + 0] = (value >> 8) & 0xff; // High byte
+    this._mem[addr + 1] = value & 0xff; // Low byte
   }
 
   /**
@@ -85,9 +85,9 @@ export class Memory {
 
     do {
       word = this.getWord(addr);
-      chars.push((word >> 10) & 0x1f);  // First Z-character (bits 15-11)
-      chars.push((word >> 5) & 0x1f);   // Second Z-character (bits 10-6)
-      chars.push(word & 0x1f);          // Third Z-character (bits 5-1)
+      chars.push((word >> 10) & 0x1f); // First Z-character (bits 15-11)
+      chars.push((word >> 5) & 0x1f); // Second Z-character (bits 10-6)
+      chars.push(word & 0x1f); // Third Z-character (bits 5-1)
 
       // If the top bit is set, this is the last word of the string
       if ((word & 0x8000) !== 0) {
@@ -119,9 +119,9 @@ export class Memory {
     while (len-- > 0) {
       const word = this.getWord(addr);
 
-      chars.push((word >> 10) & 0x1f);  // First Z-character
-      chars.push((word >> 5) & 0x1f);   // Second Z-character
-      chars.push(word & 0x1f);          // Third Z-character
+      chars.push((word >> 10) & 0x1f); // First Z-character
+      chars.push((word >> 5) & 0x1f); // Second Z-character
+      chars.push(word & 0x1f); // Third Z-character
 
       // If high bit is set, we're done (although this is unusual in a length-prefixed string)
       if ((word & 0x8000) !== 0) {
@@ -147,19 +147,11 @@ export class Memory {
    */
   copyBlock(sourceAddr: Address, destAddr: Address, length: number): void {
     if (sourceAddr < 0 || sourceAddr + length > this._mem.length) {
-      throw new Error(
-        `Source memory access out of bounds: ${sourceAddr} to ${
-          sourceAddr + length
-        }`
-      );
+      throw new Error(`Source memory access out of bounds: ${sourceAddr} to ${sourceAddr + length}`);
     }
 
     if (destAddr < 0 || destAddr + length > this._mem.length) {
-      throw new Error(
-        `Destination memory access out of bounds: ${destAddr} to ${
-          destAddr + length
-        }`
-      );
+      throw new Error(`Destination memory access out of bounds: ${destAddr} to ${destAddr + length}`);
     }
 
     // Handle overlapping regions correctly
@@ -185,15 +177,11 @@ export class Memory {
    */
   compareBlock(addr1: Address, addr2: Address, length: number): number {
     if (addr1 < 0 || addr1 + length > this._mem.length) {
-      throw new Error(
-        `First memory address out of bounds: ${addr1} to ${addr1 + length}`
-      );
+      throw new Error(`First memory address out of bounds: ${addr1} to ${addr1 + length}`);
     }
 
     if (addr2 < 0 || addr2 + length > this._mem.length) {
-      throw new Error(
-        `Second memory address out of bounds: ${addr2} to ${addr2 + length}`
-      );
+      throw new Error(`Second memory address out of bounds: ${addr2} to ${addr2 + length}`);
     }
 
     for (let i = 0; i < length; i++) {

@@ -1,13 +1,12 @@
-import { Memory } from "../core/memory/Memory";
-import { Executor } from "../core/execution/Executor";
-import { GameState } from "./GameState";
-import { Screen } from "../ui/screen/interfaces";
-import { Storage } from "../storage/interfaces";
-import { InputHandler } from "../ui/input/InputHandler";
-import { Logger } from "../utils/log";
-import { HeaderLocation } from "../utils/constants";
-import { ZMachineVersion, getVersionCapabilities } from "./Version";
-
+import { Memory } from '../core/memory/Memory';
+import { Executor } from '../core/execution/Executor';
+import { GameState } from './GameState';
+import { Screen } from '../ui/screen/interfaces';
+import { Storage } from '../storage/interfaces';
+import { InputHandler } from '../ui/input/InputHandler';
+import { Logger } from '../utils/log';
+import { HeaderLocation } from '../utils/constants';
+import { ZMachineVersion, getVersionCapabilities } from './Version';
 
 /**
  * Main Z-Machine interpreter class
@@ -51,21 +50,14 @@ export class ZMachine {
    * @param screen Screen interface for output
    * @param storage Storage interface for save/restore
    */
-  constructor(
-    storyBuffer: Buffer,
-    logger: Logger,
-    screen: Screen,
-    storage: Storage
-  ) {
+  constructor(storyBuffer: Buffer, logger: Logger, screen: Screen, storage: Storage) {
     this._memory = new Memory(storyBuffer);
     this._logger = logger;
     this._screen = screen;
     this._storage = storage;
 
     // Initialize state
-    const version = this._memory.getByte(
-      HeaderLocation.Version
-    ) as ZMachineVersion;
+    const version = this._memory.getByte(HeaderLocation.Version) as ZMachineVersion;
 
     this._state = new GameState(this._memory, logger);
 
@@ -223,17 +215,17 @@ export class ZMachine {
     try {
       // Implementation will  depend on how we handle saving
       // For a basic approach:
-      let filename = "";
+      let filename = '';
 
       if (name !== 0) {
         // Extract filename from the provided address
         filename = this.extractFilename(name);
       }
 
-      if (shouldPrompt && filename === "") {
+      if (shouldPrompt && filename === '') {
         // Prompt user for filename if required
-        filename = this.promptForFilename("save");
-        if (filename === "") {
+        filename = this.promptForFilename('save');
+        if (filename === '') {
           return false; // User cancelled
         }
       }
@@ -261,17 +253,17 @@ export class ZMachine {
     try {
       // Implementation would depend on how you handle restoration
       // For a basic approach:
-      let filename = "";
+      let filename = '';
 
       if (name !== 0) {
         // Extract filename from the provided address
         filename = this.extractFilename(name);
       }
 
-      if (shouldPrompt && filename === "") {
+      if (shouldPrompt && filename === '') {
         // Prompt user for filename if required
-        filename = this.promptForFilename("restore");
-        if (filename === "") {
+        filename = this.promptForFilename('restore');
+        if (filename === '') {
           return false; // User cancelled
         }
       }
@@ -301,7 +293,7 @@ export class ZMachine {
   private extractFilename(address: number): string {
     // This implementation depends on how filenames are stored in your Z-machine
     // For a simple approach, assuming ASCIIZ string:
-    let filename = "";
+    let filename = '';
     let i = 0;
     let char;
 
@@ -317,7 +309,7 @@ export class ZMachine {
   private promptForFilename(operation: string): string {
     // This would need to be implemented according to your UI system
     // For now, just a placeholder
-    return ""; // Would be replaced with actual UI prompt
+    return ''; // Would be replaced with actual UI prompt
   }
 
   /**
@@ -332,16 +324,16 @@ export class ZMachine {
    * Save the current state for undo
    * @returns True if the save was successful
    */
-  saveUndo():boolean {
-    throw new Error("Method not implemented.");
+  saveUndo(): boolean {
+    throw new Error('Method not implemented.');
   }
 
   /**
    * Restore the last saved state
    * @returns True if the restore was successful
    */
-  restoreUndo():boolean {
-    throw new Error("Method not implemented.");
+  restoreUndo(): boolean {
+    throw new Error('Method not implemented.');
   }
 
   /**
@@ -365,12 +357,10 @@ export class ZMachine {
 
     // Determine if it's a score game or time game
     // It's a score game if version < 3 or bit 1 of Flags1 is clear
-    const isScoreGame =
-      this._state.version < 3 ||
-      (memory.getByte(HeaderLocation.Flags1) & 0x02) === 0;
+    const isScoreGame = this._state.version < 3 || (memory.getByte(HeaderLocation.Flags1) & 0x02) === 0;
 
     // Content for left side of status bar is always the location name
-    const lhs = locationObj?.name || "Unknown location";
+    const lhs = locationObj?.name || 'Unknown location';
 
     // Content for right side depends on game type
     let rhs: string;
@@ -399,7 +389,7 @@ export class ZMachine {
    * Restart the game from the beginning
    */
   restart(): boolean {
-    throw new Error("Method not implemented.");
+    throw new Error('Method not implemented.');
   }
 
   /**

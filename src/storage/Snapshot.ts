@@ -1,6 +1,6 @@
-import { Snapshot } from "./interfaces";
-import { StackFrame } from "../core/execution/StackFrame";
-import { Address } from "../types";
+import { Snapshot } from './interfaces';
+import { StackFrame } from '../core/execution/StackFrame';
+import { Address } from '../types';
 
 /**
  * Enum defining the different types of chunks in a snapshot file
@@ -19,10 +19,7 @@ enum SnapshotChunkType {
  */
 export function createSnapshotBuffer(snapshot: Snapshot): Buffer {
   // Helper function to create a chunk header
-  const createChunkHeader = (
-    type: SnapshotChunkType,
-    length: number
-  ): Buffer => {
+  const createChunkHeader = (type: SnapshotChunkType, length: number): Buffer => {
     const header = Buffer.alloc(8);
     header.writeUInt32LE(type, 0);
     header.writeUInt32LE(length, 4);
@@ -33,22 +30,18 @@ export function createSnapshotBuffer(snapshot: Snapshot): Buffer {
   const buffers: Array<Buffer> = [];
 
   // Add memory chunk
-  buffers.push(
-    createChunkHeader(SnapshotChunkType.Memory, snapshot.mem.length)
-  );
+  buffers.push(createChunkHeader(SnapshotChunkType.Memory, snapshot.mem.length));
   buffers.push(snapshot.mem);
 
   // Add stack chunk
   const stackString = JSON.stringify(snapshot.stack);
   buffers.push(createChunkHeader(SnapshotChunkType.Stack, stackString.length));
-  buffers.push(Buffer.from(stackString, "utf8"));
+  buffers.push(Buffer.from(stackString, 'utf8'));
 
   // Add callstack chunk (convert old CallFrame to new StackFrame if needed)
   const callstackString = JSON.stringify(snapshot.callstack);
-  buffers.push(
-    createChunkHeader(SnapshotChunkType.Callstack, callstackString.length)
-  );
-  buffers.push(Buffer.from(callstackString, "utf8"));
+  buffers.push(createChunkHeader(SnapshotChunkType.Callstack, callstackString.length));
+  buffers.push(Buffer.from(callstackString, 'utf8'));
 
   // Add registers chunk (just PC for now)
   buffers.push(createChunkHeader(SnapshotChunkType.Registers, 4));
@@ -89,15 +82,11 @@ export function readSnapshotFromBuffer(buffer: Buffer): Snapshot {
         break;
       case SnapshotChunkType.Stack:
         // Parse stack data
-        stack = JSON.parse(
-          buffer.toString("utf8", position, position + length)
-        );
+        stack = JSON.parse(buffer.toString('utf8', position, position + length));
         break;
       case SnapshotChunkType.Callstack:
         // Parse callstack data
-        const rawCallstack = JSON.parse(
-          buffer.toString("utf8", position, position + length)
-        );
+        const rawCallstack = JSON.parse(buffer.toString('utf8', position, position + length));
 
         // Convert old CallFrame format to new StackFrame format if needed
         callstack = rawCallstack.map((frame: any) => {
@@ -131,16 +120,16 @@ export function readSnapshotFromBuffer(buffer: Buffer): Snapshot {
 
   // Ensure all required data was read
   if (mem === null) {
-    throw new Error("Memory chunk missing from snapshot");
+    throw new Error('Memory chunk missing from snapshot');
   }
   if (stack === null) {
-    throw new Error("Stack chunk missing from snapshot");
+    throw new Error('Stack chunk missing from snapshot');
   }
   if (callstack === null) {
-    throw new Error("Callstack chunk missing from snapshot");
+    throw new Error('Callstack chunk missing from snapshot');
   }
   if (pc === null) {
-    throw new Error("Registers chunk missing from snapshot");
+    throw new Error('Registers chunk missing from snapshot');
   }
 
   // Return the complete snapshot
@@ -160,19 +149,19 @@ export function readSnapshotFromBuffer(buffer: Buffer): Snapshot {
  */
 export function validateSnapshot(snapshot: Snapshot): boolean {
   if (!snapshot.mem || !(snapshot.mem instanceof Buffer)) {
-    throw new Error("Invalid snapshot: memory is missing or not a Buffer");
+    throw new Error('Invalid snapshot: memory is missing or not a Buffer');
   }
 
   if (!snapshot.stack || !Array.isArray(snapshot.stack)) {
-    throw new Error("Invalid snapshot: stack is missing or not an Array");
+    throw new Error('Invalid snapshot: stack is missing or not an Array');
   }
 
   if (!snapshot.callstack || !Array.isArray(snapshot.callstack)) {
-    throw new Error("Invalid snapshot: callstack is missing or not an Array");
+    throw new Error('Invalid snapshot: callstack is missing or not an Array');
   }
 
-  if (typeof snapshot.pc !== "number") {
-    throw new Error("Invalid snapshot: PC is missing or not a number");
+  if (typeof snapshot.pc !== 'number') {
+    throw new Error('Invalid snapshot: PC is missing or not a number');
   }
 
   return true;

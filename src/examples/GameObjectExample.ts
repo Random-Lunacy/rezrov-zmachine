@@ -61,7 +61,6 @@ async function runGameObjectExample(storyFilePath: string): Promise<void> {
       const capacity = obj.getProperty(capacityProp);
       logger.info(`  [${obj.objnum}] ${obj.name} - capacity: ${capacity}`);
     });
-
   } catch (error) {
     logger.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
     if (error instanceof Error && error.stack) {

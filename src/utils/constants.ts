@@ -116,9 +116,9 @@ export enum SnapshotChunkType {
  * Default Z-machine alphabet table
  */
 export const DEFAULT_ALPHABET_TABLE = [
-  /* A0 */ "abcdefghijklmnopqrstuvwxyz",
-  /* A1 */ "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
-  /* A2 */ " \n0123456789.,!?_#'\"/\\-:()",
+  /* A0 */ 'abcdefghijklmnopqrstuvwxyz',
+  /* A1 */ 'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+  /* A2 */ ' \n0123456789.,!?_#\'"/\\-:()',
 ];
 
 /**

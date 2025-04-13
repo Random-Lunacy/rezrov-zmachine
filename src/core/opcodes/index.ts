@@ -30,18 +30,18 @@ const allOpcodes = {
 
 // Version-specific operations
 const versionSpecificOps = {
-  "pop_catch": {
+  pop_catch: {
     v1to4: allOpcodes.pop,
-    v5plus: allOpcodes.Catch // 'catch' is a reserved word
+    v5plus: allOpcodes.Catch, // 'catch' is a reserved word
   },
-  "not_call_1n": {
+  not_call_1n: {
     v1to4: allOpcodes.not,
-    v5plus: allOpcodes.call_1n
+    v5plus: allOpcodes.call_1n,
   },
 };
 
 // Fill Zero operand opcode array
-const op0: Array<Opcode> = new Array(16).fill(unimplementedOpcode("illegal_0OP"));
+const op0: Array<Opcode> = new Array(16).fill(unimplementedOpcode('illegal_0OP'));
 op0[0] = allOpcodes.rtrue;
 op0[1] = allOpcodes.rfalse;
 op0[2] = allOpcodes.print;
@@ -51,15 +51,15 @@ op0[5] = allOpcodes.save;
 op0[6] = allOpcodes.restore;
 op0[7] = allOpcodes.restart;
 op0[8] = allOpcodes.ret_popped;
-op0[9] = {  // Handle pop_catch for different versions
-  mnemonic: "pop_catch",
+op0[9] = {
+  // Handle pop_catch for different versions
+  mnemonic: 'pop_catch',
   impl: (machine: ZMachine, ...args: Array<number>): void => {
     const version = machine.state.version;
-    const implementation = version <= 4 ?
-      versionSpecificOps.pop_catch.v1to4.impl :
-      versionSpecificOps.pop_catch.v5plus.impl;
+    const implementation =
+      version <= 4 ? versionSpecificOps.pop_catch.v1to4.impl : versionSpecificOps.pop_catch.v5plus.impl;
     implementation(machine, ...args);
-  }
+  },
 };
 op0[10] = allOpcodes.quit;
 op0[11] = allOpcodes.new_line;
@@ -68,7 +68,7 @@ op0[13] = allOpcodes.verify;
 op0[15] = allOpcodes.piracy;
 
 // Fill One operand opcode array
-const op1: Array<Opcode> = new Array(16).fill(unimplementedOpcode("illegal_1OP"));
+const op1: Array<Opcode> = new Array(16).fill(unimplementedOpcode('illegal_1OP'));
 op1[0] = allOpcodes.jz;
 op1[1] = allOpcodes.get_sibling;
 op1[2] = allOpcodes.get_child;
@@ -84,19 +84,19 @@ op1[11] = allOpcodes.ret;
 op1[12] = allOpcodes.jump;
 op1[13] = allOpcodes.print_paddr;
 op1[14] = allOpcodes.load;
-op1[15] = { // Handle not_call_1n for different versions
-  mnemonic: "not_call_1n",
+op1[15] = {
+  // Handle not_call_1n for different versions
+  mnemonic: 'not_call_1n',
   impl: (machine: ZMachine, ...args: Array<number>): void => {
     const version = machine.state.version;
-    const implementation = version <= 4 ?
-      versionSpecificOps.not_call_1n.v1to4.impl :
-      versionSpecificOps.not_call_1n.v5plus.impl;
+    const implementation =
+      version <= 4 ? versionSpecificOps.not_call_1n.v1to4.impl : versionSpecificOps.not_call_1n.v5plus.impl;
     implementation(machine, ...args);
-  }
+  },
 };
 
 // Fill Two operand opcode array
-const op2: Array<Opcode> = new Array(32).fill(unimplementedOpcode("illegal_2OP"));
+const op2: Array<Opcode> = new Array(32).fill(unimplementedOpcode('illegal_2OP'));
 op2[1] = allOpcodes.je;
 op2[2] = allOpcodes.jl;
 op2[3] = allOpcodes.jg;
@@ -127,7 +127,7 @@ op2[27] = allOpcodes.set_colour;
 op2[28] = allOpcodes.Throw; // 'throw' is a reserved word
 
 // Fill Variable operand opcode array
-const opv: Array<Opcode> = new Array(32).fill(unimplementedOpcode("illegal_VAR"));
+const opv: Array<Opcode> = new Array(32).fill(unimplementedOpcode('illegal_VAR'));
 opv[0] = allOpcodes.call_vs; // 'call' in v1-3 and 'call_vs' in v4+. Functionality is the same.
 opv[1] = allOpcodes.storew;
 opv[2] = allOpcodes.storeb;
@@ -162,7 +162,7 @@ opv[30] = allOpcodes.print_table;
 opv[31] = allOpcodes.check_arg_count;
 
 // Fill Extended opcode array
-const opext: Array<Opcode> = new Array(32).fill(unimplementedOpcode("illegal_EXT"));
+const opext: Array<Opcode> = new Array(32).fill(unimplementedOpcode('illegal_EXT'));
 opext[0] = allOpcodes.save;
 opext[1] = allOpcodes.restore;
 opext[2] = allOpcodes.log_shift;
@@ -192,8 +192,6 @@ opext[27] = allOpcodes.make_menu;
 opext[28] = allOpcodes.picture_table;
 opext[29] = allOpcodes.buffer_screen;
 
-export {
-  op0, op1, op2, opext, opv, unimplementedOpcode
-};
+export { op0, op1, op2, opext, opv, unimplementedOpcode };
 
 export * from './base';

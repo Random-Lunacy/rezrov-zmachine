@@ -16,9 +16,9 @@
  * - `catch`: Stores the current callstack frame for use with exception handling.
  * - `throw`: Throws an exception, unwinding the stack to a specified frame.
  */
-import { ZMachine } from "../../interpreter/ZMachine";
-import { hex } from "../../utils/debug";
-import { opcode } from "./base";
+import { ZMachine } from '../../interpreter/ZMachine';
+import { hex } from '../../utils/debug';
+import { opcode } from './base';
 
 /**
  * Call a routine with 1 argument, storing the result
@@ -33,9 +33,7 @@ function call_1s(machine: ZMachine, routine: number): void {
   }
 
   const packedAddress = machine.state.unpackRoutineAddress(routine);
-  machine.state.logger.debug(
-    `${hex(machine.state.pc)} call_1s ${hex(packedAddress)} -> (${hex(resultVar)})`
-  );
+  machine.state.logger.debug(`${hex(machine.state.pc)} call_1s ${hex(packedAddress)} -> (${hex(resultVar)})`);
   machine.state.callRoutine(packedAddress, resultVar);
 }
 
@@ -56,21 +54,17 @@ function call_1n(machine: ZMachine, routine: number): void {
 /**
  * Call a routine with 2 arguments, storing the result
  */
-function call_2s(machine :ZMachine, routine: number, arg1: number): void {
+function call_2s(machine: ZMachine, routine: number, arg1: number): void {
   const resultVar = machine.state.readByte();
 
-   if (routine === 0) {
+  if (routine === 0) {
     machine.state.logger.debug(`${hex(machine.state.pc)} call_2s ${hex(routine)} -> (${hex(resultVar)})`);
     machine.state.storeVariable(resultVar, 0);
     return;
   }
 
   const packedAddress = machine.state.unpackRoutineAddress(routine);
-  machine.state.logger.debug(
-    `${hex(machine.state.pc)} call_2s ${hex(packedAddress)} ${arg1} -> (${hex(
-      resultVar
-    )})`
-  );
+  machine.state.logger.debug(`${hex(machine.state.pc)} call_2s ${hex(packedAddress)} ${arg1} -> (${hex(resultVar)})`);
   machine.state.callRoutine(packedAddress, resultVar, arg1);
 }
 
@@ -92,11 +86,7 @@ function call_2n(machine: ZMachine, routine: number, arg1: number): void {
  * Call a routine with variable number of arguments, storing the result.
  * 'call' in v1-3 and 'call_vs' in v4+. Functionality is the same.
  */
-function call_vs(
-  machine: ZMachine,
-  routine: number,
-  ...args: Array<number>
-): void {
+function call_vs(machine: ZMachine, routine: number, ...args: Array<number>): void {
   const resultVar = machine.state.readByte();
 
   if (routine === 0) {
@@ -107,9 +97,7 @@ function call_vs(
 
   const packedAddress = machine.state.unpackRoutineAddress(routine);
   machine.state.logger.debug(
-    `${hex(machine.state.pc)} call_vs ${hex(packedAddress)} ${args
-      .map((a) => hex(a))
-      .join(", ")} -> (${hex(resultVar)})`
+    `${hex(machine.state.pc)} call_vs ${hex(packedAddress)} ${args.map(a => hex(a)).join(', ')} -> (${hex(resultVar)})`
   );
   machine.state.callRoutine(packedAddress, resultVar, ...args);
 }
@@ -117,11 +105,7 @@ function call_vs(
 /**
  * Call a routine with variable number of arguments, but specifically 2 at minimum (VAR form)
  */
-function call_vs2(
-  machine: ZMachine,
-  routine: number,
-  ...args: Array<number>
-): void {
+function call_vs2(machine: ZMachine, routine: number, ...args: Array<number>): void {
   const resultVar = machine.state.readByte();
 
   if (routine === 0) {
@@ -132,9 +116,7 @@ function call_vs2(
 
   const packedAddress = machine.state.unpackRoutineAddress(routine);
   machine.state.logger.debug(
-    `${hex(machine.state.pc)} call_vs2 ${hex(packedAddress)} ${args
-      .map((a) => hex(a))
-      .join(", ")} -> (${hex(resultVar)})`
+    `${hex(machine.state.pc)} call_vs2 ${hex(packedAddress)} ${args.map(a => hex(a)).join(', ')} -> (${hex(resultVar)})`
   );
   machine.state.callRoutine(packedAddress, resultVar, ...args);
 }
@@ -142,11 +124,7 @@ function call_vs2(
 /**
  * Call a routine with variable number of arguments, not storing the result
  */
-function call_vn(
-  machine: ZMachine,
-  routine: number,
-  ...args: Array<number>
-): void {
+function call_vn(machine: ZMachine, routine: number, ...args: Array<number>): void {
   if (routine === 0) {
     machine.state.logger.debug(`${hex(machine.state.pc)} call_vn ${hex(routine)}`);
     return;
@@ -154,9 +132,7 @@ function call_vn(
 
   const packedAddress = machine.state.unpackRoutineAddress(routine);
   machine.state.logger.debug(
-    `${hex(machine.state.pc)} call_vn ${hex(packedAddress)} ${args
-      .map((a) => hex(a))
-      .join(", ")}`
+    `${hex(machine.state.pc)} call_vn ${hex(packedAddress)} ${args.map(a => hex(a)).join(', ')}`
   );
   machine.state.callRoutine(packedAddress, null, ...args);
 }
@@ -164,11 +140,7 @@ function call_vn(
 /**
  * Call a routine with variable number of arguments, but specifically 2 at minimum, not storing the result
  */
-function call_vn2(
-  machine: ZMachine,
-  routine: number,
-  ...args: Array<number>
-): void {
+function call_vn2(machine: ZMachine, routine: number, ...args: Array<number>): void {
   if (routine === 0) {
     machine.state.logger.debug(`${hex(machine.state.pc)} call_vn2 ${hex(routine)}`);
     return;
@@ -176,9 +148,7 @@ function call_vn2(
 
   const packedAddress = machine.state.unpackRoutineAddress(routine);
   machine.state.logger.debug(
-    `${hex(machine.state.pc)} call_vn2 ${hex(packedAddress)} ${args
-      .map((a) => hex(a))
-      .join(", ")}`
+    `${hex(machine.state.pc)} call_vn2 ${hex(packedAddress)} ${args.map(a => hex(a)).join(', ')}`
   );
   machine.state.callRoutine(packedAddress, null, ...args);
 }
@@ -196,9 +166,7 @@ function zCatch(machine: ZMachine): void {
  * Throw an exception, unwinding the stack to a given frame
  */
 function zThrow(machine: ZMachine, returnVal: number, frameNum: number): void {
-  machine.state.logger.debug(
-    `${hex(machine.state.pc)} throw ${hex(returnVal)} ${hex(frameNum)}`
-  );
+  machine.state.logger.debug(`${hex(machine.state.pc)} throw ${hex(returnVal)} ${hex(frameNum)}`);
 
   if (frameNum >= machine.state.callstack.length) {
     throw new Error(`Invalid frame number ${frameNum} for throw operation`);
@@ -215,14 +183,14 @@ function zThrow(machine: ZMachine, returnVal: number, frameNum: number): void {
  * Export all call-related opcodes
  */
 export const callOpcodes = {
-  call_1s: opcode("call_1s", call_1s),
-  call_1n: opcode("call_1n", call_1n),
-  call_2s: opcode("call_2s", call_2s),
-  call_2n: opcode("call_2n", call_2n),
-  call_vs: opcode("call_vs", call_vs),
-  call_vs2: opcode("call_vs2", call_vs2),
-  call_vn: opcode("call_vn", call_vn),
-  call_vn2: opcode("call_vn2", call_vn2),
-  Catch: opcode("catch", zCatch), // 'catch' is a reserved word
-  Throw: opcode("throw", zThrow), // 'throw' is a reserved word
+  call_1n: opcode('call_1n', call_1n),
+  call_1s: opcode('call_1s', call_1s),
+  call_2n: opcode('call_2n', call_2n),
+  call_2s: opcode('call_2s', call_2s),
+  call_vn: opcode('call_vn', call_vn),
+  call_vn2: opcode('call_vn2', call_vn2),
+  call_vs: opcode('call_vs', call_vs),
+  call_vs2: opcode('call_vs2', call_vs2),
+  Catch: opcode('catch', zCatch), // 'catch' is a reserved word
+  Throw: opcode('throw', zThrow), // 'throw' is a reserved word
 };

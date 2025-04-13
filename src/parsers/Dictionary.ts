@@ -1,7 +1,7 @@
 // src/parsers/Dictionary.ts
-import { Memory } from "../core/memory/Memory";
-import { Address } from "../types";
-import { Logger } from "../utils/log";
+import { Memory } from '../core/memory/Memory';
+import { Address } from '../types';
+import { Logger } from '../utils/log';
 
 /**
  * Represents a Z-machine dictionary
@@ -36,7 +36,9 @@ export class Dictionary {
     this.numEntries = this.memory.getWord(this.dictAddr + this.separators.length + 2);
     this.entriesStart = this.dictAddr + this.separators.length + 4;
 
-    this.logger.debug(`Dictionary at 0x${dictAddr.toString(16)}: ${Math.abs(this.numEntries)} entries, each ${this.entryLength} bytes`);
+    this.logger.debug(
+      `Dictionary at 0x${dictAddr.toString(16)}: ${Math.abs(this.numEntries)} entries, each ${this.entryLength} bytes`
+    );
     this.logger.debug(`Separators: ${this.getSeparatorsAsString()}`);
   }
 
@@ -68,7 +70,7 @@ export class Dictionary {
    * @returns String representation of separators
    */
   public getSeparatorsAsString(): string {
-    return this.separators.map(s => `'${String.fromCharCode(s)}'`).join(", ");
+    return this.separators.map(s => `'${String.fromCharCode(s)}'`).join(', ');
   }
 
   /**
@@ -113,10 +115,7 @@ export class Dictionary {
    * @param encodedTokenWords Encoded token words to compare
    * @returns <0 if entry is less than token, 0 if equal, >0 if greater
    */
-  public compareTokenWords(
-    entryAddr: Address,
-    encodedTokenWords: Array<number>
-  ): number {
+  public compareTokenWords(entryAddr: Address, encodedTokenWords: Array<number>): number {
     let comparison = this.memory.getWord(entryAddr) - encodedTokenWords[0];
 
     if (comparison === 0 && encodedTokenWords.length > 1) {
@@ -139,7 +138,7 @@ export class Dictionary {
     // Check if entries are sorted
     if (!this.isSorted()) {
       // Entries are not sorted, linear search
-      this.logger.debug("Dictionary using linear search");
+      this.logger.debug('Dictionary using linear search');
       const count = this.getNumEntries();
 
       for (let i = 0; i < count; i++) {
@@ -153,7 +152,7 @@ export class Dictionary {
     }
 
     // Sorted case, binary search
-    this.logger.debug("Dictionary using binary search");
+    this.logger.debug('Dictionary using binary search');
     let lower = 0;
     let upper = this.getNumEntries() - 1;
 

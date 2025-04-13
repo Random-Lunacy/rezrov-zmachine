@@ -17,35 +17,28 @@
  * - `ret`: Returns a specified value from the current routine.
  * - `nop`: No-op instruction. Does nothing.
  */
-import { ZMachine } from "../../interpreter/ZMachine";
-import { hex } from "../../utils/debug";
-import { toI16 } from "../memory/cast16";
-import { opcode } from "./base";
+import { ZMachine } from '../../interpreter/ZMachine';
+import { hex } from '../../utils/debug';
+import { toI16 } from '../memory/cast16';
+import { opcode } from './base';
 
 /**
  * Jumps if equal
  */
-function je(
-  machine: ZMachine,
-  a: number,
-  b: number,
-  c?: number,
-  d?: number
-): void {
+function je(machine: ZMachine, a: number, b: number, c?: number, d?: number): void {
   // Validate that we have at least 2 operands
   if (b === undefined) {
-    throw new Error("je opcode requires at least 2 operands");
+    throw new Error('je opcode requires at least 2 operands');
   }
 
   const [offset, branchOnFalse] = machine.state.readBranchOffset();
   machine.state.logger.debug(
-    `${hex(machine.state.pc)} je ${hex(a)} ${hex(b)} ${c !== undefined ? hex(c) : ""} ${
-      d !== undefined ? hex(d) : ""
+    `${hex(machine.state.pc)} je ${hex(a)} ${hex(b)} ${c !== undefined ? hex(c) : ''} ${
+      d !== undefined ? hex(d) : ''
     } -> [${!branchOnFalse}] ${hex(machine.state.pc + offset - 2)}`
   );
 
-  const cond =
-    a === b || (c !== undefined && a === c) || (d !== undefined && a === d);
+  const cond = a === b || (c !== undefined && a === c) || (d !== undefined && a === d);
 
   machine.state.doBranch(cond, branchOnFalse, offset);
 }
@@ -55,9 +48,7 @@ function je(
 function jl(machine: ZMachine, a: number, b: number): void {
   const [offset, branchOnFalse] = machine.state.readBranchOffset();
   machine.state.logger.debug(
-    `${hex(machine.state.pc)} jl ${hex(a)} ${hex(b)} -> [${!branchOnFalse}] ${hex(
-      machine.state.pc + offset - 2
-    )}`
+    `${hex(machine.state.pc)} jl ${hex(a)} ${hex(b)} -> [${!branchOnFalse}] ${hex(machine.state.pc + offset - 2)}`
   );
 
   machine.state.doBranch(toI16(a) < toI16(b), branchOnFalse, offset);
@@ -69,9 +60,7 @@ function jl(machine: ZMachine, a: number, b: number): void {
 function jg(machine: ZMachine, a: number, b: number): void {
   const [offset, branchOnFalse] = machine.state.readBranchOffset();
   machine.state.logger.debug(
-    `${hex(machine.state.pc)} jg ${hex(a)} ${hex(b)} -> [${!branchOnFalse}] ${hex(
-      machine.state.pc + offset - 2
-    )}`
+    `${hex(machine.state.pc)} jg ${hex(a)} ${hex(b)} -> [${!branchOnFalse}] ${hex(machine.state.pc + offset - 2)}`
   );
 
   machine.state.doBranch(toI16(a) > toI16(b), branchOnFalse, offset);
@@ -83,9 +72,7 @@ function jg(machine: ZMachine, a: number, b: number): void {
 function jz(machine: ZMachine, a: number): void {
   const [offset, branchOnFalse] = machine.state.readBranchOffset();
   machine.state.logger.debug(
-    `${hex(machine.state.pc)} jz ${hex(a)} -> [${!branchOnFalse}] ${hex(
-      machine.state.pc + offset - 2
-    )}`
+    `${hex(machine.state.pc)} jz ${hex(a)} -> [${!branchOnFalse}] ${hex(machine.state.pc + offset - 2)}`
   );
 
   machine.state.doBranch(a === 0, branchOnFalse, offset);
@@ -105,9 +92,9 @@ function jump(machine: ZMachine, offset: number): void {
 function test(machine: ZMachine, bitmap: number, flags: number): void {
   const [offset, branchOnFalse] = machine.state.readBranchOffset();
   machine.state.logger.debug(
-    `${hex(machine.state.pc)} test ${hex(bitmap)} ${hex(
-      flags
-    )} -> [${!branchOnFalse}] ${hex(machine.state.pc + offset - 2)}`
+    `${hex(machine.state.pc)} test ${hex(bitmap)} ${hex(flags)} -> [${!branchOnFalse}] ${hex(
+      machine.state.pc + offset - 2
+    )}`
   );
 
   machine.state.doBranch((bitmap & flags) === flags, branchOnFalse, offset);
@@ -119,9 +106,9 @@ function test(machine: ZMachine, bitmap: number, flags: number): void {
 function check_arg_count(machine: ZMachine, argNumber: number): void {
   const [offset, branchOnFalse] = machine.state.readBranchOffset();
   machine.state.logger.debug(
-    `${hex(machine.state.pc)} check_arg_count ${hex(
-      argNumber
-    )} -> [${!branchOnFalse}] ${hex(machine.state.pc + offset - 2)}`
+    `${hex(machine.state.pc)} check_arg_count ${hex(argNumber)} -> [${!branchOnFalse}] ${hex(
+      machine.state.pc + offset - 2
+    )}`
   );
 
   machine.state.doBranch(machine.state.getArgumentCount() >= argNumber, branchOnFalse, offset);
@@ -171,16 +158,16 @@ function nop(machine: ZMachine): void {
  * Export all control flow opcodes
  */
 export const controlOpcodes = {
-  je: opcode("je", je),
-  jl: opcode("jl", jl),
-  jg: opcode("jg", jg),
-  jz: opcode("jz", jz),
-  jump: opcode("jump", jump),
-  test: opcode("test", test),
-  check_arg_count: opcode("check_arg_count", check_arg_count),
-  rtrue: opcode("rtrue", rtrue),
-  rfalse: opcode("rfalse", rfalse),
-  ret_popped: opcode("ret_popped", ret_popped),
-  ret: opcode("ret", ret),
-  nop: opcode("nop", nop),
+  je: opcode('je', je),
+  jl: opcode('jl', jl),
+  jg: opcode('jg', jg),
+  jz: opcode('jz', jz),
+  jump: opcode('jump', jump),
+  test: opcode('test', test),
+  check_arg_count: opcode('check_arg_count', check_arg_count),
+  rtrue: opcode('rtrue', rtrue),
+  rfalse: opcode('rfalse', rfalse),
+  ret_popped: opcode('ret_popped', ret_popped),
+  ret: opcode('ret', ret),
+  nop: opcode('nop', nop),
 };

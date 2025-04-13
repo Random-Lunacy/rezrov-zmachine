@@ -1,14 +1,14 @@
 // src/interpreter/GameState.ts
-import { Memory } from "../core/memory/Memory";
-import { StackFrame, createStackFrame } from "../core/execution/StackFrame";
-import { Address } from "../types";
-import { GameObject } from "../core/objects/GameObject";
-import { GameObjectFactory } from "../core/objects/GameObjectFactory";
-import { HeaderLocation } from "../utils/constants";
-import { Snapshot } from "../storage/interfaces";
-import { Logger, LogLevel } from "../utils/log";
-import { decodeZString } from "../parsers/ZString";
-import { TextParser } from "../parsers/TextParser";
+import { Memory } from '../core/memory/Memory';
+import { StackFrame, createStackFrame } from '../core/execution/StackFrame';
+import { Address } from '../types';
+import { GameObject } from '../core/objects/GameObject';
+import { GameObjectFactory } from '../core/objects/GameObjectFactory';
+import { HeaderLocation } from '../utils/constants';
+import { Snapshot } from '../storage/interfaces';
+import { Logger, LogLevel } from '../utils/log';
+import { decodeZString } from '../parsers/ZString';
+import { TextParser } from '../parsers/TextParser';
 
 /**
  * Represents the complete state of a Z-machine game
@@ -47,12 +47,7 @@ export class GameState {
     this._readHeaderValues();
 
     // Initialize object factory
-    this._objectFactory = new GameObjectFactory(
-      this._memory,
-      this.logger,
-      this._version,
-      this._objectTable
-    );
+    this._objectFactory = new GameObjectFactory(this._memory, this.logger, this._version, this._objectTable);
   }
 
   /**
@@ -66,12 +61,8 @@ export class GameState {
     this._dict = this._memory.getWord(HeaderLocation.Dictionary);
 
     if (this._version === 6 || this._version === 7) {
-      this._routinesOffset = this._memory.getWord(
-        HeaderLocation.RoutinesOffset
-      );
-      this._stringsOffset = this._memory.getWord(
-        HeaderLocation.StaticStringsOffset
-      );
+      this._routinesOffset = this._memory.getWord(HeaderLocation.RoutinesOffset);
+      this._stringsOffset = this._memory.getWord(HeaderLocation.StaticStringsOffset);
     }
 
     this.logger.debug(`Z-machine version: ${this._version}`);
@@ -156,7 +147,7 @@ export class GameState {
    */
   pushStack(value: number): void {
     if (value === undefined || value === null) {
-      throw new Error("Invalid value for stack push");
+      throw new Error('Invalid value for stack push');
     }
     this._stack.push(value);
     this.logger.debug(`Pushed ${value} (0x${value.toString(16)}) onto stack`);
@@ -168,7 +159,7 @@ export class GameState {
    */
   popStack(): number {
     if (this._stack.length === 0) {
-      this.logger.warn("Attempted to pop from empty stack; returning 0");
+      this.logger.warn('Attempted to pop from empty stack; returning 0');
       return 0;
     }
 
@@ -183,7 +174,7 @@ export class GameState {
    */
   peekStack(): number {
     if (this._stack.length === 0) {
-      throw new Error("Cannot peek an empty stack");
+      throw new Error('Cannot peek an empty stack');
     }
     return this._stack[this._stack.length - 1];
   }
@@ -202,14 +193,12 @@ export class GameState {
     if (variable < 16) {
       // Local variable
       if (this._callstack.length === 0) {
-        throw new Error("No active call frame for local variable access");
+        throw new Error('No active call frame for local variable access');
       }
 
       const frame = this._callstack[this._callstack.length - 1];
       if (variable > frame.locals.length) {
-        throw new Error(
-          `Local variable ${variable} out of range. Only ${frame.locals.length} locals available.`
-        );
+        throw new Error(`Local variable ${variable} out of range. Only ${frame.locals.length} locals available.`);
       }
 
       return frame.locals[variable - 1];
@@ -225,11 +214,7 @@ export class GameState {
    * @param value Value to store
    * @param replaceTop Whether to replace the top stack value instead of pushing for variable 0
    */
-  storeVariable(
-    variable: number,
-    value: number,
-    replaceTop: boolean = false
-  ): void {
+  storeVariable(variable: number, value: number, replaceTop: boolean = false): void {
     if (variable === 0) {
       if (replaceTop && this._stack.length > 0) {
         this.popStack();
@@ -241,14 +226,12 @@ export class GameState {
     if (variable < 16) {
       // Local variable
       if (this._callstack.length === 0) {
-        throw new Error("No active call frame for local variable store");
+        throw new Error('No active call frame for local variable store');
       }
 
       const frame = this._callstack[this._callstack.length - 1];
       if (variable > frame.locals.length) {
-        throw new Error(
-          `Local variable ${variable} out of range. Only ${frame.locals.length} locals available.`
-        );
+        throw new Error(`Local variable ${variable} out of range. Only ${frame.locals.length} locals available.`);
       }
 
       frame.locals[variable - 1] = value;
@@ -267,11 +250,7 @@ export class GameState {
    * @param returnVar Variable to store the result in, or null if no result expected
    * @param args Arguments to pass to the routine
    */
-  callRoutine(
-    routineAddress: Address,
-    returnVar: number | null,
-    ...args: number[]
-  ): void {
+  callRoutine(routineAddress: Address, returnVar: number | null, ...args: number[]): void {
     // Validate routine address
     if (routineAddress === 0) {
       if (returnVar !== null) {
@@ -284,7 +263,9 @@ export class GameState {
     const numLocals = this._memory.getByte(routineAddress);
     let currentAddress = routineAddress + 1;
 
-    this.logger.debug(`Calling routine at 0x${routineAddress.toString(16)} with ${args.length} args, ${numLocals} locals`);
+    this.logger.debug(
+      `Calling routine at 0x${routineAddress.toString(16)} with ${args.length} args, ${numLocals} locals`
+    );
 
     // Initialize locals array
     const locals = new Uint16Array(numLocals);
@@ -333,7 +314,7 @@ export class GameState {
    */
   returnFromRoutine(value: number): void {
     if (this._callstack.length === 0) {
-      throw new Error("Cannot return - callstack is empty");
+      throw new Error('Cannot return - callstack is empty');
     }
 
     const frame = this._callstack.pop()!;
@@ -524,17 +505,15 @@ export class GameState {
    * @param offset Branch offset
    */
   doBranch(cond: boolean, branchOnFalse: boolean, offset: number): void {
-    this.logger.debug(
-      `Branch condition: ${cond}, invert: ${!branchOnFalse}, offset: ${offset}`
-    );
+    this.logger.debug(`Branch condition: ${cond}, invert: ${!branchOnFalse}, offset: ${offset}`);
 
     // Branch if (condition is true and !branchOnFalse) or (condition is false and branchOnFalse)
     if ((cond && !branchOnFalse) || (!cond && branchOnFalse)) {
       if (offset === 0) {
-        this.logger.debug("Returning false from branch");
+        this.logger.debug('Returning false from branch');
         this.returnFromRoutine(0);
       } else if (offset === 1) {
-        this.logger.debug("Returning true from branch");
+        this.logger.debug('Returning true from branch');
         this.returnFromRoutine(1);
       } else {
         this.pc = this.pc + offset - 2;
@@ -553,12 +532,7 @@ export class GameState {
    * @param dict Dictionary address (0 for default)
    * @param flag If true, only recognized words are included in parse buffer
    */
-  tokenizeLine(
-    textBuffer: number,
-    parseBuffer: number,
-    dict: number = 0,
-    flag: boolean = false
-  ): void {
+  tokenizeLine(textBuffer: number, parseBuffer: number, dict: number = 0, flag: boolean = false): void {
     if (!this._textParser) {
       // Lazy-initialize the text parser
       this._textParser = new TextParser(this._memory, this.logger);

@@ -1,7 +1,7 @@
-import { Screen, Capabilities, ScreenSize } from "./interfaces";
-import { ZMachine } from "../../interpreter/ZMachine";
-import { InputState } from "../input/InputHandler";
-import { Logger } from "../../utils/log";
+import { Screen, Capabilities, ScreenSize } from './interfaces';
+import { ZMachine } from '../../interpreter/ZMachine';
+import { InputState } from '../input/InputHandler';
+import { Logger } from '../../utils/log';
 
 export class BaseScreen implements Screen {
   protected logger: Logger;
@@ -54,9 +54,7 @@ export class BaseScreen implements Screen {
   }
 
   setOutputWindow(machine: ZMachine, windowId: number): void {
-    this.logger.debug(
-      `not implemented: ${this.id} setOutputWindow windowId=${windowId}`
-    );
+    this.logger.debug(`not implemented: ${this.id} setOutputWindow windowId=${windowId}`);
   }
 
   getOutputWindow(machine: ZMachine): number {
@@ -65,42 +63,30 @@ export class BaseScreen implements Screen {
   }
 
   clearWindow(machine: ZMachine, windowId: number): void {
-    this.logger.debug(
-      `not implemented: ${this.id} clearWindow windowId=${windowId}`
-    );
+    this.logger.debug(`not implemented: ${this.id} clearWindow windowId=${windowId}`);
   }
 
   clearLine(machine: ZMachine, value: number): void {
     this.logger.debug(`not implemented: ${this.id} clearLine value=${value}`);
   }
 
-  setCursorPosition(
-    machine: ZMachine,
-    line: number,
-    column: number,
-    windowId: number
-  ): void {
+  setCursorPosition(machine: ZMachine, line: number, column: number, windowId: number): void {
     this.logger.debug(
       `not implemented: ${this.id} setCursorPosition line=${line} column=${column} windowId=${windowId}`
     );
   }
 
   hideCursor(machine: ZMachine, windowId: number): void {
-    this.logger.debug(
-      `not implemented: ${this.id} hideCursor windowId=${windowId}`
-    );
+    this.logger.debug(`not implemented: ${this.id} hideCursor windowId=${windowId}`);
   }
 
   showCursor(machine: ZMachine, windowId: number): void {
-    this.logger.debug(
-      `not implemented: ${this.id} showCursor windowId=${windowId}`
-    );
+    this.logger.debug(`not implemented: ${this.id} showCursor windowId=${windowId}`);
   }
 
   setBufferMode(machine: ZMachine, mode: number): void {
     this.logger.debug(`not implemented: ${this.id} setBufferMode mode=${mode}`);
   }
-
 
   setTextStyle(machine: ZMachine, style: number): void {
     this.logger.debug(`${this.id} setTextStyle ${style}`);
@@ -128,9 +114,7 @@ export class BaseScreen implements Screen {
     // If the interpreter can't provide the requested style combination,
     // it should give precedence to styles in this order:
     // Fixed, Italic, Bold, Reverse
-
     // This implementation would depend on your rendering system
-
     // TODO: Implement the actual style application logic
   }
 
@@ -142,49 +126,30 @@ export class BaseScreen implements Screen {
     // setWindowProperty(machine, currentWindow, 10, this.currentStyles);
   }
 
-  setTextColors(
-    machine: ZMachine,
-    window: number,
-    foreground: number,
-    background: number
-  ): void {
+  setTextColors(machine: ZMachine, window: number, foreground: number, background: number): void {
     this.logger.debug(
       `not implemented: ${this.id} setTextColors window=${window} foreground=${foreground} background=${background}`
     );
   }
 
-  enableOutputStream(
-    machine: ZMachine,
-    streamId: number,
-    table: number,
-    width: number
-  ): void {
+  enableOutputStream(machine: ZMachine, streamId: number, table: number, width: number): void {
     this.logger.error(
       `not implemented: ${this.id} enableOutputStream streamId=${streamId} table=${table} width=${width}`
     );
   }
 
-  disableOutputStream(
-    machine: ZMachine,
-    streamId: number,
-    table: number,
-    width: number
-  ): void {
+  disableOutputStream(machine: ZMachine, streamId: number, table: number, width: number): void {
     this.logger.error(
       `not implemented: ${this.id} disableOutputStream streamId=${streamId} table=${table} width=${width}`
     );
   }
 
   selectInputStream(machine: ZMachine, streamId: number): void {
-    this.logger.error(
-      `not implemented: ${this.id} selectInputStream streamId=${streamId}`
-    );
+    this.logger.error(`not implemented: ${this.id} selectInputStream streamId=${streamId}`);
   }
 
   updateStatusBar(lhs: string, rhs: string): void {
-    this.logger.debug(
-      `not implemented: ${this.id} updateStatusBar lhs=${lhs} rhs=${rhs}`
-    );
+    this.logger.debug(`not implemented: ${this.id} updateStatusBar lhs=${lhs} rhs=${rhs}`);
   }
 
   getBufferMode(machine: ZMachine): number {
@@ -197,43 +162,43 @@ export class BaseScreen implements Screen {
     // Default implementation does nothing
   }
 
-getCurrentFont(machine: ZMachine): number {
-  this.logger.debug(`${this.id} getCurrentFont`);
-  return 1; // Default implementation returns font 1
-}
+  getCurrentFont(machine: ZMachine): number {
+    this.logger.debug(`${this.id} getCurrentFont`);
+    return 1; // Default implementation returns font 1
+  }
 
-setFont(machine: ZMachine, font: number): boolean {
-  this.logger.debug(`${this.id} setFont ${font}`);
-  // Return false if font 2 is requested (picture font is undefined)
-  if (font === 2) return false;
-  // In base implementation, pretend success for other fonts
-  return font === 1 || font === 3 || font === 4;
-}
+  setFont(machine: ZMachine, font: number): boolean {
+    this.logger.debug(`${this.id} setFont ${font}`);
+    // Return false if font 2 is requested (picture font is undefined)
+    if (font === 2) return false;
+    // In base implementation, pretend success for other fonts
+    return font === 1 || font === 3 || font === 4;
+  }
 
-getFontForWindow(machine: ZMachine, window: number): number {
-  this.logger.debug(`${this.id} getFontForWindow ${window}`);
-  return 1; // Default implementation returns font 1
-}
+  getFontForWindow(machine: ZMachine, window: number): number {
+    this.logger.debug(`${this.id} getFontForWindow ${window}`);
+    return 1; // Default implementation returns font 1
+  }
 
-setFontForWindow(machine: ZMachine, font: number, window: number): boolean {
-  this.logger.debug(`${this.id} setFontForWindow ${font} ${window}`);
-  // Return false if font 2 is requested (picture font is undefined)
-  if (font === 2) return false;
-  // In base implementation, pretend success for other fonts
-  return font === 1 || font === 3 || font === 4;
-}
+  setFontForWindow(machine: ZMachine, font: number, window: number): boolean {
+    this.logger.debug(`${this.id} setFontForWindow ${font} ${window}`);
+    // Return false if font 2 is requested (picture font is undefined)
+    if (font === 2) return false;
+    // In base implementation, pretend success for other fonts
+    return font === 1 || font === 3 || font === 4;
+  }
 
-getWindowTrueForeground(machine: ZMachine, window: number): number {
-  this.logger.debug(`${this.id} getWindowTrueForeground ${window}`);
-  // Default implementation returns -1 (default color)
-  return -1;
-}
+  getWindowTrueForeground(machine: ZMachine, window: number): number {
+    this.logger.debug(`${this.id} getWindowTrueForeground ${window}`);
+    // Default implementation returns -1 (default color)
+    return -1;
+  }
 
-getWindowTrueBackground(machine: ZMachine, window: number): number {
-  this.logger.debug(`${this.id} getWindowTrueBackground ${window}`);
-  // Default implementation returns -1 (default color)
-  return -1;
-}
+  getWindowTrueBackground(machine: ZMachine, window: number): number {
+    this.logger.debug(`${this.id} getWindowTrueBackground ${window}`);
+    // Default implementation returns -1 (default color)
+    return -1;
+  }
 
   quit(): void {
     this.logger.debug(`not implemented: ${this.id} quit`);

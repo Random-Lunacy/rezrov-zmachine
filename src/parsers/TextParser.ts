@@ -1,11 +1,11 @@
 // Updates to src/parsers/TextParser.ts
 
-import { Memory } from "../core/memory/Memory";
-import { Logger } from "../utils/log";
-import { Address } from "../types";
-import { Dictionary } from "./Dictionary";
-import { HeaderLocation } from "../utils/constants";
-import { encodeZString, packZCharacters } from "./ZString";
+import { Memory } from '../core/memory/Memory';
+import { Logger } from '../utils/log';
+import { Address } from '../types';
+import { Dictionary } from './Dictionary';
+import { HeaderLocation } from '../utils/constants';
+import { encodeZString, packZCharacters } from './ZString';
 
 export class TextParser {
   private memory: Memory;
@@ -28,10 +28,7 @@ export class TextParser {
 
     // Create a new dictionary instance if we haven't seen this one before
     if (!this.dictionaries.has(dictAddr)) {
-      this.dictionaries.set(
-        dictAddr,
-        new Dictionary(this.memory, this.logger, dictAddr, this.version)
-      );
+      this.dictionaries.set(dictAddr, new Dictionary(this.memory, this.logger, dictAddr, this.version));
     }
 
     return this.dictionaries.get(dictAddr)!;
@@ -44,12 +41,7 @@ export class TextParser {
    * @param dict Address of the dictionary to use (0 for default)
    * @param flag If true, only recognized words are added to the parse buffer
    */
-  tokenizeLine(
-    textBuffer: Address,
-    parseBuffer: Address,
-    dict: Address = 0,
-    flag: boolean = false
-  ): void {
+  tokenizeLine(textBuffer: Address, parseBuffer: Address, dict: Address = 0, flag: boolean = false): void {
     this.logger.debug(`Tokenizing line: textBuffer=${textBuffer}, parseBuffer=${parseBuffer}`);
 
     // Get the dictionary
@@ -77,7 +69,7 @@ export class TextParser {
       // V1-4: Text buffer format is:
       // Byte 0: Max length
       // Byte 1+: Characters until 0 byte
-      text = "";
+      text = '';
       let addr = textBuffer + 1;
       const maxLength = this.memory.getByte(textBuffer);
 
@@ -127,7 +119,7 @@ export class TextParser {
    * Read characters from memory into a string
    */
   private readChars(address: Address, length: number): string {
-    let result = "";
+    let result = '';
     for (let i = 0; i < length; i++) {
       result += String.fromCharCode(this.memory.getByte(address + i));
     }
@@ -151,7 +143,7 @@ export class TextParser {
     const tokenCount = this.memory.getByte(parseBuffer + 1);
 
     if (tokenCount >= maxTokens) {
-      this.logger.debug("Parse buffer full, cannot add more tokens");
+      this.logger.debug('Parse buffer full, cannot add more tokens');
       return;
     }
 
@@ -180,7 +172,7 @@ export class TextParser {
 
       this.logger.debug(
         `Token stored: addr=${dictEntry !== 0 ? '0x' + dictEntry.toString(16) : 'not found'}, ` +
-        `length=${word.length}, position=${position + 1}`
+          `length=${word.length}, position=${position + 1}`
       );
     }
   }
@@ -203,18 +195,13 @@ export class TextParser {
       this.logger.debug(`  Token ${i}: dictAddr=0x${dictAddr.toString(16)}, length=${length}, position=${position}`);
     }
 
-    this.logger.debug("]");
+    this.logger.debug(']');
   }
 
   /**
    * Tokenize an external string (not from game memory)
    */
-  tokenizeString(
-    text: string,
-    parseBuffer: Address,
-    dict: Address = 0,
-    flag: boolean = false
-  ): void {
+  tokenizeString(text: string, parseBuffer: Address, dict: Address = 0, flag: boolean = false): void {
     this.logger.debug(`Tokenizing string: "${text}"`);
 
     // Reset the token count to 0

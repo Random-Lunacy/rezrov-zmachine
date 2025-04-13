@@ -1,8 +1,8 @@
-import { Memory } from "../memory/Memory";
-import { Address } from "../../types";
-import { decodeZString } from "../../parsers/ZString";
-import { Logger } from "../../utils/log";
-import { MAX_ATTRIBUTES_V3, MAX_ATTRIBUTES_V4 } from "../../utils/constants";
+import { Memory } from '../memory/Memory';
+import { Address } from '../../types';
+import { decodeZString } from '../../parsers/ZString';
+import { Logger } from '../../utils/log';
+import { MAX_ATTRIBUTES_V3, MAX_ATTRIBUTES_V4 } from '../../utils/constants';
 
 /**
  * Represents an object in the Z-machine world with properties, attributes,
@@ -28,13 +28,7 @@ export class GameObject {
    * @param objTable Address of the object table
    * @param objnum Object number
    */
-  constructor(
-    memory: Memory,
-    logger: Logger,
-    version: number,
-    objTable: number,
-    objnum: number
-  ) {
+  constructor(memory: Memory, logger: Logger, version: number, objTable: number, objnum: number) {
     this.memory = memory;
     this.logger = logger;
     this.version = version;
@@ -56,11 +50,7 @@ export class GameObject {
    * @returns The object's name
    */
   get name(): string {
-    return decodeZString(
-      this.memory,
-      this.memory.getZString(this.propertyTableAddr + 1),
-      false
-    );
+    return decodeZString(this.memory, this.memory.getZString(this.propertyTableAddr + 1), false);
   }
 
   /**
@@ -69,9 +59,7 @@ export class GameObject {
    */
   get parent(): GameObject | null {
     const parentObjNum =
-      this.version <= 3
-        ? this.memory.getByte(this.objaddr + 4)
-        : this.memory.getWord(this.objaddr + 6);
+      this.version <= 3 ? this.memory.getByte(this.objaddr + 4) : this.memory.getWord(this.objaddr + 6);
 
     // Return null for object 0, which means "no object"
     return parentObjNum === 0 ? null : this.getObject(parentObjNum);
@@ -96,9 +84,7 @@ export class GameObject {
    */
   get child(): GameObject | null {
     const childObjNum =
-      this.version <= 3
-        ? this.memory.getByte(this.objaddr + 6)
-        : this.memory.getWord(this.objaddr + 10);
+      this.version <= 3 ? this.memory.getByte(this.objaddr + 6) : this.memory.getWord(this.objaddr + 10);
 
     return childObjNum === 0 ? null : this.getObject(childObjNum);
   }
@@ -122,9 +108,7 @@ export class GameObject {
    */
   get sibling(): GameObject | null {
     const siblingObjNum =
-      this.version <= 3
-        ? this.memory.getByte(this.objaddr + 5)
-        : this.memory.getWord(this.objaddr + 8);
+      this.version <= 3 ? this.memory.getByte(this.objaddr + 5) : this.memory.getWord(this.objaddr + 8);
 
     return siblingObjNum === 0 ? null : this.getObject(siblingObjNum);
   }
@@ -233,9 +217,7 @@ export class GameObject {
     }
 
     // If we didn't find the previous child, something is definitely wrong
-    throw new Error(
-      `Sibling list is in a bad state, couldn't find previous node for object ${this.objnum}`
-    );
+    throw new Error(`Sibling list is in a bad state, couldn't find previous node for object ${this.objnum}`);
   }
 
   /**
@@ -253,8 +235,10 @@ export class GameObject {
    * @returns Size of the property entry in bytes
    */
   private _propEntrySize(propAddr: Address): number {
-    return GameObject._propDataLen(this.memory, this.version, propAddr) +
-      (this.version <= 3 || !(this.memory.getByte(propAddr) & 0x80) ? 1 : 2);
+    return (
+      GameObject._propDataLen(this.memory, this.version, propAddr) +
+      (this.version <= 3 || !(this.memory.getByte(propAddr) & 0x80) ? 1 : 2)
+    );
   }
 
   /**
@@ -275,11 +259,7 @@ export class GameObject {
    * @param propAddr Address of the property
    * @returns Length of the property data in bytes
    */
-  static _propDataLen(
-    memory: Memory,
-    version: number,
-    propAddr: Address
-  ): number {
+  static _propDataLen(memory: Memory, version: number, propAddr: Address): number {
     let size = memory.getByte(propAddr);
 
     if (version <= 3) {
@@ -402,9 +382,7 @@ export class GameObject {
         return this.memory.getWord(dataPtr);
       default:
         // For longer properties, spec says to return the first 2 bytes as a word
-        this.logger.warn(
-          `Reading ${propLen}-byte property ${prop} as a word (address ${dataPtr})`
-        );
+        this.logger.warn(`Reading ${propLen}-byte property ${prop} as a word (address ${dataPtr})`);
         return this.memory.getWord(dataPtr);
     }
   }
@@ -433,9 +411,7 @@ export class GameObject {
         break;
       default:
         // For longer properties, spec says to set the first 2 bytes as a word
-        this.logger.warn(
-          `Writing to ${propLen}-byte property ${prop} as a word (address ${dataPtr})`
-        );
+        this.logger.warn(`Writing to ${propLen}-byte property ${prop} as a word (address ${dataPtr})`);
         this.memory.setWord(dataPtr, value & 0xffff);
     }
   }
@@ -477,11 +453,7 @@ export class GameObject {
    * @param dataAddr Address of the property data
    * @returns Length of the property in bytes
    */
-  static getPropertyLength(
-    memory: Memory,
-    version: number,
-    dataAddr: Address
-  ): number {
+  static getPropertyLength(memory: Memory, version: number, dataAddr: Address): number {
     if (dataAddr === 0) {
       return 0;
     }
@@ -534,7 +506,7 @@ export class GameObject {
       data.push(this.memory.getByte(propDataPtr + i));
     }
 
-    return data.map((val) => this.hexString(val)).join(" ");
+    return data.map(val => this.hexString(val)).join(' ');
   }
 
   /**
@@ -542,7 +514,7 @@ export class GameObject {
    * @param indent Indentation level
    */
   dump(indent = 0): void {
-    const _indent = " . ".repeat(indent);
+    const _indent = ' . '.repeat(indent);
 
     this.logger.debug(`${_indent}[${this.objnum}] "${this.name}"`);
     this.logger.debug(`${_indent}  Attributes:`);
@@ -558,7 +530,7 @@ export class GameObject {
     }
 
     if (activeAttrs.length > 0) {
-      this.logger.debug(`${_indent}    ${activeAttrs.join(", ")}`);
+      this.logger.debug(`${_indent}    ${activeAttrs.join(', ')}`);
     } else {
       this.logger.debug(`${_indent}    None`);
     }
@@ -576,11 +548,7 @@ export class GameObject {
         break;
       }
 
-      this.logger.debug(
-        `${_indent}   ${this.hexString(entry)} [${propNum}] ${this.dumpPropData(
-          entry
-        )}`
-      );
+      this.logger.debug(`${_indent}   ${this.hexString(entry)} [${propNum}] ${this.dumpPropData(entry)}`);
 
       entry = this._nextPropEntry(entry);
     } while (propNum > 0);
@@ -598,7 +566,7 @@ export class GameObject {
    */
   protected getObject(objnum: number): GameObject | null {
     // This should be overridden by the provider to return the actual object
-    throw new Error("getObject() must be implemented by a provider");
+    throw new Error('getObject() must be implemented by a provider');
   }
 
   /**
@@ -609,7 +577,7 @@ export class GameObject {
     const maxAttr = this.version <= 3 ? MAX_ATTRIBUTES_V3 : MAX_ATTRIBUTES_V4;
 
     if (attr < 0 || attr >= maxAttr) {
-      throw new Error(`Attribute number out of range: ${attr} (max ${maxAttr-1})`);
+      throw new Error(`Attribute number out of range: ${attr} (max ${maxAttr - 1})`);
     }
   }
 
@@ -618,6 +586,6 @@ export class GameObject {
    * @param v Number to convert
    */
   private hexString(v: number): string {
-    return v !== undefined ? "0x" + v.toString(16).padStart(4, "0") : "";
+    return v !== undefined ? '0x' + v.toString(16).padStart(4, '0') : '';
   }
 }

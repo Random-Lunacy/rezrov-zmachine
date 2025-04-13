@@ -50,7 +50,7 @@ export class SuspendState extends Error {
    * @param state Input state details
    */
   constructor(state: InputState) {
-    super("Execution suspended waiting for user input");
+    super('Execution suspended waiting for user input');
     this._state = state;
 
     // Maintain proper prototype chain for instanceof checks

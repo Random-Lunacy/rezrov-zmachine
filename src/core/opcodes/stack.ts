@@ -15,9 +15,9 @@
  * - pop_stack: Pops a value from the stack and discards it.
  * - push_stack: Pushes a value onto the stack.
  */
-import { ZMachine } from "../../interpreter/ZMachine";
-import { toI16, toU16 } from "../memory/cast16";
-import { opcode } from "./base";
+import { ZMachine } from '../../interpreter/ZMachine';
+import { toI16, toU16 } from '../memory/cast16';
+import { opcode } from './base';
 
 /**
  * Pushes a value onto the stack.
@@ -41,9 +41,7 @@ function pop(machine: ZMachine): void {
  */
 function pull(machine: ZMachine, variable: number): void {
   const value = machine.state.popStack();
-  machine.logger.debug(
-    `${machine.executor.op_pc.toString(16)} pull ${variable} (${value})`
-  );
+  machine.logger.debug(`${machine.executor.op_pc.toString(16)} pull ${variable} (${value})`);
   machine.state.storeVariable(variable, value);
 }
 
@@ -52,9 +50,7 @@ function pull(machine: ZMachine, variable: number): void {
  */
 function load(machine: ZMachine, variable: number): void {
   const resultVar = machine.state.readByte();
-  machine.logger.debug(
-    `${machine.executor.op_pc.toString(16)} load ${variable} -> (${resultVar})`
-  );
+  machine.logger.debug(`${machine.executor.op_pc.toString(16)} load ${variable} -> (${resultVar})`);
   machine.state.storeVariable(resultVar, machine.state.loadVariable(variable, true), true);
 }
 
@@ -62,9 +58,7 @@ function load(machine: ZMachine, variable: number): void {
  * Stores a value in a variable.
  */
 function store(machine: ZMachine, variable: number, value: number): void {
-  machine.logger.debug(
-    `${machine.executor.op_pc.toString(16)} store (${variable}) ${value}`
-  );
+  machine.logger.debug(`${machine.executor.op_pc.toString(16)} store (${variable}) ${value}`);
   machine.state.storeVariable(variable, value, true);
 }
 
@@ -73,9 +67,7 @@ function store(machine: ZMachine, variable: number, value: number): void {
  */
 function inc(machine: ZMachine, variable: number): void {
   const currentValue = machine.state.loadVariable(variable, true);
-  machine.logger.debug(
-    `${machine.executor.op_pc.toString(16)} inc (${variable}) ${currentValue}`
-  );
+  machine.logger.debug(`${machine.executor.op_pc.toString(16)} inc (${variable}) ${currentValue}`);
   machine.state.storeVariable(variable, toU16(toI16(currentValue) + 1), true);
 }
 
@@ -84,9 +76,7 @@ function inc(machine: ZMachine, variable: number): void {
  */
 function dec(machine: ZMachine, variable: number): void {
   const currentValue = machine.state.loadVariable(variable, true);
-  machine.logger.debug(
-    `${machine.executor.op_pc.toString(16)} dec (${variable}) ${currentValue}`
-  );
+  machine.logger.debug(`${machine.executor.op_pc.toString(16)} dec (${variable}) ${currentValue}`);
   machine.state.storeVariable(variable, toU16(toI16(currentValue) - 1), true);
 }
 
@@ -96,9 +86,7 @@ function dec(machine: ZMachine, variable: number): void {
 function inc_chk(machine: ZMachine, variable: number, value: number): void {
   const [offset, branchOnFalse] = machine.state.readBranchOffset();
   machine.logger.debug(
-    `${machine.executor.op_pc.toString(
-      16
-    )} inc_chk ${variable} ${value} -> [${!branchOnFalse}] ${
+    `${machine.executor.op_pc.toString(16)} inc_chk ${variable} ${value} -> [${!branchOnFalse}] ${
       machine.state.pc + offset - 2
     }`
   );
@@ -117,9 +105,7 @@ function inc_chk(machine: ZMachine, variable: number, value: number): void {
 function dec_chk(machine: ZMachine, variable: number, value: number): void {
   const [offset, branchOnFalse] = machine.state.readBranchOffset();
   machine.logger.debug(
-    `${machine.executor.op_pc.toString(
-      16
-    )} dec_chk ${variable} ${value} -> [${!branchOnFalse}] ${
+    `${machine.executor.op_pc.toString(16)} dec_chk ${variable} ${value} -> [${!branchOnFalse}] ${
       machine.state.pc + offset - 2
     }`
   );
@@ -153,17 +139,17 @@ function push_stack(machine: ZMachine, value: number): void {
  */
 export const stackOpcodes = {
   // Stack operations
-  push: opcode("push", push),
-  pop: opcode("pop", pop),
-  pull: opcode("pull", pull),
-  push_stack: opcode("push_stack", push_stack),
-  pop_stack: opcode("pop_stack", pop_stack),
+  push: opcode('push', push),
+  pop: opcode('pop', pop),
+  pull: opcode('pull', pull),
+  push_stack: opcode('push_stack', push_stack),
+  pop_stack: opcode('pop_stack', pop_stack),
 
   // Variable operations
-  load: opcode("load", load),
-  store: opcode("store", store),
-  inc: opcode("inc", inc),
-  dec: opcode("dec", dec),
-  inc_chk: opcode("inc_chk", inc_chk),
-  dec_chk: opcode("dec_chk", dec_chk),
+  load: opcode('load', load),
+  store: opcode('store', store),
+  inc: opcode('inc', inc),
+  dec: opcode('dec', dec),
+  inc_chk: opcode('inc_chk', inc_chk),
+  dec_chk: opcode('dec_chk', dec_chk),
 };

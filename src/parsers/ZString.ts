@@ -1,7 +1,7 @@
 // src/parsers/ZString.ts
-import { Memory } from "../core/memory/Memory";
-import { Address, ZSCII } from "../types";
-import { HeaderLocation } from "../utils/constants";
+import { Memory } from '../core/memory/Memory';
+import { Address, ZSCII } from '../types';
+import { HeaderLocation } from '../utils/constants';
 
 /**
  * Represents a Z-string as an array of Z-characters
@@ -12,9 +12,9 @@ export type ZString = Array<ZSCII>;
  * Default Z-machine alphabet tables
  */
 const DEFAULT_ALPHABET_TABLES = [
-  /* A0 */ "abcdefghijklmnopqrstuvwxyz",
-  /* A1 */ "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
-  /* A2 */ " \n0123456789.,!?_#'\"/\\-:()",
+  /* A0 */ 'abcdefghijklmnopqrstuvwxyz',
+  /* A1 */ 'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+  /* A2 */ ' \n0123456789.,!?_#\'"/\\-:()',
 ];
 
 /**
@@ -25,11 +25,7 @@ const DEFAULT_ALPHABET_TABLES = [
  * @param expandAbbreviations Whether to expand abbreviations
  * @returns The decoded string
  */
-export function decodeZString(
-  memory: Memory,
-  zstr: ZString,
-  expandAbbreviations: boolean = true
-): string {
+export function decodeZString(memory: Memory, zstr: ZString, expandAbbreviations: boolean = true): string {
   // State variables
   let alphabet = 0; // Current alphabet (0, 1, or 2)
   let customAlphabetTable: string[] | null = null;
@@ -54,7 +50,7 @@ export function decodeZString(
     if (zchar <= 5) {
       switch (zchar) {
         case 0: // Space
-          result.push(" ");
+          result.push(' ');
           break;
 
         case 1:
@@ -68,11 +64,7 @@ export function decodeZString(
 
             // Recursively decode the abbreviation
             // We set expandAbbreviations to false to prevent infinite recursion
-            const abbrevText = decodeZString(
-              memory,
-              memory.getZString(abbrevAddr),
-              false
-            );
+            const abbrevText = decodeZString(memory, memory.getZString(abbrevAddr), false);
             result.push(abbrevText);
           }
           break;
@@ -107,7 +99,7 @@ export function decodeZString(
         result.push(alphabetTable[alphabet][alphabetIndex]);
       } else {
         // Invalid character index
-        result.push("?");
+        result.push('?');
       }
 
       // Reset to alphabet 0 after a character from alphabet 1 or 2
@@ -117,7 +109,7 @@ export function decodeZString(
     }
   }
 
-  return result.join("");
+  return result.join('');
 }
 
 /**
@@ -128,11 +120,7 @@ export function decodeZString(
  * @param padding Padding value for incomplete Z-strings
  * @returns Encoded Z-string
  */
-export function encodeZString(
-  text: string,
-  version: number,
-  padding: number = 0x05
-): ZString {
+export function encodeZString(text: string, version: number, padding: number = 0x05): ZString {
   // Determine resolution based on version
   const resolution = version > 3 ? 3 : 2;
 
@@ -169,8 +157,8 @@ export function encodeZString(
         if (charCode >= 32 && charCode <= 126) {
           zchars.push(5); // Shift to A2
           zchars.push(6); // ZSCII escape
-          zchars.push((charCode >> 5) & 0x1F); // Upper 5 bits
-          zchars.push(charCode & 0x1F); // Lower 5 bits
+          zchars.push((charCode >> 5) & 0x1f); // Upper 5 bits
+          zchars.push(charCode & 0x1f); // Lower 5 bits
         } else {
           // Use padding for non-encodable characters
           zchars.push(padding);
@@ -231,9 +219,7 @@ export function packZCharacters(zchars: number[], version: number): number[] {
  */
 export function unpackRoutineAddress(memory: Memory, packedAddr: number): number {
   const version = memory.getByte(HeaderLocation.Version);
-  const routinesOffset = version >= 6 && version <= 7
-    ? memory.getWord(HeaderLocation.RoutinesOffset)
-    : 0;
+  const routinesOffset = version >= 6 && version <= 7 ? memory.getWord(HeaderLocation.RoutinesOffset) : 0;
 
   if (version <= 3) {
     return packedAddr * 2;
@@ -257,9 +243,7 @@ export function unpackRoutineAddress(memory: Memory, packedAddr: number): number
  */
 export function unpackStringAddress(memory: Memory, packedAddr: number): number {
   const version = memory.getByte(HeaderLocation.Version);
-  const stringsOffset = version >= 6 && version <= 7
-    ? memory.getWord(HeaderLocation.StaticStringsOffset)
-    : 0;
+  const stringsOffset = version >= 6 && version <= 7 ? memory.getWord(HeaderLocation.StaticStringsOffset) : 0;
 
   if (version <= 3) {
     return packedAddr * 2;

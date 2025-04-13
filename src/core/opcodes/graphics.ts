@@ -9,8 +9,8 @@
  * - erase_picture: Erase a picture (V6)
  * - picture_table: Give advance notice of pictures (V6)
  */
-import { ZMachine } from "../../interpreter/ZMachine";
-import { opcode } from "./base";
+import { ZMachine } from '../../interpreter/ZMachine';
+import { opcode } from './base';
 
 /**
  * Draw a picture at the given coordinates (V6)
@@ -48,8 +48,8 @@ function picture_table(machine: ZMachine, table: number): void {
  * Export the graphics opcodes
  */
 export const graphicsOpcodes = {
-  draw_picture: opcode("draw_picture", draw_picture),
-  picture_data: opcode("picture_data", picture_data),
-  erase_picture: opcode("erase_picture", erase_picture),
-  picture_table: opcode("picture_table", picture_table),
+  draw_picture: opcode('draw_picture', draw_picture),
+  picture_data: opcode('picture_data', picture_data),
+  erase_picture: opcode('erase_picture', erase_picture),
+  picture_table: opcode('picture_table', picture_table),
 };

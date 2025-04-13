@@ -14,8 +14,8 @@
  * - `quit`: Quits the game.
  * - `show_status`: Updates the status bar (for versions <= 3).
  */
-import { ZMachine } from "../../interpreter/ZMachine";
-import { opcode } from "./base";
+import { ZMachine } from '../../interpreter/ZMachine';
+import { opcode } from './base';
 
 /**
  * Save the machine state to a given table
@@ -65,9 +65,7 @@ function restart(machine: ZMachine): void {
 function verify(machine: ZMachine): void {
   const [offset, branchOnFalse] = machine.state.readBranchOffset();
 
-  machine.logger.debug(
-    `${machine.executor.op_pc.toString(16)} verify -> [${!branchOnFalse}] ${offset}`
-  );
+  machine.logger.debug(`${machine.executor.op_pc.toString(16)} verify -> [${!branchOnFalse}] ${offset}`);
 
   try {
     // In a real implementation, we would compute the checksum
@@ -80,17 +78,13 @@ function verify(machine: ZMachine): void {
   }
 }
 
-
-
 /**
  * Piracy check - always returns true (game is genuine)
  */
 function piracy(machine: ZMachine): void {
   const [offset, branchOnFalse] = machine.state.readBranchOffset();
 
-  machine.logger.debug(
-    `${machine.executor.op_pc.toString(16)} piracy -> [${!branchOnFalse}] ${offset}`
-  );
+  machine.logger.debug(`${machine.executor.op_pc.toString(16)} piracy -> [${!branchOnFalse}] ${offset}`);
 
   // Always indicate the game is genuine
   machine.state.doBranch(true, branchOnFalse, offset);
@@ -101,14 +95,12 @@ function save(machine: ZMachine, table: number, bytes: number, name: number = 0,
   if (machine.state.version >= 5) {
     const resultVar = machine.state.readByte();
 
-    machine.logger.debug(
-      `${machine.executor.op_pc.toString(16)} save (ext) ${table} ${bytes} ${name} ${prompt}`
-    );
+    machine.logger.debug(`${machine.executor.op_pc.toString(16)} save (ext) ${table} ${bytes} ${name} ${prompt}`);
 
     try {
       // If prompt parameter is provided and is 0, don't prompt
       // If prompt is 1 or not provided (or -1 in our case), prompt behavior is determined by the interpreter
-      const shouldPrompt = (prompt === -1 || prompt === 1);
+      const shouldPrompt = prompt === -1 || prompt === 1;
 
       // This would need to save the table data to a file
       const success = machine.saveToTable(table, bytes, name, shouldPrompt);
@@ -123,9 +115,7 @@ function save(machine: ZMachine, table: number, bytes: number, name: number = 0,
     // For earlier versions, use the branch format
     const [offset, branchOnFalse] = machine.state.readBranchOffset();
 
-    machine.logger.debug(
-      `${machine.executor.op_pc.toString(16)} save -> [${!branchOnFalse}] ${offset}`
-    );
+    machine.logger.debug(`${machine.executor.op_pc.toString(16)} save -> [${!branchOnFalse}] ${offset}`);
 
     const saved = machine.saveGame();
     machine.state.doBranch(saved, branchOnFalse, offset);
@@ -137,14 +127,12 @@ function restore(machine: ZMachine, table: number, bytes: number, name: number =
   if (machine.state.version >= 5) {
     const resultVar = machine.state.readByte();
 
-    machine.logger.debug(
-      `${machine.executor.op_pc.toString(16)} restore (ext) ${table} ${bytes} ${name} ${prompt}`
-    );
+    machine.logger.debug(`${machine.executor.op_pc.toString(16)} restore (ext) ${table} ${bytes} ${name} ${prompt}`);
 
     try {
       // If prompt parameter is provided and is 0, don't prompt
       // If prompt is 1 or not provided (or -1 in our case), prompt behavior is determined by the interpreter
-      const shouldPrompt = (prompt === -1 || prompt === 1);
+      const shouldPrompt = prompt === -1 || prompt === 1;
 
       // This would need to restore the table data from a file
       const success = machine.restoreFromTable(table, bytes, name, shouldPrompt);
@@ -159,9 +147,7 @@ function restore(machine: ZMachine, table: number, bytes: number, name: number =
     // For earlier versions, use the branch format
     const [offset, branchOnFalse] = machine.state.readBranchOffset();
 
-    machine.logger.debug(
-      `${machine.executor.op_pc.toString(16)} restore -> [${!branchOnFalse}] ${offset}`
-    );
+    machine.logger.debug(`${machine.executor.op_pc.toString(16)} restore -> [${!branchOnFalse}] ${offset}`);
 
     const restored = machine.restoreGame();
     machine.state.doBranch(restored, branchOnFalse, offset);
@@ -188,13 +174,13 @@ function show_status(machine: ZMachine): void {
  * Export game operation opcodes
  */
 export const gameOpcodes = {
-  save_undo: opcode("save_undo", save_undo),
-  restore_undo: opcode("restore_undo", restore_undo),
-  restart: opcode("restart", restart),
-  verify: opcode("verify", verify),
-  piracy: opcode("piracy", piracy),
-  save: opcode("save", save),
-  restore: opcode("restore", restore),
-  quit: opcode("quit", quit),
-  show_status: opcode("show_status", show_status),
+  save_undo: opcode('save_undo', save_undo),
+  restore_undo: opcode('restore_undo', restore_undo),
+  restart: opcode('restart', restart),
+  verify: opcode('verify', verify),
+  piracy: opcode('piracy', piracy),
+  save: opcode('save', save),
+  restore: opcode('restore', restore),
+  quit: opcode('quit', quit),
+  show_status: opcode('show_status', show_status),
 };

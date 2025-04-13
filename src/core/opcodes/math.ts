@@ -15,29 +15,13 @@
  * - `art_shift`: Binary left arithmetic shift (preserves sign)
  * - `log_shift`: Binary logical shift (does not preserve sign on right shift)
  */
-import { ZMachine } from "../../interpreter/ZMachine";
-import { initRandom, randomInt } from "../../utils/random";
-import { toI16, toU16 } from "../memory/cast16";
-import { opcode } from "./base";
+import { ZMachine } from '../../interpreter/ZMachine';
+import { initRandom, randomInt } from '../../utils/random';
+import { toI16, toU16 } from '../memory/cast16';
+import { opcode } from './base';
 
 /**
- * Performs bitwise OR operation.
- */
-function or(machine: ZMachine, a: number, b: number): void {
-  machine.state.logger.debug(`or ${a} ${b}`);
-  machine.state.storeVariable(machine.state.readByte(), a | b);
-}
-
-/**
- * Performs bitwise AND operation.
- */
-function and(machine: ZMachine, a: number, b: number): void {
-  machine.state.logger.debug(`and ${a} ${b}`);
-  machine.state.storeVariable(machine.state.readByte(), a & b);
-}
-
-/**
- * Adds two numbers.
+ * Signed 16-bit addition. Adds the values of a and b and stores the result.
  */
 function add(machine: ZMachine, a: number, b: number): void {
   machine.state.logger.debug(`add ${a} ${b}`);
@@ -45,11 +29,33 @@ function add(machine: ZMachine, a: number, b: number): void {
 }
 
 /**
- * Subtracts the second number from the first.
+ * Performs a bitwise AND operation on the values of a and b and stores the result.
  */
-function sub(machine: ZMachine, a: number, b: number): void {
-  machine.state.logger.debug(`sub ${a} ${b}`);
-  machine.state.storeVariable(machine.state.readByte(), toU16(toI16(a) - toI16(b)));
+function and(machine: ZMachine, a: number, b: number): void {
+  machine.state.logger.debug(`and ${a} ${b}`);
+  machine.state.storeVariable(machine.state.readByte(), a & b);
+}
+
+/**
+ * Divides the first number by the second.
+ */
+function div(machine: ZMachine, a: number, b: number): void {
+  if (b === 0) {
+    throw new Error('Division by zero');
+  }
+  machine.state.logger.debug(`div ${a} ${b}`);
+  machine.state.storeVariable(machine.state.readByte(), toU16(Math.floor(toI16(a) / toI16(b))));
+}
+
+/**
+ * Calculates the remainder when dividing the first number by the second.
+ */
+function mod(machine: ZMachine, a: number, b: number): void {
+  if (b === 0) {
+    throw new Error('Modulo by zero');
+  }
+  machine.state.logger.debug(`mod ${a} ${b}`);
+  machine.state.storeVariable(machine.state.readByte(), toU16(toI16(a) % toI16(b)));
 }
 
 /**
@@ -61,36 +67,27 @@ function mul(machine: ZMachine, a: number, b: number): void {
 }
 
 /**
- * Divides the first number by the second.
- */
-function div(machine: ZMachine, a: number, b: number): void {
-  if (b === 0) {
-    throw new Error("Division by zero");
-  }
-  machine.state.logger.debug(`div ${a} ${b}`);
-  machine.state.storeVariable(
-    machine.state.readByte(),
-    toU16(Math.floor(toI16(a) / toI16(b)))
-  );
-}
-
-/**
- * Calculates the remainder when dividing the first number by the second.
- */
-function mod(machine: ZMachine, a: number, b: number): void {
-  if (b === 0) {
-    throw new Error("Modulo by zero");
-  }
-  machine.state.logger.debug(`mod ${a} ${b}`);
-  machine.state.storeVariable(machine.state.readByte(), toU16(toI16(a) % toI16(b)));
-}
-
-/**
  * Performs bitwise NOT operation.
  */
 function not(machine: ZMachine, value: number): void {
   machine.state.logger.debug(`not ${value}`);
   machine.state.storeVariable(machine.state.readByte(), value ^ 0xffff);
+}
+
+/**
+ * Performs bitwise OR operation.
+ */
+function or(machine: ZMachine, a: number, b: number): void {
+  machine.state.logger.debug(`or ${a} ${b}`);
+  machine.state.storeVariable(machine.state.readByte(), a | b);
+}
+
+/**
+ * Subtracts the second number from the first.
+ */
+function sub(machine: ZMachine, a: number, b: number): void {
+  machine.state.logger.debug(`sub ${a} ${b}`);
+  machine.state.storeVariable(machine.state.readByte(), toU16(toI16(a) - toI16(b)));
 }
 
 /**
@@ -161,19 +158,19 @@ function log_shift(machine: ZMachine, value: number, places: number): void {
  */
 export const mathOpcodes = {
   // 2OP opcodes
-  or: opcode("or", or),
-  and: opcode("and", and),
-  add: opcode("add", add),
-  sub: opcode("sub", sub),
-  mul: opcode("mul", mul),
-  div: opcode("div", div),
-  mod: opcode("mod", mod),
+  or: opcode('or', or),
+  and: opcode('and', and),
+  add: opcode('add', add),
+  sub: opcode('sub', sub),
+  mul: opcode('mul', mul),
+  div: opcode('div', div),
+  mod: opcode('mod', mod),
 
   // 1OP opcodes
-  not: opcode("not", not),
-  random: opcode("random", random),
+  not: opcode('not', not),
+  random: opcode('random', random),
 
   // Shift opcodes
-  art_shift: opcode("art_shift", art_shift),
-  log_shift: opcode("log_shift", log_shift),
+  art_shift: opcode('art_shift', art_shift),
+  log_shift: opcode('log_shift', log_shift),
 };

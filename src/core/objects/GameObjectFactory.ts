@@ -1,7 +1,7 @@
-import { Memory } from "../memory/Memory";
-import { Logger } from "../../utils/log";
-import { GameObject } from "./GameObject";
-import { MAX_OBJECTS_V3, MAX_OBJECTS_V4 } from "../../utils/constants";
+import { Memory } from '../memory/Memory';
+import { Logger } from '../../utils/log';
+import { GameObject } from './GameObject';
+import { MAX_OBJECTS_V3, MAX_OBJECTS_V4 } from '../../utils/constants';
 
 /**
  * Extension of GameObject that overrides the getObject method
@@ -92,14 +92,7 @@ export class GameObjectFactory {
     }
 
     // Create and cache new object
-    obj = new ManagedGameObject(
-      this.memory,
-      this.logger,
-      this.version,
-      this.objTable,
-      objnum,
-      this
-    );
+    obj = new ManagedGameObject(this.memory, this.logger, this.version, this.objTable, objnum, this);
     this.objectCache.set(objnum, obj);
 
     return obj;

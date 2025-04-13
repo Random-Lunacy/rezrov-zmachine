@@ -12,20 +12,15 @@
  * - `storeb`: Stores a byte in an array
  */
 
-import { ZMachine } from "../../interpreter/ZMachine";
-import { opcode } from "./base";
+import { ZMachine } from '../../interpreter/ZMachine';
+import { opcode } from './base';
 
 /**
  * Copy a region of memory
  */
-function copy_table(
-  machine: ZMachine,
-  sourceAddr: number,
-  destAddr: number,
-  size: number
-): void {
+function copy_table(machine: ZMachine, sourceAddr: number, destAddr: number, size: number): void {
   if (size === 0) {
-    machine.logger.debug("copy_table: no-op");
+    machine.logger.debug('copy_table: no-op');
     return; // No-op
   }
 
@@ -56,13 +51,7 @@ function copy_table(
 /**
  * Scan through a table looking for a particular word/byte
  */
-function scan_table(
-  machine: ZMachine,
-  value: number,
-  table: number,
-  length: number,
-  form: number = 0x82
-): void {
+function scan_table(machine: ZMachine, value: number, table: number, length: number, form: number = 0x82): void {
   const resultVar = machine.state.readByte();
   const [offset, branchOnFalse] = machine.state.readBranchOffset();
 
@@ -80,9 +69,7 @@ function scan_table(
   // Scan the table
   for (let i = 0; i < length; i++) {
     const addr = table + i * elementSize;
-    const tableValue = isWord
-      ? machine.memory.getWord(addr)
-      : machine.memory.getByte(addr);
+    const tableValue = isWord ? machine.memory.getWord(addr) : machine.memory.getByte(addr);
 
     if (tableValue === value) {
       found = true;
@@ -105,11 +92,7 @@ function scan_table(
  */
 function loadw(machine: ZMachine, array: number, wordIndex: number): void {
   const resultVar = machine.state.readByte();
-  machine.logger.debug(
-    `${machine.executor.op_pc.toString(
-      16
-    )} loadw ${array} ${wordIndex} -> (${resultVar})`
-  );
+  machine.logger.debug(`${machine.executor.op_pc.toString(16)} loadw ${array} ${wordIndex} -> (${resultVar})`);
 
   const address = (array + 2 * wordIndex) & 0xffff;
   machine.state.storeVariable(resultVar, machine.memory.getWord(address));
@@ -120,11 +103,7 @@ function loadw(machine: ZMachine, array: number, wordIndex: number): void {
  */
 function loadb(machine: ZMachine, array: number, byteIndex: number): void {
   const resultVar = machine.state.readByte();
-  machine.logger.debug(
-    `${machine.executor.op_pc.toString(
-      16
-    )} loadb ${array} ${byteIndex} -> (${resultVar})`
-  );
+  machine.logger.debug(`${machine.executor.op_pc.toString(16)} loadb ${array} ${byteIndex} -> (${resultVar})`);
 
   const address = (array + byteIndex) & 0xffff;
   machine.state.storeVariable(resultVar, machine.memory.getByte(address));
@@ -133,15 +112,8 @@ function loadb(machine: ZMachine, array: number, byteIndex: number): void {
 /**
  * Stores a word in an array.
  */
-function storew(
-  machine: ZMachine,
-  array: number,
-  wordIndex: number,
-  value: number
-): void {
-  machine.logger.debug(
-    `${machine.executor.op_pc.toString(16)} storew ${array} ${wordIndex} ${value}`
-  );
+function storew(machine: ZMachine, array: number, wordIndex: number, value: number): void {
+  machine.logger.debug(`${machine.executor.op_pc.toString(16)} storew ${array} ${wordIndex} ${value}`);
 
   const address = (array + 2 * wordIndex) & 0xffff;
   machine.memory.setWord(address, value);
@@ -150,25 +122,18 @@ function storew(
 /**
  * Stores a byte in an array.
  */
-function storeb(
-  machine: ZMachine,
-  array: number,
-  byteIndex: number,
-  value: number
-): void {
-  machine.logger.debug(
-    `${machine.executor.op_pc.toString(16)} storeb ${array} ${byteIndex} ${value}`
-  );
+function storeb(machine: ZMachine, array: number, byteIndex: number, value: number): void {
+  machine.logger.debug(`${machine.executor.op_pc.toString(16)} storeb ${array} ${byteIndex} ${value}`);
 
   const address = (array + byteIndex) & 0xffff;
   machine.memory.setByte(address, value & 0xff);
 }
 
 export const memoryOpcodes = {
-  copy_table: opcode("copy_table", copy_table),
-  scan_table: opcode("scan_table", scan_table),
-  loadw: opcode("loadw", loadw),
-  loadb: opcode("loadb", loadb),
-  storew: opcode("storew", storew),
-  storeb: opcode("storeb", storeb),
+  copy_table: opcode('copy_table', copy_table),
+  scan_table: opcode('scan_table', scan_table),
+  loadw: opcode('loadw', loadw),
+  loadb: opcode('loadb', loadb),
+  storew: opcode('storew', storew),
+  storeb: opcode('storeb', storeb),
 };

@@ -1,5 +1,5 @@
-import { ZMachine } from "../../interpreter/ZMachine";
-import { Screen } from "../screen/interfaces";
+import { ZMachine } from '../../interpreter/ZMachine';
+import { Screen } from '../screen/interfaces';
 
 export type InputState = {
   keyPress: boolean;
@@ -26,12 +26,12 @@ export class InputHandler {
   processInput(input: string, terminatingChar: number = 13): void {
     const state = this.machine.getInputState();
     if (!state) {
-      this.machine.logger.error("No pending input state");
+      this.machine.logger.error('No pending input state');
       return;
     }
 
     if (state.keyPress) {
-      this.machine.logger.error("processInput called for keypress");
+      this.machine.logger.error('processInput called for keypress');
       return;
     }
 
@@ -40,10 +40,10 @@ export class InputHandler {
 
     const { textBuffer, parseBuffer, resultVar } = state;
     if (textBuffer === undefined) {
-      throw new Error("textBuffer undefined");
+      throw new Error('textBuffer undefined');
     }
     if (parseBuffer === undefined) {
-      throw new Error("parseBuffer undefined");
+      throw new Error('parseBuffer undefined');
     }
 
     const gameState = this.machine.state;
@@ -69,12 +69,12 @@ export class InputHandler {
   processKeypress(key: string): void {
     const state = this.machine.getInputState();
     if (!state) {
-      this.machine.logger.error("No pending input state");
+      this.machine.logger.error('No pending input state');
       return;
     }
 
     if (!state.keyPress) {
-      this.machine.logger.error("processKeypress called for text input");
+      this.machine.logger.error('processKeypress called for text input');
       return;
     }
 
@@ -87,11 +87,7 @@ export class InputHandler {
   /**
    * Store text input in Z-machine memory
    */
-  private storeTextInput(
-    input: string,
-    textBuffer: number,
-    version: number
-  ): void {
+  private storeTextInput(input: string, textBuffer: number, version: number): void {
     const memory = this.machine.state.memory;
 
     // Get max input length, handling differently based on version

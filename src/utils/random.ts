@@ -3,7 +3,7 @@
  */
 
 // Import a cryptographically secure PRNG
-import seedrandom from "seedrandom";
+import seedrandom from 'seedrandom';
 
 /**
  * The current random number generator function

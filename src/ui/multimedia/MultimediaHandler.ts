@@ -1,6 +1,6 @@
 // src/ui/multimedia/MultimediaHandler.ts
 
-import { ZMachine } from "../../interpreter/ZMachine";
+import { ZMachine } from '../../interpreter/ZMachine';
 
 /**
  * Types of multimedia resources
@@ -53,12 +53,7 @@ export interface MultimediaHandler {
    * @param repeats Number of repeats (0 = infinite)
    * @returns Status of the operation
    */
-  playSound(
-    resourceId: number,
-    effect: number,
-    volume: number,
-    repeats: number
-  ): ResourceStatus;
+  playSound(resourceId: number, effect: number, volume: number, repeats: number): ResourceStatus;
 
   /**
    * Stop a playing sound
@@ -75,12 +70,7 @@ export interface MultimediaHandler {
    * @param scale Scale factor (100 = normal size)
    * @returns Status of the operation
    */
-  displayPicture(
-    resourceId: number,
-    x: number,
-    y: number,
-    scale: number
-  ): ResourceStatus;
+  displayPicture(resourceId: number, x: number, y: number, scale: number): ResourceStatus;
 }
 
 /**
@@ -91,26 +81,16 @@ export class BaseMultimediaHandler implements MultimediaHandler {
   constructor(private machine: ZMachine) {}
 
   isResourceAvailable(type: ResourceType, resourceId: number): boolean {
-    this.machine.logger.debug(
-      `Checking availability of ${ResourceType[type]} ${resourceId}`
-    );
+    this.machine.logger.debug(`Checking availability of ${ResourceType[type]} ${resourceId}`);
     return false;
   }
 
-  async loadResource(
-    type: ResourceType,
-    resourceId: number
-  ): Promise<ResourceStatus> {
+  async loadResource(type: ResourceType, resourceId: number): Promise<ResourceStatus> {
     this.machine.logger.debug(`Loading ${ResourceType[type]} ${resourceId}`);
     return ResourceStatus.NotAvailable;
   }
 
-  playSound(
-    resourceId: number,
-    effect: number,
-    volume: number,
-    repeats: number
-  ): ResourceStatus {
+  playSound(resourceId: number, effect: number, volume: number, repeats: number): ResourceStatus {
     this.machine.logger.debug(
       `Playing sound ${resourceId} (effect: ${effect}, volume: ${volume}, repeats: ${repeats})`
     );
@@ -122,15 +102,8 @@ export class BaseMultimediaHandler implements MultimediaHandler {
     return ResourceStatus.NotAvailable;
   }
 
-  displayPicture(
-    resourceId: number,
-    x: number,
-    y: number,
-    scale: number
-  ): ResourceStatus {
-    this.machine.logger.debug(
-      `Displaying picture ${resourceId} at (${x},${y}) with scale ${scale}%`
-    );
+  displayPicture(resourceId: number, x: number, y: number, scale: number): ResourceStatus {
+    this.machine.logger.debug(`Displaying picture ${resourceId} at (${x},${y}) with scale ${scale}%`);
     return ResourceStatus.NotAvailable;
   }
 }

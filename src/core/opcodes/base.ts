@@ -4,7 +4,7 @@
  * This module defines the structure and utility functions for Z-machine opcodes.
  * Each opcode has a mnemonic and an implementation function that takes a ZMachine instance and operands.
  */
-import { ZMachine } from "../../interpreter/ZMachine";
+import { ZMachine } from '../../interpreter/ZMachine';
 
 /**
  * Function signature for opcode implementations

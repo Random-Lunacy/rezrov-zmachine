@@ -1,4 +1,4 @@
-import { StackFrame } from "../core/execution/StackFrame";
+import { StackFrame } from '../core/execution/StackFrame';
 
 /**
  * Represents a snapshot of the Z-machine state

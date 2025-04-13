@@ -34,9 +34,7 @@ export interface VersionCapabilities {
  * @param version Z-machine version
  * @returns Capabilities for the specified version
  */
-export function getVersionCapabilities(
-  version: ZMachineVersion
-): VersionCapabilities {
+export function getVersionCapabilities(version: ZMachineVersion): VersionCapabilities {
   switch (version) {
     case ZMachineVersion.V1:
     case ZMachineVersion.V2:
@@ -109,10 +107,7 @@ export function getVersionCapabilities(
  * @param feature Feature to check
  * @returns True if the version supports the feature
  */
-export function versionSupports(
-  version: ZMachineVersion,
-  feature: keyof VersionCapabilities
-): boolean {
+export function versionSupports(version: ZMachineVersion, feature: keyof VersionCapabilities): boolean {
   const capabilities = getVersionCapabilities(version);
   return capabilities[feature] as boolean;
 }
@@ -124,11 +119,7 @@ export function versionSupports(
  * @param routineOffset Routine offset (only used in V6-7)
  * @returns Unpacked address
  */
-export function unpackRoutineAddress(
-  version: ZMachineVersion,
-  packedAddr: number,
-  routineOffset: number = 0
-): number {
+export function unpackRoutineAddress(version: ZMachineVersion, packedAddr: number, routineOffset: number = 0): number {
   if (version <= ZMachineVersion.V3) {
     return 2 * packedAddr;
   } else if (version <= ZMachineVersion.V5) {
@@ -149,11 +140,7 @@ export function unpackRoutineAddress(
  * @param stringOffset String offset (only used in V6-7)
  * @returns Unpacked address
  */
-export function unpackStringAddress(
-  version: ZMachineVersion,
-  packedAddr: number,
-  stringOffset: number = 0
-): number {
+export function unpackStringAddress(version: ZMachineVersion, packedAddr: number, stringOffset: number = 0): number {
   if (version <= ZMachineVersion.V3) {
     return 2 * packedAddr;
   } else if (version <= ZMachineVersion.V5) {

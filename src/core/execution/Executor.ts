@@ -1,13 +1,13 @@
 // src/core/execution/Executor.ts
-import { Memory } from "../memory/Memory";
-import { GameState } from "../../interpreter/GameState";
-import { Logger } from "../../utils/log";
-import { SuspendState } from "./SuspendState";
-import { Opcode } from "../opcodes/base";
-import { Address, InstructionForm, OperandType } from "../../types";
-import { toI16 } from "../memory/cast16";
-import { hex } from "../../utils/debug";
-import * as opcodes from "../opcodes/index";
+import { Memory } from '../memory/Memory';
+import { GameState } from '../../interpreter/GameState';
+import { Logger } from '../../utils/log';
+import { SuspendState } from './SuspendState';
+import { Opcode } from '../opcodes/base';
+import { Address, InstructionForm, OperandType } from '../../types';
+import { toI16 } from '../memory/cast16';
+import { hex } from '../../utils/debug';
+import * as opcodes from '../opcodes/index';
 
 /**
  * Handles execution of Z-machine instructions
@@ -29,10 +29,7 @@ export class Executor {
   private opv: Array<Opcode>;
   private opext: Array<Opcode>;
 
-  constructor(
-    gameState: GameState,
-    logger: Logger
-  ) {
+  constructor(gameState: GameState, logger: Logger) {
     this.gameState = gameState;
     this.logger = logger;
 
@@ -55,7 +52,7 @@ export class Executor {
       }
 
       if (this._quit) {
-        this.logger.info("Program execution terminated");
+        this.logger.info('Program execution terminated');
       }
     } catch (e) {
       if (e instanceof SuspendState) {
@@ -66,9 +63,7 @@ export class Executor {
         // Unwind the stack before handling input
         setImmediate(() => {
           try {
-            this.logger.debug(
-              `Suspended for ${e.state.keyPress ? "key" : "text"} input`
-            );
+            this.logger.debug(`Suspended for ${e.state.keyPress ? 'key' : 'text'} input`);
             // Input handling will be delegated to the calling code
           } catch (inputError) {
             this.logger.error(`Error during input handling: ${inputError}`);
@@ -158,12 +153,8 @@ export class Executor {
       form = InstructionForm.Long;
 
       // Determine operand types from bits 5-6
-      operandTypes.push(
-        (opcode & 0x40) === 0x40 ? OperandType.Variable : OperandType.Small
-      );
-      operandTypes.push(
-        (opcode & 0x20) === 0x20 ? OperandType.Variable : OperandType.Small
-      );
+      operandTypes.push((opcode & 0x40) === 0x40 ? OperandType.Variable : OperandType.Small);
+      operandTypes.push((opcode & 0x20) === 0x20 ? OperandType.Variable : OperandType.Small);
 
       // Mask to get the actual opcode
       opcode = opcode & 0x1f;
@@ -215,26 +206,18 @@ export class Executor {
       }
 
       if (!op) {
-        throw new Error(
-          `No implementation found for opcode ${hex(opcode)} with ${
-            operands.length
-          } operands`
-        );
+        throw new Error(`No implementation found for opcode ${hex(opcode)} with ${operands.length} operands`);
       }
     } catch (e) {
       this.logger.error(
-        `Error resolving opcode at pc=${hex(op_pc)}, opcode=${hex(
-          opcode
-        )}, form=${form}, operands=${operands.length}: ${e.toString()}`
+        `Error resolving opcode at pc=${hex(op_pc)}, opcode=${hex(opcode)}, form=${form}, operands=${
+          operands.length
+        }: ${e.toString()}`
       );
       throw e;
     }
 
-    this.logger.debug(
-      `Executing op = ${op.mnemonic} with operands [${operands
-        .map((o) => hex(o))
-        .join(", ")}]`
-    );
+    this.logger.debug(`Executing op = ${op.mnemonic} with operands [${operands.map(o => hex(o)).join(', ')}]`);
 
     // Call the opcode implementation
     op.impl(this.gameState, ...operands);

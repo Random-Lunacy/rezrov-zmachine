@@ -2,8 +2,8 @@
  * This file contains the interfaces for the screen module.
  * It defines the Screen interface and the various types and enums used in the screen module.
  */
-import { ZMachine } from "../../interpreter/ZMachine";
-import { InputState } from "../input/InputHandler";
+import { ZMachine } from '../../interpreter/ZMachine';
+import { InputState } from '../input/InputHandler';
 
 export enum TextStyle {
   Roman = 0,
@@ -30,25 +30,25 @@ export enum Color {
 export function colorToString(c: Color): string {
   switch (c) {
     case Color.Black:
-      return "black";
+      return 'black';
     case Color.Red:
-      return "red";
+      return 'red';
     case Color.Green:
-      return "green";
+      return 'green';
     case Color.Yellow:
-      return "yellow";
+      return 'yellow';
     case Color.Blue:
-      return "blue";
+      return 'blue';
     case Color.Magenta:
-      return "magenta";
+      return 'magenta';
     case Color.Cyan:
-      return "cyan";
+      return 'cyan';
     case Color.White:
-      return "white";
+      return 'white';
     case Color.Gray:
-      return "gray";
+      return 'gray';
     default:
-      return "";
+      return '';
   }
 }
 
@@ -87,34 +87,14 @@ export interface Screen {
   getOutputWindow(machine: ZMachine): number;
   clearWindow(machine: ZMachine, windowId: number): void;
   clearLine(machine: ZMachine, value: number): void;
-  setCursorPosition(
-    machine: ZMachine,
-    line: number,
-    column: number,
-    windowId: number
-  ): void;
+  setCursorPosition(machine: ZMachine, line: number, column: number, windowId: number): void;
   hideCursor(machine: ZMachine, windowId: number): void;
   showCursor(machine: ZMachine, windowId: number): void;
   setBufferMode(machine: ZMachine, mode: number): void;
   setTextStyle(machine: ZMachine, style: number): void;
-  setTextColors(
-    machine: ZMachine,
-    window: number,
-    foreground: number,
-    background: number
-  ): void;
-  enableOutputStream(
-    machine: ZMachine,
-    streamId: number,
-    table: number,
-    width: number
-  ): void;
-  disableOutputStream(
-    machine: ZMachine,
-    streamId: number,
-    table: number,
-    width: number
-  ): void;
+  setTextColors(machine: ZMachine, window: number, foreground: number, background: number): void;
+  enableOutputStream(machine: ZMachine, streamId: number, table: number, width: number): void;
+  disableOutputStream(machine: ZMachine, streamId: number, table: number, width: number): void;
   selectInputStream(machine: ZMachine, streamId: number): void;
   getSize(): ScreenSize;
   updateStatusBar(lhs: string, rhs: string): void;

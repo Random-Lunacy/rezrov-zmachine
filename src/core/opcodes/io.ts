@@ -31,12 +31,12 @@
  * - `make_menu`: Create a menu
  * - `scroll_window`: Scroll a window
  * - `put_wind_prop`: Set a window property
-*/
-import { ZMachine } from "../../interpreter/ZMachine";
-import { opcode } from "./base";
-import { SuspendState } from "../../core/execution/SuspendState";
-import { toI16 } from "../memory/cast16";
-import { HeaderLocation } from "../../utils/constants";
+ */
+import { SuspendState } from '../../core/execution/SuspendState';
+import { ZMachine } from '../../interpreter/ZMachine';
+import { HeaderLocation } from '../../utils/constants';
+import { toI16 } from '../memory/cast16';
+import { opcode } from './base';
 
 /**
  * Split the screen into two windows
@@ -73,12 +73,7 @@ function erase_line(machine: ZMachine, value: number): void {
 /**
  * Set the cursor position
  */
-function set_cursor(
-  machine: ZMachine,
-  line: number,
-  column: number,
-  window: number = 0
-): void {
+function set_cursor(machine: ZMachine, line: number, column: number, window: number = 0): void {
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} set_cursor ${line} ${column}`);
 
   if (machine.state.version >= 6) {
@@ -141,17 +136,10 @@ function buffer_mode(machine: ZMachine, flag: number): void {
 /**
  * Enable or disable an output stream
  */
-function output_stream(
-  machine: ZMachine,
-  streamNum: number,
-  table: number = 0,
-  width: number = 0
-): void {
+function output_stream(machine: ZMachine, streamNum: number, table: number = 0, width: number = 0): void {
   const streamNumber = toI16(streamNum);
 
-  machine.logger.debug(
-    `${machine.executor.op_pc.toString(16)} output_stream ${streamNum} ${table} ${width}`
-  );
+  machine.logger.debug(`${machine.executor.op_pc.toString(16)} output_stream ${streamNum} ${table} ${width}`);
 
   if (streamNumber === 0) {
     // why emit this opcode at all?
@@ -192,9 +180,7 @@ function sread(
     resultVar = machine.state.readByte();
   }
 
-  machine.logger.debug(
-    `sread/aread: text=${textBuffer}, parse=${parseBuffer}, time=${time}, routine=${routine}`
-  );
+  machine.logger.debug(`sread/aread: text=${textBuffer}, parse=${parseBuffer}, time=${time}, routine=${routine}`);
 
   // Update status bar before getting input
   machine.state.updateStatusBar();
@@ -220,26 +206,17 @@ function sound_effect(
   volume: number = 0,
   routine: number = 0
 ): void {
-  machine.logger.debug(
-    `${machine.executor.op_pc.toString(16)} sound_effect ${number} ${effect} ${volume} ${routine}`
-  );
+  machine.logger.debug(`${machine.executor.op_pc.toString(16)} sound_effect ${number} ${effect} ${volume} ${routine}`);
   machine.logger.warn(`sound_effect ${number} -- not implemented`);
 }
 
 /**
  * Read a single character from the user
  */
-function read_char(
-  machine: ZMachine,
-  device: number = 0,
-  time: number = 0,
-  routine: number = 0
-): void {
+function read_char(machine: ZMachine, device: number = 0, time: number = 0, routine: number = 0): void {
   const resultVar = machine.state.readByte();
 
-  machine.logger.debug(
-    `${machine.executor.op_pc.toString(16)} read_char ${device} ${time} ${routine}`
-  );
+  machine.logger.debug(`${machine.executor.op_pc.toString(16)} read_char ${device} ${time} ${routine}`);
 
   throw new SuspendState({
     keyPress: true,
@@ -252,9 +229,7 @@ function read_char(
 function get_wind_prop(machine: ZMachine, window: number, property: number): void {
   const resultVar = machine.state.readByte();
 
-  machine.logger.debug(
-    `${machine.executor.op_pc.toString(16)} get_wind_prop ${window} ${property} -> (${resultVar})`
-  );
+  machine.logger.debug(`${machine.executor.op_pc.toString(16)} get_wind_prop ${window} ${property} -> (${resultVar})`);
 
   // Get the property value from the window
   let value = 0;
@@ -291,13 +266,11 @@ function get_wind_prop(machine: ZMachine, window: number, property: number): voi
 function set_font(machine: ZMachine, font: number, window: number = -3): void {
   const resultVar = machine.state.readByte();
 
-  machine.logger.debug(
-    `${machine.executor.op_pc.toString(16)} set_font ${font} ${window}`
-  );
+  machine.logger.debug(`${machine.executor.op_pc.toString(16)} set_font ${font} ${window}`);
 
   // Check if window parameter is valid for the current version
   if (window !== -3 && machine.state.version < 6) {
-    machine.logger.warn("Window parameter to set_font only valid in V6");
+    machine.logger.warn('Window parameter to set_font only valid in V6');
     // Force to current window for V5 and earlier
     window = -3;
   }
@@ -346,9 +319,7 @@ function buffer_screen(machine: ZMachine, mode: number): void {
   // Get current buffer mode to return as the result
   const currentMode = machine.screen.getBufferMode(machine);
 
-  machine.logger.debug(
-    `${machine.executor.op_pc.toString(16)} buffer_screen ${mode} -> (${resultVar})`
-  );
+  machine.logger.debug(`${machine.executor.op_pc.toString(16)} buffer_screen ${mode} -> (${resultVar})`);
 
   if (mode === -1) {
     // Force immediate update without changing buffer state
@@ -367,20 +338,13 @@ function buffer_screen(machine: ZMachine, mode: number): void {
 /**
  * Set text colors
  */
-function set_colour(
-  machine: ZMachine,
-  foreground: number,
-  background: number,
-  window: number = 0
-): void {
+function set_colour(machine: ZMachine, foreground: number, background: number, window: number = 0): void {
   if (machine.state.version < 5) {
     machine.logger.debug(`set_colour: ignoring in version < 5`);
     window = 0;
   }
 
-  machine.logger.debug(
-    `${machine.executor.op_pc.toString(16)} set_colour ${foreground} ${background} ${window}`
-  );
+  machine.logger.debug(`${machine.executor.op_pc.toString(16)} set_colour ${foreground} ${background} ${window}`);
 
   // Handle transparency (color 15) in Version 6
   if (machine.state.version === 6) {
@@ -394,33 +358,34 @@ function set_colour(
 
         if (!supportsTransparency) {
           // If transparency is not supported, ignore the request
-          machine.logger.warn("Transparency requested but not supported by interpreter");
+          machine.logger.warn('Transparency requested but not supported by interpreter');
           return;
         }
       } else {
         // No header extension table, assume no transparency support
-        machine.logger.warn("Transparency requested but header extension not present");
+        machine.logger.warn('Transparency requested but header extension not present');
         return;
       }
 
       // Check if foreground is also set to transparent (invalid)
       if (foreground === 15) {
-        machine.logger.warn("Transparent foreground not allowed, request ignored");
+        machine.logger.warn('Transparent foreground not allowed, request ignored');
         return;
       }
 
       // Check if current text style includes reverse video (invalid with transparency)
       const currentWindow = machine.screen.getOutputWindow(machine);
       const currentStyle = machine.screen.getWindowProperty(machine, currentWindow, 10);
-      if ((currentStyle & 1) !== 0) { // Reverse video bit
-        machine.logger.warn("Reverse video style not allowed with transparent background");
+      if ((currentStyle & 1) !== 0) {
+        // Reverse video bit
+        machine.logger.warn('Reverse video style not allowed with transparent background');
         return;
       }
     }
 
     // Ensure foreground is never transparent
     if (foreground === 15) {
-      machine.logger.warn("Transparent foreground not allowed, using default instead");
+      machine.logger.warn('Transparent foreground not allowed, using default instead');
       foreground = 1; // Use default foreground color instead
     }
   }
@@ -429,16 +394,13 @@ function set_colour(
   machine.screen.setTextColors(machine, window, foreground, background);
 }
 
-
 function set_true_colour(
   machine: ZMachine,
   foreground: number,
   background: number,
   window: number = -3 // Default to current window (magic value -3)
 ): void {
-  machine.logger.debug(
-    `set_true_colour ${foreground} ${background} ${window}`
-  );
+  machine.logger.debug(`set_true_colour ${foreground} ${background} ${window}`);
 
   // Magic values:
   // -1 = default setting
@@ -452,20 +414,20 @@ function set_true_colour(
 
   // Check that windows parameter is only used in V6
   if (window !== -3 && machine.state.version < 6) {
-    machine.logger.warn("Window parameter to set_true_colour only valid in V6");
+    machine.logger.warn('Window parameter to set_true_colour only valid in V6');
     window = -3; // Force to current window
   }
 
   // Handle foreground transparency in V6
   if (foreground === -4 && machine.state.version === 6) {
-    machine.logger.warn("Transparency requested for foreground - this is not permitted");
+    machine.logger.warn('Transparency requested for foreground - this is not permitted');
     foreground = -2; // Fall back to current color
   }
 
   // In minimal implementation, map to standard colors and call set_colour
   // For Version 6, note that window is already -3 (current) for V5
-  let standardFg = trueColorToStandard(foreground);
-  let standardBg = trueColorToStandard(background);
+  const standardFg = trueColorToStandard(foreground);
+  const standardBg = trueColorToStandard(background);
 
   // Call set_colour with the mapped standard colors
   if (machine.state.version === 6) {
@@ -493,36 +455,31 @@ function trueColorToStandard(trueColor: number): number {
   // in the standard 1-15 color palette
 
   // Extract RGB components (5 bits each)
-  const red = trueColor & 0x1F;
-  const green = (trueColor >> 5) & 0x1F;
-  const blue = (trueColor >> 10) & 0x1F;
+  const red = trueColor & 0x1f;
+  const green = (trueColor >> 5) & 0x1f;
+  const blue = (trueColor >> 10) & 0x1f;
 
   // Very basic mapping - a real implementation would be more sophisticated
-  if (red === 0 && green === 0 && blue === 0) return 2;  // black
-  if (red > 20 && green < 10 && blue < 10) return 3;     // red
-  if (red < 10 && green > 20 && blue < 10) return 4;     // green
-  if (red > 20 && green > 20 && blue < 10) return 5;     // yellow
-  if (red < 10 && green < 10 && blue > 20) return 6;     // blue
-  if (red > 20 && green < 10 && blue > 20) return 7;     // magenta
-  if (red < 10 && green > 20 && blue > 20) return 8;     // cyan
-  if (red > 20 && green > 20 && blue > 20) return 9;     // white
+  if (red === 0 && green === 0 && blue === 0) return 2; // black
+  if (red > 20 && green < 10 && blue < 10) return 3; // red
+  if (red < 10 && green > 20 && blue < 10) return 4; // green
+  if (red > 20 && green > 20 && blue < 10) return 5; // yellow
+  if (red < 10 && green < 10 && blue > 20) return 6; // blue
+  if (red > 20 && green < 10 && blue > 20) return 7; // magenta
+  if (red < 10 && green > 20 && blue > 20) return 8; // cyan
+  if (red > 20 && green > 20 && blue > 20) return 9; // white
 
   // Default to gray scale based on intensity
   const intensity = (red + green + blue) / 3;
-  if (intensity > 20) return 9;       // white
-  if (intensity > 15) return 10;      // light grey
-  if (intensity > 10) return 11;      // medium grey
-  if (intensity > 5) return 12;       // dark grey
-  return 2;                           // black
+  if (intensity > 20) return 9; // white
+  if (intensity > 15) return 10; // light grey
+  if (intensity > 10) return 11; // medium grey
+  if (intensity > 5) return 12; // dark grey
+  return 2; // black
 }
 
 // Helper function to store true colors in window properties
-function storeWindowTrueColors(
-  machine: ZMachine,
-  window: number,
-  foreground: number,
-  background: number
-): void {
+function storeWindowTrueColors(machine: ZMachine, window: number, foreground: number, background: number): void {
   // This would need integration with the window property system
   // Here's a conceptual implementation
 
@@ -531,79 +488,59 @@ function storeWindowTrueColors(
   // setWindowProperty(machine, window, 17, background);
 
   // For now, just log it
-  machine.logger.debug(
-    `Window ${window} true colors set to: fg=${foreground}, bg=${background}`
-  );
+  machine.logger.debug(`Window ${window} true colors set to: fg=${foreground}, bg=${background}`);
 }
 
 function set_margins(machine: ZMachine, left: number, right: number): void {
-  machine.logger.debug(
-    `${machine.executor.op_pc.toString(16)} set_margins ${left} ${right}`
-  );
+  machine.logger.debug(`${machine.executor.op_pc.toString(16)} set_margins ${left} ${right}`);
   machine.logger.warn(`set_margins ${left} ${right} -- not implemented`);
   throw new Error(`Unimplemented opcode: set_margins`);
 }
 
 function move_window(machine: ZMachine, window: number, x: number, y: number): void {
-  machine.logger.debug(
-    `${machine.executor.op_pc.toString(16)} move_window ${window} ${x} ${y}`
-  );
+  machine.logger.debug(`${machine.executor.op_pc.toString(16)} move_window ${window} ${x} ${y}`);
   machine.logger.warn(`move_window ${window} ${x} ${y} -- not implemented`);
   throw new Error(`Unimplemented opcode: move_window`);
 }
 
 function window_size(machine: ZMachine, window: number, width: number, height: number): void {
-  machine.logger.debug(
-    `${machine.executor.op_pc.toString(16)} window_size ${window} ${width} ${height}`
-  );
+  machine.logger.debug(`${machine.executor.op_pc.toString(16)} window_size ${window} ${width} ${height}`);
   machine.logger.warn(`window_size ${window} ${width} ${height} -- not implemented`);
   throw new Error(`Unimplemented opcode: window_size`);
 }
 
 function window_style(machine: ZMachine, window: number, style: number): void {
-  machine.logger.debug(
-    `${machine.executor.op_pc.toString(16)} window_style ${window} ${style}`
-  );
+  machine.logger.debug(`${machine.executor.op_pc.toString(16)} window_style ${window} ${style}`);
   machine.logger.warn(`window_style ${window} ${style} -- not implemented`);
   throw new Error(`Unimplemented opcode: window_style`);
 }
 
 function read_mouse(machine: ZMachine, window: number): void {
-  machine.logger.debug(
-    `${machine.executor.op_pc.toString(16)} read_mouse ${window}`
-  );
+  machine.logger.debug(`${machine.executor.op_pc.toString(16)} read_mouse ${window}`);
   machine.logger.warn(`read_mouse ${window} -- not implemented`);
   throw new Error(`Unimplemented opcode: read_mouse`);
 }
 
 function mouse_window(machine: ZMachine, window: number): void {
-  machine.logger.debug(
-    `${machine.executor.op_pc.toString(16)} mouse_window ${window}`
-  );
+  machine.logger.debug(`${machine.executor.op_pc.toString(16)} mouse_window ${window}`);
   machine.logger.warn(`mouse_window ${window} -- not implemented`);
   throw new Error(`Unimplemented opcode: mouse_window`);
 }
 
 function make_menu(machine: ZMachine, menu: number): void {
-  machine.logger.debug(
-    `${machine.executor.op_pc.toString(16)} make_menu ${menu}`
-  );
+  machine.logger.debug(`${machine.executor.op_pc.toString(16)} make_menu ${menu}`);
   machine.logger.warn(`make_menu ${menu} -- not implemented`);
   throw new Error(`Unimplemented opcode: make_menu`);
 }
 
 function scroll_window(machine: ZMachine, window: number, lines: number): void {
-  machine.logger.debug(
-    `${machine.executor.op_pc.toString(16)} scroll_window ${window} ${lines}`
-  );
+  machine.logger.debug(`${machine.executor.op_pc.toString(16)} scroll_window ${window} ${lines}`);
   machine.logger.warn(`scroll_window ${window} ${lines} -- not implemented`);
   throw new Error(`Unimplemented opcode: scroll_window`);
 }
 
 function put_wind_prop(machine: ZMachine, window: number, property: number): void {
-  machine.logger.debug(
-    `${machine.executor.op_pc.toString(16)} put_wind_prop ${window} ${property}`
-  );
+  machine.logger.debug(`${machine.executor.op_pc.toString(16)} put_wind_prop ${window} ${property}`);
   machine.logger.warn(`put_wind_prop ${window} ${property} -- not implemented`);
   throw new Error(`Unimplemented opcode: put_wind_prop`);
 }
@@ -612,31 +549,31 @@ function put_wind_prop(machine: ZMachine, window: number, property: number): voi
  * Export all I/O opcodes
  */
 export const ioOpcodes = {
-  split_window: opcode("split_window", split_window),
-  set_window: opcode("set_window", set_window),
-  erase_window: opcode("erase_window", erase_window),
-  erase_line: opcode("erase_line", erase_line),
-  set_cursor: opcode("set_cursor", set_cursor),
-  get_cursor: opcode("get_cursor", get_cursor),
-  set_text_style: opcode("set_text_style", set_text_style),
-  buffer_mode: opcode("buffer_mode", buffer_mode),
-  output_stream: opcode("output_stream", output_stream),
-  input_stream: opcode("input_stream", input_stream),
-  sread: opcode("sread", sread),
-  sound_effect: opcode("sound_effect", sound_effect),
-  read_char: opcode("read_char", read_char),
-  get_wind_prop: opcode("get_wind_prop", get_wind_prop),
-  set_font: opcode("set_font", set_font),
-  buffer_screen: opcode("buffer_screen", buffer_screen),
-  set_true_colour: opcode("set_true_colour", set_true_colour),
-  set_colour: opcode("set_colour", set_colour),
-  set_margins: opcode("set_margins", set_margins),
-  move_window: opcode("move_window", move_window),
-  window_size: opcode("window_size", window_size),
-  window_style: opcode("window_style", window_style),
-  read_mouse: opcode("read_mouse", read_mouse),
-  mouse_window: opcode("mouse_window", mouse_window),
-  make_menu: opcode("make_menu", make_menu),
-  scroll_window: opcode("scroll_window", scroll_window),
-  put_wind_prop: opcode("put_wind_prop", put_wind_prop),
+  split_window: opcode('split_window', split_window),
+  set_window: opcode('set_window', set_window),
+  erase_window: opcode('erase_window', erase_window),
+  erase_line: opcode('erase_line', erase_line),
+  set_cursor: opcode('set_cursor', set_cursor),
+  get_cursor: opcode('get_cursor', get_cursor),
+  set_text_style: opcode('set_text_style', set_text_style),
+  buffer_mode: opcode('buffer_mode', buffer_mode),
+  output_stream: opcode('output_stream', output_stream),
+  input_stream: opcode('input_stream', input_stream),
+  sread: opcode('sread', sread),
+  sound_effect: opcode('sound_effect', sound_effect),
+  read_char: opcode('read_char', read_char),
+  get_wind_prop: opcode('get_wind_prop', get_wind_prop),
+  set_font: opcode('set_font', set_font),
+  buffer_screen: opcode('buffer_screen', buffer_screen),
+  set_true_colour: opcode('set_true_colour', set_true_colour),
+  set_colour: opcode('set_colour', set_colour),
+  set_margins: opcode('set_margins', set_margins),
+  move_window: opcode('move_window', move_window),
+  window_size: opcode('window_size', window_size),
+  window_style: opcode('window_style', window_style),
+  read_mouse: opcode('read_mouse', read_mouse),
+  mouse_window: opcode('mouse_window', mouse_window),
+  make_menu: opcode('make_menu', make_menu),
+  scroll_window: opcode('scroll_window', scroll_window),
+  put_wind_prop: opcode('put_wind_prop', put_wind_prop),
 };
