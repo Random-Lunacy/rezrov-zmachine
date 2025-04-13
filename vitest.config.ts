@@ -12,5 +12,10 @@ export default defineConfig({
       reporter: ['text', 'json', 'html'],
       exclude: ['**/node_modules/**', '**/dist/**'],
     },
+    testTimeout: 10000,
+    reporters: ['default', 'html'],
+    outputFile: {
+      html: './coverage/test-report.html',
+    },
   },
 });

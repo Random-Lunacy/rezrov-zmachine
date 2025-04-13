@@ -1,26 +1,18 @@
+// src/core/execution/SuspendState.ts
 import { InputState } from './InputState';
 
 /**
- * Exception that is thrown when the interpreter needs to suspend execution
- * to wait for user input. The execution should be resumed after input is received.
+ * Exception thrown when execution needs to be suspended for user input
  */
 export class SuspendState extends Error {
-  /**
-   * Create a new suspend state for user input
-   * @param state Input state details
-   */
-  constructor(state: InputState) {
+  constructor(private _state: InputState) {
     super('Execution suspended waiting for user input');
-    this._state = state;
-
-    // Maintain proper prototype chain for instanceof checks
+    // Fix for error subclassing in TypeScript
     Object.setPrototypeOf(this, SuspendState.prototype);
   }
 
-  private readonly _state: InputState;
-
   /**
-   * Get the input state details
+   * Gets the input state that caused the suspension
    */
   get state(): InputState {
     return this._state;

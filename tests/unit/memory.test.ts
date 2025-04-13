@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeAll } from 'vitest';
-import { Memory } from '../../src/core/memory/Memory';
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { beforeAll, describe, expect, it } from 'vitest';
+import { Memory } from '../../src/core/memory/Memory';
 
 describe('Memory with Zork fixture', () => {
   let memory: Memory;

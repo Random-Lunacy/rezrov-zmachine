@@ -1,157 +1,82 @@
-# rezrov-zmachine
+# Testing Guide for rezrov-zmachine
 
-A modular Z-machine interpreter written in TypeScript, designed to be used as a dependency in other projects.
+This directory contains the test suite for the rezrov-zmachine project. The tests are organized into different categories to help manage the testing process efficiently.
 
-## What is the Z-machine?
+## Test Structure
 
-The Z-machine is a virtual machine developed by Infocom in 1979 for their interactive fiction titles. It was one of the first portable virtual machines, allowing games to be developed once and played on many different computer platforms. Classic games like Zork, Hitchhiker's Guide to the Galaxy, and many other text adventures ran on the Z-machine.
+- **Unit Tests**: Located in `tests/unit/`. These tests verify individual components in isolation.
+- **Integration Tests**: Located in `tests/integration/`. These tests verify that components work together correctly.
+- **Compliance Tests**: Located in `tests/compliance/`. These tests verify that the implementation conforms to the Z-Machine specification.
+- **Fixtures**: Located in `tests/fixtures/`. These contain test data and mock content for tests.
+- **Mocks**: Located in `tests/mocks/`. These contain mock objects used in testing.
 
-## Project Features
+## Running Tests
 
-- **Fully modular design**: Clear separation between core interpreter, UI, storage, and parsing components
-- **TypeScript implementation**: Strong typing for better development experience
-- **High compatibility**: Support for Z-machine versions 1 through 8
-- **Extensible interfaces**: Easily create custom UI and storage implementations
-- **Modern architecture**: Promise-based APIs for asynchronous operations
-- **Comprehensive object model**: Full support for the Z-machine object system
-
-## Installation
+The project uses [Vitest](https://vitest.dev/) as the testing framework. You can run tests using the following npm scripts:
 
 ```bash
-npm install rezrov-zmachine
+# Run all tests
+npm test
+
+# Run all tests with coverage report
+npm run test:coverage
+
+# Run tests in watch mode (for development)
+npm run test:watch
+
+# Run specific test categories
+npm run test:unit         # Only unit tests
+npm run test:integration  # Only integration tests
+npm run test:compliance   # Only compliance tests
+
+# Run unit tests with coverage report
+npm run test:unit-coverage
 ```
 
-## Basic Usage
+## Writing Tests
+
+When writing new tests, follow these conventions:
+
+1. Place tests in the appropriate category folder
+2. Name test files with the `.test.ts` extension
+3. Group related tests using `describe` blocks
+4. Use descriptive test names in `it` or `test` blocks
+5. Use the provided mock objects when appropriate
+
+### Example Test Structure
 
 ```typescript
-import { ZMachine, Memory, ConsoleScreen, FileStorage, Logger, LogLevel } from 'rezrov-zmachine';
-import fs from 'fs';
+import { describe, it, expect } from 'vitest';
+import { SomeComponent } from '../../src/path/to/component';
 
-// Load a story file
-const storyData = fs.readFileSync('zork1.z3');
+describe('SomeComponent', () => {
+  describe('someMethod', () => {
+    it('should handle normal input correctly', () => {
+      // Arrange
+      const component = new SomeComponent();
 
-// Create the components
-const logger = new Logger(LogLevel.INFO);
-const memory = new Memory(storyData);
-const screen = new ConsoleScreen(logger);
-const storage = new FileStorage('./saves');
+      // Act
+      const result = component.someMethod('input');
 
-// Create and run the Z-machine
-const machine = new ZMachine(memory, logger, screen, storage);
-machine.execute();
+      // Assert
+      expect(result).toBe('expected output');
+    });
+
+    it('should handle edge cases', () => {
+      // Test edge cases
+    });
+  });
+});
 ```
 
-## Project Structure
+## Coverage Reports
 
-```
-src/
-├── core/           # Core Z-machine functionality
-│   ├── memory/     # Memory management
-│   ├── execution/  # Instruction execution
-│   ├── objects/    # Object system
-│   └── opcodes/    # Opcode implementations
-├── interpreter/    # Z-code interpreter
-├── ui/             # User interface components
-│   ├── screen/     # Screen handling
-│   ├── input/      # Input processing
-│   └── multimedia/ # Graphics and sound
-├── parsers/        # Text parsing
-├── storage/        # Save/load functionality
-└── utils/          # Utilities
-```
+After running tests with the `--coverage` flag, you can find the coverage report in the `coverage` directory:
 
-## Creating a Custom Screen Implementation
+- Text summary in the console output
+- HTML report at `coverage/index.html`
+- JSON data at `coverage/coverage-final.json`
 
-The interpreter is designed to work with any UI system. You can create your own screen implementation by implementing the `Screen` interface:
+## Test Fixtures
 
-```typescript
-import { Screen, Capabilities, ScreenSize, ZMachine, InputState } from 'rezrov-zmachine';
-
-export class MyCustomScreen implements Screen {
-  getCapabilities(): Capabilities {
-    return {
-      hasColors: true,
-      hasBold: true,
-      hasItalic: true,
-      hasReverseVideo: true,
-      hasFixedPitch: true,
-      hasSplitWindow: true,
-      hasDisplayStatusBar: true,
-      hasPictures: false,
-      hasSound: false,
-      hasTimedKeyboardInput: false
-    };
-  }
-
-  getSize(): ScreenSize {
-    return { rows: 25, cols: 80 };
-  }
-
-  print(machine: ZMachine, text: string): void {
-    // Your implementation here
-  }
-
-  // Additional methods for the Screen interface...
-}
-```
-
-## Custom Storage Implementation
-
-Similarly, you can create your own storage implementation for save/restore functionality:
-
-```typescript
-import { Storage, Snapshot } from 'rezrov-zmachine';
-
-export class MyCustomStorage implements Storage {
-  saveSnapshot(snapshot: Snapshot): void {
-    // Your implementation here
-  }
-
-  loadSnapshot(): Snapshot {
-    // Your implementation here
-  }
-}
-```
-
-## Working with Game Objects
-
-The Z-machine has a sophisticated object system. You can interact with game objects like this:
-
-```typescript
-// Get an object by number
-const obj = machine.getGameState().getObject(42);
-
-// Get object attributes and properties
-if (obj && obj.hasAttribute(21)) {
-  console.log(`Object ${obj.name} is a container`);
-  const capacity = obj.getProperty(18);
-  console.log(`It can hold ${capacity} items`);
-}
-
-// Modify objects
-obj.setAttribute(10);  // Make it openable
-obj.clearAttribute(2); // Make it not locked
-
-// Move objects in the object tree
-const box = machine.getGameState().getObject(23);
-const key = machine.getGameState().getObject(37);
-if (box && key) {
-  key.parent = box;  // Put the key in the box
-}
-```
-
-## Examples
-
-Check the `examples` directory for complete working examples:
-
-- `BasicInterpreter.ts` - A simple command-line interpreter
-- `GameObjectExample.ts` - Exploring the game object tree
-- `WebInterpreter.ts` - A web-based interpreter
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## License
-
-MIT
+Test fixtures should be placed in the `fixtures` directory. For Z-machine story files used in testing, consider adding small, focused story files that test specific functionality rather than using full games.
