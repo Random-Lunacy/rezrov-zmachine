@@ -25,30 +25,38 @@ import { opcode } from './base';
  */
 function call_1s(machine: ZMachine, routine: number): void {
   const resultVar = machine.state.readByte();
+  machine.state.logger.debug(`${hex(machine.state.pc)} call_1s ${hex(routine)} -> (${hex(resultVar)})`);
+
+  const unpackedAddress = validateAndUnpackRoutine(machine, routine);
+  if (unpackedAddress === -1) {
+    throw new Error(`Invalid routine address or header: ${routine}`);
+  }
 
   if (routine === 0) {
-    machine.state.logger.debug(`${hex(machine.state.pc)} call_1s ${hex(routine)} -> (${hex(resultVar)})`);
     machine.state.storeVariable(resultVar, 0);
     return;
   }
 
-  const packedAddress = machine.state.unpackRoutineAddress(routine);
-  machine.state.logger.debug(`${hex(machine.state.pc)} call_1s ${hex(packedAddress)} -> (${hex(resultVar)})`);
-  machine.state.callRoutine(packedAddress, resultVar);
+  machine.state.callRoutine(unpackedAddress, resultVar);
 }
 
 /**
  * Call a routine with 1 argument, not storing the result
  */
 function call_1n(machine: ZMachine, routine: number): void {
+  machine.state.logger.debug(`${hex(machine.state.pc)} call_1n ${hex(routine)}`);
+
+  const unpackedAddress = validateAndUnpackRoutine(machine, routine);
+  if (unpackedAddress === -1) {
+    throw new Error(`Invalid routine address or header: ${routine}`);
+  }
+
   if (routine === 0) {
-    machine.state.logger.debug(`${hex(machine.state.pc)} call_1n ${hex(routine)}`);
+    // No-op for routine 0
     return;
   }
 
-  const packedAddress = machine.state.unpackRoutineAddress(routine);
-  machine.state.logger.debug(`${hex(machine.state.pc)} call_1n ${hex(packedAddress)}`);
-  machine.state.callRoutine(packedAddress, null);
+  machine.state.callRoutine(unpackedAddress, null);
 }
 
 /**
@@ -56,30 +64,38 @@ function call_1n(machine: ZMachine, routine: number): void {
  */
 function call_2s(machine: ZMachine, routine: number, arg1: number): void {
   const resultVar = machine.state.readByte();
+  machine.state.logger.debug(`${hex(machine.state.pc)} call_2s ${hex(routine)} -> (${hex(resultVar)})`);
+
+  const unpackedAddress = validateAndUnpackRoutine(machine, routine);
+  if (unpackedAddress === -1) {
+    throw new Error(`Invalid routine address or header: ${routine}`);
+  }
 
   if (routine === 0) {
-    machine.state.logger.debug(`${hex(machine.state.pc)} call_2s ${hex(routine)} -> (${hex(resultVar)})`);
     machine.state.storeVariable(resultVar, 0);
     return;
   }
 
-  const packedAddress = machine.state.unpackRoutineAddress(routine);
-  machine.state.logger.debug(`${hex(machine.state.pc)} call_2s ${hex(packedAddress)} ${arg1} -> (${hex(resultVar)})`);
-  machine.state.callRoutine(packedAddress, resultVar, arg1);
+  machine.state.callRoutine(unpackedAddress, resultVar, arg1);
 }
 
 /**
  * Call a routine with 2 arguments, not storing the result
  */
 function call_2n(machine: ZMachine, routine: number, arg1: number): void {
+  machine.state.logger.debug(`${hex(machine.state.pc)} call_2n ${hex(routine)}`);
+
+  const unpackedAddress = validateAndUnpackRoutine(machine, routine);
+  if (unpackedAddress === -1) {
+    throw new Error(`Invalid routine address or header: ${routine}`);
+  }
+
   if (routine === 0) {
-    machine.state.logger.debug(`${hex(machine.state.pc)} call_2n ${hex(routine)}`);
+    // No-op for routine 0
     return;
   }
 
-  const packedAddress = machine.state.unpackRoutineAddress(routine);
-  machine.state.logger.debug(`${hex(machine.state.pc)} call_2n ${hex(packedAddress)} ${arg1}`);
-  machine.state.callRoutine(packedAddress, null, arg1);
+  machine.state.callRoutine(unpackedAddress, null, arg1);
 }
 
 /**
@@ -88,20 +104,19 @@ function call_2n(machine: ZMachine, routine: number, arg1: number): void {
  */
 function call_vs(machine: ZMachine, routine: number, ...args: Array<number>): void {
   const resultVar = machine.state.readByte();
+  machine.state.logger.debug(`${hex(machine.state.pc)} call_vs ${hex(routine)} -> (${hex(resultVar)})`);
+
+  const unpackedAddress = validateAndUnpackRoutine(machine, routine);
+  if (unpackedAddress === -1) {
+    throw new Error(`Invalid routine address or header: ${routine}`);
+  }
 
   if (routine === 0) {
-    machine.state.logger.debug(`${hex(machine.state.pc)} call_vs ${hex(routine)} -> (${hex(resultVar)})`);
     machine.state.storeVariable(resultVar, 0);
     return;
   }
 
-  const packedAddress = machine.state.unpackRoutineAddress(routine);
-  machine.state.logger.debug(
-    `${hex(machine.state.pc)} call_vs ${hex(packedAddress)} ${args.map((a) => hex(a)).join(', ')} -> (${hex(
-      resultVar
-    )})`
-  );
-  machine.state.callRoutine(packedAddress, resultVar, ...args);
+  machine.state.callRoutine(unpackedAddress, resultVar, ...args);
 }
 
 /**
@@ -109,52 +124,57 @@ function call_vs(machine: ZMachine, routine: number, ...args: Array<number>): vo
  */
 function call_vs2(machine: ZMachine, routine: number, ...args: Array<number>): void {
   const resultVar = machine.state.readByte();
+  machine.state.logger.debug(`${hex(machine.state.pc)} call_vs2 ${hex(routine)} -> (${hex(resultVar)})`);
+
+  const unpackedAddress = validateAndUnpackRoutine(machine, routine);
+  if (unpackedAddress === -1) {
+    throw new Error(`Invalid routine address or header: ${routine}`);
+  }
 
   if (routine === 0) {
-    machine.state.logger.debug(`${hex(machine.state.pc)} call_vs2 ${hex(routine)} -> (${hex(resultVar)})`);
     machine.state.storeVariable(resultVar, 0);
     return;
   }
 
-  const packedAddress = machine.state.unpackRoutineAddress(routine);
-  machine.state.logger.debug(
-    `${hex(machine.state.pc)} call_vs2 ${hex(packedAddress)} ${args.map((a) => hex(a)).join(', ')} -> (${hex(
-      resultVar
-    )})`
-  );
-  machine.state.callRoutine(packedAddress, resultVar, ...args);
+  machine.state.callRoutine(unpackedAddress, resultVar, ...args);
 }
 
 /**
  * Call a routine with variable number of arguments, not storing the result
  */
 function call_vn(machine: ZMachine, routine: number, ...args: Array<number>): void {
+  machine.state.logger.debug(`${hex(machine.state.pc)} call_vn ${hex(routine)}`);
+
+  const unpackedAddress = validateAndUnpackRoutine(machine, routine);
+  if (unpackedAddress === -1) {
+    throw new Error(`Invalid routine address or header: ${routine}`);
+  }
+
   if (routine === 0) {
-    machine.state.logger.debug(`${hex(machine.state.pc)} call_vn ${hex(routine)}`);
+    // No-op for routine 0
     return;
   }
 
-  const packedAddress = machine.state.unpackRoutineAddress(routine);
-  machine.state.logger.debug(
-    `${hex(machine.state.pc)} call_vn ${hex(packedAddress)} ${args.map((a) => hex(a)).join(', ')}`
-  );
-  machine.state.callRoutine(packedAddress, null, ...args);
+  machine.state.callRoutine(unpackedAddress, null, ...args);
 }
 
 /**
  * Call a routine with variable number of arguments, but specifically 2 at minimum, not storing the result
  */
 function call_vn2(machine: ZMachine, routine: number, ...args: Array<number>): void {
+  machine.state.logger.debug(`${hex(machine.state.pc)} call_vn2 ${hex(routine)}`);
+
+  const unpackedAddress = validateAndUnpackRoutine(machine, routine);
+  if (unpackedAddress === -1) {
+    throw new Error(`Invalid routine address or header: ${routine}`);
+  }
+
   if (routine === 0) {
-    machine.state.logger.debug(`${hex(machine.state.pc)} call_vn2 ${hex(routine)}`);
+    // No-op for routine 0
     return;
   }
 
-  const packedAddress = machine.state.unpackRoutineAddress(routine);
-  machine.state.logger.debug(
-    `${hex(machine.state.pc)} call_vn2 ${hex(packedAddress)} ${args.map((a) => hex(a)).join(', ')}`
-  );
-  machine.state.callRoutine(packedAddress, null, ...args);
+  machine.state.callRoutine(unpackedAddress, null, ...args);
 }
 
 /**
@@ -181,6 +201,37 @@ function zThrow(machine: ZMachine, returnVal: number, frameNum: number): void {
 
   // Return with the specified value
   machine.state.returnFromRoutine(returnVal);
+}
+
+/**
+ * Helper function to validate and unpack routine addresses
+ * Used by all call opcodes to ensure consistent behavior
+ *
+ * @param machine The Z-Machine instance
+ * @param routine The packed routine address
+ * @returns The unpacked address, 0 for routine 0 (which is a no-op),or -1 for invalid addresses
+ */
+function validateAndUnpackRoutine(machine: ZMachine, routine: number): number {
+  // Special case for routine 0 (no-op)
+  if (routine === 0) {
+    return 0;
+  }
+
+  try {
+    // Unpack the routine address
+    const unpackedAddress = machine.state.memory.unpackRoutineAddress(routine);
+
+    // Validate the routine header
+    if (!machine.state.memory.validateRoutineHeader(unpackedAddress)) {
+      machine.state.logger.warn(`Invalid routine header at address: 0x${unpackedAddress.toString(16)}`);
+      return -1;
+    }
+
+    return unpackedAddress;
+  } catch (e) {
+    machine.state.logger.error(`Error unpacking routine address: ${e}`);
+    return -1;
+  }
 }
 
 /**

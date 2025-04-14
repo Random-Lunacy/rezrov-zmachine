@@ -249,12 +249,17 @@ export class GameState {
    * @param args Arguments to pass to the routine
    */
   callRoutine(routineAddress: Address, returnVar: number | null, ...args: number[]): void {
-    // Validate routine address
+    // Handle 0 address as a special case
     if (routineAddress === 0) {
       if (returnVar !== null) {
         this.storeVariable(returnVar, 0);
       }
       return;
+    }
+
+    // Validate routine address is in high memory and properly aligned
+    if (!this.memory.isHighMemory(routineAddress) || !this.memory.checkPackedAddressAlignment(routineAddress, true)) {
+      throw new Error(`Invalid routine address: 0x${routineAddress.toString(16)}`);
     }
 
     // Read the number of locals
@@ -352,44 +357,6 @@ export class GameState {
    */
   getRootObjects(): GameObject[] {
     return this._objectFactory.findRootObjects();
-  }
-
-  /**
-   * Unpack a routine address based on Z-machine version
-   * @param packedAddr Packed address
-   * @returns Unpacked memory address
-   */
-  unpackRoutineAddress(packedAddr: Address): Address {
-    if (this._version <= 3) {
-      return 2 * packedAddr;
-    } else if (this._version <= 5) {
-      return 4 * packedAddr;
-    } else if (this._version <= 7) {
-      return 4 * packedAddr + this._routinesOffset;
-    } else if (this._version === 8) {
-      return 8 * packedAddr;
-    } else {
-      throw new Error(`Unknown version: ${this._version}`);
-    }
-  }
-
-  /**
-   * Unpack a string address based on Z-machine version
-   * @param packedAddr Packed address
-   * @returns Unpacked memory address
-   */
-  unpackStringAddress(packedAddr: Address): Address {
-    if (this._version <= 3) {
-      return 2 * packedAddr;
-    } else if (this._version <= 5) {
-      return 4 * packedAddr;
-    } else if (this._version <= 7) {
-      return 4 * packedAddr + this._stringsOffset;
-    } else if (this._version === 8) {
-      return 8 * packedAddr;
-    } else {
-      throw new Error(`Unknown version: ${this._version}`);
-    }
   }
 
   /**
@@ -536,7 +503,7 @@ export class GameState {
       this._textParser = new TextParser(this._memory, this.logger);
     }
 
-    this._textParser.tokeniseLine(textBuffer, parseBuffer, dict || this._dict, flag);
+    this._textParser.tokenizeLine(textBuffer, parseBuffer, dict || this._dict, flag);
   }
 
   /**
