@@ -3,6 +3,7 @@ import { InputState } from '../core/execution/InputState';
 import { UserStackManager } from '../core/execution/UserStack';
 import { Memory } from '../core/memory/Memory';
 import { Storage } from '../storage/interfaces';
+import { QuetzalStorage } from '../storage/QuetzalStorage';
 import { InputHandler } from '../ui/input/InputHandler';
 import { Screen } from '../ui/screen/interfaces';
 import { HeaderLocation } from '../utils/constants';
@@ -39,7 +40,7 @@ export class ZMachine {
     this._state = new GameState(this._memory, logger);
 
     // Initialize executor
-    this._executor = new Executor(this._state, this._logger);
+    this._executor = new Executor(this, this._logger);
 
     // Initialize input handler
     this._inputHandler = new InputHandler(this, this._screen);
@@ -197,13 +198,7 @@ export class ZMachine {
    * @returns True if the save was successful
    */
   saveGame(): boolean {
-    try {
-      this._storage.saveSnapshot(this._state.createSnapshot());
-      return true;
-    } catch (e) {
-      this._logger.error(`Failed to save game: ${e}`);
-      return false;
-    }
+    return this.saveGameQuetzal();
   }
 
   /**
@@ -211,14 +206,7 @@ export class ZMachine {
    * @returns True if the restore was successful
    */
   restoreGame(): boolean {
-    try {
-      const snapshot = this._storage.loadSnapshot();
-      this._state.restoreFromSnapshot(snapshot);
-      return true;
-    } catch (e) {
-      this._logger.error(`Failed to restore game: ${e}`);
-      return false;
-    }
+    return this.restoreGameQuetzal();
   }
 
   /**
@@ -439,5 +427,74 @@ export class ZMachine {
    */
   quit(): void {
     this._executor.quit();
+  }
+
+  /**
+   * Create a Quetzal storage instance
+   * @param savePath The directory to save files to
+   * @param saveFilename The filename to save to
+   * @returns A new QuetzalStorage instance
+   */
+  createQuetzalStorage(savePath: string = '.', saveFilename: string = 'save.qzl'): QuetzalStorage {
+    const quetzalStorage = new QuetzalStorage(this.logger, this._memory.buffer, savePath, saveFilename);
+    return quetzalStorage;
+  }
+
+  /**
+   * Save the current state to a Quetzal file
+   * @param filename Optional filename to save to
+   * @returns True if the save was successful
+   */
+  saveGameQuetzal(filename?: string): boolean {
+    try {
+      // Create a Quetzal storage if we don't have one
+      if (!(this._storage instanceof QuetzalStorage)) {
+        this._storage = this.createQuetzalStorage();
+      }
+
+      // Set filename if provided
+      if (filename && this._storage instanceof QuetzalStorage) {
+        this._storage.setFilename(filename);
+      }
+
+      // Create a snapshot and save it
+      const snapshot = this._state.createSnapshot();
+      this._storage.saveSnapshot(snapshot);
+
+      return true;
+    } catch (e) {
+      this.logger.error(`Failed to save game: ${e}`);
+      return false;
+    }
+  }
+
+  /**
+   * Restore a saved state from a Quetzal file
+   * @param filename Optional filename to restore from
+   * @returns True if the restore was successful
+   */
+  restoreGameQuetzal(filename?: string): boolean {
+    try {
+      // Create a Quetzal storage if we don't have one
+      if (!(this._storage instanceof QuetzalStorage)) {
+        this._storage = this.createQuetzalStorage();
+      }
+
+      // Set filename if provided
+      if (filename && this._storage instanceof QuetzalStorage) {
+        this._storage.setFilename(filename);
+      }
+
+      // Load the snapshot
+      const snapshot = this._storage.loadSnapshot();
+
+      // Restore from the snapshot
+      this._state.restoreFromSnapshot(snapshot);
+
+      return true;
+    } catch (e) {
+      this.logger.error(`Failed to restore game: ${e}`);
+      return false;
+    }
   }
 }

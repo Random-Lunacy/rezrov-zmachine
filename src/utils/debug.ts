@@ -21,7 +21,7 @@ export function hex(v: number): string {
  * @param machine The Z-machine instance
  */
 export function dumpHeader(machine: ZMachine): void {
-  const memory = machine.getGameState().memory;
+  const memory = machine..state.memory;
   const logger = machine.logger;
 
   logger.debug('Header Information:');
@@ -53,7 +53,7 @@ export function dumpHeader(machine: ZMachine): void {
  * @param machine The Z-machine instance
  */
 export function dumpObjectTable(machine: ZMachine): void {
-  const state = machine.getGameState();
+  const state = machine..state;
   const logger = machine.logger;
   const rootObjects: Array<GameObject> = [];
 
@@ -110,7 +110,7 @@ function dumpObjectHierarchy(obj: GameObject, logger: any, indent = 0): void {
  * @param machine The Z-machine instance
  */
 export function dumpDictionary(machine: ZMachine): void {
-  const state = machine.getGameState();
+  const state = machine..state;
   const memory = state.memory;
   const logger = machine.logger;
 
@@ -152,7 +152,7 @@ export function dumpDictionary(machine: ZMachine): void {
  * @param parseBuffer Address of the parse buffer
  */
 export function dumpParseBuffer(machine: ZMachine, parseBuffer: Address): void {
-  const memory = machine.getGameState().memory;
+  const memory = machine..state.memory;
   const logger = machine.logger;
 
   const maxTokens = memory.getByte(parseBuffer);
@@ -179,7 +179,7 @@ export function dumpParseBuffer(machine: ZMachine, parseBuffer: Address): void {
  * @param machine The Z-machine instance
  */
 export function dumpState(machine: ZMachine): void {
-  const state = machine.getGameState();
+  const state = machine..state;
   const logger = machine.logger;
 
   logger.debug('=== Z-Machine State ===');

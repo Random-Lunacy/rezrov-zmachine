@@ -377,7 +377,7 @@ The Z-machine has a sophisticated object system. You can interact with game obje
 
 ```typescript
 // Get an object by number
-const obj = machine.getGameState().getObject(42);
+const obj = machine..state.getObject(42);
 
 // Get object attributes and properties
 if (obj && obj.hasAttribute(21)) {
@@ -391,8 +391,8 @@ obj.setAttribute(10); // Make it openable
 obj.clearAttribute(2); // Make it not locked
 
 // Move objects in the object tree
-const box = machine.getGameState().getObject(23);
-const key = machine.getGameState().getObject(37);
+const box = machine..state.getObject(23);
+const key = machine..state.getObject(37);
 if (box && key) {
   key.parent = box; // Put the key in the box
 }
