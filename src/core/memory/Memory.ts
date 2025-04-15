@@ -5,13 +5,6 @@ import { HeaderLocation } from '../../utils/constants';
 import { Logger } from '../../utils/log';
 
 export class Memory {
-  private _mem: Buffer;
-  private logger: Logger;
-
-  private _dynamicMemoryEnd: number = 0;
-  private _highMemoryStart: number = 0;
-  private _version: number = 0;
-
   /**
    * Creates a new Memory instance from a story file
    */
@@ -20,11 +13,18 @@ export class Memory {
       const buffer = readFileSync(filePath);
       return new Memory(buffer, options);
     } catch (e) {
-      const logger = options?.logger || new Logger();
+      const logger = options?.logger || new Logger('Memory.fromFile');
       logger.error(`Failed to load story file: ${e}`);
       throw new Error(`Failed to load story file: ${e}`);
     }
   }
+
+  private _mem: Buffer;
+  private logger: Logger;
+
+  private _dynamicMemoryEnd: number = 0;
+  private _highMemoryStart: number = 0;
+  private _version: number = 0;
 
   /**
    * Creates a new Memory instance
@@ -39,7 +39,7 @@ export class Memory {
     }
   ) {
     this._mem = buffer;
-    this.logger = options?.logger || new Logger();
+    this.logger = options?.logger || new Logger('Memory');
 
     // Read the version first as many validations depend on it
     this._version = this._mem[HeaderLocation.Version];

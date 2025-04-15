@@ -13,12 +13,23 @@ export class Executor {
   private _op_pc: Address = 0;
   private _suspended: boolean = false;
   private _suspendedInputState: InputState | null = null;
+  private logger: Logger = new Logger('Executor');
+
   // Opcode tables
   private op0: Array<Opcode>;
+  private op1: Array<Opcode>;
+  private op2: Array<Opcode>;
+  private opv: Array<Opcode>;
+  private opext: Array<Opcode>;
+
   constructor(
     private zMachine: ZMachine,
-    private logger: Logger
+    options?: {
+      logger?: Logger;
+    }
   ) {
+    this.logger = options?.logger || new Logger('Executor');
+
     // Initialize opcode tables
     this.op0 = opcodes.op0;
     this.op1 = opcodes.op1;
@@ -26,11 +37,6 @@ export class Executor {
     this.opv = opcodes.opv;
     this.opext = opcodes.opext;
   }
-
-  private op1: Array<Opcode>;
-  private op2: Array<Opcode>;
-  private opv: Array<Opcode>;
-  private opext: Array<Opcode>;
 
   /**
    * Main execution loop that runs until program termination or suspension

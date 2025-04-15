@@ -33,7 +33,7 @@ function print_addr(machine: ZMachine, stringAddr: number): void {
  * Print a string at a packed address
  */
 function print_paddr(machine: ZMachine, packedAddr: number): void {
-  const addr = machine.state.unpackStringAddress(packedAddr);
+  const addr = machine.state.memory.unpackStringAddress(packedAddr);
   machine.logger.debug(`print_paddr ${packedAddr} -> ${addr}`);
 
   machine.screen.print(machine, decodeZString(machine.memory, machine.memory.getZString(addr), true));

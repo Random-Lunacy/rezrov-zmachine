@@ -9,15 +9,16 @@ import { GameObject } from './GameObject';
  */
 class ManagedGameObject extends GameObject {
   private factory: GameObjectFactory;
+
   constructor(
     memory: Memory,
-    logger: Logger,
     version: number,
     objTable: number,
     objnum: number,
-    factory: GameObjectFactory
+    factory: GameObjectFactory,
+    options?: { logger?: Logger }
   ) {
-    super(memory, logger, version, objTable, objnum);
+    super(memory, version, objTable, objnum, options);
     this.factory = factory;
   }
 
@@ -40,6 +41,8 @@ export class GameObjectFactory {
   private version: number;
   private objTable: number;
   private objectCache: Map<number, GameObject>;
+  private hasOptionsLogger: boolean;
+
   /**
    * Create a new GameObjectFactory
    * @param memory Memory access
@@ -47,12 +50,15 @@ export class GameObjectFactory {
    * @param version Z-machine version
    * @param objTable Object table address
    */
-  constructor(memory: Memory, logger: Logger, version: number, objTable: number) {
+  constructor(memory: Memory, logger: Logger, version: number, objTable: number, options?: { logger?: Logger }) {
     this.memory = memory;
     this.logger = logger;
     this.version = version;
     this.objTable = objTable;
     this.objectCache = new Map<number, GameObject>();
+    this.hasOptionsLogger = !!options?.logger;
+    this.hasOptionsLogger = options?.logger !== undefined;
+    this.logger = options?.logger || new Logger('GameObjectFactory');
 
     this.logger.debug(`Created GameObjectFactory for version ${version} object table at ${objTable.toString(16)}`);
   }
@@ -89,8 +95,14 @@ export class GameObjectFactory {
       return obj;
     }
 
-    // Create and cache new object
-    obj = new ManagedGameObject(this.memory, this.logger, this.version, this.objTable, objnum, this);
+    this.logger.debug(`Creating new object ${objnum}`);
+    if (this.hasOptionsLogger) {
+      obj = new ManagedGameObject(this.memory, this.version, this.objTable, objnum, this, { logger: this.logger }); // Pass logger in options
+    } else {
+      obj = new ManagedGameObject(this.memory, this.version, this.objTable, objnum, this);
+    }
+
+    // Cache the object for future use
     this.objectCache.set(objnum, obj);
 
     return obj;

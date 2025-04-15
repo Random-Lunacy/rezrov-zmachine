@@ -30,15 +30,20 @@ export interface UserStack {
  * No underflow checking is performed by the Z-machine itself.
  */
 export class UserStackManager {
+  private logger: Logger;
+
   /**
    * Creates a new user stack manager
    * @param memory The memory instance
-   * @param logger The logger to use
    */
   constructor(
     private memory: Memory,
-    private logger: Logger
-  ) {}
+    options?: {
+      logger?: Logger;
+    }
+  ) {
+    this.logger = options?.logger || new Logger('UserStackManager');
+  }
 
   /**
    * Pushes a value onto a user stack
@@ -184,7 +189,7 @@ export class UserStackManager {
           }
         } catch (e) {
           // Address out of bounds or in read-only memory
-          break;
+          throw new Error(`Error reading memory at 0x${addr.toString(16)}: ${e}`);
         }
       }
     }

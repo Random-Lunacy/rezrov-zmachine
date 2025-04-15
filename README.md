@@ -103,23 +103,6 @@ npm run test:integration
 npm run test:compliance
 ```
 
-## Installation
-
-### From npm (not yet published)
-
-```bash
-npm install rezrov-zmachine
-```
-
-### From Source
-
-```bash
-git clone https://github.com/yourusername/rezrov-zmachine.git
-cd rezrov-zmachine
-npm install
-npm run build
-```
-
 ## Usage
 
 ### Basic Example
@@ -161,36 +144,6 @@ machine.execute();
 // In a real implementation, you would need to handle input/output
 // by creating a custom Screen implementation that connects to your
 // desired UI system (terminal, web, etc.)
-```
-
-### Creating a Custom Screen Implementation
-
-```typescript
-import { BaseScreen, ZMachine, InputState, Logger, LogLevel } from 'rezrov-zmachine';
-
-class CustomTerminalScreen extends BaseScreen {
-  constructor(logger: Logger) {
-    super(logger, 'terminal');
-  }
-
-  // Override the necessary methods
-  print(machine: ZMachine, str: string): void {
-    process.stdout.write(str);
-  }
-
-  getInputFromUser(machine: ZMachine, inputState: InputState): void {
-    // Implementation for reading text from terminal
-    // After getting input, you would call:
-    // machine.handleInputCompletion(userInput);
-  }
-
-  // Override other methods as needed...
-}
-
-// Usage:
-const logger = new Logger(LogLevel.INFO);
-const screen = new CustomTerminalScreen(logger);
-const machine = new ZMachine(storyData, logger, screen, storage);
 ```
 
 ## Architecture
@@ -315,8 +268,6 @@ The architecture is designed to be extensible. You can create custom implementat
 - Input handlers for different interaction methods
 
 This modular design allows the interpreter to run in various environments while maintaining the same core Z-Machine functionality.
-
-## Project Structure
 
 ## Creating a Custom Screen Implementation
 

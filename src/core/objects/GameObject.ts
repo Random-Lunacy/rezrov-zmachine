@@ -59,7 +59,7 @@ export class GameObject {
    * @param dataAddr Address of the property data
    * @returns Length of the property in bytes
    */
-  static getPropertyLength(memory: Memory, version: number, dataAddr: Address): number {
+  static getPropertyLength(memory: Memory, version: number, dataAddr: Address, options?: { logger?: Logger }): number {
     if (dataAddr === 0) {
       return 0;
     }
@@ -69,20 +69,28 @@ export class GameObject {
   }
   private memory: Memory;
   private logger: Logger;
+  private version: number;
+  private objTable: number;
+
+  /** Object number in the object table */
+  readonly objnum: number;
+
+  /** Address of the object in memory */
+  private objaddr: Address;
+
   /**
    * Creates a new GameObject instance
    * @param memory Memory access
-   * @param logger Logger instance
    * @param version Z-machine version
    * @param objTable Address of the object table
    * @param objnum Object number
    */
-  constructor(memory: Memory, logger: Logger, version: number, objTable: number, objnum: number) {
+  constructor(memory: Memory, version: number, objTable: number, objnum: number, options?: { logger?: Logger }) {
     this.memory = memory;
-    this.logger = logger;
     this.version = version;
     this.objTable = objTable;
     this.objnum = objnum;
+    this.logger = options?.logger || new Logger('GameObject');
 
     // Calculate the object's address based on version-specific object table structure
     if (this.version <= 3) {
@@ -93,15 +101,6 @@ export class GameObject {
       this.objaddr = this.objTable + 63 * 2 + (objnum - 1) * 14;
     }
   }
-
-  private version: number;
-  private objTable: number;
-
-  /** Object number in the object table */
-  readonly objnum: number;
-
-  /** Address of the object in memory */
-  private objaddr: Address;
 
   /**
    * Get the object's name as a string

@@ -16,16 +16,33 @@ export enum LogLevel {
  * Logger class for outputting messages at different severity levels
  */
 export class Logger {
-  private level: LogLevel;
-  private useColors: boolean;
+  private static level: LogLevel = LogLevel.INFO; // Global log level
+  private static useColors: boolean = typeof process !== 'undefined' && process.stdout.isTTY; // Global color setting
+
+  /**
+   * Set the global log level
+   * @param level The new global log level
+   */
+  static setLevel(level: LogLevel): void {
+    Logger.level = level;
+  }
+
+  /**
+   * Enable or disable global colored output
+   * @param useColors Whether to use colored output globally
+   */
+  static setColored(useColors: boolean): void {
+    Logger.useColors = useColors;
+  }
+
+  private readonly name: string;
+
   /**
    * Creates a new logger
-   * @param level Minimum log level to display (defaults to INFO)
-   * @param useColors Whether to use colored output (defaults to true if in a TTY environment)
+   * @param name The name of the logger instance
    */
-  constructor(level: LogLevel = LogLevel.INFO, useColors?: boolean) {
-    this.level = level;
-    this.useColors = useColors ?? (typeof process !== 'undefined' && process.stdout.isTTY);
+  constructor(name: string) {
+    this.name = name;
   }
 
   /**
@@ -34,7 +51,7 @@ export class Logger {
    * @returns Formatted message string
    */
   private formatDebug(msg: string): string {
-    return this.useColors ? `\x1b[36m[DEBUG] ${msg}\x1b[0m` : `[DEBUG] ${msg}`;
+    return Logger.useColors ? `\x1b[36m[DEBUG] [${this.name}] ${msg}\x1b[0m` : `[DEBUG] [${this.name}] ${msg}`;
   }
 
   /**
@@ -43,7 +60,7 @@ export class Logger {
    * @returns Formatted message string
    */
   private formatInfo(msg: string): string {
-    return this.useColors ? `\x1b[32m[INFO] ${msg}\x1b[0m` : `[INFO] ${msg}`;
+    return Logger.useColors ? `\x1b[32m[INFO] [${this.name}] ${msg}\x1b[0m` : `[INFO] [${this.name}] ${msg}`;
   }
 
   /**
@@ -52,7 +69,7 @@ export class Logger {
    * @returns Formatted message string
    */
   private formatWarn(msg: string): string {
-    return this.useColors ? `\x1b[33m[WARN] ${msg}\x1b[0m` : `[WARN] ${msg}`;
+    return Logger.useColors ? `\x1b[33m[WARN] [${this.name}] ${msg}\x1b[0m` : `[WARN] [${this.name}] ${msg}`;
   }
 
   /**
@@ -61,7 +78,7 @@ export class Logger {
    * @returns Formatted message string
    */
   private formatError(msg: string): string {
-    return this.useColors ? `\x1b[31m[ERROR] ${msg}\x1b[0m` : `[ERROR] ${msg}`;
+    return Logger.useColors ? `\x1b[31m[ERROR] [${this.name}] ${msg}\x1b[0m` : `[ERROR] [${this.name}] ${msg}`;
   }
 
   /**
@@ -69,7 +86,7 @@ export class Logger {
    * @param msg The message to log
    */
   debug(msg: string): void {
-    if (this.level <= LogLevel.DEBUG) {
+    if (Logger.level <= LogLevel.DEBUG) {
       console.log(this.formatDebug(msg));
     }
   }
@@ -79,7 +96,7 @@ export class Logger {
    * @param msg The message to log
    */
   info(msg: string): void {
-    if (this.level <= LogLevel.INFO) {
+    if (Logger.level <= LogLevel.INFO) {
       console.log(this.formatInfo(msg));
     }
   }
@@ -89,7 +106,7 @@ export class Logger {
    * @param msg The message to log
    */
   warn(msg: string): void {
-    if (this.level <= LogLevel.WARN) {
+    if (Logger.level <= LogLevel.WARN) {
       console.log(this.formatWarn(msg));
     }
   }
@@ -99,24 +116,8 @@ export class Logger {
    * @param msg The message to log
    */
   error(msg: string): void {
-    if (this.level <= LogLevel.ERROR) {
+    if (Logger.level <= LogLevel.ERROR) {
       console.log(this.formatError(msg));
     }
-  }
-
-  /**
-   * Set the current log level
-   * @param level The new log level
-   */
-  setLevel(level: LogLevel): void {
-    this.level = level;
-  }
-
-  /**
-   * Enable or disable colored output
-   * @param useColors Whether to use colored output
-   */
-  setColored(useColors: boolean): void {
-    this.useColors = useColors;
   }
 }

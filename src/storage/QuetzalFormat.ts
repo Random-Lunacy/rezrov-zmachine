@@ -532,14 +532,20 @@ export class QuetzalFormat {
       }
 
       // Read eval stack for this frame
+      const evalStack = [];
       for (let i = 0; i < evalStackSize; i++) {
-        stack.push(data.readUInt16BE(offset));
+        evalStack.push(data.readUInt16BE(offset));
         offset += 2;
       }
 
-      // Create frame
-      if (pc !== 0 || vCount !== 0 || argCount !== 0) {
-        // This is a real frame (not the dummy one)
+      // Check if this is a dummy frame
+      const isDummyFrame = pc === 0 && vCount === 0 && argCount === 0;
+
+      if (isDummyFrame) {
+        // Add the dummy frame's stack to the global stack
+        stack.push(...evalStack);
+      } else {
+        // Add real frame to the callstack
         callstack.push({
           returnPC: pc,
           previousSP: evalStackSize,
@@ -548,6 +554,9 @@ export class QuetzalFormat {
           argumentCount: argCount,
           routineAddress: 0, // We don't have this info in Quetzal files
         });
+
+        // Add the eval stack to the global stack
+        stack.push(...evalStack);
       }
     }
 
