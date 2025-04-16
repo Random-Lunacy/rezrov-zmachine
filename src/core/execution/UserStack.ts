@@ -30,14 +30,14 @@ export interface UserStack {
  * No underflow checking is performed by the Z-machine itself.
  */
 export class UserStackManager {
-  private logger: Logger;
+  private readonly logger: Logger;
 
   /**
    * Creates a new user stack manager
    * @param memory The memory instance
    */
   constructor(
-    private memory: Memory,
+    private readonly memory: Memory,
     options?: {
       logger?: Logger;
     }

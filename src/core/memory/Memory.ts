@@ -5,6 +5,9 @@ import { Address } from '../../types';
 import { HeaderLocation } from '../../utils/constants';
 import { Logger } from '../../utils/log';
 
+/**
+ * Memory class for the Z-machine
+ */
 export class Memory {
   /**
    * Creates a new Memory instance from a story file
@@ -21,13 +24,13 @@ export class Memory {
   }
 
   private _mem: Buffer;
-  private logger: Logger;
+  private readonly logger: Logger;
 
-  private _dynamicMemoryEnd: number = 0;
-  private _highMemoryStart: number = 0;
-  private _version: number = 0;
+  private readonly _dynamicMemoryEnd: number = 0;
+  private readonly _highMemoryStart: number = 0;
+  private readonly _version: number = 0;
 
-  private _alphabetTableManager: AlphabetTableManager | null = null;
+  private readonly _alphabetTableManager: AlphabetTableManager | null = null;
   private _unicodeTranslationTable: Map<number, number> | null = null;
 
   /**
@@ -514,6 +517,8 @@ export class Memory {
     try {
       byteAddr = this.packedToByteAddress(packedAddr, isRoutine);
     } catch (e) {
+      // If conversion fails, the address is invalid
+      this.logger.warn(`Invalid packed address: ${packedAddr} (${e})`);
       return false;
     }
 
@@ -659,12 +664,15 @@ export class Memory {
         // For versions 5+, no initial values are stored, so just check that
         // the code can be accessed (first byte after the locals count)
         if (addr + 1 >= this.size) {
+          this.logger.warn(`Routine header for version 5+ at 0x${addr.toString(16)} is invalid`);
           return false;
         }
+        this.logger.debug(`Routine header for version 5+ at 0x${addr.toString(16)} is valid`);
       }
 
       return true;
     } catch (e) {
+      this.logger.warn(`Error validating routine header: ${e}`);
       return false;
     }
   }

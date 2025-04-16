@@ -192,6 +192,6 @@ opext[27] = allOpcodes.make_menu;
 opext[28] = allOpcodes.picture_table;
 opext[29] = allOpcodes.buffer_screen;
 
-export { op0, op1, op2, opext, opv, unimplementedOpcode };
+export { op0, op1, op2, opext as opExt, opv as opV, unimplementedOpcode };
 
 export * from './base';
