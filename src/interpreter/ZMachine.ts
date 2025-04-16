@@ -5,7 +5,7 @@ import { Memory } from '../core/memory/Memory';
 import { Storage } from '../storage/interfaces';
 import { QuetzalStorage } from '../storage/QuetzalStorage';
 import { InputHandler } from '../ui/input/InputHandler';
-import { Screen } from '../ui/screen/interfaces';
+import { Capabilities, Screen } from '../ui/screen/interfaces';
 import { HeaderLocation } from '../utils/constants';
 import { Logger } from '../utils/log';
 import { GameState } from './GameState';
@@ -105,53 +105,76 @@ export class ZMachine {
     let flags1 = this._memory.getByte(HeaderLocation.Flags1);
 
     if (version <= 3) {
-      // Clear bits 4, 5, 6 before setting them
-      flags1 &= 0b10001111;
-
-      if (screenCapabilities.hasDisplayStatusBar) {
-        flags1 |= 0b00010000; // bit 4
-      }
-
-      if (screenCapabilities.hasSplitWindow) {
-        flags1 |= 0b00100000; // bit 5
-      }
-
-      // Bit 6 determines variable width font (default)
-      // Leave cleared for now
+      flags1 = this.configureFlagsForVersion3(flags1, screenCapabilities);
     } else {
-      // Clear all bits except bit 6
-      flags1 &= 0b01000000;
-
-      if (screenCapabilities.hasColors) {
-        flags1 |= 0b00000001; // bit 0
-      }
-
-      if (screenCapabilities.hasPictures) {
-        flags1 |= 0b00000010; // bit 1
-      }
-
-      if (screenCapabilities.hasBold) {
-        flags1 |= 0b00000100; // bit 2
-      }
-
-      if (screenCapabilities.hasItalic) {
-        flags1 |= 0b00001000; // bit 3
-      }
-
-      if (screenCapabilities.hasFixedPitch) {
-        flags1 |= 0b00010000; // bit 4
-      }
-
-      if (screenCapabilities.hasSound) {
-        flags1 |= 0b00100000; // bit 5
-      }
-
-      if (screenCapabilities.hasTimedKeyboardInput) {
-        flags1 |= 0b10000000; // bit 7
-      }
+      flags1 = this.configureFlagsForVersion4Plus(flags1, screenCapabilities);
     }
 
     this._memory.setByte(HeaderLocation.Flags1, flags1);
+  }
+
+  /**
+   * Configure flags for Z-Machine versions 1-3
+   * @param flags1 The current flags
+   * @param screenCapabilities The screen capabilities
+   * @returns The updated flags
+   */
+  private configureFlagsForVersion3(flags1: number, screenCapabilities: Capabilities): number {
+    // Clear bits 4, 5, 6 before setting them
+    flags1 &= 0b10001111;
+
+    if (screenCapabilities.hasDisplayStatusBar) {
+      flags1 |= 0b00010000; // bit 4
+    }
+
+    if (screenCapabilities.hasSplitWindow) {
+      flags1 |= 0b00100000; // bit 5
+    }
+
+    // Bit 6 determines variable width font (default)
+    // Leave cleared for now
+    return flags1;
+  }
+
+  /**
+   * Configure flags for Z-Machine versions 4 and above
+   * @param flags1 The current flags
+   * @param screenCapabilities The screen capabilities
+   * @returns The updated flags
+   */
+  private configureFlagsForVersion4Plus(flags1: number, screenCapabilities: Capabilities): number {
+    // Clear all bits except bit 6
+    flags1 &= 0b01000000;
+
+    if (screenCapabilities.hasColors) {
+      flags1 |= 0b00000001; // bit 0
+    }
+
+    if (screenCapabilities.hasPictures) {
+      flags1 |= 0b00000010; // bit 1
+    }
+
+    if (screenCapabilities.hasBold) {
+      flags1 |= 0b00000100; // bit 2
+    }
+
+    if (screenCapabilities.hasItalic) {
+      flags1 |= 0b00001000; // bit 3
+    }
+
+    if (screenCapabilities.hasFixedPitch) {
+      flags1 |= 0b00010000; // bit 4
+    }
+
+    if (screenCapabilities.hasSound) {
+      flags1 |= 0b00100000; // bit 5
+    }
+
+    if (screenCapabilities.hasTimedKeyboardInput) {
+      flags1 |= 0b10000000; // bit 7
+    }
+
+    return flags1;
   }
 
   /**
@@ -411,7 +434,7 @@ export class ZMachine {
       // If we're still waiting for input
       if (this._executor.isSuspended) {
         // Call the routine
-        const routineAddr = this._state.unpackRoutineAddress(routine);
+        const routineAddr = this._memory.unpackRoutineAddress(routine);
         this._state.callRoutine(routineAddr, null);
 
         // Resume execution

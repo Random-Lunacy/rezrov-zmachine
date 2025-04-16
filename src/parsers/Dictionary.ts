@@ -1,4 +1,3 @@
-// src/parsers/Dictionary.ts
 import { Memory } from '../core/memory/Memory';
 import { Address } from '../types';
 import { Logger } from '../utils/log';
@@ -8,11 +7,15 @@ import { Logger } from '../utils/log';
  * Handles word lookups and dictionary structure
  */
 export class Dictionary {
-  private memory: Memory;
-  private logger: Logger;
-  private dictAddr: Address;
-  private separators: Array<number>;
-  private entryLength: number;
+  private readonly memory: Memory;
+  private readonly logger: Logger;
+  private readonly dictAddr: Address;
+  private readonly separators: Array<number>;
+  private readonly entryLength: number;
+  private readonly numEntries: number;
+  private readonly entriesStart: Address;
+  private readonly version: number;
+
   /**
    * Creates a new Dictionary instance
    * @param memory Memory instance
@@ -20,9 +23,9 @@ export class Dictionary {
    * @param dictAddr Dictionary address
    * @param version Z-machine version
    */
-  constructor(memory: Memory, logger: Logger, dictAddr: Address, version: number) {
+  constructor(memory: Memory, dictAddr: Address, version: number, options?: { logger?: Logger }) {
     this.memory = memory;
-    this.logger = logger;
+    this.logger = options?.logger || new Logger('Dictionary');
     this.dictAddr = dictAddr;
     this.version = version;
 
@@ -37,10 +40,6 @@ export class Dictionary {
     );
     this.logger.debug(`Separators: ${this.getSeparatorsAsString()}`);
   }
-
-  private numEntries: number;
-  private entriesStart: Address;
-  private version: number;
 
   /**
    * Reads the separator characters from the dictionary

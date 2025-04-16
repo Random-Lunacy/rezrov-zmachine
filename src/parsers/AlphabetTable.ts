@@ -84,19 +84,19 @@ export class AlphabetTableManager {
     return '?'; // Invalid character
   }
 
-  public getZCharForCharacter(char: string): { alphabet: number; zchar: number } | null {
+  public getZCharForCharacter(char: string): { alphabet: number; zChar: number } | null {
     const tables = this.getAlphabetTables();
 
     // Check special cases
     if (char === '\n') {
-      return { alphabet: 2, zchar: 7 };
+      return { alphabet: 2, zChar: 7 };
     }
 
     // Check each alphabet
     for (let alphabet = 0; alphabet < 3; alphabet++) {
       const index = tables[alphabet].indexOf(char);
       if (index >= 0) {
-        return { alphabet, zchar: index + 6 };
+        return { alphabet, zChar: index + 6 };
       }
     }
 
