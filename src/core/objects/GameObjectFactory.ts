@@ -8,27 +8,27 @@ import { GameObject } from './GameObject';
  * to use the factory for object retrieval
  */
 class ManagedGameObject extends GameObject {
-  private factory: GameObjectFactory;
+  private readonly factory: GameObjectFactory;
 
   constructor(
     memory: Memory,
     version: number,
     objTable: number,
-    objnum: number,
+    objNum: number,
     factory: GameObjectFactory,
     options?: { logger?: Logger }
   ) {
-    super(memory, version, objTable, objnum, options);
+    super(memory, version, objTable, objNum, options);
     this.factory = factory;
   }
 
   /**
    * Get an object by its number using the factory
-   * @param objnum Object number
+   * @param objNum Object number
    * @returns The game object or null if invalid
    */
-  protected getObject(objnum: number): GameObject | null {
-    return this.factory.getObject(objnum);
+  protected getObject(objNum: number): GameObject | null {
+    return this.factory.getObject(objNum);
   }
 }
 
@@ -36,12 +36,12 @@ class ManagedGameObject extends GameObject {
  * Factory for creating and managing GameObject instances
  */
 export class GameObjectFactory {
-  private memory: Memory;
-  private logger: Logger;
-  private version: number;
-  private objTable: number;
-  private objectCache: Map<number, GameObject>;
-  private hasOptionsLogger: boolean;
+  private readonly memory: Memory;
+  private readonly logger: Logger;
+  private readonly version: number;
+  private readonly objTable: number;
+  private readonly objectCache: Map<number, GameObject>;
+  private readonly hasOptionsLogger: boolean;
 
   /**
    * Create a new GameObjectFactory
@@ -73,37 +73,37 @@ export class GameObjectFactory {
 
   /**
    * Get an object by its number
-   * @param objnum Object number
+   * @param objNum Object number
    * @returns The game object or null if the number is invalid
    */
-  getObject(objnum: number): GameObject | null {
+  getObject(objNum: number): GameObject | null {
     // Object number 0 is always null
-    if (objnum === 0) {
+    if (objNum === 0) {
       return null;
     }
 
     // Validate object number
     const maxObjects = this.getMaxObjects();
-    if (objnum < 0 || objnum > maxObjects) {
-      this.logger.warn(`Invalid object number: ${objnum}`);
+    if (objNum < 0 || objNum > maxObjects) {
+      this.logger.warn(`Invalid object number: ${objNum}`);
       return null;
     }
 
     // Return cached object if available
-    let obj = this.objectCache.get(objnum);
+    let obj = this.objectCache.get(objNum);
     if (obj) {
       return obj;
     }
 
-    this.logger.debug(`Creating new object ${objnum}`);
+    this.logger.debug(`Creating new object ${objNum}`);
     if (this.hasOptionsLogger) {
-      obj = new ManagedGameObject(this.memory, this.version, this.objTable, objnum, this, { logger: this.logger }); // Pass logger in options
+      obj = new ManagedGameObject(this.memory, this.version, this.objTable, objNum, this, { logger: this.logger }); // Pass logger in options
     } else {
-      obj = new ManagedGameObject(this.memory, this.version, this.objTable, objnum, this);
+      obj = new ManagedGameObject(this.memory, this.version, this.objTable, objNum, this);
     }
 
     // Cache the object for future use
-    this.objectCache.set(objnum, obj);
+    this.objectCache.set(objNum, obj);
 
     return obj;
   }

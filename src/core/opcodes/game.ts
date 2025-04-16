@@ -55,7 +55,7 @@ function restore_undo(machine: ZMachine): void {
  * Restart the game from the beginning
  */
 function restart(machine: ZMachine): void {
-  machine.state.logger.debug(`${machine.executor.op_pc.toString(16)} restart`);
+  machine.logger.debug(`${machine.executor.op_pc.toString(16)} restart`);
   machine.restart();
 }
 
@@ -158,7 +158,7 @@ function restore(machine: ZMachine, table: number, bytes: number, name: number =
  * Quit the game
  */
 function quit(machine: ZMachine): void {
-  machine.state.logger.debug(`${machine.executor.op_pc.toString(16)} quit`);
+  machine.logger.debug(`${machine.executor.op_pc.toString(16)} quit`);
   machine.quit();
 }
 
@@ -166,7 +166,7 @@ function quit(machine: ZMachine): void {
  * Update the status bar (for versions <= 3)
  */
 function show_status(machine: ZMachine): void {
-  machine.state.logger.debug(`${machine.executor.op_pc.toString(16)} show_status`);
+  machine.logger.debug(`${machine.executor.op_pc.toString(16)} show_status`);
   machine.state.updateStatusBar();
 }
 

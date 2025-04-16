@@ -14,5 +14,5 @@
   "files.watcherExclude": {
     "**/target": true
   },
-  "cSpell.words": ["zscii"]
+  "cSpell.words": ["Infocom", "zork", "zscii"]
 }

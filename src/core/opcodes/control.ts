@@ -32,7 +32,7 @@ function je(machine: ZMachine, a: number, b: number, c?: number, d?: number): vo
   }
 
   const [offset, branchOnFalse] = machine.state.readBranchOffset();
-  machine.state.logger.debug(
+  machine.logger.debug(
     `${hex(machine.state.pc)} je ${hex(a)} ${hex(b)} ${c !== undefined ? hex(c) : ''} ${
       d !== undefined ? hex(d) : ''
     } -> [${!branchOnFalse}] ${hex(machine.state.pc + offset - 2)}`
@@ -47,7 +47,7 @@ function je(machine: ZMachine, a: number, b: number, c?: number, d?: number): vo
  */
 function jl(machine: ZMachine, a: number, b: number): void {
   const [offset, branchOnFalse] = machine.state.readBranchOffset();
-  machine.state.logger.debug(
+  machine.logger.debug(
     `${hex(machine.state.pc)} jl ${hex(a)} ${hex(b)} -> [${!branchOnFalse}] ${hex(machine.state.pc + offset - 2)}`
   );
 
@@ -59,7 +59,7 @@ function jl(machine: ZMachine, a: number, b: number): void {
  */
 function jg(machine: ZMachine, a: number, b: number): void {
   const [offset, branchOnFalse] = machine.state.readBranchOffset();
-  machine.state.logger.debug(
+  machine.logger.debug(
     `${hex(machine.state.pc)} jg ${hex(a)} ${hex(b)} -> [${!branchOnFalse}] ${hex(machine.state.pc + offset - 2)}`
   );
 
@@ -71,7 +71,7 @@ function jg(machine: ZMachine, a: number, b: number): void {
  */
 function jz(machine: ZMachine, a: number): void {
   const [offset, branchOnFalse] = machine.state.readBranchOffset();
-  machine.state.logger.debug(
+  machine.logger.debug(
     `${hex(machine.state.pc)} jz ${hex(a)} -> [${!branchOnFalse}] ${hex(machine.state.pc + offset - 2)}`
   );
 
@@ -82,7 +82,7 @@ function jz(machine: ZMachine, a: number): void {
  * Unconditional jump
  */
 function jump(machine: ZMachine, offset: number): void {
-  machine.state.logger.debug(`${hex(machine.state.pc)} jump ${hex(offset)}`);
+  machine.logger.debug(`${hex(machine.state.pc)} jump ${hex(offset)}`);
   machine.state.pc = machine.state.pc + toI16(offset) - 2;
 }
 
@@ -91,7 +91,7 @@ function jump(machine: ZMachine, offset: number): void {
  */
 function test(machine: ZMachine, bitmap: number, flags: number): void {
   const [offset, branchOnFalse] = machine.state.readBranchOffset();
-  machine.state.logger.debug(
+  machine.logger.debug(
     `${hex(machine.state.pc)} test ${hex(bitmap)} ${hex(flags)} -> [${!branchOnFalse}] ${hex(
       machine.state.pc + offset - 2
     )}`
@@ -105,7 +105,7 @@ function test(machine: ZMachine, bitmap: number, flags: number): void {
  */
 function check_arg_count(machine: ZMachine, argNumber: number): void {
   const [offset, branchOnFalse] = machine.state.readBranchOffset();
-  machine.state.logger.debug(
+  machine.logger.debug(
     `${hex(machine.state.pc)} check_arg_count ${hex(argNumber)} -> [${!branchOnFalse}] ${hex(
       machine.state.pc + offset - 2
     )}`
@@ -118,7 +118,7 @@ function check_arg_count(machine: ZMachine, argNumber: number): void {
  * Returns true (1)
  */
 function rtrue(machine: ZMachine): void {
-  machine.state.logger.debug(`${hex(machine.state.pc)} rtrue`);
+  machine.logger.debug(`${hex(machine.state.pc)} rtrue`);
   machine.state.returnFromRoutine(1);
 }
 
@@ -126,7 +126,7 @@ function rtrue(machine: ZMachine): void {
  * Returns false (0)
  */
 function rfalse(machine: ZMachine): void {
-  machine.state.logger.debug(`${hex(machine.state.pc)} rfalse`);
+  machine.logger.debug(`${hex(machine.state.pc)} rfalse`);
   machine.state.returnFromRoutine(0);
 }
 
@@ -134,7 +134,7 @@ function rfalse(machine: ZMachine): void {
  * Returns value popped from the stack
  */
 function ret_popped(machine: ZMachine): void {
-  machine.state.logger.debug(`${hex(machine.state.pc)} ret_popped`);
+  machine.logger.debug(`${hex(machine.state.pc)} ret_popped`);
   machine.state.returnFromRoutine(machine.state.popStack());
 }
 
@@ -142,7 +142,7 @@ function ret_popped(machine: ZMachine): void {
  * Returns from a routine with the specified value
  */
 function ret(machine: ZMachine, value: number): void {
-  machine.state.logger.debug(`${hex(machine.state.pc)} ret ${hex(value)}`);
+  machine.logger.debug(`${hex(machine.state.pc)} ret ${hex(value)}`);
   machine.state.returnFromRoutine(value);
 }
 
@@ -150,7 +150,7 @@ function ret(machine: ZMachine, value: number): void {
  * Placeholder for no-op instruction
  */
 function nop(machine: ZMachine): void {
-  machine.state.logger.debug(`${hex(machine.state.pc)} nop`);
+  machine.logger.debug(`${hex(machine.state.pc)} nop`);
   // Do nothing
 }
 

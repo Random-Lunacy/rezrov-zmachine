@@ -1,4 +1,5 @@
 // src/interpreter/GameState.ts
+// src/interpreter/GameState.ts
 import { createStackFrame, StackFrame } from '../core/execution/StackFrame';
 import { Memory } from '../core/memory/Memory';
 import { GameObject } from '../core/objects/GameObject';
@@ -16,19 +17,8 @@ export class GameState {
   private _pc: Address = 0;
   private _stack: Array<number> = [];
   private _callstack: Array<StackFrame> = [];
-  private _memory: Memory;
-  private _version: number;
-  constructor(memory: Memory, logger?: Logger) {
-    this._memory = memory;
-    this.logger = logger || new Logger(LogLevel.INFO);
-    this._version = this._memory.getByte(HeaderLocation.Version);
-
-    // Read header values
-    this._readHeaderValues();
-
-    // Initialize object factory
-    this._objectFactory = new GameObjectFactory(this._memory, this.logger, this._version, this._objectTable);
-  }
+  private readonly _memory: Memory;
+  private readonly _version: number;
 
   // Cached header values
   private _highmem: number = 0;
@@ -47,6 +37,23 @@ export class GameState {
 
   // Logger for output and debugging
   public logger: Logger;
+
+  /**
+   * Create a new game state
+   * @param memory Memory instance
+   * @param logger Optional logger instance
+   */
+  constructor(memory: Memory, logger?: Logger) {
+    this._memory = memory;
+    this.logger = logger || new Logger(LogLevel.INFO);
+    this._version = this._memory.getByte(HeaderLocation.Version);
+
+    // Read header values
+    this._readHeaderValues();
+
+    // Initialize object factory
+    this._objectFactory = new GameObjectFactory(this._memory, this.logger, this._version, this._objectTable);
+  }
 
   /**
    * Read and cache header values

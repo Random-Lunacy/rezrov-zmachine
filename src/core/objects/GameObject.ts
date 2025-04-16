@@ -59,7 +59,7 @@ export class GameObject {
    * @param dataAddr Address of the property data
    * @returns Length of the property in bytes
    */
-  static getPropertyLength(memory: Memory, version: number, dataAddr: Address, options?: { logger?: Logger }): number {
+  static getPropertyLength(memory: Memory, version: number, dataAddr: Address): number {
     if (dataAddr === 0) {
       return 0;
     }
@@ -67,38 +67,39 @@ export class GameObject {
     const entry = GameObject.entryFromDataPtr(dataAddr, memory, version);
     return GameObject._propDataLen(memory, version, entry);
   }
-  private memory: Memory;
-  private logger: Logger;
-  private version: number;
-  private objTable: number;
+
+  private readonly memory: Memory;
+  private readonly logger: Logger;
+  private readonly version: number;
+  private readonly objTable: number;
 
   /** Object number in the object table */
-  readonly objnum: number;
+  readonly objNum: number;
 
   /** Address of the object in memory */
-  private objaddr: Address;
+  private readonly objAddr: Address;
 
   /**
    * Creates a new GameObject instance
    * @param memory Memory access
    * @param version Z-machine version
    * @param objTable Address of the object table
-   * @param objnum Object number
+   * @param objNum Object number
    */
-  constructor(memory: Memory, version: number, objTable: number, objnum: number, options?: { logger?: Logger }) {
+  constructor(memory: Memory, version: number, objTable: number, objNum: number, options?: { logger?: Logger }) {
     this.memory = memory;
     this.version = version;
     this.objTable = objTable;
-    this.objnum = objnum;
+    this.objNum = objNum;
     this.logger = options?.logger || new Logger('GameObject');
 
     // Calculate the object's address based on version-specific object table structure
     if (this.version <= 3) {
-      // 31 property defaults * 2 bytes + (objnum - 1) * object entry size
-      this.objaddr = this.objTable + 31 * 2 + (objnum - 1) * 9;
+      // 31 property defaults * 2 bytes + (objNum - 1) * object entry size
+      this.objAddr = this.objTable + 31 * 2 + (objNum - 1) * 9;
     } else {
-      // 63 property defaults * 2 bytes + (objnum - 1) * object entry size
-      this.objaddr = this.objTable + 63 * 2 + (objnum - 1) * 14;
+      // 63 property defaults * 2 bytes + (objNum - 1) * object entry size
+      this.objAddr = this.objTable + 63 * 2 + (objNum - 1) * 14;
     }
   }
 
@@ -116,7 +117,7 @@ export class GameObject {
    */
   get parent(): GameObject | null {
     const parentObjNum =
-      this.version <= 3 ? this.memory.getByte(this.objaddr + 4) : this.memory.getWord(this.objaddr + 6);
+      this.version <= 3 ? this.memory.getByte(this.objAddr + 4) : this.memory.getWord(this.objAddr + 6);
 
     // Return null for object 0, which means "no object"
     return parentObjNum === 0 ? null : this.getObject(parentObjNum);
@@ -127,11 +128,11 @@ export class GameObject {
    * @param po The parent object or null to remove parent
    */
   set parent(po: GameObject | null) {
-    const pobjnum = po === null ? 0 : po.objnum;
+    const pObjNum = po === null ? 0 : po.objNum;
     if (this.version <= 3) {
-      this.memory.setByte(this.objaddr + 4, pobjnum);
+      this.memory.setByte(this.objAddr + 4, pObjNum);
     } else {
-      this.memory.setWord(this.objaddr + 6, pobjnum);
+      this.memory.setWord(this.objAddr + 6, pObjNum);
     }
   }
 
@@ -141,7 +142,7 @@ export class GameObject {
    */
   get child(): GameObject | null {
     const childObjNum =
-      this.version <= 3 ? this.memory.getByte(this.objaddr + 6) : this.memory.getWord(this.objaddr + 10);
+      this.version <= 3 ? this.memory.getByte(this.objAddr + 6) : this.memory.getWord(this.objAddr + 10);
 
     return childObjNum === 0 ? null : this.getObject(childObjNum);
   }
@@ -151,11 +152,11 @@ export class GameObject {
    * @param co The child object or null to remove child
    */
   set child(co: GameObject | null) {
-    const cobjnum = co === null ? 0 : co.objnum;
+    const cObjNum = co === null ? 0 : co.objNum;
     if (this.version <= 3) {
-      this.memory.setByte(this.objaddr + 6, cobjnum);
+      this.memory.setByte(this.objAddr + 6, cObjNum);
     } else {
-      this.memory.setWord(this.objaddr + 10, cobjnum);
+      this.memory.setWord(this.objAddr + 10, cObjNum);
     }
   }
 
@@ -165,7 +166,7 @@ export class GameObject {
    */
   get sibling(): GameObject | null {
     const siblingObjNum =
-      this.version <= 3 ? this.memory.getByte(this.objaddr + 5) : this.memory.getWord(this.objaddr + 8);
+      this.version <= 3 ? this.memory.getByte(this.objAddr + 5) : this.memory.getWord(this.objAddr + 8);
 
     return siblingObjNum === 0 ? null : this.getObject(siblingObjNum);
   }
@@ -175,11 +176,11 @@ export class GameObject {
    * @param so The sibling object or null to remove sibling
    */
   set sibling(so: GameObject | null) {
-    const sobjnum = so === null ? 0 : so.objnum;
+    const sObjNum = so === null ? 0 : so.objNum;
     if (this.version <= 3) {
-      this.memory.setByte(this.objaddr + 5, sobjnum);
+      this.memory.setByte(this.objAddr + 5, sObjNum);
     } else {
-      this.memory.setWord(this.objaddr + 8, sobjnum);
+      this.memory.setWord(this.objAddr + 8, sObjNum);
     }
   }
 
@@ -188,7 +189,7 @@ export class GameObject {
    * @returns The property table address
    */
   get propertyTableAddr(): Address {
-    return this.memory.getWord(this.objaddr + (this.version <= 3 ? 7 : 12));
+    return this.memory.getWord(this.objAddr + (this.version <= 3 ? 7 : 12));
   }
 
   /**
@@ -208,7 +209,7 @@ export class GameObject {
     this.validateAttributeNumber(attr);
 
     const byte_index = Math.floor(attr / 8);
-    const value = this.memory.getByte(this.objaddr + byte_index);
+    const value = this.memory.getByte(this.objAddr + byte_index);
     return (value & (0x80 >> (attr & 7))) !== 0;
   }
 
@@ -220,11 +221,11 @@ export class GameObject {
     this.validateAttributeNumber(attr);
 
     const byte_index = Math.floor(attr / 8);
-    let value = this.memory.getByte(this.objaddr + byte_index);
+    let value = this.memory.getByte(this.objAddr + byte_index);
     value |= 0x80 >> (attr & 7);
-    this.memory.setByte(this.objaddr + byte_index, value);
+    this.memory.setByte(this.objAddr + byte_index, value);
 
-    this.logger.debug(`Set attribute ${attr} on object ${this.objnum}`);
+    this.logger.debug(`Set attribute ${attr} on object ${this.objNum}`);
   }
 
   /**
@@ -235,11 +236,11 @@ export class GameObject {
     this.validateAttributeNumber(attr);
 
     const byte_index = Math.floor(attr / 8);
-    let value = this.memory.getByte(this.objaddr + byte_index);
+    let value = this.memory.getByte(this.objAddr + byte_index);
     value &= ~(0x80 >> (attr & 7));
-    this.memory.setByte(this.objaddr + byte_index, value);
+    this.memory.setByte(this.objAddr + byte_index, value);
 
-    this.logger.debug(`Cleared attribute ${attr} from object ${this.objnum}`);
+    this.logger.debug(`Cleared attribute ${attr} from object ${this.objNum}`);
   }
 
   /**
@@ -259,14 +260,14 @@ export class GameObject {
     this.sibling = null;
 
     // If we're the first child, it's easy
-    if (parent.child?.objnum === this.objnum) {
+    if (parent.child?.objNum === this.objNum) {
       parent.child = sibling;
       return;
     }
 
     // Otherwise loop through children looking for the child before us
     for (let c = parent.child; c !== null; c = c.sibling) {
-      if (c.sibling && c.sibling.objnum === this.objnum) {
+      if (c.sibling && c.sibling.objNum === this.objNum) {
         // Found the previous node. Skip ourselves and return.
         c.sibling = sibling;
         return;
@@ -274,7 +275,7 @@ export class GameObject {
     }
 
     // If we didn't find the previous child, something is definitely wrong
-    throw new Error(`Sibling list is in a bad state, couldn't find previous node for object ${this.objnum}`);
+    throw new Error(`Sibling list is in a bad state, couldn't find previous node for object ${this.objNum}`);
   }
 
   /**
@@ -423,7 +424,7 @@ export class GameObject {
     const propAddr = this._getPropEntry(prop);
 
     if (propAddr === 0) {
-      throw new Error(`Property ${prop} not found in object ${this.objnum}`);
+      throw new Error(`Property ${prop} not found in object ${this.objNum}`);
     }
 
     const dataPtr = this._propDataPtr(propAddr);
@@ -474,7 +475,7 @@ export class GameObject {
       propAddr = this._getPropEntry(prop);
 
       if (propAddr === 0) {
-        throw new Error(`Property ${prop} not found in object ${this.objnum}`);
+        throw new Error(`Property ${prop} not found in object ${this.objNum}`);
       }
 
       propAddr = this._nextPropEntry(propAddr);
@@ -512,7 +513,7 @@ export class GameObject {
   dump(indent = 0): void {
     const _indent = ' . '.repeat(indent);
 
-    this.logger.debug(`${_indent}[${this.objnum}] "${this.name}"`);
+    this.logger.debug(`${_indent}[${this.objNum}] "${this.name}"`);
     this.logger.debug(`${_indent}  Attributes:`);
 
     // Dump attributes
@@ -558,11 +559,11 @@ export class GameObject {
   /**
    * Helper method to get an object by number
    * This must be overridden by the object provider
-   * @param objnum Object number
+   * @param objNum Object number
    */
-  protected getObject(objnum: number): GameObject | null {
+  protected getObject(objNum: number): GameObject | null {
     // This should be overridden by the provider to return the actual object
-    throw new Error('getObject() must be implemented by a provider');
+    throw new Error(`getObject() must be implemented by a provider [${objNum}]`);
   }
 
   /**

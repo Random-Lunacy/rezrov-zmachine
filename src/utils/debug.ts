@@ -81,7 +81,7 @@ export function dumpObjectTable(machine: ZMachine): void {
  */
 function dumpObjectHierarchy(obj: GameObject, logger: any, indent = 0): void {
   const indentStr = '  '.repeat(indent);
-  logger.debug(`${indentStr}[${obj.objnum}] "${obj.name}"`);
+  logger.debug(`${indentStr}[${obj.objNum}] "${obj.name}"`);
 
   // Dump attributes
   let attrList = '';

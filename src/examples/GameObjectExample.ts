@@ -13,7 +13,8 @@ import { Logger, LogLevel } from '../utils/log';
  */
 async function runGameObjectExample(storyFilePath: string): Promise<void> {
   // Set up logger
-  const logger = new Logger(LogLevel.DEBUG);
+  const logger = new Logger('GameObjectExample');
+  Logger.setLevel(LogLevel.DEBUG);
   logger.info(`Loading Z-machine story file: ${storyFilePath}`);
 
   try {
@@ -50,7 +51,7 @@ async function runGameObjectExample(storyFilePath: string): Promise<void> {
     const containers = factory.findObjectsWithAttribute(containersAttr);
     logger.info(`\nFound ${containers.length} objects with attribute ${containersAttr}:`);
     containers.forEach((obj) => {
-      logger.info(`  [${obj.objnum}] ${obj.name}`);
+      logger.info(`  [${obj.objNum}] ${obj.name}`);
     });
 
     // Find objects with certain properties
@@ -60,7 +61,7 @@ async function runGameObjectExample(storyFilePath: string): Promise<void> {
     logger.info(`\nFound ${objsWithCapacity.length} objects with property ${capacityProp}:`);
     objsWithCapacity.forEach((obj) => {
       const capacity = obj.getProperty(capacityProp);
-      logger.info(`  [${obj.objnum}] ${obj.name} - capacity: ${capacity}`);
+      logger.info(`  [${obj.objNum}] ${obj.name} - capacity: ${capacity}`);
     });
   } catch (error) {
     logger.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
@@ -73,9 +74,17 @@ async function runGameObjectExample(storyFilePath: string): Promise<void> {
 /**
  * Helper function to display an object tree with proper indentation
  */
-function displayObjectTree(obj: any, depth: number): void {
+interface GameObject {
+  objNum: number;
+  name: string;
+  child: GameObject | null;
+  sibling: GameObject | null;
+}
+
+function displayObjectTree(obj: GameObject, depth: number): void {
   const indent = '  '.repeat(depth);
-  console.log(`${indent}[${obj.objnum}] ${obj.name}`);
+  const logger: Logger = new Logger('GameObjectExample');
+  logger.info(`${indent}[${obj.objNum}] ${obj.name}`);
 
   // Display children recursively
   for (let child = obj.child; child !== null; child = child.sibling) {
@@ -85,13 +94,15 @@ function displayObjectTree(obj: any, depth: number): void {
 
 // If this file is run directly, execute the example
 if (require.main === module) {
-  // Path to a Z-machine story file (e.g., Zork)
+  // Path to a Z-machine story file (e.g., Zork I)
   const storyPath = process.argv[2] || path.join(__dirname, '../../stories/zork1.z3');
+  const logger = new Logger('GameObjectExample');
+  logger.info(`Running GameObjectExample with story file: ${storyPath}`);
 
   runGameObjectExample(storyPath)
     .then(() => process.exit(0))
     .catch((err) => {
-      console.error('Unhandled error:', err);
+      logger.error(`Unhandled error: ${err}`);
       process.exit(1);
     });
 }
