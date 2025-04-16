@@ -13,5 +13,6 @@
   "prettier.requireConfig": true,
   "files.watcherExclude": {
     "**/target": true
-  }
+  },
+  "cSpell.words": ["zscii"]
 }

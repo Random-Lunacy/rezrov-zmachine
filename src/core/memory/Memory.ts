@@ -281,9 +281,9 @@ export class Memory {
     const MAX_WORDS = 1000; // Sanity limit on string length
 
     let currentAddr = addr;
-    let alphabet = 0; // Current alphabet (0=A0, 1=A1, 2=A2)
-    let unicodeMode = false; // Whether we're in the middle of a Unicode character sequence
-    let unicodeHigh = 0; // High 5 bits of Unicode character
+    const alphabet = 0; // Current alphabet (0=A0, 1=A1, 2=A2)
+    const unicodeMode = false; // Whether we're in the middle of a Unicode character sequence
+    const unicodeHigh = 0; // High 5 bits of Unicode character
 
     while (wordCount < MAX_WORDS) {
       try {
@@ -291,38 +291,9 @@ export class Memory {
         currentAddr += 2;
         wordCount++;
 
-        // Extract the three Z-characters from the word
-        const zchar1 = (word >> 10) & 0x1f;
-        const zchar2 = (word >> 5) & 0x1f;
-        const zchar3 = word & 0x1f;
+        const zChars = this.extractZChars(word);
+        this.processZChars(zChars, chars, { alphabet, unicodeMode, unicodeHigh });
 
-        // Process each Z-character
-        for (const zchar of [zchar1, zchar2, zchar3]) {
-          if (unicodeMode) {
-            // Second part of Unicode character
-            chars.push(6); // Add the special Unicode marker
-            chars.push(unicodeHigh);
-            chars.push(zchar);
-            unicodeMode = false;
-          } else if (alphabet === 2 && zchar === 6 && this._version >= 5) {
-            // First part of Unicode character (only in V5+)
-            unicodeMode = true;
-            unicodeHigh = zchar2;
-            break; // Skip to next word, we'll process the lower bits next
-          } else if (zchar <= 5) {
-            // Handle special cases (0-5)
-            chars.push(zchar);
-            if (zchar === 4) alphabet = 1;
-            else if (zchar === 5) alphabet = 2;
-          } else {
-            // Regular character in current alphabet
-            chars.push(zchar);
-            // Reset to alphabet 0 after using a different alphabet
-            if (alphabet > 0) alphabet = 0;
-          }
-        }
-
-        // Check if this is the last word in the string
         if ((word & 0x8000) !== 0) {
           break;
         }
@@ -337,6 +308,44 @@ export class Memory {
     }
 
     return chars;
+  }
+
+  /**
+   * Extract Z-characters from a word
+   * @param word The word to extract from
+   * @returns An array of Z-characters
+   */
+  private extractZChars(word: number): number[] {
+    return [(word >> 10) & 0x1f, (word >> 5) & 0x1f, word & 0x1f];
+  }
+
+  /**
+   * Process Z-characters and update the character array
+   */
+  private processZChars(
+    zChars: number[],
+    chars: number[],
+    state: { alphabet: number; unicodeMode: boolean; unicodeHigh: number }
+  ): void {
+    for (const zChar of zChars) {
+      if (state.unicodeMode) {
+        chars.push(6); // Add the special Unicode marker
+        chars.push(state.unicodeHigh);
+        chars.push(zChar);
+        state.unicodeMode = false;
+      } else if (state.alphabet === 2 && zChar === 6 && this._version >= 5) {
+        state.unicodeMode = true;
+        state.unicodeHigh = zChar;
+        break;
+      } else if (zChar <= 5) {
+        chars.push(zChar);
+        if (zChar === 4) state.alphabet = 1;
+        else if (zChar === 5) state.alphabet = 2;
+      } else {
+        chars.push(zChar);
+        if (state.alphabet > 0) state.alphabet = 0;
+      }
+    }
   }
 
   /**
