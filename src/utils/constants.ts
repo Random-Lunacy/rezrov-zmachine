@@ -84,7 +84,9 @@ export enum Flags1 {
   Pictures = 0x02, // Bit 1: Picture display available
   BoldFont = 0x04, // Bit 2: Bold available
   ItalicFont = 0x08, // Bit 3: Italic available
+  // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
   FixedFont = 0x10, // Bit 4: Fixed-width font available
+  // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
   Sound = 0x20, // Bit 5: Sound supported
   // Bit 6: Same as in V1-V3
   TimedInput = 0x80, // Bit 7: Timed keyboard input available

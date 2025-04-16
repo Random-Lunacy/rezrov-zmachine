@@ -79,6 +79,7 @@ export function dumpObjectTable(machine: ZMachine): void {
  * @param logger The logger to use
  * @param indent Indentation level for formatting
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function dumpObjectHierarchy(obj: GameObject, logger: any, indent = 0): void {
   const indentStr = '  '.repeat(indent);
   logger.debug(`${indentStr}[${obj.objNum}] "${obj.name}"`);

@@ -18,7 +18,7 @@ const compat = new FlatCompat({
 });
 
 export default defineConfig([
-  globalIgnores(['**/dist/', '**/node_modules/', '**/coverage/**', '**/tests/']),
+  globalIgnores(['prettier.config.cjs', '**/dist/', '**/node_modules/', '**/coverage/**', '**/tests/']),
   {
     extends: compat.extends(
       'eslint:recommended',

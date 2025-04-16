@@ -1,5 +1,11 @@
 import { Memory } from '../core/memory/Memory';
+import { ZSCII } from '../types';
 import { HeaderLocation } from '../utils/constants';
+
+/**
+ * Represents a Z-string as an array of Z-characters
+ */
+export type ZString = Array<ZSCII>;
 
 /**
  * Decodes a Z-string into a readable string
@@ -131,9 +137,7 @@ export function encodeZString(memory: Memory, text: string, version: number, pad
   // Get alphabet tables (should be accessible from a central place)
   const alphabetTables = memory.getAlphabetTables();
 
-  for (let i = 0; i < text.length; i++) {
-    const char = text[i];
-
+  for (const char of text) {
     // Try alphabet A0 (lowercase letters)
     const a0Index = alphabetTables[0].indexOf(char);
     if (a0Index >= 0) {

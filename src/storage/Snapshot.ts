@@ -60,7 +60,7 @@ export function createSnapshotBuffer(snapshot: Snapshot): Buffer {
 export function readSnapshotFromBuffer(buffer: Buffer): Snapshot {
   let mem: Buffer | null = null;
   let stack: Array<number> | null = null;
-  let callstack: Array<StackFrame> | null = null;
+  const callstack: Array<StackFrame> | null = null;
   let pc: number | null = null;
 
   let position = 0;
@@ -82,28 +82,6 @@ export function readSnapshotFromBuffer(buffer: Buffer): Snapshot {
       case SnapshotChunkType.Stack:
         // Parse stack data
         stack = JSON.parse(buffer.toString('utf8', position, position + length));
-        break;
-      case SnapshotChunkType.Callstack:
-        // Parse callstack data
-        const rawCallstack = JSON.parse(buffer.toString('utf8', position, position + length));
-
-        // Convert old CallFrame format to new StackFrame format if needed
-        callstack = rawCallstack.map((frame: any) => {
-          // Handle conversion from old CallFrame to new StackFrame if needed
-          if (frame.method_pc !== undefined) {
-            // Convert old format to new
-            return {
-              returnPC: frame.return_pc,
-              previousSP: frame.stack_pointer || 0,
-              locals: new Uint16Array(frame.locals || []),
-              storesResult: frame.return_value_location !== null,
-              resultVariable: frame.return_value_location || 0,
-              argumentCount: frame.arg_count || 0,
-              routineAddress: frame.method_pc,
-            };
-          }
-          return frame;
-        });
         break;
       case SnapshotChunkType.Registers:
         // Read PC (program counter)

@@ -24,7 +24,7 @@ export function initRandom(seed?: string): void {
     rng = seedrandom(seed);
   } else {
     // Use a non-deterministic RNG
-    rng = seedrandom(null, { entropy: true });
+    rng = seedrandom(undefined, { entropy: true });
   }
 }
 
