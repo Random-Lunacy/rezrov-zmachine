@@ -80,7 +80,7 @@ export class InputHandler {
     // Store the key (as ZSCII)
     // For simplicity, just use the first character's code
     const keyCode = key.length > 0 ? key.charCodeAt(0) : 0;
-    this.machine..state.storeVariable(state.resultVar, keyCode);
+    this.machine.state.storeVariable(state.resultVar, keyCode);
   }
 
   /**

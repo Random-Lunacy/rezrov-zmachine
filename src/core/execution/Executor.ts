@@ -13,17 +13,17 @@ export class Executor {
   private _op_pc: Address = 0;
   private _suspended: boolean = false;
   private _suspendedInputState: InputState | null = null;
-  private logger: Logger = new Logger('Executor');
+  private readonly logger: Logger;
 
   // Opcode tables
-  private op0: Array<Opcode>;
-  private op1: Array<Opcode>;
-  private op2: Array<Opcode>;
-  private opv: Array<Opcode>;
-  private opext: Array<Opcode>;
+  private readonly op0: Array<Opcode>;
+  private readonly op1: Array<Opcode>;
+  private readonly op2: Array<Opcode>;
+  private readonly opv: Array<Opcode>;
+  private readonly opext: Array<Opcode>;
 
   constructor(
-    private zMachine: ZMachine,
+    private readonly zMachine: ZMachine,
     options?: {
       logger?: Logger;
     }
@@ -44,7 +44,6 @@ export class Executor {
   executeLoop(): void {
     try {
       while (!this._quit && !this._suspended) {
-        // Save the current PC for debugging and error reporting
         this._op_pc = this.zMachine.state.pc;
         this.executeInstruction();
       }
@@ -55,32 +54,42 @@ export class Executor {
       }
     } catch (e) {
       if (e instanceof SuspendState) {
-        // Handle suspension for user input
+        // Set suspended state
         this._suspended = true;
         this._suspendedInputState = e.state;
 
-        // Use setImmediate to unwind the call stack before handling input
+        // Unwind the call stack before handling input
         setImmediate(() => {
           try {
-            this.logger.debug(`Suspended for ${e.state.keyPress ? 'key' : 'text'} input`);
+            const state = e.state;
 
-            // Have the screen handle the input request
-            if (e.state.keyPress) {
-              this.zMachine.screen.getKeyFromUser(this.zMachine, e.state);
-            } else {
-              this.zMachine.screen.getInputFromUser(this.zMachine, e.state);
+            // Update status bar before input if needed (for V1-3)
+            if (this.zMachine.state.version <= 3) {
+              this.zMachine.state.updateStatusBar();
             }
 
-            // Handle timed input if needed
-            if (e.state.time && e.state.time > 0 && e.state.routine) {
-              this.zMachine.handleTimedInput(e.state.time, e.state.routine);
+            this.logger.debug(`Suspended for ${state.keyPress ? 'key' : 'text'} input`);
+
+            // Register timed input handler if needed
+            if (state.time && state.time > 0 && state.routine) {
+              this.logger.debug(`Setting up timed input: time=${state.time}, routine=${state.routine}`);
+              this.zMachine.handleTimedInput(state.time, state.routine);
+            }
+
+            // Request input from the screen implementation
+            if (state.keyPress) {
+              this.zMachine.screen.getKeyFromUser(this.zMachine, state);
+            } else {
+              this.zMachine.screen.getInputFromUser(this.zMachine, state);
             }
           } catch (inputError) {
             this.logger.error(`Error during input handling: ${inputError}`);
+            // Attempt to resume execution even if input handling fails
+            this.resume();
           }
         });
       } else {
-        // Handle other errors
+        // Handle any other errors
         this.logger.error(`Execution error at PC=${hex(this._op_pc)}: ${e}`);
         if (e instanceof Error && e.stack) {
           this.logger.debug(e.stack);
@@ -250,8 +259,15 @@ export class Executor {
    * Resumes execution after handling user input
    */
   resume(): void {
+    if (!this._suspended) {
+      this.logger.warn('Called resume() when not suspended');
+      return;
+    }
+
     this._suspended = false;
     this._suspendedInputState = null;
+
+    // Continue execution
     this.executeLoop();
   }
 

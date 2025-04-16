@@ -26,86 +26,105 @@ const DEFAULT_ALPHABET_TABLES = [
  * @returns The decoded string
  */
 export function decodeZString(memory: Memory, zstr: ZString, expandAbbreviations: boolean = true): string {
-  // State variables
-  let alphabet = 0; // Current alphabet (0, 1, or 2)
-  let customAlphabetTable: string[] | null = null;
+  let alphabet = 0;
   const result: string[] = [];
+  let unicodeMode = false;
+  let unicodeHigh = 0;
+  let nextCharIsShiftLocked = false; // For Version 1-2 shift lock behavior
 
-  // Check if there's a custom alphabet table
-  const alphabetTableAddr = memory.getWord(HeaderLocation.AlphabetTable);
-  if (alphabetTableAddr !== 0) {
-    // Load custom alphabet table (implementation would depend on format)
-    // For now, we use the default
-    customAlphabetTable = [...DEFAULT_ALPHABET_TABLES];
-  }
+  // Get alphabet table (either custom or default)
+  const version = memory.getByte(HeaderLocation.Version);
+  const alphabetTables = memory.getAlphabetTables();
 
-  // Use appropriate alphabet table
-  const alphabetTable = customAlphabetTable || DEFAULT_ALPHABET_TABLES;
-
-  // Process each Z-character
   for (let i = 0; i < zstr.length; i++) {
     const zchar = zstr[i];
 
-    // Handle special characters (0-5)
     if (zchar <= 5) {
       switch (zchar) {
-        case 0: // Space
+        case 0:
           result.push(' ');
           break;
 
         case 1:
         case 2:
-        case 3: // Abbreviations
+        case 3:
           if (expandAbbreviations) {
             const nextChar = zstr[++i];
             const abbrevIndex = 32 * (zchar - 1) + nextChar;
             const abbrevTableAddr = memory.getWord(HeaderLocation.AbbreviationsTable);
             const abbrevAddr = memory.getWord(abbrevTableAddr + abbrevIndex * 2) * 2;
 
-            // Recursively decode the abbreviation
-            // We set expandAbbreviations to false to prevent infinite recursion
             const abbrevText = decodeZString(memory, memory.getZString(abbrevAddr), false);
             result.push(abbrevText);
           }
           break;
 
-        case 4: // Shift to A1 (upper case)
-          alphabet = 1;
+        case 4:
+          // Shift behavior depends on version
+          if (version <= 2) {
+            alphabet = 1;
+            nextCharIsShiftLocked = true;
+          } else {
+            alphabet = 1;
+          }
           break;
 
-        case 5: // Shift to A2 (symbols)
-          alphabet = 2;
+        case 5:
+          // Shift behavior depends on version
+          if (version <= 2) {
+            alphabet = 2;
+            nextCharIsShiftLocked = true;
+          } else {
+            alphabet = 2;
+          }
           break;
       }
-    }
-    // Handle special case: character 6 from A2 indicates ZSCII encoding
-    else if (zchar === 6 && alphabet === 2) {
-      // Next two Z-characters specify a ten-bit ZSCII character code
-      const zchar1 = zstr[++i];
-      const zchar2 = zstr[++i];
+    } else if (unicodeMode) {
+      const lowBits = zstr[i];
+      const unicodeChar = (unicodeHigh << 5) | lowBits;
 
-      const zsciiCode = (zchar1 << 5) | zchar2;
-      result.push(String.fromCharCode(zsciiCode));
+      if (version >= 5) {
+        result.push(String.fromCodePoint(memory.zsciiToUnicode(unicodeChar)));
+      } else {
+        result.push(String.fromCodePoint(unicodeChar));
+      }
 
-      // Reset to alphabet 0
+      unicodeMode = false;
       alphabet = 0;
-    }
-    // Handle regular characters
-    else {
-      // Get character from current alphabet
+    } else if (alphabet === 2 && zchar === 6 && version >= 5) {
+      // ZSCII escape sequence (Unicode)
+      if (i + 2 < zstr.length) {
+        unicodeMode = true;
+        unicodeHigh = zstr[++i];
+        continue;
+      } else {
+        result.push('?');
+        break;
+      }
+    } else if (alphabet === 2 && zchar === 7) {
+      // Newline
+      result.push('\n');
+
+      // Reset shift after newline
+      if (version > 2) {
+        alphabet = 0;
+      }
+    } else {
       const alphabetIndex = zchar - 6;
 
-      if (alphabetIndex >= 0 && alphabetIndex < alphabetTable[alphabet].length) {
-        result.push(alphabetTable[alphabet][alphabetIndex]);
+      if (alphabetIndex >= 0 && alphabetIndex < alphabetTables[alphabet].length) {
+        result.push(alphabetTables[alphabet][alphabetIndex]);
       } else {
-        // Invalid character index
         result.push('?');
       }
 
-      // Reset to alphabet 0 after a character from alphabet 1 or 2
-      if (alphabet > 0) {
+      // Reset shift if not shift locked (Version 3+) or if it was a one-time shift lock
+      if (version > 2 || !nextCharIsShiftLocked) {
         alphabet = 0;
       }
+
+      // Reset shift lock flag
+      nextCharIsShiftLocked = false;
     }
   }
 
@@ -120,54 +139,61 @@ export function decodeZString(memory: Memory, zstr: ZString, expandAbbreviations
  * @param padding Padding value for incomplete Z-strings
  * @returns Encoded Z-string
  */
-export function encodeZString(text: string, version: number, padding: number = 0x05): ZString {
-  // Determine resolution based on version
+export function encodeZString(memory: Memory, text: string, version: number, padding: number = 0x05): ZString {
   const resolution = version > 3 ? 3 : 2;
-
-  // Convert text to lowercase for encoding
   text = text.slice(0, resolution * 3).toLowerCase();
   const zchars: Array<number> = [];
 
-  // Encode each character
+  // Get alphabet tables (should be accessible from a central place)
+  const alphabetTables = memory.getAlphabetTables();
+
   for (let i = 0; i < text.length; i++) {
     const char = text[i];
 
-    // Try to encode as lowercase letter (alphabet 0)
-    if (char >= 'a' && char <= 'z') {
-      zchars.push(char.charCodeAt(0) - 'a'.charCodeAt(0) + 6);
+    // Try alphabet A0 (lowercase letters)
+    const a0Index = alphabetTables[0].indexOf(char);
+    if (a0Index >= 0) {
+      zchars.push(a0Index + 6);
+      continue;
     }
-    // Try to encode as uppercase letter (alphabet 1)
-    else if (char >= 'A' && char <= 'Z') {
+
+    // Try alphabet A1 (uppercase letters)
+    const a1Index = alphabetTables[1].indexOf(char);
+    if (a1Index >= 0) {
       zchars.push(4); // Shift to A1
-      zchars.push(char.charCodeAt(0) - 'A'.charCodeAt(0) + 6);
+      zchars.push(a1Index + 6);
+      continue;
     }
-    // Try to encode as symbol or number (alphabet 2)
-    else {
-      const a2Index = DEFAULT_ALPHABET_TABLES[2].indexOf(char);
 
-      if (a2Index >= 0) {
-        zchars.push(5); // Shift to A2
-        zchars.push(a2Index + 6);
-      }
-      // Handle special characters with ZSCII encoding
-      else {
-        const charCode = char.charCodeAt(0);
+    // Try alphabet A2 (punctuation/digits)
+    const a2Index = alphabetTables[2].indexOf(char);
+    if (a2Index >= 0) {
+      zchars.push(5); // Shift to A2
+      zchars.push(a2Index + 6);
+      continue;
+    }
 
-        // Only handle printable ASCII
-        if (charCode >= 32 && charCode <= 126) {
-          zchars.push(5); // Shift to A2
-          zchars.push(6); // ZSCII escape
-          zchars.push((charCode >> 5) & 0x1f); // Upper 5 bits
-          zchars.push(charCode & 0x1f); // Lower 5 bits
-        } else {
-          // Use padding for non-encodable characters
-          zchars.push(padding);
-        }
-      }
+    // Special case for newline
+    if (char === '\n') {
+      zchars.push(5); // Shift to A2
+      zchars.push(7); // Newline in A2
+      continue;
+    }
+
+    // Fall back to ZSCII escape sequence for other characters
+    const charCode = char.charCodeAt(0);
+    if (charCode >= 32 && charCode <= 126) {
+      zchars.push(5); // Shift to A2
+      zchars.push(6); // ZSCII escape
+      zchars.push((charCode >> 5) & 0x1f);
+      zchars.push(charCode & 0x1f);
+    } else {
+      // Use padding for unsupported characters
+      zchars.push(padding);
     }
   }
 
-  // Pad to required length
+  // Pad to full resolution length
   while (zchars.length < resolution * 3) {
     zchars.push(padding);
   }

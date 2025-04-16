@@ -1,4 +1,5 @@
 import { readFileSync } from 'fs';
+import { AlphabetTableManager } from '../../parsers/AlphabetTable';
 import { ZString } from '../../parsers/ZString';
 import { Address } from '../../types';
 import { HeaderLocation } from '../../utils/constants';
@@ -26,6 +27,9 @@ export class Memory {
   private _highMemoryStart: number = 0;
   private _version: number = 0;
 
+  private _alphabetTableManager: AlphabetTableManager | null = null;
+  private _unicodeTranslationTable: Map<number, number> | null = null;
+
   /**
    * Creates a new Memory instance
    * @param buffer The memory buffer
@@ -52,6 +56,16 @@ export class Memory {
     // Set up memory region boundaries
     this._dynamicMemoryEnd = this.getWord(HeaderLocation.StaticMemBase);
     this._highMemoryStart = this.getWord(HeaderLocation.HighMemBase);
+
+    // Load alphabet table for V2+ games
+    if (this._version >= 1) {
+      this._alphabetTableManager = new AlphabetTableManager(this, this.logger);
+    }
+
+    // Load Unicode translation table for V5+ games
+    if (this._version >= 5) {
+      this.loadUnicodeTranslationTable();
+    }
   }
 
   /**
@@ -248,77 +262,73 @@ export class Memory {
   }
 
   /**
-   * Read a Z-string from memory
-   */
-  /**
    * Gets a Z-string according to version-specific rules
    */
   getZString(addr: Address): ZString {
-    // Base validation
     if (addr >= this.size) {
       throw new Error(`String address out of bounds: 0x${addr.toString(16)}`);
     }
 
-    // High memory address alignment check
     if (this.isHighMemory(addr) && !this.checkPackedAddressAlignment(addr, false)) {
       throw new Error(`Misaligned string address in high memory: 0x${addr.toString(16)}`);
     }
 
     const chars: Array<number> = [];
     let wordCount = 0;
-    const MAX_WORDS = 1000; // Safety limit
+    const MAX_WORDS = 1000; // Sanity limit on string length
 
-    // Version-specific differences in processing
-    if (this._version >= 5) {
-      // V5+ has extended character set capabilities
-      const unicodeEscapes = [];
+    let currentAddr = addr;
+    let alphabet = 0; // Current alphabet (0=A0, 1=A1, 2=A2)
+    let unicodeMode = false; // Whether we're in the middle of a Unicode character sequence
+    let unicodeHigh = 0; // High 5 bits of Unicode character
 
-      while (wordCount < MAX_WORDS) {
-        try {
-          const w = this.getWord(addr);
+    while (wordCount < MAX_WORDS) {
+      try {
+        const word = this.getWord(currentAddr);
+        currentAddr += 2;
+        wordCount++;
 
-          // Extract the Z-characters
-          const zchar1 = (w >> 10) & 0x1f;
-          const zchar2 = (w >> 5) & 0x1f;
-          const zchar3 = w & 0x1f;
+        // Extract the three Z-characters from the word
+        const zchar1 = (word >> 10) & 0x1f;
+        const zchar2 = (word >> 5) & 0x1f;
+        const zchar3 = word & 0x1f;
 
-          // Handle unicode escapes for V5+
-          // ... specific V5+ handling logic here
-
-          chars.push(zchar1, zchar2, zchar3);
-
-          if ((w & 0x8000) !== 0) {
-            break;
+        // Process each Z-character
+        for (const zchar of [zchar1, zchar2, zchar3]) {
+          if (unicodeMode) {
+            // Second part of Unicode character
+            chars.push(6); // Add the special Unicode marker
+            chars.push(unicodeHigh);
+            chars.push(zchar);
+            unicodeMode = false;
+          } else if (alphabet === 2 && zchar === 6 && this._version >= 5) {
+            // First part of Unicode character (only in V5+)
+            unicodeMode = true;
+            unicodeHigh = zchar2;
+            break; // Skip to next word, we'll process the lower bits next
+          } else if (zchar <= 5) {
+            // Handle special cases (0-5)
+            chars.push(zchar);
+            if (zchar === 4) alphabet = 1;
+            else if (zchar === 5) alphabet = 2;
+          } else {
+            // Regular character in current alphabet
+            chars.push(zchar);
+            // Reset to alphabet 0 after using a different alphabet
+            if (alphabet > 0) alphabet = 0;
           }
+        }
 
-          addr += 2;
-          wordCount++;
-        } catch (e) {
-          this.logger.warn(`Z-string read terminated due to error: ${e}`);
+        // Check if this is the last word in the string
+        if ((word & 0x8000) !== 0) {
           break;
         }
-      }
-    } else {
-      // Standard V1-4 string handling
-      while (wordCount < MAX_WORDS) {
-        try {
-          const w = this.getWord(addr);
-          chars.push((w >> 10) & 0x1f, (w >> 5) & 0x1f, (w >> 0) & 0x1f);
-
-          if ((w & 0x8000) !== 0) {
-            break;
-          }
-
-          addr += 2;
-          wordCount++;
-        } catch (e) {
-          this.logger.warn(`Z-string read terminated due to error: ${e}`);
-          break;
-        }
+      } catch (e) {
+        this.logger.warn(`Z-string read terminated due to error: ${e}`);
+        break;
       }
     }
 
-    // Safety check
     if (wordCount >= MAX_WORDS) {
       this.logger.warn(`Z-string read exceeded maximum length at address: 0x${addr.toString(16)}`);
     }
@@ -657,6 +667,95 @@ export class Memory {
     } catch (e) {
       return false;
     }
+  }
+
+  /**
+   * Get the unicode translation table
+   */
+  private loadUnicodeTranslationTable(): void {
+    if (this._version < 5) {
+      return; // Only relevant for version 5+
+    }
+
+    // Check for header extension table
+    const headerExtAddr = this.getWord(HeaderLocation.HeaderExtTable);
+    if (headerExtAddr === 0) {
+      this.logger.debug('No header extension table found');
+      return;
+    }
+
+    // Check for Unicode translation table (Word 3)
+    if (headerExtAddr + 6 > this.size) {
+      this.logger.debug('Header extension table too short for Unicode translation');
+      return;
+    }
+
+    const unicodeTableAddr = this.getWord(headerExtAddr + 6);
+    if (unicodeTableAddr === 0) {
+      this.logger.debug('No Unicode translation table address found');
+      return;
+    }
+
+    try {
+      // Read the table
+      const numEntries = this.getByte(unicodeTableAddr);
+      if (numEntries === 0) {
+        this.logger.debug('Unicode translation table is empty (no defined characters)');
+        return;
+      }
+
+      this._unicodeTranslationTable = new Map<number, number>();
+
+      // Map ZSCII characters 155 to 155+N-1 to Unicode values
+      for (let i = 0; i < numEntries; i++) {
+        const zscii = 155 + i;
+        const unicode = this.getWord(unicodeTableAddr + 1 + i * 2);
+        this._unicodeTranslationTable.set(zscii, unicode);
+      }
+
+      this.logger.debug(`Loaded Unicode translation table with ${numEntries} entries`);
+    } catch (e) {
+      this.logger.warn(`Failed to load Unicode translation table: ${e}`);
+      this._unicodeTranslationTable = null;
+    }
+  }
+
+  /**
+   * Converts a ZSCII character to Unicode
+   */
+  public zsciiToUnicode(zscii: number): number {
+    // Handle standard ASCII range (including Unicode)
+    if (zscii >= 32 && zscii <= 126) {
+      return zscii; // Standard ASCII characters map directly
+    }
+
+    // Handle newline
+    if (zscii === 13) {
+      return 10; // Convert to LF
+    }
+
+    // Handle special characters (155-251) if we have a translation table
+    if (zscii >= 155 && zscii <= 251 && this._unicodeTranslationTable) {
+      const unicode = this._unicodeTranslationTable.get(zscii);
+      if (unicode !== undefined) {
+        return unicode;
+      }
+    }
+
+    // Default to question mark for undefined characters
+    return 63; // '?'
+  }
+
+  /**
+   * Get the alphabet tables
+   */
+  public getAlphabetTables(): string[] {
+    if (this._alphabetTableManager) {
+      return this._alphabetTableManager.getAlphabetTables();
+    }
+
+    // Default fallback
+    return ['abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', ' \n0123456789.,!?_#\'"/\\-:()'];
   }
 
   /**
