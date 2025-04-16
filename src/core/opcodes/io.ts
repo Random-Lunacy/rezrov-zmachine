@@ -414,9 +414,7 @@ function set_true_colour(
   // -3 = color under cursor (V6 only)
   // -4 = transparent (V6 only)
 
-  machine.state.logger.debug(
-    `${machine.executor.op_pc.toString(16)} set_true_colour ${foreground} ${background} ${window}`
-  );
+  machine.logger.debug(`${machine.executor.op_pc.toString(16)} set_true_colour ${foreground} ${background} ${window}`);
 
   // Check that windows parameter is only used in V6
   if (window !== -3 && machine.state.version < 6) {

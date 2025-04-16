@@ -1,130 +1,218 @@
-// src/core/execution/UserStack.ts
+import { Address } from '../../types';
 import { Logger } from '../../utils/log';
 import { Memory } from '../memory/Memory';
 
+/**
+ * Represents a user stack in Z-Machine memory (Version 6+ only)
+ *
+ * User stacks are stored in the Z-machine's dynamic memory and consist of:
+ * - A word at the first address indicating the number of available slots (capacity)
+ * - The actual stack slots following that word
+ */
 export interface UserStack {
-  address: number; // Memory address of the stack
-  initialCapacity: number; // Initial capacity of the stack
-}
-
-export class UserStackManager {
-  constructor(private memory: Memory, private logger: Logger) {}
+  /**
+   * Memory address where the stack begins
+   */
+  address: Address;
 
   /**
-   * Pushes a value onto a user stack
-   *
-   * @param stackAddr Address of the user stack
-   * @param value Value to push onto the stack
-   * @returns true if successful, false if stack is full
+   * Initial capacity of the stack
    */
-  pushStack(stackAddr: number, value: number): boolean {
-    // First word is count of available slots
-    const availableSlots = this.memory.getWord(stackAddr);
+  initialCapacity: number;
+}
 
-    if (availableSlots <= 0) {
-      this.logger.debug(`User stack at ${stackAddr} is full`);
-      return false;
+/**
+ * Manages user-defined stacks in Z-machine memory
+ * Used in Version 6+ for the pop_stack and push_stack operations
+ *
+ * Unlike the main stack, user stacks are stored in the Z-machine's dynamic memory.
+ * The first word in the stack table holds the number of available slots.
+ * No underflow checking is performed by the Z-machine itself.
+ */
+export class UserStackManager {
+  private readonly logger: Logger;
+
+  /**
+   * Creates a new user stack manager
+   * @param memory The memory instance
+   */
+  constructor(
+    private readonly memory: Memory,
+    options?: {
+      logger?: Logger;
     }
-
-    // Calculate address for the new value (stack grows backward from capacity)
-    const valueIndex = availableSlots;
-    const valueAddr = stackAddr + 2 + (valueIndex - 1) * 2;
-
-    // Store the value
-    this.memory.setWord(valueAddr, value);
-
-    // Update available slots count
-    this.memory.setWord(stackAddr, availableSlots - 1);
-
-    return true;
+  ) {
+    this.logger = options?.logger || new Logger('UserStackManager');
   }
 
   /**
-   * Pulls a value from a user stack
-   *
+   * Pushes a value onto a user stack
    * @param stackAddr Address of the user stack
-   * @returns The value pulled from the stack, or undefined if empty
+   * @param value Value to push
+   * @returns true if successful, false if stack is full
    */
-  pullStack(stackAddr: number): number | undefined {
+  pushStack(stackAddr: Address, value: number): boolean {
+    // Verify the stack is in dynamic memory to prevent errors
+    if (!this.memory.isDynamicMemory(stackAddr)) {
+      this.logger.error(`User stack at 0x${stackAddr.toString(16)} is not in dynamic memory`);
+      return false;
+    }
+
+    // First word is available slots counter
+    const availableSlots = this.memory.getWord(stackAddr);
+
+    if (availableSlots <= 0) {
+      this.logger.debug(`User stack at 0x${stackAddr.toString(16)} is full`);
+      return false;
+    }
+
+    // Calculate position for the new value - values are stored from high to low
+    // The next value position is (availableSlots - 1) slots from the end
+    const valueIndex = availableSlots;
+    const valueAddr = stackAddr + 2 + (valueIndex - 1) * 2;
+
+    try {
+      // Store the value
+      this.memory.setWord(valueAddr, value);
+
+      // Decrease available slots
+      this.memory.setWord(stackAddr, availableSlots - 1);
+
+      this.logger.debug(
+        `Pushed ${value} onto user stack at 0x${stackAddr.toString(16)}, new count: ${availableSlots - 1}`
+      );
+      return true;
+    } catch (e) {
+      this.logger.error(`Error pushing to user stack: ${e}`);
+      return false;
+    }
+  }
+
+  /**
+   * Pulls a value from a user stack (pop and return)
+   * @param stackAddr Address of the user stack
+   * @returns The popped value, or undefined if stack is empty
+   */
+  pullStack(stackAddr: Address): number | undefined {
+    // Verify the stack is in dynamic memory to prevent errors
+    if (!this.memory.isDynamicMemory(stackAddr)) {
+      this.logger.error(`User stack at 0x${stackAddr.toString(16)} is not in dynamic memory`);
+      return undefined;
+    }
+
     const initialCapacity = this.getInitialCapacity(stackAddr);
     const availableSlots = this.memory.getWord(stackAddr);
     const usedSlots = initialCapacity - availableSlots;
 
     if (usedSlots <= 0) {
-      this.logger.debug(`User stack at ${stackAddr} is empty`);
+      this.logger.debug(`User stack at 0x${stackAddr.toString(16)} is empty`);
       return undefined;
     }
 
-    // Calculate address of the top value
+    // Calculate position of the value to pull
+    // We pull from the top of the stack (first used position)
     const valueIndex = availableSlots + 1;
     const valueAddr = stackAddr + 2 + (valueIndex - 1) * 2;
 
-    // Get the value
-    const value = this.memory.getWord(valueAddr);
+    try {
+      // Get the value
+      const value = this.memory.getWord(valueAddr);
 
-    // Update available slots count
-    this.memory.setWord(stackAddr, availableSlots + 1);
+      // Increase available slots
+      this.memory.setWord(stackAddr, availableSlots + 1);
 
-    return value;
+      this.logger.debug(
+        `Pulled ${value} from user stack at 0x${stackAddr.toString(16)}, new count: ${availableSlots + 1}`
+      );
+      return value;
+    } catch (e) {
+      this.logger.error(`Error pulling from user stack: ${e}`);
+      return undefined;
+    }
   }
 
   /**
-   * Removes multiple items from a user stack
-   *
+   * Pops multiple items from a user stack without returning them
    * @param stackAddr Address of the user stack
-   * @param items Number of items to remove
+   * @param items Number of items to pop
    */
-  popStack(stackAddr: number, items: number): void {
+  popStack(stackAddr: Address, items: number): void {
+    // Verify the stack is in dynamic memory to prevent errors
+    if (!this.memory.isDynamicMemory(stackAddr)) {
+      this.logger.error(`User stack at 0x${stackAddr.toString(16)} is not in dynamic memory`);
+      return;
+    }
+
     const availableSlots = this.memory.getWord(stackAddr);
     const initialCapacity = this.getInitialCapacity(stackAddr);
     const usedSlots = initialCapacity - availableSlots;
     const itemsToPop = Math.min(items, usedSlots);
 
-    // Update available slots count
-    this.memory.setWord(stackAddr, availableSlots + itemsToPop);
+    try {
+      // Increase available slots by itemsToPop
+      this.memory.setWord(stackAddr, availableSlots + itemsToPop);
+      this.logger.debug(
+        `Popped ${itemsToPop} items from user stack at 0x${stackAddr.toString(16)}, new count: ${
+          availableSlots + itemsToPop
+        }`
+      );
+    } catch (e) {
+      this.logger.error(`Error popping from user stack: ${e}`);
+    }
   }
 
   /**
-   * Gets the initial capacity of a user stack
-   *
+   * Estimates the initial capacity of a user stack
    * @param stackAddr Address of the user stack
-   * @returns The initial capacity of the stack
+   * @returns Estimated initial capacity
+   * @private
    */
-  private getInitialCapacity(stackAddr: number): number {
-    // We need to track the initial capacity for each stack
-    // For now, we'll estimate it based on the current state
-    // In a real implementation, we would store this when the stack is created
+  private getInitialCapacity(stackAddr: Address): number {
+    // If we don't know the initial capacity, we can estimate
+    // based on the current available slots and checking for
+    // non-zero values beyond the currently used portion
 
-    // Get the current available slots
     const availableSlots = this.memory.getWord(stackAddr);
 
-    // Look at the first few words after the count to estimate capacity
-    // This is a heuristic that should be replaced with proper tracking
-    const estimatedCapacity = availableSlots;
+    // Check for non-zero values beyond the current position
+    // to estimate how large the stack actually is
     let maxNonZero = 0;
 
     for (let i = 1; i <= 32; i++) {
+      // Arbitrary limit for search
       const addr = stackAddr + 2 + i * 2;
       if (addr < this.memory.size) {
-        const value = this.memory.getWord(addr);
-        if (value !== 0) {
-          maxNonZero = i;
+        try {
+          const value = this.memory.getWord(addr);
+          if (value !== 0) {
+            maxNonZero = i;
+          }
+        } catch (e) {
+          // Address out of bounds or in read-only memory
+          throw new Error(`Error reading memory at 0x${addr.toString(16)}: ${e}`);
         }
       }
     }
 
-    return Math.max(estimatedCapacity, maxNonZero);
+    return Math.max(availableSlots, maxNonZero);
   }
 
   /**
-   * Creates a new user stack
-   *
-   * @param address Address to create the user stack at
+   * Creates a new user stack in memory
+   * @param address Address where the stack should be created
    * @param capacity Initial capacity of the stack
-   * @returns UserStack object
+   * @returns The created user stack object
    */
-  createUserStack(address: number, capacity: number): UserStack {
+  createUserStack(address: Address, capacity: number): UserStack {
+    // Verify the stack address is in dynamic memory
+    if (!this.memory.isDynamicMemory(address)) {
+      throw new Error(`Cannot create user stack in read-only memory at 0x${address.toString(16)}`);
+    }
+
+    // Initialize available slots counter
     this.memory.setWord(address, capacity);
+
+    this.logger.debug(`Created user stack at 0x${address.toString(16)} with capacity ${capacity}`);
 
     return {
       address,

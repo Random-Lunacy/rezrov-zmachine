@@ -1,4 +1,3 @@
-// src/interpreter/GameState.ts
 import { createStackFrame, StackFrame } from '../core/execution/StackFrame';
 import { Memory } from '../core/memory/Memory';
 import { GameObject } from '../core/objects/GameObject';
@@ -7,7 +6,7 @@ import { TextParser } from '../parsers/TextParser';
 import { Snapshot } from '../storage/interfaces';
 import { Address } from '../types';
 import { HeaderLocation } from '../utils/constants';
-import { Logger, LogLevel } from '../utils/log';
+import { Logger } from '../utils/log';
 
 /**
  * Represents the complete state of a Z-machine game
@@ -16,11 +15,35 @@ export class GameState {
   private _pc: Address = 0;
   private _stack: Array<number> = [];
   private _callstack: Array<StackFrame> = [];
-  private _memory: Memory;
-  private _version: number;
-  constructor(memory: Memory, logger?: Logger) {
+  private readonly _memory: Memory;
+  private readonly _version: number;
+
+  // Cached header values
+  private _highMem: number = 0;
+  private _globalVars: number = 0;
+  private _abbrevs: number = 0;
+  private _objectTable: number = 0;
+  private _dict: number = 0;
+  private _routinesOffset: number = 0;
+  private _stringsOffset: number = 0;
+
+  // Game objects factory
+  private readonly _objectFactory: GameObjectFactory;
+
+  // Parser
+  private _textParser: TextParser | null = null;
+
+  // Logger for output and debugging
+  private readonly logger: Logger;
+
+  /**
+   * Create a new game state
+   * @param memory Memory instance
+   * @param logger Optional logger instance
+   */
+  constructor(memory: Memory, options?: { logger?: Logger }) {
     this._memory = memory;
-    this.logger = logger || new Logger(LogLevel.INFO);
+    this.logger = options?.logger || new Logger('GameState');
     this._version = this._memory.getByte(HeaderLocation.Version);
 
     // Read header values
@@ -30,29 +53,11 @@ export class GameState {
     this._objectFactory = new GameObjectFactory(this._memory, this.logger, this._version, this._objectTable);
   }
 
-  // Cached header values
-  private _highmem: number = 0;
-  private _globalVars: number = 0;
-  private _abbrevs: number = 0;
-  private _objectTable: number = 0;
-  private _dict: number = 0;
-  private _routinesOffset: number = 0;
-  private _stringsOffset: number = 0;
-
-  // Game objects factory
-  private _objectFactory: GameObjectFactory;
-
-  // Parser
-  private _textParser: TextParser | null = null;
-
-  // Logger for output and debugging
-  public logger: Logger;
-
   /**
    * Read and cache header values
    */
   private _readHeaderValues(): void {
-    this._highmem = this._memory.getWord(HeaderLocation.HighMemBase);
+    this._highMem = this._memory.getWord(HeaderLocation.HighMemBase);
     this._globalVars = this._memory.getWord(HeaderLocation.GlobalVariables);
     this._abbrevs = this._memory.getWord(HeaderLocation.AbbreviationsTable);
     this._objectTable = this._memory.getWord(HeaderLocation.ObjectTable);
@@ -249,12 +254,17 @@ export class GameState {
    * @param args Arguments to pass to the routine
    */
   callRoutine(routineAddress: Address, returnVar: number | null, ...args: number[]): void {
-    // Validate routine address
+    // Handle 0 address as a special case
     if (routineAddress === 0) {
       if (returnVar !== null) {
         this.storeVariable(returnVar, 0);
       }
       return;
+    }
+
+    // Validate routine address is in high memory and properly aligned
+    if (!this.memory.isHighMemory(routineAddress) || !this.memory.checkPackedAddressAlignment(routineAddress, true)) {
+      throw new Error(`Invalid routine address: 0x${routineAddress.toString(16)}`);
     }
 
     // Read the number of locals
@@ -319,7 +329,7 @@ export class GameState {
     this.logger.debug(`Returning from routine with value ${value} (0x${value.toString(16)})`);
 
     // Store return value if needed
-    if (frame.storesResult) {
+    if (frame.resultVariable !== null) {
       this.storeVariable(frame.resultVariable, value);
     }
 
@@ -352,44 +362,6 @@ export class GameState {
    */
   getRootObjects(): GameObject[] {
     return this._objectFactory.findRootObjects();
-  }
-
-  /**
-   * Unpack a routine address based on Z-machine version
-   * @param packedAddr Packed address
-   * @returns Unpacked memory address
-   */
-  unpackRoutineAddress(packedAddr: Address): Address {
-    if (this._version <= 3) {
-      return 2 * packedAddr;
-    } else if (this._version <= 5) {
-      return 4 * packedAddr;
-    } else if (this._version <= 7) {
-      return 4 * packedAddr + this._routinesOffset;
-    } else if (this._version === 8) {
-      return 8 * packedAddr;
-    } else {
-      throw new Error(`Unknown version: ${this._version}`);
-    }
-  }
-
-  /**
-   * Unpack a string address based on Z-machine version
-   * @param packedAddr Packed address
-   * @returns Unpacked memory address
-   */
-  unpackStringAddress(packedAddr: Address): Address {
-    if (this._version <= 3) {
-      return 2 * packedAddr;
-    } else if (this._version <= 5) {
-      return 4 * packedAddr;
-    } else if (this._version <= 7) {
-      return 4 * packedAddr + this._stringsOffset;
-    } else if (this._version === 8) {
-      return 8 * packedAddr;
-    } else {
-      throw new Error(`Unknown version: ${this._version}`);
-    }
   }
 
   /**
@@ -457,17 +429,17 @@ export class GameState {
    * Read a Z-string from memory at the current PC and advance PC
    */
   readZString(): Array<number> {
-    const zstring = this._memory.getZString(this._pc);
+    const zString = this._memory.getZString(this._pc);
 
     // Calculate how many bytes the Z-string takes in memory
     // Each Z-string word encodes 3 Z-characters
-    const wordCount = Math.ceil(zstring.length / 3);
+    const wordCount = Math.ceil(zString.length / 3);
 
     // Move PC past the Z-string
     // The last word has its high bit set, so we know when to stop
     this._pc += wordCount * 2;
 
-    return zstring;
+    return zString;
   }
 
   /**
@@ -536,7 +508,7 @@ export class GameState {
       this._textParser = new TextParser(this._memory, this.logger);
     }
 
-    this._textParser.tokeniseLine(textBuffer, parseBuffer, dict || this._dict, flag);
+    this._textParser.tokenizeLine(textBuffer, parseBuffer, dict || this._dict, flag);
   }
 
   /**

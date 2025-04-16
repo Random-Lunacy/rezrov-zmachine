@@ -9,6 +9,11 @@ export type Address = number;
 export type ZSCII = number;
 
 /**
+ * Represents a Z-string as an array of Z-characters
+ */
+export type ZString = Array<ZSCII>;
+
+/**
  * Represents the state required to resume execution after user input
  */
 export interface InputState {

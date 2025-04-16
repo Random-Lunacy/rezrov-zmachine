@@ -36,12 +36,12 @@ function test_attr(machine: ZMachine, obj: number, attribute: number): void {
     }`
   );
 
-  const o = machine.state.getObject(obj);
-  if (o === null) {
+  const targetObj = machine.state.getObject(obj);
+  if (targetObj === null) {
     machine.logger.error('Object null in test_attr');
     machine.state.doBranch(false, branchOnFalse, offset);
   } else {
-    machine.state.doBranch(o.hasAttribute(attribute), branchOnFalse, offset);
+    machine.state.doBranch(targetObj.hasAttribute(attribute), branchOnFalse, offset);
   }
 }
 
@@ -51,12 +51,12 @@ function test_attr(machine: ZMachine, obj: number, attribute: number): void {
 function set_attr(machine: ZMachine, obj: number, attribute: number): void {
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} set_attr ${obj} ${attribute}`);
 
-  const o = machine.state.getObject(obj);
-  if (o === null) {
+  const targetObj = machine.state.getObject(obj);
+  if (targetObj === null) {
     machine.logger.error('Object null in set_attr');
     return;
   }
-  o.setAttribute(attribute);
+  targetObj.setAttribute(attribute);
 }
 
 /**
@@ -65,12 +65,12 @@ function set_attr(machine: ZMachine, obj: number, attribute: number): void {
 function clear_attr(machine: ZMachine, obj: number, attribute: number): void {
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} clear_attr ${obj} ${attribute}`);
 
-  const o = machine.state.getObject(obj);
-  if (o === null) {
+  const targetObj = machine.state.getObject(obj);
+  if (targetObj === null) {
     machine.logger.error('Object null in clear_attr');
     return;
   }
-  o.clearAttribute(attribute);
+  targetObj.clearAttribute(attribute);
 }
 
 /**
@@ -87,7 +87,7 @@ function jin(machine: ZMachine, obj1: number, obj2: number): void {
     machine.logger.error('Child object is null in jin');
     machine.state.doBranch(false, branchOnFalse, offset);
   } else {
-    const parentObjNum = o1.parent ? o1.parent.objnum : 0;
+    const parentObjNum = o1.parent ? o1.parent.objNum : 0;
     machine.state.doBranch(parentObjNum === obj2, branchOnFalse, offset);
   }
 }
@@ -98,27 +98,27 @@ function jin(machine: ZMachine, obj1: number, obj2: number): void {
 function insert_obj(machine: ZMachine, obj: number, destination: number): void {
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} insert_obj ${obj} ${destination}`);
 
-  const o = machine.state.getObject(obj);
-  if (o === null) {
+  const targetObj = machine.state.getObject(obj);
+  if (targetObj === null) {
     machine.logger.error('Object null in insert_obj');
     return;
   }
 
-  const desto = machine.state.getObject(destination);
-  if (desto === null) {
+  const destObj = machine.state.getObject(destination);
+  if (destObj === null) {
     machine.logger.error('Destination object null in insert_obj');
     return;
   }
 
   // Remove the object from its current parent
-  if (o.parent) {
-    o.unlink();
+  if (targetObj.parent) {
+    targetObj.unlink();
   }
 
   // Insert the object into its new parent
-  o.sibling = desto.child;
-  o.parent = desto;
-  desto.child = o;
+  targetObj.sibling = destObj.child;
+  targetObj.parent = destObj;
+  destObj.child = targetObj;
 }
 
 /**
@@ -128,14 +128,14 @@ function get_prop(machine: ZMachine, obj: number, property: number): void {
   const resultVar = machine.state.readByte();
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} get_prop ${obj} ${property} -> (${resultVar})`);
 
-  const o = machine.state.getObject(obj);
-  if (o === null) {
+  const targetObj = machine.state.getObject(obj);
+  if (targetObj === null) {
     machine.logger.warn('get_prop called on null object');
     machine.state.storeVariable(resultVar, 0);
     return;
   }
 
-  machine.state.storeVariable(resultVar, o.getProperty(property));
+  machine.state.storeVariable(resultVar, targetObj.getProperty(property));
 }
 
 /**
@@ -145,14 +145,14 @@ function get_prop_addr(machine: ZMachine, obj: number, property: number): void {
   const resultVar = machine.state.readByte();
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} get_prop_addr ${obj} ${property} -> (${resultVar})`);
 
-  const o = machine.state.getObject(obj);
-  if (o === null) {
+  const targetObj = machine.state.getObject(obj);
+  if (targetObj === null) {
     machine.logger.warn('get_prop_addr called on null object');
     machine.state.storeVariable(resultVar, 0);
     return;
   }
 
-  machine.state.storeVariable(resultVar, o.getPropertyAddress(property));
+  machine.state.storeVariable(resultVar, targetObj.getPropertyAddress(property));
 }
 
 /**
@@ -162,14 +162,14 @@ function get_next_prop(machine: ZMachine, obj: number, property: number): void {
   const resultVar = machine.state.readByte();
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} get_next_prop ${obj} ${property} -> (${resultVar})`);
 
-  const o = machine.state.getObject(obj);
-  if (o === null) {
+  const targetObj = machine.state.getObject(obj);
+  if (targetObj === null) {
     machine.logger.warn('get_next_prop called on null object');
     machine.state.storeVariable(resultVar, 0);
     return;
   }
 
-  machine.state.storeVariable(resultVar, o.getNextProperty(property));
+  machine.state.storeVariable(resultVar, targetObj.getNextProperty(property));
 }
 
 /**
@@ -182,12 +182,12 @@ function get_sibling(machine: ZMachine, obj: number): void {
     `${machine.executor.op_pc.toString(16)} get_sibling ${obj} -> (${resultVar}) ?[${!branchOnFalse}] ${offset}`
   );
 
-  const o = machine.state.getObject(obj);
+  const targetObj = machine.state.getObject(obj);
   let sibling: GameObject | null = null;
 
-  if (o) {
-    sibling = o.sibling;
-    machine.state.storeVariable(resultVar, sibling ? sibling.objnum : 0);
+  if (targetObj) {
+    sibling = targetObj.sibling;
+    machine.state.storeVariable(resultVar, sibling ? sibling.objNum : 0);
   } else {
     machine.logger.warn('object is 0 in get_sibling');
     machine.state.storeVariable(resultVar, 0);
@@ -206,16 +206,16 @@ function get_child(machine: ZMachine, obj: number): void {
     `${machine.executor.op_pc.toString(16)} get_child ${obj} -> (${resultVar}) ?[${!branchOnFalse}] ${offset}`
   );
 
-  const o = machine.state.getObject(obj);
-  if (o === null) {
+  const targetObj = machine.state.getObject(obj);
+  if (targetObj === null) {
     machine.logger.warn('object is 0 in get_child');
     machine.state.storeVariable(resultVar, 0);
     machine.state.doBranch(false, branchOnFalse, offset);
     return;
   }
 
-  const child = o.child;
-  machine.state.storeVariable(resultVar, child ? child.objnum : 0);
+  const child = targetObj.child;
+  machine.state.storeVariable(resultVar, child ? child.objNum : 0);
   machine.state.doBranch(child !== null, branchOnFalse, offset);
 }
 
@@ -226,15 +226,15 @@ function get_parent(machine: ZMachine, obj: number): void {
   const resultVar = machine.state.readByte();
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} get_parent ${obj} -> (${resultVar})`);
 
-  const o = machine.state.getObject(obj);
-  if (o === null) {
+  const targetObj = machine.state.getObject(obj);
+  if (targetObj === null) {
     machine.logger.error('object null in get_parent');
     machine.state.storeVariable(resultVar, 0);
     return;
   }
 
-  const parent_objnum = o.parent === null ? 0 : o.parent.objnum;
-  machine.state.storeVariable(resultVar, parent_objnum);
+  const parent_objNum = targetObj.parent === null ? 0 : targetObj.parent.objNum;
+  machine.state.storeVariable(resultVar, parent_objNum);
 }
 
 /**
@@ -243,13 +243,13 @@ function get_parent(machine: ZMachine, obj: number): void {
 function remove_obj(machine: ZMachine, obj: number): void {
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} remove_obj ${obj}`);
 
-  const o = machine.state.getObject(obj);
-  if (o === null) {
+  const targetObj = machine.state.getObject(obj);
+  if (targetObj === null) {
     machine.logger.error('object null in remove_obj');
     return;
   }
 
-  o.unlink();
+  targetObj.unlink();
 }
 
 /**
@@ -258,13 +258,13 @@ function remove_obj(machine: ZMachine, obj: number): void {
 function put_prop(machine: ZMachine, obj: number, property: number, value: number): void {
   machine.logger.debug(`put_prop ${obj} ${property} ${value}`);
 
-  const o = machine.state.getObject(obj);
-  if (o === null) {
+  const targetObj = machine.state.getObject(obj);
+  if (targetObj === null) {
     machine.logger.warn('put_prop called on null object');
     return;
   }
 
-  o.putProperty(property, value);
+  targetObj.putProperty(property, value);
 }
 
 /**
@@ -284,13 +284,13 @@ function get_prop_len(machine: ZMachine, propDataAddr: number): void {
 function print_obj(machine: ZMachine, obj: number): void {
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} print_obj ${obj}`);
 
-  const o = machine.state.getObject(obj);
-  if (o === null) {
+  const targetObj = machine.state.getObject(obj);
+  if (targetObj === null) {
     machine.logger.warn(`print_obj: object ${obj} not found`);
     return;
   }
 
-  machine.screen.print(machine, o.name);
+  machine.screen.print(machine, targetObj.name);
 }
 
 /**

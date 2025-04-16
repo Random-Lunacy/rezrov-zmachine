@@ -24,7 +24,7 @@ import { opcode } from './base';
  * Signed 16-bit addition. Adds the values of a and b and stores the result.
  */
 function add(machine: ZMachine, a: number, b: number): void {
-  machine.state.logger.debug(`add ${a} ${b}`);
+  machine.logger.debug(`add ${a} ${b}`);
   machine.state.storeVariable(machine.state.readByte(), toU16(toI16(a) + toI16(b)));
 }
 
@@ -32,7 +32,7 @@ function add(machine: ZMachine, a: number, b: number): void {
  * Performs a bitwise AND operation on the values of a and b and stores the result.
  */
 function and(machine: ZMachine, a: number, b: number): void {
-  machine.state.logger.debug(`and ${a} ${b}`);
+  machine.logger.debug(`and ${a} ${b}`);
   machine.state.storeVariable(machine.state.readByte(), a & b);
 }
 
@@ -43,7 +43,7 @@ function div(machine: ZMachine, a: number, b: number): void {
   if (b === 0) {
     throw new Error('Division by zero');
   }
-  machine.state.logger.debug(`div ${a} ${b}`);
+  machine.logger.debug(`div ${a} ${b}`);
   machine.state.storeVariable(machine.state.readByte(), toU16(Math.floor(toI16(a) / toI16(b))));
 }
 
@@ -54,7 +54,7 @@ function mod(machine: ZMachine, a: number, b: number): void {
   if (b === 0) {
     throw new Error('Modulo by zero');
   }
-  machine.state.logger.debug(`mod ${a} ${b}`);
+  machine.logger.debug(`mod ${a} ${b}`);
   machine.state.storeVariable(machine.state.readByte(), toU16(toI16(a) % toI16(b)));
 }
 
@@ -62,7 +62,7 @@ function mod(machine: ZMachine, a: number, b: number): void {
  * Multiplies two numbers.
  */
 function mul(machine: ZMachine, a: number, b: number): void {
-  machine.state.logger.debug(`mul ${a} ${b}`);
+  machine.logger.debug(`mul ${a} ${b}`);
   machine.state.storeVariable(machine.state.readByte(), toU16(toI16(a) * toI16(b)));
 }
 
@@ -70,7 +70,7 @@ function mul(machine: ZMachine, a: number, b: number): void {
  * Performs bitwise NOT operation.
  */
 function not(machine: ZMachine, value: number): void {
-  machine.state.logger.debug(`not ${value}`);
+  machine.logger.debug(`not ${value}`);
   machine.state.storeVariable(machine.state.readByte(), value ^ 0xffff);
 }
 
@@ -78,7 +78,7 @@ function not(machine: ZMachine, value: number): void {
  * Performs bitwise OR operation.
  */
 function or(machine: ZMachine, a: number, b: number): void {
-  machine.state.logger.debug(`or ${a} ${b}`);
+  machine.logger.debug(`or ${a} ${b}`);
   machine.state.storeVariable(machine.state.readByte(), a | b);
 }
 
@@ -86,7 +86,7 @@ function or(machine: ZMachine, a: number, b: number): void {
  * Subtracts the second number from the first.
  */
 function sub(machine: ZMachine, a: number, b: number): void {
-  machine.state.logger.debug(`sub ${a} ${b}`);
+  machine.logger.debug(`sub ${a} ${b}`);
   machine.state.storeVariable(machine.state.readByte(), toU16(toI16(a) - toI16(b)));
 }
 
@@ -96,7 +96,7 @@ function sub(machine: ZMachine, a: number, b: number): void {
 function random(machine: ZMachine, range: number): void {
   const resultVar = machine.state.readByte();
 
-  machine.state.logger.debug(`random ${range}`);
+  machine.logger.debug(`random ${range}`);
 
   if (range <= 0) {
     // Reseed the RNG
@@ -116,7 +116,7 @@ function art_shift(machine: ZMachine, value: number, places: number): void {
   const resultVar = machine.state.readByte();
   const signedPlaces = toI16(places);
 
-  machine.state.logger.debug(`art_shift ${value} ${places}`);
+  machine.logger.debug(`art_shift ${value} ${places}`);
 
   let result: number;
 
@@ -138,7 +138,7 @@ function log_shift(machine: ZMachine, value: number, places: number): void {
   const resultVar = machine.state.readByte();
   const signedPlaces = toI16(places);
 
-  machine.state.logger.debug(`log_shift ${value} ${places}`);
+  machine.logger.debug(`log_shift ${value} ${places}`);
 
   let result: number;
 

@@ -16,7 +16,7 @@ import { opcode } from './base';
  * Draw a picture at the given coordinates (V6)
  */
 function draw_picture(machine: ZMachine, picture: number, x: number, y: number): void {
-  machine.state.logger.debug(`draw_picture ${picture} ${x} ${y}`);
+  machine.logger.debug(`draw_picture ${picture} ${x} ${y}`);
   throw new Error(`Unimplemented opcode: draw_picture`);
 }
 
@@ -24,7 +24,7 @@ function draw_picture(machine: ZMachine, picture: number, x: number, y: number):
  * Get picture data, branch if available (V6)
  */
 function picture_data(machine: ZMachine, picture: number): void {
-  machine.state.logger.debug(`picture_data ${picture}`);
+  machine.logger.debug(`picture_data ${picture}`);
   throw new Error(`Unimplemented opcode: picture_data`);
 }
 
@@ -32,7 +32,7 @@ function picture_data(machine: ZMachine, picture: number): void {
  * Erase a picture (V6)
  */
 function erase_picture(machine: ZMachine, picture: number): void {
-  machine.state.logger.debug(`erase_picture ${picture}`);
+  machine.logger.debug(`erase_picture ${picture}`);
   throw new Error(`Unimplemented opcode: erase_picture`);
 }
 
@@ -40,7 +40,7 @@ function erase_picture(machine: ZMachine, picture: number): void {
  * Give advance notice of pictures (V6)
  */
 function picture_table(machine: ZMachine, table: number): void {
-  machine.state.logger.debug(`picture_table ${table}`);
+  machine.logger.debug(`picture_table ${table}`);
   throw new Error(`Unimplemented opcode: picture_table`);
 }
 

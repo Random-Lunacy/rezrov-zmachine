@@ -1,5 +1,3 @@
-// src/ui/multimedia/MultimediaHandler.ts
-
 import { ZMachine } from '../../interpreter/ZMachine';
 
 /**

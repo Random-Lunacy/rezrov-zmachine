@@ -3,8 +3,9 @@ import { InputState } from '../core/execution/InputState';
 import { UserStackManager } from '../core/execution/UserStack';
 import { Memory } from '../core/memory/Memory';
 import { Storage } from '../storage/interfaces';
+import { QuetzalStorage } from '../storage/QuetzalStorage';
 import { InputHandler } from '../ui/input/InputHandler';
-import { Screen } from '../ui/screen/interfaces';
+import { Capabilities, Screen } from '../ui/screen/interfaces';
 import { HeaderLocation } from '../utils/constants';
 import { Logger } from '../utils/log';
 import { GameState } from './GameState';
@@ -15,11 +16,15 @@ import { ZMachineVersion } from './Version';
  * This class serves as the main interface to the Z-Machine interpreter
  */
 export class ZMachine {
-  private _memory: Memory;
-  private _executor: Executor;
-  private _state: GameState;
-  private _screen: Screen;
+  private readonly _memory: Memory;
+  private readonly _executor: Executor;
+  private readonly _state: GameState;
+  private readonly _screen: Screen;
+  private readonly _inputHandler: InputHandler;
+  private readonly _logger: Logger;
+  private readonly _userStackManager: UserStackManager | null = null;
   private _storage: Storage;
+
   /**
    * Creates a new Z-Machine interpreter
    * @param storyBuffer Buffer containing the story file
@@ -27,19 +32,17 @@ export class ZMachine {
    * @param screen Screen interface for output
    * @param storage Storage interface for save/restore
    */
-  constructor(storyBuffer: Buffer, logger: Logger, screen: Screen, storage: Storage) {
+  constructor(storyBuffer: Buffer, screen: Screen, storage: Storage, options?: { logger?: Logger }) {
     this._memory = new Memory(storyBuffer);
-    this._logger = logger;
+    this._logger = options?.logger || new Logger('ZMachine');
     this._screen = screen;
     this._storage = storage;
 
     // Initialize state
-    const version = this._memory.getByte(HeaderLocation.Version) as ZMachineVersion;
-
-    this._state = new GameState(this._memory, logger);
+    this._state = new GameState(this._memory);
 
     // Initialize executor
-    this._executor = new Executor(this._state, this._logger);
+    this._executor = new Executor(this);
 
     // Initialize input handler
     this._inputHandler = new InputHandler(this, this._screen);
@@ -49,13 +52,9 @@ export class ZMachine {
 
     // Initialize UserStackManager for Version 6
     if (this._state.version === 6) {
-      this._userStackManager = new UserStackManager(this._memory, this._logger);
+      this._userStackManager = new UserStackManager(this._memory);
     }
   }
-
-  private _inputHandler: InputHandler;
-  private _logger: Logger;
-  private _userStackManager: UserStackManager | null = null;
 
   public get memory(): Memory {
     return this._memory;
@@ -106,53 +105,76 @@ export class ZMachine {
     let flags1 = this._memory.getByte(HeaderLocation.Flags1);
 
     if (version <= 3) {
-      // Clear bits 4, 5, 6 before setting them
-      flags1 &= 0b10001111;
-
-      if (screenCapabilities.hasDisplayStatusBar) {
-        flags1 |= 0b00010000; // bit 4
-      }
-
-      if (screenCapabilities.hasSplitWindow) {
-        flags1 |= 0b00100000; // bit 5
-      }
-
-      // Bit 6 determines variable width font (default)
-      // Leave cleared for now
+      flags1 = this.configureFlagsForVersion3(flags1, screenCapabilities);
     } else {
-      // Clear all bits except bit 6
-      flags1 &= 0b01000000;
-
-      if (screenCapabilities.hasColors) {
-        flags1 |= 0b00000001; // bit 0
-      }
-
-      if (screenCapabilities.hasPictures) {
-        flags1 |= 0b00000010; // bit 1
-      }
-
-      if (screenCapabilities.hasBold) {
-        flags1 |= 0b00000100; // bit 2
-      }
-
-      if (screenCapabilities.hasItalic) {
-        flags1 |= 0b00001000; // bit 3
-      }
-
-      if (screenCapabilities.hasFixedPitch) {
-        flags1 |= 0b00010000; // bit 4
-      }
-
-      if (screenCapabilities.hasSound) {
-        flags1 |= 0b00100000; // bit 5
-      }
-
-      if (screenCapabilities.hasTimedKeyboardInput) {
-        flags1 |= 0b10000000; // bit 7
-      }
+      flags1 = this.configureFlagsForVersion4Plus(flags1, screenCapabilities);
     }
 
     this._memory.setByte(HeaderLocation.Flags1, flags1);
+  }
+
+  /**
+   * Configure flags for Z-Machine versions 1-3
+   * @param flags1 The current flags
+   * @param screenCapabilities The screen capabilities
+   * @returns The updated flags
+   */
+  private configureFlagsForVersion3(flags1: number, screenCapabilities: Capabilities): number {
+    // Clear bits 4, 5, 6 before setting them
+    flags1 &= 0b10001111;
+
+    if (screenCapabilities.hasDisplayStatusBar) {
+      flags1 |= 0b00010000; // bit 4
+    }
+
+    if (screenCapabilities.hasSplitWindow) {
+      flags1 |= 0b00100000; // bit 5
+    }
+
+    // Bit 6 determines variable width font (default)
+    // Leave cleared for now
+    return flags1;
+  }
+
+  /**
+   * Configure flags for Z-Machine versions 4 and above
+   * @param flags1 The current flags
+   * @param screenCapabilities The screen capabilities
+   * @returns The updated flags
+   */
+  private configureFlagsForVersion4Plus(flags1: number, screenCapabilities: Capabilities): number {
+    // Clear all bits except bit 6
+    flags1 &= 0b01000000;
+
+    if (screenCapabilities.hasColors) {
+      flags1 |= 0b00000001; // bit 0
+    }
+
+    if (screenCapabilities.hasPictures) {
+      flags1 |= 0b00000010; // bit 1
+    }
+
+    if (screenCapabilities.hasBold) {
+      flags1 |= 0b00000100; // bit 2
+    }
+
+    if (screenCapabilities.hasItalic) {
+      flags1 |= 0b00001000; // bit 3
+    }
+
+    if (screenCapabilities.hasFixedPitch) {
+      flags1 |= 0b00010000; // bit 4
+    }
+
+    if (screenCapabilities.hasSound) {
+      flags1 |= 0b00100000; // bit 5
+    }
+
+    if (screenCapabilities.hasTimedKeyboardInput) {
+      flags1 |= 0b10000000; // bit 7
+    }
+
+    return flags1;
   }
 
   /**
@@ -179,7 +201,7 @@ export class ZMachine {
    */
   handleInputCompletion(input: string): void {
     this._inputHandler.processInput(input);
-    this.resumeExecution();
+    this._executor.resume();
   }
 
   /**
@@ -189,7 +211,7 @@ export class ZMachine {
 
   handleKeyCompletion(key: string): void {
     this._inputHandler.processKeypress(key);
-    this.resumeExecution();
+    this._executor.resume();
   }
 
   /**
@@ -197,13 +219,7 @@ export class ZMachine {
    * @returns True if the save was successful
    */
   saveGame(): boolean {
-    try {
-      this._storage.saveSnapshot(this._state.createSnapshot());
-      return true;
-    } catch (e) {
-      this._logger.error(`Failed to save game: ${e}`);
-      return false;
-    }
+    return this.saveGameQuetzal();
   }
 
   /**
@@ -211,14 +227,7 @@ export class ZMachine {
    * @returns True if the restore was successful
    */
   restoreGame(): boolean {
-    try {
-      const snapshot = this._storage.loadSnapshot();
-      this._state.restoreFromSnapshot(snapshot);
-      return true;
-    } catch (e) {
-      this._logger.error(`Failed to restore game: ${e}`);
-      return false;
-    }
+    return this.restoreGameQuetzal();
   }
 
   /**
@@ -310,7 +319,7 @@ export class ZMachine {
   // Helper method to extract a filename from memory
   private extractFilename(address: number): string {
     // This implementation depends on how filenames are stored in your Z-machine
-    // For a simple approach, assuming ASCIIZ string:
+    // For a simple approach, assuming ASCII string:
     let filename = '';
     let i = 0;
     let char;
@@ -425,7 +434,7 @@ export class ZMachine {
       // If we're still waiting for input
       if (this._executor.isSuspended) {
         // Call the routine
-        const routineAddr = this._state.unpackRoutineAddress(routine);
+        const routineAddr = this._memory.unpackRoutineAddress(routine);
         this._state.callRoutine(routineAddr, null);
 
         // Resume execution
@@ -439,5 +448,74 @@ export class ZMachine {
    */
   quit(): void {
     this._executor.quit();
+  }
+
+  /**
+   * Create a Quetzal storage instance
+   * @param savePath The directory to save files to
+   * @param saveFilename The filename to save to
+   * @returns A new QuetzalStorage instance
+   */
+  createQuetzalStorage(savePath: string = '.', saveFilename: string = 'save.qzl'): QuetzalStorage {
+    const quetzalStorage = new QuetzalStorage(this.logger, this._memory.buffer, savePath, saveFilename);
+    return quetzalStorage;
+  }
+
+  /**
+   * Save the current state to a Quetzal file
+   * @param filename Optional filename to save to
+   * @returns True if the save was successful
+   */
+  saveGameQuetzal(filename?: string): boolean {
+    try {
+      // Create a Quetzal storage if we don't have one
+      if (!(this._storage instanceof QuetzalStorage)) {
+        this._storage = this.createQuetzalStorage();
+      }
+
+      // Set filename if provided
+      if (filename && this._storage instanceof QuetzalStorage) {
+        this._storage.setFilename(filename);
+      }
+
+      // Create a snapshot and save it
+      const snapshot = this._state.createSnapshot();
+      this._storage.saveSnapshot(snapshot);
+
+      return true;
+    } catch (e) {
+      this.logger.error(`Failed to save game: ${e}`);
+      return false;
+    }
+  }
+
+  /**
+   * Restore a saved state from a Quetzal file
+   * @param filename Optional filename to restore from
+   * @returns True if the restore was successful
+   */
+  restoreGameQuetzal(filename?: string): boolean {
+    try {
+      // Create a Quetzal storage if we don't have one
+      if (!(this._storage instanceof QuetzalStorage)) {
+        this._storage = this.createQuetzalStorage();
+      }
+
+      // Set filename if provided
+      if (filename && this._storage instanceof QuetzalStorage) {
+        this._storage.setFilename(filename);
+      }
+
+      // Load the snapshot
+      const snapshot = this._storage.loadSnapshot();
+
+      // Restore from the snapshot
+      this._state.restoreFromSnapshot(snapshot);
+
+      return true;
+    } catch (e) {
+      this.logger.error(`Failed to restore game: ${e}`);
+      return false;
+    }
   }
 }

@@ -21,7 +21,7 @@ export function hex(v: number): string {
  * @param machine The Z-machine instance
  */
 export function dumpHeader(machine: ZMachine): void {
-  const memory = machine.getGameState().memory;
+  const memory = machine.state.memory;
   const logger = machine.logger;
 
   logger.debug('Header Information:');
@@ -53,7 +53,7 @@ export function dumpHeader(machine: ZMachine): void {
  * @param machine The Z-machine instance
  */
 export function dumpObjectTable(machine: ZMachine): void {
-  const state = machine.getGameState();
+  const state = machine.state;
   const logger = machine.logger;
   const rootObjects: Array<GameObject> = [];
 
@@ -79,9 +79,10 @@ export function dumpObjectTable(machine: ZMachine): void {
  * @param logger The logger to use
  * @param indent Indentation level for formatting
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function dumpObjectHierarchy(obj: GameObject, logger: any, indent = 0): void {
   const indentStr = '  '.repeat(indent);
-  logger.debug(`${indentStr}[${obj.objnum}] "${obj.name}"`);
+  logger.debug(`${indentStr}[${obj.objNum}] "${obj.name}"`);
 
   // Dump attributes
   let attrList = '';
@@ -110,7 +111,7 @@ function dumpObjectHierarchy(obj: GameObject, logger: any, indent = 0): void {
  * @param machine The Z-machine instance
  */
 export function dumpDictionary(machine: ZMachine): void {
-  const state = machine.getGameState();
+  const state = machine.state;
   const memory = state.memory;
   const logger = machine.logger;
 
@@ -152,7 +153,7 @@ export function dumpDictionary(machine: ZMachine): void {
  * @param parseBuffer Address of the parse buffer
  */
 export function dumpParseBuffer(machine: ZMachine, parseBuffer: Address): void {
-  const memory = machine.getGameState().memory;
+  const memory = machine.state.memory;
   const logger = machine.logger;
 
   const maxTokens = memory.getByte(parseBuffer);
@@ -179,7 +180,7 @@ export function dumpParseBuffer(machine: ZMachine, parseBuffer: Address): void {
  * @param machine The Z-machine instance
  */
 export function dumpState(machine: ZMachine): void {
-  const state = machine.getGameState();
+  const state = machine.state;
   const logger = machine.logger;
 
   logger.debug('=== Z-Machine State ===');
