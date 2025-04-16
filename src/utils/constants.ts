@@ -50,7 +50,9 @@ export enum KnownGlobals {
   NumTurns = 2, // Number of turns played
 
   // For time games:
+  // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
   Hours = 1, // Current hour
+  // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
   Minutes = 2, // Current minute
 }
 

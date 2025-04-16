@@ -1,4 +1,3 @@
-// src/core/execution/SuspendState.ts
 import { InputState } from './InputState';
 
 /**

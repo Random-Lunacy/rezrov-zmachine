@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { UserStackManager } from '../../src/core/execution/UserStack';
 import { Memory } from '../../src/core/memory/Memory';
 import { HeaderLocation } from '../../src/utils/constants';
-import { Logger, LogLevel } from '../../src/utils/log';
+import { Logger } from '../../src/utils/log';
 
 describe('UserStackManager', () => {
   let buffer: Buffer;
@@ -26,13 +26,13 @@ describe('UserStackManager', () => {
     buffer[HeaderLocation.HighMemBase + 1] = 0x00;
 
     memory = new Memory(buffer);
-    logger = new Logger(LogLevel.ERROR);
+    logger = new Logger('user stack test');
 
     // Mock logger methods for testing
     logger.debug = vi.fn();
     logger.error = vi.fn();
 
-    userStackManager = new UserStackManager(memory, logger);
+    userStackManager = new UserStackManager(memory, { logger });
   });
 
   describe('createUserStack', () => {
@@ -290,7 +290,6 @@ describe('UserStackManager', () => {
 
       // Create a stack without using createUserStack
       const address = 100;
-      const capacity = 5;
 
       // Set available slots
       memory.setWord(address, 3); // 3 available, 2 used

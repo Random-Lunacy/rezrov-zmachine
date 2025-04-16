@@ -16,11 +16,15 @@ import { ZMachineVersion } from './Version';
  * This class serves as the main interface to the Z-Machine interpreter
  */
 export class ZMachine {
-  private _memory: Memory;
-  private _executor: Executor;
-  private _state: GameState;
-  private _screen: Screen;
+  private readonly _memory: Memory;
+  private readonly _executor: Executor;
+  private readonly _state: GameState;
+  private readonly _screen: Screen;
+  private readonly _inputHandler: InputHandler;
+  private readonly _logger: Logger;
+  private readonly _userStackManager: UserStackManager | null = null;
   private _storage: Storage;
+
   /**
    * Creates a new Z-Machine interpreter
    * @param storyBuffer Buffer containing the story file
@@ -28,19 +32,17 @@ export class ZMachine {
    * @param screen Screen interface for output
    * @param storage Storage interface for save/restore
    */
-  constructor(storyBuffer: Buffer, logger: Logger, screen: Screen, storage: Storage) {
+  constructor(storyBuffer: Buffer, screen: Screen, storage: Storage, options?: { logger?: Logger }) {
     this._memory = new Memory(storyBuffer);
-    this._logger = logger;
+    this._logger = options?.logger || new Logger('ZMachine');
     this._screen = screen;
     this._storage = storage;
 
     // Initialize state
-    const version = this._memory.getByte(HeaderLocation.Version) as ZMachineVersion;
-
-    this._state = new GameState(this._memory, logger);
+    this._state = new GameState(this._memory);
 
     // Initialize executor
-    this._executor = new Executor(this, this._logger);
+    this._executor = new Executor(this);
 
     // Initialize input handler
     this._inputHandler = new InputHandler(this, this._screen);
@@ -50,13 +52,9 @@ export class ZMachine {
 
     // Initialize UserStackManager for Version 6
     if (this._state.version === 6) {
-      this._userStackManager = new UserStackManager(this._memory, this._logger);
+      this._userStackManager = new UserStackManager(this._memory);
     }
   }
-
-  private _inputHandler: InputHandler;
-  private _logger: Logger;
-  private _userStackManager: UserStackManager | null = null;
 
   public get memory(): Memory {
     return this._memory;
@@ -180,7 +178,7 @@ export class ZMachine {
    */
   handleInputCompletion(input: string): void {
     this._inputHandler.processInput(input);
-    this.resumeExecution();
+    this._executor.resume();
   }
 
   /**
@@ -190,7 +188,7 @@ export class ZMachine {
 
   handleKeyCompletion(key: string): void {
     this._inputHandler.processKeypress(key);
-    this.resumeExecution();
+    this._executor.resume();
   }
 
   /**
@@ -298,7 +296,7 @@ export class ZMachine {
   // Helper method to extract a filename from memory
   private extractFilename(address: number): string {
     // This implementation depends on how filenames are stored in your Z-machine
-    // For a simple approach, assuming ASCIIZ string:
+    // For a simple approach, assuming ASCII string:
     let filename = '';
     let i = 0;
     let char;

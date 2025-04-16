@@ -62,7 +62,7 @@ export class Memory {
 
     // Load alphabet table for V2+ games
     if (this._version >= 1) {
-      this._alphabetTableManager = new AlphabetTableManager(this, this.logger);
+      this._alphabetTableManager = new AlphabetTableManager(this);
     }
 
     // Load Unicode translation table for V5+ games

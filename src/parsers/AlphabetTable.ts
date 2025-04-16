@@ -3,26 +3,27 @@ import { HeaderLocation } from '../utils/constants';
 import { Logger } from '../utils/log';
 
 export class AlphabetTableManager {
-  private static DEFAULT_ALPHABET_TABLE_V1 = [
+  private static readonly DEFAULT_ALPHABET_TABLE_V1 = [
     'abcdefghijklmnopqrstuvwxyz',
     'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
     ' 0123456789.,!?_#\'"/\\<-:()',
   ];
 
-  private static DEFAULT_ALPHABET_TABLE = [
+  private static readonly DEFAULT_ALPHABET_TABLE = [
     'abcdefghijklmnopqrstuvwxyz',
     'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
     ' \n0123456789.,!?_#\'"/\\-:()',
   ];
 
-  private memory: Memory;
-  private logger: Logger;
-  private version: number;
+  private readonly memory: Memory;
+  private readonly logger: Logger;
+  private readonly version: number;
   private customAlphabetTable: string[] | null = null;
 
-  constructor(memory: Memory, logger: Logger) {
+  constructor(memory: Memory, options?: { logger?: Logger }) {
     this.memory = memory;
-    this.logger = logger;
+    this.logger = options?.logger || new Logger('AlphabetTableManager');
+
     this.version = this.memory.getByte(HeaderLocation.Version);
     this.loadAlphabetTable();
   }
@@ -61,21 +62,21 @@ export class AlphabetTableManager {
       : AlphabetTableManager.DEFAULT_ALPHABET_TABLE;
   }
 
-  public getCharacterFromAlphabet(alphabet: number, zchar: number): string {
+  public getCharacterFromAlphabet(alphabet: number, zChar: number): string {
     const tables = this.getAlphabetTables();
 
     // Handle special cases
     if (alphabet === 2) {
-      if (zchar === 6) {
+      if (zChar === 6) {
         // This is a placeholder; actual ZSCII escape sequence handling happens elsewhere
         return '';
       }
-      if (zchar === 7) {
+      if (zChar === 7) {
         return '\n';
       }
     }
 
-    const index = zchar - 6;
+    const index = zChar - 6;
     if (index >= 0 && index < tables[alphabet].length) {
       return tables[alphabet][index];
     }

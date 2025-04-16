@@ -1,4 +1,3 @@
-// src/examples/GameObjectExample.ts
 import * as fs from 'fs';
 import * as path from 'path';
 

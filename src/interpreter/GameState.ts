@@ -1,5 +1,3 @@
-// src/interpreter/GameState.ts
-// src/interpreter/GameState.ts
 import { createStackFrame, StackFrame } from '../core/execution/StackFrame';
 import { Memory } from '../core/memory/Memory';
 import { GameObject } from '../core/objects/GameObject';
@@ -8,7 +6,7 @@ import { TextParser } from '../parsers/TextParser';
 import { Snapshot } from '../storage/interfaces';
 import { Address } from '../types';
 import { HeaderLocation } from '../utils/constants';
-import { Logger, LogLevel } from '../utils/log';
+import { Logger } from '../utils/log';
 
 /**
  * Represents the complete state of a Z-machine game
@@ -21,7 +19,7 @@ export class GameState {
   private readonly _version: number;
 
   // Cached header values
-  private _highmem: number = 0;
+  private _highMem: number = 0;
   private _globalVars: number = 0;
   private _abbrevs: number = 0;
   private _objectTable: number = 0;
@@ -30,22 +28,22 @@ export class GameState {
   private _stringsOffset: number = 0;
 
   // Game objects factory
-  private _objectFactory: GameObjectFactory;
+  private readonly _objectFactory: GameObjectFactory;
 
   // Parser
   private _textParser: TextParser | null = null;
 
   // Logger for output and debugging
-  public logger: Logger;
+  private readonly logger: Logger;
 
   /**
    * Create a new game state
    * @param memory Memory instance
    * @param logger Optional logger instance
    */
-  constructor(memory: Memory, logger?: Logger) {
+  constructor(memory: Memory, options?: { logger?: Logger }) {
     this._memory = memory;
-    this.logger = logger || new Logger(LogLevel.INFO);
+    this.logger = options?.logger || new Logger('GameState');
     this._version = this._memory.getByte(HeaderLocation.Version);
 
     // Read header values
@@ -59,7 +57,7 @@ export class GameState {
    * Read and cache header values
    */
   private _readHeaderValues(): void {
-    this._highmem = this._memory.getWord(HeaderLocation.HighMemBase);
+    this._highMem = this._memory.getWord(HeaderLocation.HighMemBase);
     this._globalVars = this._memory.getWord(HeaderLocation.GlobalVariables);
     this._abbrevs = this._memory.getWord(HeaderLocation.AbbreviationsTable);
     this._objectTable = this._memory.getWord(HeaderLocation.ObjectTable);
@@ -331,7 +329,7 @@ export class GameState {
     this.logger.debug(`Returning from routine with value ${value} (0x${value.toString(16)})`);
 
     // Store return value if needed
-    if (frame.storesResult) {
+    if (frame.resultVariable !== null) {
       this.storeVariable(frame.resultVariable, value);
     }
 
@@ -431,17 +429,17 @@ export class GameState {
    * Read a Z-string from memory at the current PC and advance PC
    */
   readZString(): Array<number> {
-    const zstring = this._memory.getZString(this._pc);
+    const zString = this._memory.getZString(this._pc);
 
     // Calculate how many bytes the Z-string takes in memory
     // Each Z-string word encodes 3 Z-characters
-    const wordCount = Math.ceil(zstring.length / 3);
+    const wordCount = Math.ceil(zString.length / 3);
 
     // Move PC past the Z-string
     // The last word has its high bit set, so we know when to stop
     this._pc += wordCount * 2;
 
-    return zstring;
+    return zString;
   }
 
   /**

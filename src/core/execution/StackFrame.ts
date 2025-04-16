@@ -3,7 +3,6 @@
  * Each stack frame contains information about the current execution context,
  * including the return address, local variables, and the routine being executed.
  */
-// src/core/execution/StackFrame.ts
 export interface StackFrame {
   // Return address to resume at when routine finishes
   returnPC: number;
