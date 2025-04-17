@@ -24,7 +24,8 @@ describe('QuetzalFormat', () => {
   let mockSnapshot: Snapshot;
 
   beforeEach(() => {
-    logger = new Logger(LogLevel.ERROR);
+    logger = new Logger('quetzal.test.js');
+    Logger.setLevel(LogLevel.DEBUG);
 
     // Spy on logger methods
     vi.spyOn(logger, 'debug');
@@ -153,7 +154,8 @@ describe('QuetzalStorage', () => {
   let mockSnapshot: Snapshot;
 
   beforeEach(() => {
-    logger = new Logger(LogLevel.ERROR);
+    logger = new Logger('quetzal.test.js');
+    Logger.setLevel(LogLevel.DEBUG);
 
     // Spy on logger methods
     vi.spyOn(logger, 'debug');

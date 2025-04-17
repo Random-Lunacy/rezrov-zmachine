@@ -18,11 +18,11 @@ export class Executor {
   private readonly logger: Logger;
 
   // Opcode tables
-  private readonly op0: Array<Opcode>;
-  private readonly op1: Array<Opcode>;
-  private readonly op2: Array<Opcode>;
-  private readonly opV: Array<Opcode>;
-  private readonly opExt: Array<Opcode>;
+  private readonly _op0: Array<Opcode>;
+  private readonly _op1: Array<Opcode>;
+  private readonly _op2: Array<Opcode>;
+  private readonly _opV: Array<Opcode>;
+  private readonly _opExt: Array<Opcode>;
 
   /**
    * Constructor for the Executor class
@@ -38,11 +38,27 @@ export class Executor {
     this.logger = options?.logger || new Logger('Executor');
 
     // Initialize opcode tables
-    this.op0 = opcodes.op0;
-    this.op1 = opcodes.op1;
-    this.op2 = opcodes.op2;
-    this.opV = opcodes.opV;
-    this.opExt = opcodes.opExt;
+    this._op0 = opcodes.op0;
+    this._op1 = opcodes.op1;
+    this._op2 = opcodes.op2;
+    this._opV = opcodes.opV;
+    this._opExt = opcodes.opExt;
+  }
+
+  public get op0(): Array<Opcode> {
+    return this._op0;
+  }
+  public get op1(): Array<Opcode> {
+    return this._op1;
+  }
+  public get op2(): Array<Opcode> {
+    return this._op2;
+  }
+  public get opV(): Array<Opcode> {
+    return this._opV;
+  }
+  public get opExt(): Array<Opcode> {
+    return this._opExt;
   }
 
   /**
