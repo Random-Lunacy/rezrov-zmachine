@@ -76,6 +76,9 @@ export type Capabilities = {
   hasTimedKeyboardInput: boolean;
 };
 
+/**
+ * Interface for the screen module
+ */
 export interface Screen {
   getWindowProperty(machine: ZMachine, window: number, property: number): number;
   getCapabilities(): Capabilities;

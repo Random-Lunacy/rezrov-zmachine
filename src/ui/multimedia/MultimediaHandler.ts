@@ -1,4 +1,4 @@
-import { ZMachine } from '../../interpreter/ZMachine';
+import { Logger } from '../../utils/log';
 
 /**
  * Types of multimedia resources
@@ -76,32 +76,38 @@ export interface MultimediaHandler {
  * This serves as a placeholder for actual implementations
  */
 export class BaseMultimediaHandler implements MultimediaHandler {
-  constructor(private machine: ZMachine) {}
+  private logger: Logger;
+
+  constructor(options?: { logger?: Logger }) {
+    this.logger = options?.logger || new Logger('BaseMultimediaHandler');
+  }
 
   isResourceAvailable(type: ResourceType, resourceId: number): boolean {
-    this.machine.logger.debug(`Checking availability of ${ResourceType[type]} ${resourceId}`);
+    this.logger.debug(`Checking availability of ${ResourceType[type]} ${resourceId}`);
     return false;
   }
 
   async loadResource(type: ResourceType, resourceId: number): Promise<ResourceStatus> {
-    this.machine.logger.debug(`Loading ${ResourceType[type]} ${resourceId}`);
+    // TODO: Implement actual loading logic
+    this.logger.debug(`Loaded ${ResourceType[type]} ${resourceId}`);
     return ResourceStatus.NotAvailable;
   }
 
   playSound(resourceId: number, effect: number, volume: number, repeats: number): ResourceStatus {
-    this.machine.logger.debug(
-      `Playing sound ${resourceId} (effect: ${effect}, volume: ${volume}, repeats: ${repeats})`
-    );
+    // TODO: Implement actual sound playing logic
+    this.logger.debug(`Playing sound ${resourceId} (effect: ${effect}, volume: ${volume}, repeats: ${repeats})`);
     return ResourceStatus.NotAvailable;
   }
 
   stopSound(resourceId: number): ResourceStatus {
-    this.machine.logger.debug(`Stopping sound ${resourceId}`);
+    //TODO: Implement actual sound stopping logic
+    this.logger.debug(`Stopping sound ${resourceId}`);
     return ResourceStatus.NotAvailable;
   }
 
   displayPicture(resourceId: number, x: number, y: number, scale: number): ResourceStatus {
-    this.machine.logger.debug(`Displaying picture ${resourceId} at (${x},${y}) with scale ${scale}%`);
+    // TODO: Implement actual picture displaying logic
+    this.logger.debug(`Displaying picture ${resourceId} at (${x},${y}) with scale ${scale}%`);
     return ResourceStatus.NotAvailable;
   }
 }

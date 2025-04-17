@@ -1,6 +1,9 @@
 import { ZMachine } from '../../interpreter/ZMachine';
-import { Screen } from '../screen/interfaces';
+import { Logger } from '../../utils/log';
 
+/**
+ * Input state for the Z-machine
+ */
 export type InputState = {
   keyPress: boolean;
   resultVar: number;
@@ -10,12 +13,21 @@ export type InputState = {
   routine?: number;
 };
 
+/**
+ * InputHandler class to handle user input
+ */
 export class InputHandler {
   private machine: ZMachine;
-  private screen: Screen;
-  constructor(machine: ZMachine, screen: Screen) {
+  private logger: Logger;
+
+  /**
+   * Create a new InputHandler
+   * @param machine The ZMachine instance
+   * @param options Optional options
+   */
+  constructor(machine: ZMachine, options?: { logger?: Logger }) {
     this.machine = machine;
-    this.screen = screen;
+    this.logger = options?.logger || new Logger('InputHandler');
   }
 
   /**
@@ -24,13 +36,14 @@ export class InputHandler {
    */
   processInput(input: string, terminatingChar: number = 13): void {
     const state = this.machine.getInputState();
+
     if (!state) {
-      this.machine.logger.error('No pending input state');
+      this.logger.error('No pending input state');
       return;
     }
 
     if (state.keyPress) {
-      this.machine.logger.error('processInput called for keypress');
+      this.logger.error('processInput called for keypress');
       return;
     }
 
@@ -46,7 +59,6 @@ export class InputHandler {
     }
 
     const gameState = this.machine.state;
-    const memory = gameState.memory;
     const version = gameState.version;
 
     // Store text in appropriate format based on version
@@ -68,12 +80,12 @@ export class InputHandler {
   processKeypress(key: string): void {
     const state = this.machine.getInputState();
     if (!state) {
-      this.machine.logger.error('No pending input state');
+      this.logger.error('No pending input state');
       return;
     }
 
     if (!state.keyPress) {
-      this.machine.logger.error('processKeypress called for text input');
+      this.logger.error('processKeypress called for text input');
       return;
     }
 

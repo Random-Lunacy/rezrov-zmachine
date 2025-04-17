@@ -31,9 +31,7 @@ export class Executor {
    */
   constructor(
     private readonly zMachine: ZMachine,
-    options?: {
-      logger?: Logger;
-    }
+    options?: { logger?: Logger }
   ) {
     this.logger = options?.logger || new Logger('Executor');
 
