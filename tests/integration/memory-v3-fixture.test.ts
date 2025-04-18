@@ -18,106 +18,188 @@ describe('Memory with minimal.z3 fixture', () => {
     objectFactory = new GameObjectFactory(memory, logger, 3, memory.getWord(HeaderLocation.ObjectTable));
   });
 
-  it('correctly reads header values', () => {
-    expect(memory.version).toBe(3);
-    expect(memory.getWord(HeaderLocation.ObjectTable)).toBe(0x10a);
-    expect(memory.getWord(HeaderLocation.StaticMemBase)).toBe(0x4eb);
-    expect(memory.getWord(HeaderLocation.HighMemBase)).toBe(0x510);
+  describe('Memory structure', () => {
+    it('correctly identifies Z-machine version', () => {
+      expect(memory.version).toBe(3);
+    });
+
+    it('has valid memory address layout', () => {
+      const objTableAddr = memory.getWord(HeaderLocation.ObjectTable);
+      const dictAddr = memory.getWord(HeaderLocation.Dictionary);
+      const globalsAddr = memory.getWord(HeaderLocation.GlobalVariables);
+      const staticMemAddr = memory.getWord(HeaderLocation.StaticMemBase);
+      const highMemAddr = memory.getWord(HeaderLocation.HighMemBase);
+
+      expect(objTableAddr).toBe(0x10a);
+      expect(dictAddr).toBe(0x4ed);
+      expect(globalsAddr).toBe(0x30b);
+      expect(staticMemAddr).toBe(0x4eb);
+      expect(highMemAddr).toBe(0x510);
+
+      // Verify memory section boundaries
+      expect(staticMemAddr).toBeGreaterThan(globalsAddr);
+      expect(highMemAddr).toBeGreaterThan(staticMemAddr);
+    });
+
+    it('correctly identifies memory regions', () => {
+      // Test dynamic memory
+      expect(memory.isDynamicMemory(0x100)).toBe(true);
+      expect(memory.isDynamicMemory(0x4ea)).toBe(true);
+      expect(memory.isDynamicMemory(0x4eb)).toBe(false);
+
+      // Test static memory
+      expect(memory.isStaticMemory(0x4eb)).toBe(true);
+      expect(memory.isStaticMemory(0x50f)).toBe(true);
+      expect(memory.isStaticMemory(0x510)).toBe(false);
+
+      // Test high memory
+      expect(memory.isHighMemory(0x510)).toBe(true);
+      expect(memory.isHighMemory(0x4ea)).toBe(false);
+    });
+
+    it('enforces memory protection', () => {
+      // Should be able to write to dynamic memory
+      const testAddr = 0x100;
+      const origVal = memory.getByte(testAddr);
+
+      expect(() => memory.setByte(testAddr, 0xaa)).not.toThrow();
+      expect(memory.getByte(testAddr)).toBe(0xaa);
+
+      // Restore original value
+      memory.setByte(testAddr, origVal);
+
+      // Should not be able to write to static memory
+      const staticAddr = memory.getWord(HeaderLocation.StaticMemBase);
+      expect(() => memory.setByte(staticAddr, 0)).toThrow(/Cannot write to read-only memory/);
+
+      // Should not be able to write to high memory
+      const highAddr = memory.getWord(HeaderLocation.HighMemBase);
+      expect(() => memory.setByte(highAddr, 0)).toThrow(/Cannot write to read-only memory/);
+    });
   });
 
-  it('can read object attributes directly from memory', () => {
-    const objTableAddr = memory.getWord(HeaderLocation.ObjectTable);
-    const propDefaultsSize = 31 * 2;
+  describe('Object system', () => {
+    it('correctly loads individual objects', () => {
+      // Check compiler-generated objects
+      for (let i = 1; i <= 4; i++) {
+        const obj = objectFactory.getObject(i);
+        expect(obj).not.toBeNull();
+      }
 
-    // Object 5 (Test Room)
-    const obj5Addr = objTableAddr + propDefaultsSize + (5 - 1) * 9;
-
-    // First attribute byte - should have bit 0 (light) set
-    const attr0 = memory.getByte(obj5Addr);
-    // Test if the most significant bit (bit 0) is set
-    expect((attr0 & 0x80) !== 0).toBe(true);
-
-    // Object 6 (small box)
-    const obj6Addr = objTableAddr + propDefaultsSize + (6 - 1) * 9;
-
-    // First attribute byte - should have bits 1 and 2 set (container, openable)
-    const attr0_box = memory.getByte(obj6Addr);
-    // Test if bits 1 and 2 (second and third most significant bits) are set
-    expect((attr0_box & 0x40) !== 0).toBe(true); // container (bit 1)
-    expect((attr0_box & 0x20) !== 0).toBe(true); // openable (bit 2)
-  });
-
-  describe('GameObject behavior', () => {
-    it('should correctly identify object 5 attributes', () => {
+      // Check our game objects
       const room = objectFactory.getObject(5);
-      expect(room).not.toBeNull();
-
-      if (room) {
-        // Test if light (attribute 0) is set
-        const hasLight = room.hasAttribute(0);
-        console.log(`Object 5 (Test Room) has light attribute: ${hasLight}`);
-        expect(hasLight).toBe(true);
-      }
-    });
-
-    it('should correctly identify object 6 attributes', () => {
       const box = objectFactory.getObject(6);
+      const key = objectFactory.getObject(7);
+
+      expect(room).not.toBeNull();
       expect(box).not.toBeNull();
+      expect(key).not.toBeNull();
+    });
 
-      if (box) {
-        // Test container (attribute 1) and openable (attribute 2)
-        const hasContainer = box.hasAttribute(1);
-        const hasOpenable = box.hasAttribute(2);
-        console.log(`Object 6 (small box) has container attribute: ${hasContainer}`);
-        console.log(`Object 6 (small box) has openable attribute: ${hasOpenable}`);
+    it('correctly identifies object attributes', () => {
+      const room = objectFactory.getObject(5);
+      const box = objectFactory.getObject(6);
+      const key = objectFactory.getObject(7);
 
-        expect(hasContainer).toBe(true);
-        expect(hasOpenable).toBe(true);
+      // Test Room has the 'light' attribute (0)
+      expect(room?.hasAttribute(0)).toBe(true);
+
+      // small box has 'container' (1) and 'openable' (2) attributes
+      expect(box?.hasAttribute(1)).toBe(true);
+      expect(box?.hasAttribute(2)).toBe(true);
+
+      // brass key has no attributes set
+      if (key) {
+        for (let i = 0; i < 32; i++) {
+          expect(key.hasAttribute(i)).toBe(false);
+        }
       }
     });
 
-    it('should safely retrieve object names', () => {
-      try {
-        const room = objectFactory.getObject(5);
-        if (room) {
-          console.log(`Object 5 name: "${room.name}"`);
-          // This may fail if there's an issue with name retrieval
-          expect(room.name.toLowerCase()).toContain('test room');
-        }
+    it('correctly retrieves object names', () => {
+      const room = objectFactory.getObject(5);
+      const box = objectFactory.getObject(6);
+      const key = objectFactory.getObject(7);
 
-        const box = objectFactory.getObject(6);
-        if (box) {
-          console.log(`Object 6 name: "${box.name}"`);
-          expect(box.name.toLowerCase()).toContain('box');
-        }
-
-        const key = objectFactory.getObject(7);
-        if (key) {
-          console.log(`Object 7 name: "${key.name}"`);
-          expect(key.name.toLowerCase()).toContain('key');
-        }
-      } catch (error) {
-        console.error(`Error retrieving object names: ${error}`);
-        throw error;
-      }
+      expect(room?.name).toBe('Test Room');
+      expect(box?.name).toBe('small box');
+      expect(key?.name).toBe('brass key');
     });
 
-    it('should correctly navigate object relationships', () => {
+    it('correctly provides object relationships', () => {
       const room = objectFactory.getObject(5);
       const box = objectFactory.getObject(6);
       const key = objectFactory.getObject(7);
 
       if (room && box && key) {
-        // The following tests might fail if there's an issue with relationship navigation
-        try {
-          expect(room.child?.objNum).toBe(6);
-          expect(box.parent?.objNum).toBe(5);
-          expect(key.parent?.objNum).toBe(6);
-        } catch (error) {
-          console.error(`Error navigating object relationships: ${error}`);
-          throw error;
-        }
+        // Test Room contains small box
+        expect(room.child?.objNum).toBe(6);
+
+        // small box is in Test Room
+        expect(box.parent?.objNum).toBe(5);
+
+        // small box contains brass key
+        expect(box.child?.objNum).toBe(7);
+
+        // brass key is in small box
+        expect(key.parent?.objNum).toBe(6);
+
+        // No siblings in this simple object tree
+        expect(room.sibling).toBeNull();
+        expect(box.sibling).toBeNull();
+        expect(key.sibling).toBeNull();
       }
+    });
+  });
+
+  describe('Memory operations', () => {
+    it('can copy memory blocks', () => {
+      // Find a safe area in dynamic memory for testing
+      const sourceAddr = 0x100;
+      const destAddr = 0x200;
+      const length = 10;
+
+      // Save original values - explicitly type the array
+      const origValues: number[] = [];
+      for (let i = 0; i < length; i++) {
+        origValues.push(memory.getByte(destAddr + i));
+      }
+
+      // Set some test data
+      for (let i = 0; i < length; i++) {
+        memory.setByte(sourceAddr + i, 0xa0 + i);
+      }
+
+      // Copy the block
+      memory.copyBlock(sourceAddr, destAddr, length);
+
+      // Verify the copy worked
+      for (let i = 0; i < length; i++) {
+        expect(memory.getByte(destAddr + i)).toBe(0xa0 + i);
+      }
+
+      // Restore original values
+      for (let i = 0; i < length; i++) {
+        memory.setByte(destAddr + i, origValues[i]);
+        memory.setByte(sourceAddr + i, 0); // Clear source too
+      }
+    });
+
+    it('handles word operations correctly', () => {
+      // Test in dynamic memory
+      const testAddr = 0x100;
+      const origValue = memory.getWord(testAddr);
+
+      // Test setting and reading a word
+      memory.setWord(testAddr, 0xabcd);
+      expect(memory.getWord(testAddr)).toBe(0xabcd);
+
+      // Verify byte ordering (big endian)
+      expect(memory.getByte(testAddr)).toBe(0xab);
+      expect(memory.getByte(testAddr + 1)).toBe(0xcd);
+
+      // Restore original value
+      memory.setWord(testAddr, origValue);
     });
   });
 });
