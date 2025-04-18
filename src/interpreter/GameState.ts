@@ -505,7 +505,7 @@ export class GameState {
   tokenizeLine(textBuffer: number, parseBuffer: number, dict: number = 0, flag: boolean = false): void {
     if (!this._textParser) {
       // Lazy-initialize the text parser
-      this._textParser = new TextParser(this._memory, this.logger);
+      this._textParser = new TextParser(this._memory);
     }
 
     this._textParser.tokenizeLine(textBuffer, parseBuffer, dict || this._dict, flag);

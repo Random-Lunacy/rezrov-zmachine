@@ -1,16 +1,18 @@
 import { join } from 'path';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { Memory } from '../../src/core/memory/Memory';
+import { Logger, LogLevel } from '../../src/utils/log';
 
-describe('Memory with minimal.z3 fixture', () => {
+describe('Memory with minimal.z4 fixture', () => {
   let memory: Memory;
+  Logger.setLevel(LogLevel.DEBUG);
 
   beforeAll(() => {
-    memory = Memory.fromFile(join(__dirname, '../fixtures/minimal.z3'));
+    memory = Memory.fromFile(join(__dirname, '../fixtures/minimal.z4'));
   });
 
   it('correctly reads header values', () => {
-    expect(memory.version).toBe(3); // Version
+    expect(memory.version).toBe(4); // Version
     expect(memory.getWord(0x0a)).toBeGreaterThan(0); // Object table address
   });
 });

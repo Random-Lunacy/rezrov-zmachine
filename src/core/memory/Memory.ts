@@ -6,6 +6,16 @@ import { HeaderLocation } from '../../utils/constants';
 import { Logger } from '../../utils/log';
 
 /**
+ * Validation rule interface
+ */
+interface ValidationRule {
+  description: string;
+  condition: () => boolean;
+  errorMessage: string;
+  isWarning?: boolean;
+}
+
+/**
  * Memory class for the Z-machine
  */
 export class Memory {
@@ -53,7 +63,7 @@ export class Memory {
 
     // Skip validation if explicitly requested (useful for testing)
     if (!options?.skipValidation) {
-      this.validateMemoryMap();
+      this.validateMemoryHeader();
     }
 
     // Set up memory region boundaries
@@ -72,103 +82,70 @@ export class Memory {
   }
 
   /**
-   * Validates the memory map according to version-specific requirements
+   * Validates the routine header against Z-machine requirements
    */
-  validateMemoryMap(): void {
-    // Basic version check
-    if (this._version < 1 || this._version > 8) {
-      throw new Error(`Invalid Z-machine version: ${this._version}`);
-    }
+  public validateRoutineHeader(addr: number): boolean {
+    const rules: ValidationRule[] = [
+      {
+        description: 'Routine address in high memory',
+        condition: () => this.isHighMemory(addr),
+        errorMessage: 'Routine header must be in high memory',
+      },
+      {
+        description: 'Aligned routine address',
+        condition: () => this.checkPackedAddressAlignment(addr, true),
+        errorMessage: 'Routine header address is not properly aligned',
+      },
+      {
+        description: 'Valid locals count',
+        condition: () => {
+          try {
+            const numLocals = this.getByte(addr);
+            return numLocals >= 0 && numLocals <= 15;
+          } catch {
+            return false;
+          }
+        },
+        errorMessage: 'Invalid number of locals in routine header',
+      },
+      // Additional version-specific validation rules
+    ];
 
-    // Version-specific size limit checks
-    const maxSize = this.getMaxFileSize();
-    if (this._mem.length > maxSize) {
-      throw new Error(`Story file exceeds maximum size for version ${this._version}: ${this._mem.length} > ${maxSize}`);
-    }
-
-    // Dynamic memory check (common to all versions)
-    const dynamicEnd = this.getWord(HeaderLocation.StaticMemBase);
-    if (dynamicEnd < 64) {
-      throw new Error(`Dynamic memory size is less than minimum (64 bytes): ${dynamicEnd}`);
-    }
-
-    // High memory start check
-    const highStart = this.getWord(HeaderLocation.HighMemBase);
-    if (highStart < dynamicEnd) {
-      throw new Error(`High memory start (${highStart}) overlaps with dynamic memory end (${dynamicEnd})`);
-    }
-
-    // Total addressable memory check
-    if (dynamicEnd > 0xffff - 1) {
-      throw new Error(`Dynamic memory exceeds maximum addressable size: ${dynamicEnd} > ${0xffff - 1}`);
-    }
-
-    // Version-specific validation
-    if (this._version >= 5) {
-      // Check V5+ specific header fields
-      this.validateV5PlusHeader();
-    } else if (this._version >= 4) {
-      // Check V4 specific requirements
-      this.validateV4Header();
-    } else {
-      // Check V1-3 specific requirements
-      this.validateV1To3Header();
-    }
-
-    this.logger.debug(`Memory map validated successfully for version ${this._version}`);
-  }
-
-  /**
-   * Validates header fields specific to V5+
-   */
-  private validateV5PlusHeader(): void {
-    // V5+ specific header checks
-    // For example, check for routines offset and static strings offset
-    const routinesOffset = this.getWord(HeaderLocation.RoutinesOffset);
-    const stringsOffset = this.getWord(HeaderLocation.StaticStringsOffset);
-
-    // In V5+, these fields are required
-    if (routinesOffset === 0 || stringsOffset === 0) {
-      this.logger.warn(`V5+ story file has missing offsets: routines=${routinesOffset}, strings=${stringsOffset}`);
-    }
-
-    // Add additional V5+ validation as needed
-  }
-
-  /**
-   * Validates header fields specific to V4
-   */
-  private validateV4Header(): void {
-    // V4 specific validation
-    // For example, check for the correct alphabet table if specified
-    const alphabetTable = this.getWord(HeaderLocation.AlphabetTable);
-    if (alphabetTable !== 0) {
-      // Validate that the alphabet table is accessible and properly formed
-      try {
-        // Check that we can access at least the first few bytes
-        for (let i = 0; i < 26 * 3; i++) {
-          this.getByte(alphabetTable + i);
+    try {
+      for (const rule of rules) {
+        if (!rule.condition()) {
+          this.logger.warn(rule.errorMessage);
+          return false;
         }
-      } catch (e) {
-        this.logger.warn(`V4 alphabet table at 0x${alphabetTable.toString(16)} is invalid: ${e}`);
       }
+
+      // Additional version-specific checks
+      const numLocals = this.getByte(addr);
+
+      if (this._version <= 4) {
+        // Check initial values for locals
+        for (let i = 0; i < numLocals; i++) {
+          const localAddr = addr + 1 + i * 2;
+          if (localAddr >= this._mem.length) {
+            return false;
+          }
+          // Just read to ensure it doesn't throw
+          this.getWord(localAddr);
+        }
+      } else {
+        // For V5+, just check that there's at least space for the header
+        if (addr + 1 >= this._mem.length) {
+          this.logger.warn(`Routine header for version 5+ at 0x${addr.toString(16)} is invalid`);
+          return false;
+        }
+        this.logger.debug(`Routine header for version 5+ at 0x${addr.toString(16)} is valid`);
+      }
+
+      return true;
+    } catch (e) {
+      this.logger.warn(`Error validating routine header: ${e}`);
+      return false;
     }
-  }
-
-  /**
-   * Validates header fields specific to V1-3
-   */
-  private validateV1To3Header(): void {
-    // V1-3 specific validation
-    // For example, check that the status line bit is properly set
-    const flags1 = this.getByte(HeaderLocation.Flags1);
-    const hasStatusLine = (flags1 & 0x10) !== 0;
-
-    if (!hasStatusLine) {
-      this.logger.warn(`V1-3 story file is missing the status line flag`);
-    }
-
-    // Add additional V1-3 validation as needed
   }
 
   /**
@@ -202,9 +179,14 @@ export class Memory {
   }
 
   /**
-   * Check if a memory read operation is within bounds
+   * Check if a memory access is valid
+   * @param addr Starting address to check
+   * @param length Number of bytes to access (default: 1)
+   * @param isWrite Whether this is a write operation (default: false)
+   * @throws Error if address is out of bounds or trying to write to read-only memory
    */
-  private checkReadBounds(addr: Address, length: number = 1): void {
+  private checkBounds(addr: Address, length: number = 1, isWrite: boolean = false): void {
+    // First check if address is within memory bounds
     if (addr < 0 || addr + length - 1 >= this._mem.length) {
       throw new Error(
         `Memory access out of bounds: address range 0x${addr.toString(16)}-0x${(addr + length - 1).toString(
@@ -212,19 +194,14 @@ export class Memory {
         )} (max: 0x${(this._mem.length - 1).toString(16)})`
       );
     }
-  }
 
-  /**
-   * Check if a memory write operation is valid
-   */
-  private checkWriteBounds(addr: Address, length: number = 1): void {
-    // Check basic bounds
-    this.checkReadBounds(addr, length);
-
-    // Check if address is in writable memory
-    for (let i = 0; i < length; i++) {
-      if (!this.isDynamicMemory(addr + i)) {
-        throw new Error(`Cannot write to read-only memory at address: 0x${(addr + i).toString(16)}`);
+    // For write operations, also check if the address is in dynamic memory
+    if (isWrite) {
+      // Check each byte in the range to ensure it's in dynamic memory
+      for (let i = 0; i < length; i++) {
+        if (!this.isDynamicMemory(addr + i)) {
+          throw new Error(`Cannot write to read-only memory at address: 0x${(addr + i).toString(16)}`);
+        }
       }
     }
   }
@@ -233,7 +210,7 @@ export class Memory {
    * Read a byte from memory
    */
   getByte(addr: Address): number {
-    this.checkReadBounds(addr);
+    this.checkBounds(addr);
     return this._mem[addr];
   }
 
@@ -241,7 +218,7 @@ export class Memory {
    * Write a byte to memory
    */
   setByte(addr: Address, b: number): void {
-    this.checkWriteBounds(addr);
+    this.checkBounds(addr, 1, true);
     this._mem[addr] = b & 0xff;
   }
 
@@ -249,7 +226,7 @@ export class Memory {
    * Read a word (2 bytes) from memory
    */
   getWord(addr: Address): number {
-    this.checkReadBounds(addr, 2);
+    this.checkBounds(addr, 2);
     const ub = this._mem[addr + 0];
     const lb = this._mem[addr + 1];
     return (ub << 8) + lb;
@@ -259,7 +236,7 @@ export class Memory {
    * Write a word (2 bytes) to memory
    */
   setWord(addr: Address, value: number): void {
-    this.checkWriteBounds(addr, 2);
+    this.checkBounds(addr, 2, true);
     this._mem[addr + 0] = (value >> 8) & 0xff;
     this._mem[addr + 1] = value & 0xff;
   }
@@ -381,8 +358,8 @@ export class Memory {
    */
   copyBlock(sourceAddr: Address, destAddr: Address, length: number): void {
     // Validate memory bounds
-    this.checkReadBounds(sourceAddr, length);
-    this.checkWriteBounds(destAddr, length);
+    this.checkBounds(sourceAddr, length);
+    this.checkBounds(destAddr, length, true);
 
     // Early return for zero-length copies
     if (length === 0) return;
@@ -411,8 +388,8 @@ export class Memory {
    * Compare two blocks of memory
    */
   compareBlock(addr1: Address, addr2: Address, length: number): number {
-    this.checkReadBounds(addr1, length);
-    this.checkReadBounds(addr2, length);
+    this.checkBounds(addr1, length);
+    this.checkBounds(addr2, length);
 
     for (let i = 0; i < length; i++) {
       const diff = this._mem[addr1 + i] - this._mem[addr2 + i];
@@ -428,7 +405,7 @@ export class Memory {
    * Get a block of memory as a buffer
    */
   getBytes(addr: Address, length: number): Buffer {
-    this.checkReadBounds(addr, length);
+    this.checkBounds(addr, length);
     return Buffer.from(this._mem.subarray(addr, addr + length));
   }
 
@@ -441,7 +418,7 @@ export class Memory {
       throw new Error(`Cannot write to read-only memory at address: 0x${addr.toString(16)}`);
     }
 
-    this.checkWriteBounds(addr, buffer.length);
+    this.checkBounds(addr, buffer.length, true);
     buffer.copy(this._mem, addr);
   }
 
@@ -489,7 +466,7 @@ export class Memory {
       throw new Error(`Memory dump range out of bounds`);
     }
 
-    this.checkReadBounds(startAddr, length);
+    this.checkBounds(startAddr, length);
 
     const lines: string[] = [];
     for (let i = 0; i < length; i += 16) {
@@ -508,8 +485,6 @@ export class Memory {
 
     return lines.join('\n');
   }
-
-  // Add these methods to the Memory class in src/core/memory/Memory.ts
 
   /**
    * Validates if a packed address is correctly formed and points to a valid location
@@ -638,55 +613,6 @@ export class Memory {
   }
 
   /**
-   * Validates the routine header according to Z-machine version requirements
-   */
-  validateRoutineHeader(addr: number): boolean {
-    // Base validation that applies to all versions
-    if (!this.isHighMemory(addr)) {
-      return false;
-    }
-
-    if (!this.checkPackedAddressAlignment(addr, true)) {
-      return false;
-    }
-
-    try {
-      const numLocals = this.getByte(addr);
-
-      // Common validation for all versions
-      if (numLocals < 0 || numLocals > 15) {
-        return false;
-      }
-
-      // Version-specific validation
-      if (this._version <= 4) {
-        // For versions 1-4, check that the local variable initial values are reasonable
-        for (let i = 0; i < numLocals; i++) {
-          const localAddr = addr + 1 + i * 2;
-          if (localAddr >= this.size) {
-            return false;
-          }
-          // We don't check the actual values, just that they can be accessed
-          this.getWord(localAddr);
-        }
-      } else {
-        // For versions 5+, no initial values are stored, so just check that
-        // the code can be accessed (first byte after the locals count)
-        if (addr + 1 >= this.size) {
-          this.logger.warn(`Routine header for version 5+ at 0x${addr.toString(16)} is invalid`);
-          return false;
-        }
-        this.logger.debug(`Routine header for version 5+ at 0x${addr.toString(16)} is valid`);
-      }
-
-      return true;
-    } catch (e) {
-      this.logger.warn(`Error validating routine header: ${e}`);
-      return false;
-    }
-  }
-
-  /**
    * Get the unicode translation table
    */
   private loadUnicodeTranslationTable(): void {
@@ -703,7 +629,7 @@ export class Memory {
 
     // Check for Unicode translation table (Word 3)
     if (headerExtAddr + 6 > this.size) {
-      this.logger.debug('Header extension table too short for Unicode translation');
+      this.logger.warn('Header extension table too short for Unicode translation');
       return;
     }
 
@@ -717,7 +643,7 @@ export class Memory {
       // Read the table
       const numEntries = this.getByte(unicodeTableAddr);
       if (numEntries === 0) {
-        this.logger.debug('Unicode translation table is empty (no defined characters)');
+        this.logger.warn('Unicode translation table is empty (no defined characters)');
         return;
       }
 
@@ -775,6 +701,247 @@ export class Memory {
     return ['abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', ' \n0123456789.,!?_#\'"/\\-:()'];
   }
 
+  private validateMemoryHeader(): void {
+    const rules = this.getHeaderValidationRules();
+
+    for (const rule of rules) {
+      const conditionResult = typeof rule.condition === 'function' ? rule.condition() : rule.condition;
+
+      if (!conditionResult) {
+        const errorMsg = typeof rule.errorMessage === 'function' ? rule.errorMessage : rule.errorMessage;
+
+        if (rule.isWarning) {
+          this.logger.warn(`Validation warning: ${errorMsg}`);
+        } else {
+          throw new Error(errorMsg);
+        }
+      }
+    }
+
+    if (this._version >= 5) {
+      this.validateHeaderExtension();
+    }
+
+    // Version 5+ with graphics
+    if (this._version >= 5 && (this.getByte(HeaderLocation.Flags1) & 0x02) !== 0) {
+      // TODO Validate graphics-related fields
+    }
+
+    // Version 6 and 7 specific validations
+    if (this._version == 6 || this._version == 7) {
+      this.validateV6V7Fields();
+    }
+
+    this.logger.debug(`Memory map validated successfully for version ${this._version}`);
+  }
+
+  /**
+   * Get the validation rules for the story file header
+   */
+  private getHeaderValidationRules(): ValidationRule[] {
+    const rules: ValidationRule[] = [
+      // Common rules for all versions
+      {
+        description: 'Valid Z-machine version',
+        condition: () => this._version >= 1 && this._version <= 8,
+        errorMessage: `Invalid Z-machine version: ${this._version}`,
+      },
+      {
+        description: 'Minimum header size',
+        condition: () => this._mem.length >= (this._version <= 5 ? 64 : 128),
+        errorMessage: `Memory too small for header: ${this._mem.length} bytes`,
+      },
+      {
+        description: 'Maximum file size',
+        condition: () => this._mem.length <= this.getMaxFileSize(),
+        errorMessage: `Story file exceeds maximum size for version ${this._version}: ${this._mem.length} > ${this.getMaxFileSize()}`,
+      },
+      {
+        description: 'Minimum dynamic memory size',
+        condition: () => {
+          const dynamicEnd = this.getWord(HeaderLocation.StaticMemBase);
+          return dynamicEnd >= 64;
+        },
+        errorMessage: `Dynamic memory size is less than minimum (64 bytes): ${this.getWord(HeaderLocation.StaticMemBase)}`,
+      },
+      {
+        description: 'High memory does not overlap dynamic memory',
+        condition: () => {
+          const dynamicEnd = this.getWord(HeaderLocation.StaticMemBase);
+          const highStart = this.getWord(HeaderLocation.HighMemBase);
+          return highStart >= dynamicEnd || this._version < 3;
+        },
+        errorMessage: `High memory start (${this.getWord(HeaderLocation.HighMemBase)}) overlaps with dynamic memory end (${this.getWord(HeaderLocation.StaticMemBase)})`,
+      },
+      {
+        description: 'Dynamic memory within addressable range',
+        condition: () => {
+          const dynamicEnd = this.getWord(HeaderLocation.StaticMemBase);
+          return dynamicEnd <= 0xffff;
+        },
+        errorMessage: `Dynamic memory exceeds maximum addressable size: ${this.getWord(HeaderLocation.StaticMemBase)} > ${0xffff}`,
+      },
+    ];
+
+    // Version-specific rules
+    if (this._version >= 5) {
+      rules.push(...this.getV5PlusValidationRules());
+    } else if (this._version >= 4) {
+      rules.push(...this.getV4ValidationRules());
+    } else if (this._version >= 1) {
+      rules.push(...this.getV1To3ValidationRules());
+    }
+
+    return rules;
+  }
+
+  /**
+   * Get the validation rules for V5+ story files
+   */
+  private getV5PlusValidationRules(): ValidationRule[] {
+    return [
+      {
+        description: 'Valid routine/string offsets in V6/V7',
+        condition: () => {
+          if (this._version !== 6 && this._version !== 7) return true;
+
+          const routinesOffset = this.getWord(HeaderLocation.RoutinesOffset);
+          const stringsOffset = this.getWord(HeaderLocation.StaticStringsOffset);
+
+          return routinesOffset !== 0 && stringsOffset !== 0;
+        },
+        errorMessage: `V${this._version} requires non-zero routine and string offsets`,
+      },
+      // Add other V5+ specific rules
+    ];
+  }
+
+  /**
+   * Get the validation rules for V4 story files
+   */
+  private getV4ValidationRules(): ValidationRule[] {
+    return [
+      {
+        description: 'Valid alphabet table if present',
+        condition: () => {
+          const alphabetTable = this.getWord(HeaderLocation.AlphabetTable);
+          if (alphabetTable === 0) return true;
+
+          try {
+            for (let i = 0; i < 26 * 3; i++) {
+              this.getByte(alphabetTable + i);
+            }
+            return true;
+          } catch {
+            return false;
+          }
+        },
+        errorMessage: `V4 alphabet table at 0x${this.getWord(HeaderLocation.AlphabetTable).toString(16)} is invalid`,
+      },
+      // Add other V4 specific rules
+    ];
+  }
+
+  /**
+   * Get the validation rules for V1-V3 story files
+   */
+  private getV1To3ValidationRules(): ValidationRule[] {
+    return [
+      {
+        description: 'Has status line flag',
+        condition: () => {
+          const flags1 = this.getByte(HeaderLocation.Flags1);
+          return (flags1 & 0x10) !== 0;
+        },
+        errorMessage: `V1-3 story file is missing the status line flag`,
+        isWarning: true, // This should be a warning rather than an error
+      },
+      // Add other V1-3 specific rules
+    ];
+  }
+
+  /**
+   * Validates the header extension table for V5+
+   */
+  private validateHeaderExtension(): void {
+    const headerExtAddr = this.getWord(HeaderLocation.HeaderExtTable);
+    if (headerExtAddr === 0) return;
+
+    const rules: ValidationRule[] = [
+      {
+        description: 'Header extension address in bounds',
+        condition: () => headerExtAddr >= 0 && headerExtAddr < this._mem.length,
+        errorMessage: `Header extension table at 0x${headerExtAddr.toString(16)} is out of bounds`,
+      },
+      {
+        description: 'Valid header extension entries',
+        condition: () => {
+          try {
+            const tableSize = this.getByte(headerExtAddr);
+            for (let i = 0; i < tableSize; i++) {
+              const entryAddr = headerExtAddr + 2 * i;
+              if (entryAddr >= this._mem.length) return false;
+            }
+            return true;
+          } catch {
+            return false;
+          }
+        },
+        errorMessage: 'Header extension table contains invalid entries',
+      },
+    ];
+
+    for (const rule of rules) {
+      if (!rule.condition()) {
+        throw new Error(rule.errorMessage);
+      }
+    }
+  }
+
+  /**
+   * Validates v6/v7 fields
+   */
+  private validateV6V7Fields(): void {
+    // Versions 6 and 7 require routine and string offsets
+    const routinesOffset = this.getWord(HeaderLocation.RoutinesOffset);
+    const stringsOffset = this.getWord(HeaderLocation.StaticStringsOffset);
+
+    const rules: ValidationRule[] = [
+      {
+        description: 'Routines offset must be non-zero',
+        condition: () => routinesOffset != 0,
+        errorMessage: `Routines offset 0x${routinesOffset.toString(16)} must be non-zero`,
+      },
+      {
+        description: 'Static String offset must be non-zero',
+        condition: () => routinesOffset != 0,
+        errorMessage: `Static strings offset 0x${stringsOffset.toString(16)} must be non-zero`,
+      },
+      {
+        description: 'Routines offset must be in valid memory',
+        condition: () =>
+          (this.isDynamicMemory(routinesOffset) &&
+            this.isStaticMemory(routinesOffset) &&
+            this.isHighMemory(routinesOffset)) == true,
+        errorMessage: `Routine offset at 0x${routinesOffset.toString(16)} is not in a valid memory region`,
+      },
+      {
+        description: 'Static strings offset must be in valid memory',
+        condition: () =>
+          (this.isDynamicMemory(stringsOffset) &&
+            this.isStaticMemory(stringsOffset) &&
+            this.isHighMemory(stringsOffset)) == true,
+        errorMessage: `Static strings offset at 0x${stringsOffset.toString(16)} is not in a valid memory region`,
+      },
+    ];
+
+    for (const rule of rules) {
+      if (!rule.condition()) {
+        throw new Error(rule.errorMessage);
+      }
+    }
+  }
+
   /**
    * Utility method for testing to directly set memory contents
    * @param addr The address to write to
@@ -790,7 +957,7 @@ export class Memory {
       data.copy(this._mem, addr);
     } else {
       // Use normal memory protection rules
-      this.checkWriteBounds(addr, data.length);
+      this.checkBounds(addr, data.length, true);
       data.copy(this._mem, addr);
     }
   }
