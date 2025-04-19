@@ -1,0 +1,251 @@
+! enhanced-v5-integration-test.inf
+! A test file for exercising various Z-Machine v5 features
+
+Constant Story "Enhanced Integration Test";
+Constant Headline "^Enhanced Integration Test^";
+
+Include "Parser";
+Include "VerbLib";
+Include "Grammar";
+
+! Arrays for testing
+Array test_array -> 6;
+
+[ Initialise x;    ! Note: British spelling is used in Inform 6
+    location = Main_Room;
+
+    ! Initialize test array using explicit assignments
+    x = 0;
+    test_array->x = 10; x++;
+    test_array->x = 42; x++;
+    test_array->x = 17; x++;
+    test_array->x = 23; x++;
+    test_array->x = 8;  x++;
+    test_array->x = 36;
+
+    ! Print introduction
+    print "Welcome to the Enhanced Integration Test.^^";
+    print "This is a Z-Machine V5 test program that exercises various features.^^";
+    print "Type 'execute tests' to execute the test suite.^^";
+];
+
+! Test routine for math operations
+[ TestMath a;
+    print "Testing math operations...^";
+
+    ! Addition
+    a = 10 + 20;
+    print "10 + 20 = ", a, "^";
+
+    ! Subtraction
+    a = 30 - 15;
+    print "30 - 15 = ", a, "^";
+
+    ! Multiplication
+    a = 7 * 6;
+    print "7 * 6 = ", a, "^";
+
+    ! Division
+    a = 100 / 4;
+    print "100 / 4 = ", a, "^";
+
+    ! Modulo
+    a = 17 % 5;
+    print "17 % 5 = ", a, "^";
+
+    ! Logical operations
+    a = 15 & 9;
+    print "15 & 9 (AND) = ", a, "^";
+    a = 15 | 9;
+    print "15 | 9 (OR) = ", a, "^";
+
+    return 1;
+];
+
+! Test routine for string operations
+[ TestStrings str;
+    str = "This is a test string.";
+    print "Testing string operations...^";
+
+    ! Print strings
+    print "String: ", (string) str, "^";
+
+    ! String formatting
+    print "Decimal: ", 42, "^";
+    print "Character: ", 'A', "^";
+
+    return 1;
+];
+
+! Test array operations
+[ TestArrays dest src len i;
+    print "Testing array operations...^";
+
+    ! Print original array
+    print "Original array: ";
+    for (i=0 : i<6 : i++) {
+        print test_array->i, " ";
+    }
+    print "^";
+
+    ! Test array copy
+    dest = 3;  ! Target position in array
+    src = 0;   ! Source position in array
+    len = 3;   ! Number of elements to copy
+
+    ! Copy elements
+    for (i=0 : i<len : i++) {
+        test_array->(dest+i) = test_array->(src+i);
+    }
+
+    ! Print result
+    print "After copy: ";
+    for (i=0 : i<6 : i++) {
+        print test_array->i, " ";
+    }
+    print "^";
+
+    return 1;
+];
+
+! Test object manipulation
+[ TestObjects;
+    print "Testing object manipulation...^";
+
+    ! Test object tree navigation
+    print "Initial object tree:^";
+    PrintObjectTree(Main_Room, 0);
+
+    ! Move an object
+    move silver_key to player;
+
+    print "^Moving silver key to inventory...^";
+    print "Updated object tree:^";
+    PrintObjectTree(Main_Room, 0);
+
+    ! Test object properties
+    if (TestProperties() == 0) print "Object property tests failed!^";
+
+    return 1;
+];
+
+! Test object properties
+[ TestProperties;
+    print "Testing object properties...^";
+
+    ! Test object attributes
+    give wooden_chest open;
+    if (wooden_chest has open) print "Chest is now open.^";
+
+    give silver_key ~lockable;
+    if (silver_key hasnt lockable) print "Silver key is not lockable.^";
+
+    ! Test object properties
+    print "Wooden chest description property exists: ";
+    if (wooden_chest provides description) {
+        print "Yes^";
+    } else {
+        print "No^";
+    }
+
+    return 1;
+];
+
+! Helper routine to print object tree
+[ PrintObjectTree obj level count x;
+    for (x = 0 : x < level : x++) {
+        print "  ";
+    }
+    print (name) obj, "^";
+
+    ! Print children
+    obj = child(obj);
+    while (obj) {
+        count = count + PrintObjectTree(obj, level+1);
+        obj = sibling(obj);
+    }
+
+    return count;
+];
+
+! Test branch and jump opcodes
+[ TestBranching n;
+    print "Testing branch and jump operations...^";
+
+    ! Test JZ (branch if zero)
+    n = 0;
+    if (n == 0) print "JZ test passed.^";
+
+    ! Test JG (branch if greater than)
+    n = 10;
+    if (n > 5) print "JG test passed.^";
+
+    ! Test JL (branch if less than)
+    if (n < 20) print "JL test passed.^";
+
+    ! Test JE (branch if equal to any)
+    if ((n == 5) || (n == 10) || (n == 15)) print "JE multiple test passed.^";
+
+    return 1;
+];
+
+! Main test runner
+[ RunTests;
+    print "Starting test suite...^^";
+
+    print "=== Math Tests ===^";
+    TestMath();
+
+    print "^=== String Tests ===^";
+    TestStrings();
+
+    print "^=== Array Tests ===^";
+    TestArrays();
+
+    print "^=== Object Tests ===^";
+    TestObjects();
+
+    print "^=== Branching Tests ===^";
+    TestBranching();
+
+    print "^^All tests completed!^";
+    return 1;
+];
+
+! Define a verb action
+[ ExecuteTestsSub;
+    RunTests();
+    rtrue;
+];
+
+! Define the grammar for the verb
+Verb 'execute' * 'tests' -> ExecuteTests;
+
+! Main room
+Object Main_Room "Test Lab"
+  with description "A sterile white room designed for testing Z-machine functionality.",
+  has  light;
+
+! Player object
+Object -> "Tester"
+  with name 'tester' 'me' 'self',
+       description "A test entity for exercising Z-machine functionality.",
+       capacity 100;
+
+! Test objects
+Object -> wooden_chest "wooden chest"
+  with name 'wooden' 'chest' 'box',
+       description "A simple wooden chest for testing object containment.",
+       capacity 5,
+  has  container openable;
+
+Object -> -> brass_coin "brass coin"
+  with name 'brass' 'coin' 'money',
+       description "A shiny brass coin used for testing.",
+       value 10;
+
+Object -> silver_key "silver key"
+  with name 'silver' 'key',
+       description "A small silver key that might unlock something.",
+       lock_message "You unlock the chest with the silver key.",
+  has  lockable;
