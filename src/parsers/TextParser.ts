@@ -12,9 +12,10 @@ export class TextParser {
   private logger: Logger;
   private version: number;
   private dictionaries: Map<Address, Dictionary>;
-  constructor(memory: Memory, logger: Logger) {
+
+  constructor(memory: Memory, options?: { logger?: Logger }) {
     this.memory = memory;
-    this.logger = logger;
+    this.logger = options?.logger || new Logger('TextParser');
     this.version = this.memory.getByte(HeaderLocation.Version);
     this.dictionaries = new Map();
   }
@@ -27,7 +28,7 @@ export class TextParser {
 
     // Create a new dictionary instance if we haven't seen this one before
     if (!this.dictionaries.has(dictAddr)) {
-      this.dictionaries.set(dictAddr, new Dictionary(this.memory, this.logger, dictAddr, this.version));
+      this.dictionaries.set(dictAddr, new Dictionary(this.memory, dictAddr, this.version));
     }
 
     return this.dictionaries.get(dictAddr)!;
@@ -147,7 +148,7 @@ export class TextParser {
     }
 
     // Encode the word for dictionary lookup
-    const encodedText = encodeZString(word, this.version);
+    const encodedText = encodeZString(this.memory, word, this.version);
     const encodedWord = packZCharacters(encodedText, this.version);
 
     // Look up the word in the dictionary

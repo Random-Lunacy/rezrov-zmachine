@@ -23,9 +23,14 @@ export class QuetzalStorage implements Storage {
    * @param savePath The directory to save files to (defaults to current directory)
    * @param saveFilename The filename to save to (defaults to "save.qzl")
    */
-  constructor(logger: Logger, originalStoryData: Buffer, savePath: string = '.', saveFilename: string = 'save.qzl') {
-    this.logger = logger;
-    this.quetzalFormat = new QuetzalFormat(logger);
+  constructor(
+    originalStoryData: Buffer,
+    savePath: string = '.',
+    saveFilename: string = 'save.qzl',
+    options?: { logger?: Logger }
+  ) {
+    this.logger = options?.logger || new Logger('QuetzalStorage');
+    this.quetzalFormat = new QuetzalFormat(options);
     this.originalStoryData = originalStoryData;
     this.savePath = savePath;
     this.saveFilename = saveFilename;

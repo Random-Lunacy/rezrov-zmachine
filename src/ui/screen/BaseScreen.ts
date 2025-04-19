@@ -3,16 +3,29 @@ import { Logger } from '../../utils/log';
 import { InputState } from '../input/InputHandler';
 import { Capabilities, Screen, ScreenSize } from './interfaces';
 
+/**
+ * BaseScreen class implementing the Screen interface
+ */
 export class BaseScreen implements Screen {
   protected logger: Logger;
   protected id: string;
   protected currentStyles: number;
-  constructor(logger: Logger, id: string) {
-    this.logger = logger;
+
+  /**
+   * Constructor for BaseScreen
+   * @param id The screen ID
+   * @param options Optional options
+   */
+  constructor(id: string, options?: { logger?: Logger }) {
+    this.logger = options?.logger || new Logger('BaseScreen');
     this.id = id;
     this.currentStyles = 0;
   }
 
+  /**
+   * Get the capabilities of the screen
+   * @returns The capabilities
+   */
   getCapabilities(): Capabilities {
     this.logger.debug(`not implemented: ${this.id} getCapabilities`);
     return {
@@ -29,10 +42,14 @@ export class BaseScreen implements Screen {
     };
   }
 
-  // Screen implementation methods will go here
+  getWindowProperty(machine: ZMachine, window: number, property: number): number {
+    this.logger.debug(`not implemented: ${this.id} getWindowProperty window=${window} property=${property}`);
+    return 0;
+  }
 
   getSize(): ScreenSize {
     this.logger.debug(`not implemented: ${this.id} getSize`);
+    // Default size for the screen
     return { rows: 25, cols: 80 };
   }
 
@@ -119,8 +136,9 @@ export class BaseScreen implements Screen {
 
   // For V6, update window property 10 with the actual style in use
   private updateWindowStyleProperty(machine: ZMachine): void {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const currentWindow = machine.screen.getOutputWindow(machine);
-
+    // TODO: Update the window property with the current styles
     // This would need integration with your window property system
     // setWindowProperty(machine, currentWindow, 10, this.currentStyles);
   }
@@ -158,7 +176,6 @@ export class BaseScreen implements Screen {
 
   updateDisplay(machine: ZMachine): void {
     this.logger.debug(`${this.id} updateDisplay`);
-    // Default implementation does nothing
   }
 
   getCurrentFont(machine: ZMachine): number {

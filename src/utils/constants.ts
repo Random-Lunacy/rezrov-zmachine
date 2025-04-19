@@ -96,7 +96,7 @@ export enum Flags1 {
  * Flags in Header.Flags2
  */
 export enum Flags2 {
-  Transcripting = 0x01, // Bit 0: Transcripting on/off
+  Transcribing = 0x01, // Bit 0: Transcribing on/off
   ForcedFixedFont = 0x02, // Bit 1: Force fixed-width font
   RequestScreenRedraw = 0x04, // Bit 2: Request screen redraw (set by game)
   UseCustomAlphabet = 0x08, // Bit 3: Use pictures
@@ -115,15 +115,6 @@ export enum SnapshotChunkType {
   Callstack = 3,
   Registers = 4,
 }
-
-/**
- * Default Z-machine alphabet table
- */
-export const DEFAULT_ALPHABET_TABLE = [
-  /* A0 */ 'abcdefghijklmnopqrstuvwxyz',
-  /* A1 */ 'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
-  /* A2 */ ' \n0123456789.,!?_#\'"/\\-:()',
-];
 
 /**
  * Interpreter identifiers

@@ -78,8 +78,8 @@ export class QuetzalFormat {
    * Create a new QuetzalFormat handler
    * @param logger The logger to use
    */
-  constructor(logger: Logger) {
-    this.logger = logger;
+  constructor(options?: { logger?: Logger }) {
+    this.logger = options?.logger || new Logger('QuetzalFormat');
   }
 
   /**
@@ -142,16 +142,16 @@ export class QuetzalFormat {
     }
 
     // Parse required chunks
-    const ifhdChunk = chunks.find((chunk) => chunk.id === QuetzalChunk.IFhd);
-    const cmemChunk = chunks.find((chunk) => chunk.id === QuetzalChunk.CMem);
-    const umemChunk = chunks.find((chunk) => chunk.id === QuetzalChunk.UMem);
+    const iFhdChunk = chunks.find((chunk) => chunk.id === QuetzalChunk.IFhd);
+    const cMemChunk = chunks.find((chunk) => chunk.id === QuetzalChunk.CMem);
+    const uMemChunk = chunks.find((chunk) => chunk.id === QuetzalChunk.UMem);
     const stksChunk = chunks.find((chunk) => chunk.id === QuetzalChunk.Stks);
 
-    if (!ifhdChunk) {
+    if (!iFhdChunk) {
       throw new Error('Invalid Quetzal file: missing IFhd chunk');
     }
 
-    if (!cmemChunk && !umemChunk) {
+    if (!cMemChunk && !uMemChunk) {
       throw new Error('Invalid Quetzal file: missing memory chunk (CMem or UMem)');
     }
 
@@ -160,14 +160,14 @@ export class QuetzalFormat {
     }
 
     // Parse header chunk
-    const { releaseNumber, serialNumber, checksum, pc } = this.parseIFhdChunk(ifhdChunk.data);
+    const { releaseNumber, serialNumber, checksum, pc } = this.parseIFhdChunk(iFhdChunk.data);
 
     // Parse memory chunk
     let mem: Buffer;
-    if (cmemChunk && originalStoryData) {
-      mem = this.decompressCMemChunk(cmemChunk.data, originalStoryData);
-    } else if (umemChunk) {
-      mem = Buffer.from(umemChunk.data);
+    if (cMemChunk && originalStoryData) {
+      mem = this.decompressCMemChunk(cMemChunk.data, originalStoryData);
+    } else if (uMemChunk) {
+      mem = Buffer.from(uMemChunk.data);
     } else {
       throw new Error('Cannot decompress memory: original story data not provided');
     }

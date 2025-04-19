@@ -1,6 +1,7 @@
 /**
  * Logging system for the Z-machine interpreter
  */
+import * as fs from 'fs';
 
 /**
  * Log levels used by the logger
@@ -18,6 +19,9 @@ export enum LogLevel {
 export class Logger {
   private static level: LogLevel = LogLevel.INFO; // Global log level
   private static useColors: boolean = typeof process !== 'undefined' && process.stdout.isTTY; // Global color setting
+  private static logToConsole: boolean = true; // Whether to log to the console
+  private static logToFile: boolean = false; // Whether to log to a file
+  private static logFilePath: string = 'log.txt'; // Default log file path
 
   /**
    * Set the global log level
@@ -35,6 +39,26 @@ export class Logger {
     Logger.useColors = useColors;
   }
 
+  /**
+   * Set whether to log to a file
+   * @param toFile Whether to enable file logging
+   * @param filePath Optional file path for logging
+   */
+  static setLogToFile(toFile: boolean, filePath?: string): void {
+    Logger.logToFile = toFile;
+    if (filePath) {
+      Logger.logFilePath = filePath;
+    }
+  }
+
+  /**
+   * Set whether to log to the console
+   * @param toConsole Whether to enable console logging
+   */
+  static setLogToConsole(toConsole: boolean): void {
+    Logger.logToConsole = toConsole;
+  }
+
   private readonly name: string;
 
   /**
@@ -43,6 +67,20 @@ export class Logger {
    */
   constructor(name: string) {
     this.name = name;
+  }
+
+  /**
+   * Output a log message
+   * @param formattedMsg The formatted message to output
+   */
+  private outputLog(formattedMsg: string): void {
+    if (Logger.logToFile) {
+      fs.appendFileSync(Logger.logFilePath, formattedMsg + '\n', 'utf8');
+    }
+    if (Logger.logToConsole) {
+      // eslint-disable-next-line no-console
+      console.log(formattedMsg);
+    }
   }
 
   /**
@@ -87,7 +125,7 @@ export class Logger {
    */
   debug(msg: string): void {
     if (Logger.level <= LogLevel.DEBUG) {
-      console.log(this.formatDebug(msg));
+      this.outputLog(this.formatDebug(msg));
     }
   }
 
@@ -97,7 +135,7 @@ export class Logger {
    */
   info(msg: string): void {
     if (Logger.level <= LogLevel.INFO) {
-      console.log(this.formatInfo(msg));
+      this.outputLog(this.formatInfo(msg));
     }
   }
 
@@ -107,7 +145,7 @@ export class Logger {
    */
   warn(msg: string): void {
     if (Logger.level <= LogLevel.WARN) {
-      console.log(this.formatWarn(msg));
+      this.outputLog(this.formatWarn(msg));
     }
   }
 
@@ -117,7 +155,7 @@ export class Logger {
    */
   error(msg: string): void {
     if (Logger.level <= LogLevel.ERROR) {
-      console.log(this.formatError(msg));
+      this.outputLog(this.formatError(msg));
     }
   }
 }

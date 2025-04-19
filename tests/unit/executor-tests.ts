@@ -249,7 +249,7 @@ describe('Executor', () => {
       Object.defineProperty(executor, 'opv', {
         value: Array(32).fill(null),
       });
-      executor.opv[0] = mockCallVsOpcode; // call_vs is the 0th opcode in opv
+      executor.opV[0] = mockCallVsOpcode; // call_vs is the 0th opcode in opv
 
       // Act
       executor.executeInstruction();
@@ -283,10 +283,10 @@ describe('Executor', () => {
       };
 
       // Setup the opcode
-      Object.defineProperty(executor, 'opext', {
+      Object.defineProperty(executor, 'opExt', {
         value: Array(32).fill(null),
       });
-      executor.opext[4] = mockSetFontOpcode; // set_font is the 4th opcode in opext
+      executor.opExt[4] = mockSetFontOpcode; // set_font is the 4th opcode in opExt
 
       // Act
       executor.executeInstruction();
