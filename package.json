@@ -4,6 +4,14 @@
   "description": "Z-machine interpreter in TypeScript",
   "type": "module",
   "main": "dist/index.js",
+  "files": [
+    "lib/",
+    "dist/",
+    "src/",
+    "index.js",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc",
     "format": "prettier --write \"src/**/*.{ts,tsx,json,md}\" \"package.json\" \"README.md\"",
