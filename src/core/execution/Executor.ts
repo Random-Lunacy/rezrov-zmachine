@@ -1,10 +1,10 @@
 import { ZMachine } from '../../interpreter/ZMachine';
 import { Address, InstructionForm, OperandType } from '../../types';
+import { InputMode, InputState } from '../../ui/input/InputInterface';
 import { hex } from '../../utils/debug';
 import { Logger } from '../../utils/log';
 import { Opcode } from '../opcodes/base';
 import * as opcodes from '../opcodes/index';
-import { InputState } from './InputState';
 import { SuspendState } from './SuspendState';
 
 /**
@@ -75,42 +75,45 @@ export class Executor {
       }
     } catch (e) {
       if (e instanceof SuspendState) {
-        // Set suspended state
+        // New input handling
         this._suspended = true;
         this._suspendedInputState = e.state;
 
-        // Unwind the call stack before handling input
         setImmediate(() => {
           try {
             const state = e.state;
+            const inputState: InputState = {
+              mode: state.keyPress
+                ? state.time
+                  ? InputMode.TIMED_CHAR
+                  : InputMode.CHAR
+                : state.time
+                  ? InputMode.TIMED_TEXT
+                  : InputMode.TEXT,
+              resultVar: state.resultVar,
+              textBuffer: state.textBuffer,
+              parseBuffer: state.parseBuffer,
+              time: state.time,
+              routine: state.routine,
+            };
 
-            // Update status bar before input if needed (for V1-3)
+            // Update status bar for V1-3
             if (this.zMachine.state.version <= 3) {
               this.zMachine.state.updateStatusBar();
             }
 
-            this.logger.debug(`Suspended for ${state.keyPress ? 'key' : 'text'} input`);
-
-            // Register timed input handler if needed
-            if (state.time && state.time > 0 && state.routine) {
-              this.logger.debug(`Setting up timed input: time=${state.time}, routine=${state.routine}`);
-              this.zMachine.handleTimedInput(state.time, state.routine);
-            }
-
-            // Request input from the screen implementation
-            if (state.keyPress) {
-              this.zMachine.screen.getKeyFromUser(this.zMachine, state);
+            // Start input based on mode
+            if (inputState.mode === InputMode.CHAR || inputState.mode === InputMode.TIMED_CHAR) {
+              this.zMachine.inputProcessor.startCharInput(this.zMachine, inputState);
             } else {
-              this.zMachine.screen.getInputFromUser(this.zMachine, state);
+              this.zMachine.inputProcessor.startTextInput(this.zMachine, inputState);
             }
           } catch (inputError) {
             this.logger.error(`Error during input handling: ${inputError}`);
-            // Attempt to resume execution even if input handling fails
             this.resume();
           }
         });
       } else {
-        // Handle any other errors
         this.logger.error(`Execution error at PC=${hex(this._op_pc)}: ${e}`);
         if (e instanceof Error && e.stack) {
           this.logger.debug(e.stack);

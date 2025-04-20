@@ -1,10 +1,9 @@
 import { Executor } from '../core/execution/Executor';
-import { InputState } from '../core/execution/InputState';
 import { UserStackManager } from '../core/execution/UserStack';
 import { Memory } from '../core/memory/Memory';
 import { Storage } from '../storage/interfaces';
 import { QuetzalStorage } from '../storage/QuetzalStorage';
-import { InputHandler } from '../ui/input/InputHandler';
+import { InputProcessor, InputState } from '../ui/input/InputInterface';
 import { Capabilities, Screen } from '../ui/screen/interfaces';
 import { HeaderLocation } from '../utils/constants';
 import { Logger } from '../utils/log';
@@ -20,7 +19,7 @@ export class ZMachine {
   private readonly _executor: Executor;
   private readonly _state: GameState;
   private readonly _screen: Screen;
-  private readonly _inputHandler: InputHandler;
+  private readonly _inputProcessor: InputProcessor;
   private readonly _logger: Logger;
   private readonly _userStackManager: UserStackManager | null = null;
   private _storage: Storage;
@@ -31,21 +30,27 @@ export class ZMachine {
    * @param logger Logger for debugging
    * @param screen Screen interface for output
    * @param storage Storage interface for save/restore
+   * @param inputProcessor Input processor for handling user input
+   * @param options Optional configuration options
    */
-  constructor(storyBuffer: Buffer, screen: Screen, storage: Storage, options?: { logger?: Logger }) {
+  constructor(
+    storyBuffer: Buffer,
+    screen: Screen,
+    storage: Storage,
+    inputProcessor: InputProcessor,
+    options?: { logger?: Logger }
+  ) {
     this._memory = new Memory(storyBuffer);
     this._logger = options?.logger || new Logger('ZMachine');
     this._screen = screen;
     this._storage = storage;
+    this._inputProcessor = inputProcessor;
 
     // Initialize state
     this._state = new GameState(this._memory);
 
     // Initialize executor
     this._executor = new Executor(this);
-
-    // Initialize input handler
-    this._inputHandler = new InputHandler(this, this._screen);
 
     // Configure screen capabilities
     this.configureScreenCapabilities();
@@ -71,8 +76,8 @@ export class ZMachine {
   public get storage(): Storage {
     return this._storage;
   }
-  public get inputHandler(): InputHandler {
-    return this._inputHandler;
+  get inputProcessor(): InputProcessor {
+    return this._inputProcessor;
   }
   public get logger(): Logger {
     return this._logger;
@@ -196,25 +201,6 @@ export class ZMachine {
   }
 
   /**
-   * Handle input completion from the user
-   * @param input The user input
-   */
-  handleInputCompletion(input: string): void {
-    this._inputHandler.processInput(input);
-    this._executor.resume();
-  }
-
-  /**
-   * Handle keypress completion from the user
-   * @param key The key pressed
-   */
-
-  handleKeyCompletion(key: string): void {
-    this._inputHandler.processKeypress(key);
-    this._executor.resume();
-  }
-
-  /**
    * Save the current game state
    * @returns True if the save was successful
    */
@@ -332,11 +318,9 @@ export class ZMachine {
     return filename;
   }
 
-  // Helper method to prompt the user for a filename
-  private promptForFilename(operation: string): string {
-    // This would need to be implemented according to your UI system
-    // For now, just a placeholder
-    return ''; // Would be replaced with actual UI prompt
+  // Helper method to prompt user for a filename
+  private async promptForFilename(operation: string): Promise<string> {
+    return await this.inputProcessor.promptForFilename(this, operation);
   }
 
   /**
@@ -457,7 +441,7 @@ export class ZMachine {
    * @returns A new QuetzalStorage instance
    */
   createQuetzalStorage(savePath: string = '.', saveFilename: string = 'save.qzl'): QuetzalStorage {
-    const quetzalStorage = new QuetzalStorage(this.logger, this._memory.buffer, savePath, saveFilename);
+    const quetzalStorage = new QuetzalStorage(this._memory.buffer, savePath, saveFilename);
     return quetzalStorage;
   }
 
