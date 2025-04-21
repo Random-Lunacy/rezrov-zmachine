@@ -1,7 +1,7 @@
-import { Logger } from '../utils/log';
-import { SaveInfo, Snapshot, Storage, StorageOptions, StorageProvider } from './interfaces';
+import { Logger } from '../../utils/log';
+import { QuetzalFormat } from '../formats/QuetzalFormat';
+import { SaveInfo, Snapshot, Storage, StorageOptions, StorageProvider } from '../interfaces';
 import { NodeFsProvider } from './NodeFsProvider';
-import { QuetzalFormat } from './QuetzalFormat';
 
 /**
  * Storage implementation that uses the Quetzal format for

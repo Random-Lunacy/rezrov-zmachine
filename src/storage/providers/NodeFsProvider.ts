@@ -1,7 +1,7 @@
 import * as fs from 'fs/promises';
 import { glob } from 'glob';
 import * as path from 'path';
-import { StorageProvider, StorageStats } from './interfaces';
+import { StorageProvider, StorageStats } from '../interfaces';
 
 export class NodeFsProvider implements StorageProvider {
   async read(location: string): Promise<Buffer | null> {
