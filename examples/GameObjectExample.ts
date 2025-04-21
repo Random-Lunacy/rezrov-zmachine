@@ -1,10 +1,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-import { Memory } from '../core/memory/Memory';
-import { GameObjectFactory } from '../core/objects/GameObjectFactory';
-import { HeaderLocation } from '../utils/constants';
-import { Logger, LogLevel } from '../utils/log';
+import { Memory } from '../src/core/memory/Memory';
+import { GameObjectFactory } from '../src/core/objects/GameObjectFactory';
+import { HeaderLocation } from '../src/utils/constants';
+import { Logger, LogLevel } from '../src/utils/log';
 
 /**
  * Example that demonstrates loading a Z-machine story file and

@@ -1,10 +1,14 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { ZMachine } from '../../interpreter/ZMachine';
 import { Logger } from '../../utils/log';
 import { InputState } from '../input/InputHandler';
 import { Capabilities, Screen, ScreenSize } from './interfaces';
 
 /**
- * BaseScreen class implementing the Screen interface
+ * BaseScreen class
+ * This class provides a base implementation for the Screen interface.
+ * It includes default implementations for all methods, which must be overridden
+ * by subclasses to provide specific functionality.
  */
 export class BaseScreen implements Screen {
   protected logger: Logger;
@@ -105,42 +109,7 @@ export class BaseScreen implements Screen {
   }
 
   setTextStyle(machine: ZMachine, style: number): void {
-    this.logger.debug(`${this.id} setTextStyle ${style}`);
-
-    // Handle style activation/deactivation
-    if (style === 0) {
-      // Clear all styles
-      this.currentStyles = 0;
-    } else {
-      // Set the specified styles
-      this.currentStyles = style;
-    }
-
-    // Apply the styles according to the priority rules
-    this.applyStyles();
-
-    // For V6, update window property 10 to show the actual style combination in use
-    if (machine.state.version === 6) {
-      this.updateWindowStyleProperty(machine);
-    }
-  }
-
-  // Helper method to apply styles based on priority
-  private applyStyles(): void {
-    // If the interpreter can't provide the requested style combination,
-    // it should give precedence to styles in this order:
-    // Fixed, Italic, Bold, Reverse
-    // This implementation would depend on your rendering system
-    // TODO: Implement the actual style application logic
-  }
-
-  // For V6, update window property 10 with the actual style in use
-  private updateWindowStyleProperty(machine: ZMachine): void {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const currentWindow = machine.screen.getOutputWindow(machine);
-    // TODO: Update the window property with the current styles
-    // This would need integration with your window property system
-    // setWindowProperty(machine, currentWindow, 10, this.currentStyles);
+    this.logger.debug(`not implemented: ${this.id} setTextStyle style=${style}`);
   }
 
   setTextColors(machine: ZMachine, window: number, foreground: number, background: number): void {

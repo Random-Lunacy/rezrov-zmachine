@@ -1,7 +1,8 @@
-import { StackFrame } from '../core/execution/StackFrame';
-import { HeaderLocation } from '../utils/constants';
-import { Logger } from '../utils/log';
-import { Snapshot } from './interfaces';
+import { StackFrame } from '../../core/execution/StackFrame';
+import { HeaderLocation } from '../../utils/constants';
+import { Logger } from '../../utils/log';
+import { Snapshot } from '../interfaces';
+import { FormatProvider } from './FormatProvider';
 
 /**
  * IFF chunk ID constants for Quetzal format
@@ -71,7 +72,7 @@ interface IffChunk {
 /**
  * Quetzal format handler for Z-machine save files
  */
-export class QuetzalFormat {
+export class QuetzalFormat implements FormatProvider {
   private logger: Logger;
 
   /**
@@ -80,6 +81,25 @@ export class QuetzalFormat {
    */
   constructor(options?: { logger?: Logger }) {
     this.logger = options?.logger || new Logger('QuetzalFormat');
+  }
+
+  /**
+   * Serialize a snapshot into a Quetzal file buffer
+   * @param snapshot The snapshot to serialize
+   * @returns The serialized Quetzal file buffer
+   */
+  serialize(snapshot: Snapshot): Buffer {
+    return this.createQuetzalFile(snapshot);
+  }
+
+  /**
+   * Deserialize a Quetzal file buffer into a snapshot
+   * @param data The Quetzal file buffer
+   * @param originalStory Optional original story data for decompression
+   * @returns The deserialized snapshot
+   */
+  deserialize(data: Buffer, originalStory?: Buffer): Snapshot {
+    return this.parseQuetzalFile(data, originalStory);
   }
 
   /**
@@ -699,5 +719,34 @@ export class QuetzalFormat {
       formType,
       chunks,
     };
+  }
+
+  /**
+   * Extract metadata from a Quetzal file buffer
+   *
+   * @param data The Quetzal file buffer
+   * @returns Metadata object
+   */
+  extractMetadata(data: Buffer): { description?: string } {
+    try {
+      const { formType, chunks } = this.parseIffForm(data);
+
+      if (formType !== QuetzalChunk.FormType) {
+        return {};
+      }
+
+      // Look for annotation chunk
+      const annoChunk = chunks.find((chunk) => chunk.id === QuetzalChunk.ANNO);
+      if (annoChunk) {
+        return {
+          description: annoChunk.data.toString('utf8'),
+        };
+      }
+
+      return { description: 'No description found' };
+    } catch (error) {
+      this.logger.warn(`Failed to extract metadata: ${error}`);
+      return {};
+    }
   }
 }

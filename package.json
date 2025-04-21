@@ -4,6 +4,14 @@
   "description": "Z-machine interpreter in TypeScript",
   "type": "module",
   "main": "dist/index.js",
+  "files": [
+    "lib/",
+    "dist/",
+    "src/",
+    "index.js",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc",
     "format": "prettier --write \"src/**/*.{ts,tsx,json,md}\" \"package.json\" \"README.md\"",
@@ -22,6 +30,7 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
     "@eslint/js": "^9.24.0",
+    "@types/glob": "^8.1.0",
     "@types/seedrandom": "^3.0.8",
     "@typescript-eslint/eslint-plugin": "^8.29.1",
     "@typescript-eslint/parser": "^8.29.1",
@@ -40,6 +49,7 @@
     "vitest": "^3.1.1"
   },
   "dependencies": {
+    "glob": "^11.0.1",
     "seedrandom": "^3.0.5"
   }
 }

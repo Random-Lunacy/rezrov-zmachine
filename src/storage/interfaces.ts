@@ -4,40 +4,39 @@ import { StackFrame } from '../core/execution/StackFrame';
  * Represents a snapshot of the Z-machine state
  */
 export interface Snapshot {
-  /**
-   * Memory buffer containing the entire Z-machine memory
-   */
   mem: Buffer;
-
-  /**
-   * The evaluation stack
-   */
   stack: Array<number>;
-
-  /**
-   * The call stack containing frames for each active routine
-   */
   callstack: Array<StackFrame>;
-
-  /**
-   * The program counter (current execution address)
-   */
   pc: number;
 }
 
 /**
- * Interface for saving and loading game state
+ * Information about a saved game file
  */
-export interface Storage {
-  /**
-   * Save a snapshot of the current game state
-   * @param snapshot The snapshot to save
-   */
-  saveSnapshot(snapshot: Snapshot): void;
+export interface SaveInfo {
+  exists: boolean;
+  path: string;
+  format?: 'simple' | 'quetzal' | string;
+  description?: string;
+  lastModified?: Date;
+}
 
-  /**
-   * Load a saved game snapshot
-   * @returns The loaded snapshot
-   */
-  loadSnapshot(): Snapshot;
+/**
+ * Configuration options for storage implementations
+ */
+export interface StorageOptions {
+  savePath?: string;
+  filename?: string;
+  description?: string;
+  useCompression?: boolean;
+  // Provider-specific options with typed values
+  providerOptions?: {
+    [key: string]: string | number | boolean | null;
+  };
+}
+
+export interface StorageStats {
+  size?: number;
+  lastModified?: Date;
+  created?: Date;
 }
