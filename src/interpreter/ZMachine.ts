@@ -1,8 +1,7 @@
 import { Executor } from '../core/execution/Executor';
 import { UserStackManager } from '../core/execution/UserStack';
 import { Memory } from '../core/memory/Memory';
-import { Storage } from '../storage/interfaces';
-import { QuetzalStorage } from '../storage/QuetzalStorage';
+import { Snapshot, Storage } from '../storage/interfaces';
 import { InputProcessor, InputState } from '../ui/input/InputInterface';
 import { Capabilities, Screen } from '../ui/screen/interfaces';
 import { HeaderLocation } from '../utils/constants';
@@ -23,6 +22,8 @@ export class ZMachine {
   private readonly _logger: Logger;
   private readonly _userStackManager: UserStackManager | null = null;
   private _storage: Storage;
+  private _undoStack: Snapshot[] = [];
+  private readonly _maxUndoLevels = 10;
 
   /**
    * Creates a new Z-Machine interpreter
@@ -201,19 +202,33 @@ export class ZMachine {
   }
 
   /**
-   * Save the current game state
+   * Save the current game state to storage
    * @returns True if the save was successful
    */
   saveGame(): boolean {
-    return this.saveGameQuetzal();
+    try {
+      const snapshot = this._state.createSnapshot();
+      this._storage.saveSnapshot(snapshot);
+      return true;
+    } catch (error) {
+      this._logger.error(`Failed to save game: ${error}`);
+      return false;
+    }
   }
 
   /**
-   * Restore a saved game state
+   * Restore a saved game state from storage
    * @returns True if the restore was successful
    */
-  restoreGame(): boolean {
-    return this.restoreGameQuetzal();
+  async restoreGame(): Promise<boolean> {
+    try {
+      const snapshot = await this._storage.loadSnapshot();
+      this._state.restoreFromSnapshot(snapshot);
+      return true;
+    } catch (error) {
+      this._logger.error(`Failed to restore game: ${error}`);
+      return false;
+    }
   }
 
   /**
@@ -224,103 +239,185 @@ export class ZMachine {
    * @param shouldPrompt Whether to prompt the user for a filename (optional)
    * @returns True if the save was successful
    */
-  saveToTable(table: number, bytes: number, name: number = 0, shouldPrompt: boolean = true): boolean {
+  async saveToTable(table: number, bytes: number, name: number = 0, shouldPrompt: boolean = true): Promise<boolean> {
     try {
-      // Implementation will  depend on how we handle saving
-      // For a basic approach:
       let filename = '';
 
+      // If prompting is enabled, get filename from user
+      if (shouldPrompt) {
+        filename = await this._inputProcessor.promptForFilename(this, 'save');
+        if (!filename) return false;
+      }
+
+      // Get the snapshot
+      const snapshot = this._state.createSnapshot();
+
+      // Save with custom filename if provided
+      if (filename) {
+        this._storage.setOptions({ filename });
+      }
+
+      // If name parameter is provided, store it in memory at that address
       if (name !== 0) {
-        // Extract filename from the provided address
-        filename = this.extractFilename(name);
+        // Store the filename in memory at the given address
+        // This would need code to convert the filename to Z-characters
       }
 
-      if (shouldPrompt && filename === '') {
-        // Prompt user for filename if required
-        filename = this.promptForFilename('save');
-        if (filename === '') {
-          return false; // User cancelled
-        }
-      }
-
-      // Save the specified memory range to the file
-      const dataToSave = this.memory.getBytes(table, bytes);
-      this.saveDataToFile(filename, dataToSave);
-
+      await this._storage.saveSnapshot(snapshot);
       return true;
-    } catch (e) {
-      this._logger.error(`Failed to save to table: ${e}`);
+    } catch (error) {
+      this._logger.error(`Failed to save to table: ${error}`);
       return false;
     }
   }
 
   /**
-   * Restore from an external file (V5+)
-   * @param table The table number
-   * @param bytes The number of bytes to restore
-   * @param name The name of the file (optional)
-   * @param shouldPrompt Whether to prompt the user for a filename (optional)
-   * @returns True if the restore was successful
+   * Restores a game state from a memory table (Version 5+ only)
+   *
+   * @param table Memory address of the data table
+   * @param bytes Size of the data in bytes
+   * @param name Memory address to store the filename (0 if not used)
+   * @param shouldPrompt Whether to prompt the user for a filename
+   * @returns True if restore was successful
    */
-  restoreFromTable(table: number, bytes: number, name: number = 0, shouldPrompt: boolean = true): boolean {
+  async restoreFromTable(
+    table: number,
+    bytes: number,
+    name: number = 0,
+    shouldPrompt: boolean = true
+  ): Promise<boolean> {
     try {
-      // Implementation would depend on how you handle restoration
-      // For a basic approach:
-      let filename = '';
-
-      if (name !== 0) {
-        // Extract filename from the provided address
-        filename = this.extractFilename(name);
-      }
-
-      if (shouldPrompt && filename === '') {
-        // Prompt user for filename if required
-        filename = this.promptForFilename('restore');
-        if (filename === '') {
-          return false; // User cancelled
-        }
-      }
-
-      // Load data from the file
-      const loadedData = this.loadDataFromFile(filename);
-
-      // Check if data size matches expected bytes
-      if (loadedData.length !== bytes) {
-        this._logger.warn(`Restored data size mismatch: expected ${bytes}, got ${loadedData.length}`);
+      // Version check - this is only for V5+
+      if (this._state.version < 5) {
+        this._logger.error('restoreFromTable only available in Version 5+');
         return false;
       }
 
-      // Write the loaded data to the specified memory range
-      for (let i = 0; i < bytes; i++) {
-        this.memory.setByte(table + i, loadedData[i]);
+      let filename = '';
+
+      // If prompting is enabled, get filename from user
+      if (shouldPrompt) {
+        filename = await this._inputProcessor.promptForFilename(this, 'restore');
+        if (!filename) {
+          this._logger.debug('User canceled file selection');
+          return false;
+        }
       }
 
+      // Configure storage with the selected filename if provided
+      if (filename) {
+        this._storage.setOptions({ filename });
+      }
+
+      // Check if the save exists
+      const saveInfo = await this._storage.getSaveInfo();
+      if (!saveInfo.exists) {
+        this._logger.warn(`Save file not found: ${saveInfo.path}`);
+        return false;
+      }
+
+      // Load the snapshot
+      const snapshot = await this._storage.loadSnapshot();
+
+      // If name parameter is provided, store the loaded filename in memory
+      if (name !== 0) {
+        const filenameBuffer = Buffer.from(filename);
+
+        // Store the length first (if using Z-machine text format)
+        this._memory.setByte(name, Math.min(filenameBuffer.length, 255));
+
+        // Then store the actual characters
+        for (let i = 0; i < Math.min(filenameBuffer.length, 255); i++) {
+          this._memory.setByte(name + 1 + i, filenameBuffer[i]);
+        }
+
+        // Add null terminator if needed
+        if (filenameBuffer.length < 255) {
+          this._memory.setByte(name + 1 + filenameBuffer.length, 0);
+        }
+      }
+
+      // If table and bytes parameters are provided, copy the save data to the table
+      // This is used when the game wants to inspect/validate the save before restoring
+      if (table !== 0 && bytes > 0) {
+        // Create a buffer of the requested size
+        const dataBuffer = Buffer.alloc(bytes);
+
+        // Serialize the snapshot to the buffer
+        // TODO: simplified - needs actual implementation
+        // This would need to use a format the game understands
+        // We could potentially use a new format: createQuetzalTableData(snapshot, bytes)
+        const serializedData = this.serializeSnapshotForTable(snapshot, bytes);
+        serializedData.copy(dataBuffer, 0, 0, Math.min(serializedData.length, bytes));
+
+        // Copy to game memory
+        for (let i = 0; i < bytes; i++) {
+          this._memory.setByte(table + i, i < serializedData.length ? serializedData[i] : 0);
+        }
+      }
+
+      // Actually restore the game state
+      this._state.restoreFromSnapshot(snapshot);
+
+      this._logger.info('Game state restored successfully');
       return true;
-    } catch (e) {
-      this._logger.error(`Failed to restore from table: ${e}`);
+    } catch (error) {
+      this._logger.error(`Failed to restore from table: ${error}`);
       return false;
     }
   }
 
-  // Helper method to extract a filename from memory
-  private extractFilename(address: number): string {
-    // This implementation depends on how filenames are stored in your Z-machine
-    // For a simple approach, assuming ASCII string:
-    let filename = '';
-    let i = 0;
-    let char;
+  /**
+   * Helper method to serialize a snapshot for a memory table
+   * This would need a specific implementation based on what format the game expects
+   */
+  private serializeSnapshotForTable(snapshot: Snapshot, maxBytes: number): Buffer {
+    // TODO: This is a placeholder - actual implementation would depend on what format
+    // the game expects in the table
 
-    while ((char = this.memory.getByte(address + i)) !== 0) {
-      filename += String.fromCharCode(char);
-      i++;
+    // For example, we might create a simplified format with:
+    // - 2 bytes: format identifier (e.g., 0x1234)
+    // - 2 bytes: version number
+    // - 4 bytes: PC value
+    // - 2 bytes: stack size
+    // - remainder: stack and memory delta
+
+    const buffer = Buffer.alloc(maxBytes);
+    let offset = 0;
+
+    // Format identifier
+    if (offset + 2 <= maxBytes) {
+      buffer.writeUInt16BE(0x1234, offset);
+      offset += 2;
     }
 
-    return filename;
-  }
+    // Version
+    if (offset + 2 <= maxBytes) {
+      buffer.writeUInt16BE(this._state.version, offset);
+      offset += 2;
+    }
 
-  // Helper method to prompt user for a filename
-  private async promptForFilename(operation: string): Promise<string> {
-    return await this.inputProcessor.promptForFilename(this, operation);
+    // PC
+    if (offset + 4 <= maxBytes) {
+      buffer.writeUInt32BE(snapshot.pc, offset);
+      offset += 4;
+    }
+
+    // Stack size
+    if (offset + 2 <= maxBytes) {
+      buffer.writeUInt16BE(snapshot.stack.length, offset);
+      offset += 2;
+    }
+
+    // Stack data
+    for (let i = 0; i < snapshot.stack.length && offset + 2 <= maxBytes; i++) {
+      buffer.writeUInt16BE(snapshot.stack[i], offset);
+      offset += 2;
+    }
+
+    // We could include more data as needed
+
+    return buffer;
   }
 
   /**
@@ -336,7 +433,21 @@ export class ZMachine {
    * @returns True if the save was successful
    */
   saveUndo(): boolean {
-    throw new Error('Method not implemented.');
+    try {
+      // Create a snapshot
+      const snapshot = this._state.createSnapshot();
+
+      // Add to undo stack, keeping only the last N states
+      this._undoStack.push(snapshot);
+      if (this._undoStack.length > this._maxUndoLevels) {
+        this._undoStack.shift();
+      }
+
+      return true;
+    } catch (error) {
+      this._logger.error(`Failed to save undo state: ${error}`);
+      return false;
+    }
   }
 
   /**
@@ -344,7 +455,26 @@ export class ZMachine {
    * @returns True if the restore was successful
    */
   restoreUndo(): boolean {
-    throw new Error('Method not implemented.');
+    try {
+      if (this._undoStack.length === 0) {
+        this._logger.warn('No undo states available');
+        return false;
+      }
+
+      // Pop the last state and restore it
+      const snapshot = this._undoStack.pop();
+      if (snapshot) {
+        this._state.restoreFromSnapshot(snapshot);
+      } else {
+        this._logger.warn('No undo states available to restore');
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      this._logger.error(`Failed to restore undo state: ${error}`);
+      return false;
+    }
   }
 
   /**
@@ -432,74 +562,5 @@ export class ZMachine {
    */
   quit(): void {
     this._executor.quit();
-  }
-
-  /**
-   * Create a Quetzal storage instance
-   * @param savePath The directory to save files to
-   * @param saveFilename The filename to save to
-   * @returns A new QuetzalStorage instance
-   */
-  createQuetzalStorage(savePath: string = '.', saveFilename: string = 'save.qzl'): QuetzalStorage {
-    const quetzalStorage = new QuetzalStorage(this._memory.buffer, savePath, saveFilename);
-    return quetzalStorage;
-  }
-
-  /**
-   * Save the current state to a Quetzal file
-   * @param filename Optional filename to save to
-   * @returns True if the save was successful
-   */
-  saveGameQuetzal(filename?: string): boolean {
-    try {
-      // Create a Quetzal storage if we don't have one
-      if (!(this._storage instanceof QuetzalStorage)) {
-        this._storage = this.createQuetzalStorage();
-      }
-
-      // Set filename if provided
-      if (filename && this._storage instanceof QuetzalStorage) {
-        this._storage.setFilename(filename);
-      }
-
-      // Create a snapshot and save it
-      const snapshot = this._state.createSnapshot();
-      this._storage.saveSnapshot(snapshot);
-
-      return true;
-    } catch (e) {
-      this.logger.error(`Failed to save game: ${e}`);
-      return false;
-    }
-  }
-
-  /**
-   * Restore a saved state from a Quetzal file
-   * @param filename Optional filename to restore from
-   * @returns True if the restore was successful
-   */
-  restoreGameQuetzal(filename?: string): boolean {
-    try {
-      // Create a Quetzal storage if we don't have one
-      if (!(this._storage instanceof QuetzalStorage)) {
-        this._storage = this.createQuetzalStorage();
-      }
-
-      // Set filename if provided
-      if (filename && this._storage instanceof QuetzalStorage) {
-        this._storage.setFilename(filename);
-      }
-
-      // Load the snapshot
-      const snapshot = this._storage.loadSnapshot();
-
-      // Restore from the snapshot
-      this._state.restoreFromSnapshot(snapshot);
-
-      return true;
-    } catch (e) {
-      this.logger.error(`Failed to restore game: ${e}`);
-      return false;
-    }
   }
 }

@@ -1,0 +1,165 @@
+import * as fs from 'fs';
+import * as path from 'path';
+import { Logger } from '../utils/log';
+import { SaveInfo, Snapshot, Storage, StorageOptions } from './interfaces';
+import { createSnapshotBuffer, readSnapshotFromBuffer, validateSnapshot } from './Snapshot';
+
+/**
+ * A simple storage implementation that saves game state to a .dat file
+ * without using the Quetzal format. This provides a lightweight alternative
+ * for simple use cases where Quetzal compatibility isn't required.
+ */
+export class SimpleDatStorage implements Storage {
+  private logger: Logger;
+  private savePath: string;
+  private saveFilename: string;
+  private lastSaveData: Buffer | null = null;
+
+  /**
+   * Create a new SimpleDatStorage instance
+   *
+   * @param savePath Directory where saves will be stored
+   * @param saveFilename Filename for the save file (defaults to 'save.dat')
+   * @param options Additional options
+   */
+  constructor(savePath: string = '.', saveFilename: string = 'save.dat', options?: { logger?: Logger }) {
+    this.logger = options?.logger || new Logger('SimpleDatStorage');
+    this.savePath = savePath;
+    this.saveFilename = saveFilename;
+  }
+
+  async listSaves(): Promise<SaveInfo[]> {
+    throw new Error('Method not implemented.');
+  }
+
+  setOptions(options: StorageOptions): void {
+    throw new Error('Method not implemented.');
+  }
+
+  /**
+   * Save a game snapshot to a .dat file
+   *
+   * @param snapshot The game state to save
+   */
+  async saveSnapshot(snapshot: Snapshot): Promise<void> {
+    this.logger.debug(`Saving snapshot to ${this.savePath}/${this.saveFilename}`);
+
+    try {
+      // Validate the snapshot before saving
+      validateSnapshot(snapshot);
+
+      // Create a buffer from the snapshot
+      const saveData = createSnapshotBuffer(snapshot);
+
+      // Ensure the save directory exists
+      if (!fs.existsSync(this.savePath)) {
+        fs.mkdirSync(this.savePath, { recursive: true });
+      }
+
+      // Write the file to disk
+      fs.writeFileSync(path.join(this.savePath, this.saveFilename), saveData);
+
+      // Keep a copy in memory for faster access
+      this.lastSaveData = saveData;
+
+      this.logger.info(`Saved game to ${this.savePath}/${this.saveFilename}`);
+    } catch (error) {
+      this.logger.error(`Failed to save snapshot: ${error}`);
+      throw error;
+    }
+    return Promise.resolve();
+  }
+
+  /**
+   * Load a game snapshot from a .dat file
+   *
+   * @returns The loaded game state
+   */
+  async loadSnapshot(): Promise<Snapshot> {
+    this.logger.debug(`Loading snapshot from ${this.savePath}/${this.saveFilename}`);
+
+    try {
+      // Try to load from file first
+      let saveData: Buffer;
+      const fullPath = path.join(this.savePath, this.saveFilename);
+
+      if (fs.existsSync(fullPath)) {
+        saveData = fs.readFileSync(fullPath);
+      } else if (this.lastSaveData) {
+        // Fall back to in-memory save if file doesn't exist
+        this.logger.debug('Using in-memory save data');
+        saveData = this.lastSaveData;
+      } else {
+        throw new Error(`Save file not found: ${fullPath}`);
+      }
+
+      // Convert the buffer back to a snapshot
+      const snapshot = readSnapshotFromBuffer(saveData);
+
+      // Validate the loaded snapshot
+      validateSnapshot(snapshot);
+
+      this.logger.info(`Loaded game from ${this.savePath}/${this.saveFilename}`);
+      return Promise.resolve(snapshot);
+    } catch (error) {
+      this.logger.error(`Failed to load snapshot: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Set the filename for saves
+   *
+   * @param filename The new filename to use
+   */
+  setFilename(filename: string): void {
+    this.saveFilename = filename;
+  }
+
+  /**
+   * Set the directory where saves are stored
+   *
+   * @param path The new save directory
+   */
+  setSavePath(path: string): void {
+    this.savePath = path;
+  }
+
+  /**
+   * Get information about the current save file
+   *
+   * @returns Save file information
+   */
+  async getSaveInfo(): Promise<{ exists: boolean; path: string; lastModified?: Date }> {
+    const fullPath = path.join(this.savePath, this.saveFilename);
+
+    if (fs.existsSync(fullPath)) {
+      const stats = fs.statSync(fullPath);
+      return Promise.resolve({
+        exists: true,
+        path: fullPath,
+        lastModified: stats.mtime,
+      });
+    } else if (this.lastSaveData) {
+      return Promise.resolve({
+        exists: true,
+        path: fullPath,
+      });
+    } else {
+      return Promise.resolve({
+        exists: false,
+        path: fullPath,
+      });
+    }
+  }
+
+  /**
+   * Check if a save file exists
+   *
+   * @returns True if a save exists (either on disk or in memory)
+   */
+  hasSave(): boolean {
+    const fullPath = path.join(this.savePath, this.saveFilename);
+    return fs.existsSync(fullPath) || this.lastSaveData !== null;
+  }
+}

@@ -1,65 +1,76 @@
-import * as fs from 'fs';
-import * as path from 'path';
 import { Logger } from '../utils/log';
-import { Snapshot, Storage } from './interfaces';
+import { SaveInfo, Snapshot, Storage, StorageOptions, StorageProvider } from './interfaces';
+import { NodeFsProvider } from './NodeFsProvider';
 import { QuetzalFormat } from './QuetzalFormat';
 
 /**
- * Storage implementation that uses the Quetzal format
+ * Storage implementation that uses the Quetzal format for
+ * saving and loading game state.
  */
-export class QuetzalStorage implements Storage {
+export class QuetzalStorage extends NodeFsProvider implements Storage {
   private logger: Logger;
   private quetzalFormat: QuetzalFormat;
   private originalStoryData: Buffer;
+  private provider: StorageProvider;
   private savePath: string;
   private saveFilename: string;
   private lastSaveData: Buffer | null = null;
+  private saveDescription: string = '';
 
   /**
-   * Create a new QuetzalStorage
+   * Create a new QuetzalStorage instance
    *
-   * @param logger The logger to use
-   * @param originalStoryData The original story data (for compression)
-   * @param savePath The directory to save files to (defaults to current directory)
-   * @param saveFilename The filename to save to (defaults to "save.qzl")
+   * @param originalStoryData The original story file buffer
+   * @param provider The storage provider to use
+   * @param savePath Directory where saves will be stored
+   * @param saveFilename Filename for the save file
+   * @param options Additional options
    */
   constructor(
     originalStoryData: Buffer,
+    provider?: StorageProvider,
     savePath: string = '.',
     saveFilename: string = 'save.qzl',
     options?: { logger?: Logger }
   ) {
+    super();
     this.logger = options?.logger || new Logger('QuetzalStorage');
     this.quetzalFormat = new QuetzalFormat(options);
     this.originalStoryData = originalStoryData;
+    this.provider = provider || new NodeFsProvider();
     this.savePath = savePath;
     this.saveFilename = saveFilename;
   }
 
   /**
-   * Save a snapshot to a Quetzal file
-   * @param snapshot The snapshot to save
+   * Save a game snapshot in Quetzal format
+   *
+   * @param snapshot The game state to save
+   * @param description Optional description of the save
    */
-  saveSnapshot(snapshot: Snapshot): void {
+  async saveSnapshot(snapshot: Snapshot, description?: string): Promise<void> {
     this.logger.debug(`Saving snapshot to ${this.savePath}/${this.saveFilename}`);
 
     try {
-      // Create Quetzal file
-      const quetzalData = this.quetzalFormat.createQuetzalFile(
-        snapshot,
-        true, // Use compression
-        this.originalStoryData
-      );
-
-      // Make sure directory exists
-      if (!fs.existsSync(this.savePath)) {
-        fs.mkdirSync(this.savePath, { recursive: true });
+      if (description) {
+        this.saveDescription = description;
       }
 
-      // Save to file
-      fs.writeFileSync(path.join(this.savePath, this.saveFilename), quetzalData);
+      // Create Quetzal format data
+      const quetzalData = this.quetzalFormat.createQuetzalFile(
+        snapshot,
+        true,
+        this.originalStoryData,
+        this.saveDescription
+      );
 
-      // Keep a copy for loadSnapshot
+      // Ensure the save directory exists
+      await this.provider.ensureDirectory(this.savePath);
+
+      // Write the file using the provider
+      await this.provider.write(`${this.savePath}/${this.saveFilename}`, quetzalData);
+
+      // Keep a copy in memory for faster access
       this.lastSaveData = quetzalData;
 
       this.logger.info(`Saved game to ${this.savePath}/${this.saveFilename}`);
@@ -70,28 +81,33 @@ export class QuetzalStorage implements Storage {
   }
 
   /**
-   * Load a snapshot from a Quetzal file
-   * @returns The loaded snapshot
+   * Load a game snapshot in Quetzal format
+   *
+   * @returns The loaded game state
    */
-  loadSnapshot(): Snapshot {
+  async loadSnapshot(): Promise<Snapshot> {
     this.logger.debug(`Loading snapshot from ${this.savePath}/${this.saveFilename}`);
 
     try {
-      // If we have lastSaveData and were asked to load the same file,
-      // we can just use that instead of reading from disk
+      // Try to load from provider first
       let quetzalData: Buffer;
-      const fullPath = path.join(this.savePath, this.saveFilename);
+      const fullPath = `${this.savePath}/${this.saveFilename}`;
 
-      if (fs.existsSync(fullPath)) {
-        quetzalData = fs.readFileSync(fullPath);
+      if (await this.provider.exists(fullPath)) {
+        const data = await this.provider.read(fullPath);
+        if (!data) {
+          throw new Error(`Could not read save file: ${fullPath}`);
+        }
+        quetzalData = data;
       } else if (this.lastSaveData) {
+        // Fall back to in-memory save
         this.logger.debug('Using in-memory save data');
         quetzalData = this.lastSaveData;
       } else {
         throw new Error(`Save file not found: ${fullPath}`);
       }
 
-      // Parse Quetzal file
+      // Parse the Quetzal file
       const snapshot = this.quetzalFormat.parseQuetzalFile(quetzalData, this.originalStoryData);
 
       this.logger.info(`Loaded game from ${this.savePath}/${this.saveFilename}`);
@@ -103,45 +119,117 @@ export class QuetzalStorage implements Storage {
   }
 
   /**
-   * Set the save filename
-   * @param filename The new filename
+   * Set the filename for saves
+   *
+   * @param filename The new filename to use
    */
   setFilename(filename: string): void {
     this.saveFilename = filename;
   }
 
   /**
-   * Set the save path
-   * @param path The new path
+   * Set the directory where saves are stored
+   *
+   * @param path The new save directory
    */
   setSavePath(path: string): void {
     this.savePath = path;
   }
 
   /**
-   * Get information about the save file
-   * @returns Object containing save info or null if no save exists
+   * Get information about the current save file
+   *
+   * @returns Save file information
    */
-  getSaveInfo(): { exists: boolean; path: string; lastModified?: Date } {
-    const fullPath = path.join(this.savePath, this.saveFilename);
+  async getSaveInfo(): Promise<SaveInfo> {
+    const fullPath = `${this.savePath}/${this.saveFilename}`;
+    const exists = (await this.provider.exists(fullPath)) || this.lastSaveData !== null;
 
-    if (fs.existsSync(fullPath)) {
-      const stats = fs.statSync(fullPath);
-      return {
-        exists: true,
-        path: fullPath,
-        lastModified: stats.mtime,
-      };
-    } else if (this.lastSaveData) {
-      return {
-        exists: true,
-        path: fullPath,
-      };
-    } else {
-      return {
-        exists: false,
-        path: fullPath,
-      };
+    const info: SaveInfo = {
+      exists,
+      path: fullPath,
+      format: 'quetzal',
+      description: this.saveDescription,
+    };
+
+    if (exists && (await this.provider.exists(fullPath))) {
+      const stats = await this.getStats(fullPath);
+      if (stats?.lastModified) {
+        info.lastModified = stats.lastModified;
+      }
     }
+
+    return info;
+  }
+
+  /**
+   * List all available saves in the save directory
+   *
+   * @returns Array of save information objects
+   */
+  async listSaves(): Promise<SaveInfo[]> {
+    try {
+      const files = await this.provider.list(`${this.savePath}/*.qzl`);
+      const saveInfos: SaveInfo[] = [];
+
+      for (const file of files) {
+        const data = await this.provider.read(`${this.savePath}/${file}`);
+        if (data) {
+          try {
+            // Try to extract metadata from the Quetzal file
+            const metadata = this.quetzalFormat.extractMetadata(data);
+            const stats = await this.getStats(`${this.savePath}/${file}`);
+
+            saveInfos.push({
+              exists: true,
+              path: `${this.savePath}/${file}`,
+              format: 'quetzal',
+              description: metadata.description || '',
+              lastModified: stats?.lastModified,
+            });
+          } catch (e) {
+            // If metadata extraction fails, still list the file
+            this.logger.warn(`Failed to extract metadata from ${file}: ${e}`);
+            saveInfos.push({
+              exists: true,
+              path: `${this.savePath}/${file}`,
+              format: 'quetzal',
+            });
+          }
+        }
+      }
+
+      return saveInfos;
+    } catch (error) {
+      this.logger.error(`Error listing saves: ${error}`);
+      return [];
+    }
+  }
+
+  /**
+   * Set options for the storage
+   *
+   * @param options Storage options
+   */
+  setOptions(options: StorageOptions): void {
+    if (options.savePath) {
+      this.savePath = options.savePath;
+    }
+    if (options.filename) {
+      this.saveFilename = options.filename;
+    }
+    if (options.description) {
+      this.saveDescription = options.description;
+    }
+    // Additional options could be handled here
+  }
+
+  /**
+   * Set the storage provider
+   *
+   * @param provider The new storage provider
+   */
+  setProvider(provider: StorageProvider): void {
+    this.provider = provider;
   }
 }

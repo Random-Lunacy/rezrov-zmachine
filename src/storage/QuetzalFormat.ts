@@ -700,4 +700,33 @@ export class QuetzalFormat {
       chunks,
     };
   }
+
+  /**
+   * Extract metadata from a Quetzal file buffer
+   *
+   * @param data The Quetzal file buffer
+   * @returns Metadata object
+   */
+  extractMetadata(data: Buffer): { description?: string } {
+    try {
+      const { formType, chunks } = this.parseIffForm(data);
+
+      if (formType !== QuetzalChunk.FormType) {
+        return {};
+      }
+
+      // Look for annotation chunk
+      const annoChunk = chunks.find((chunk) => chunk.id === QuetzalChunk.ANNO);
+      if (annoChunk) {
+        return {
+          description: annoChunk.data.toString('utf8'),
+        };
+      }
+
+      return { description: 'No description found' };
+    } catch (error) {
+      this.logger.warn(`Failed to extract metadata: ${error}`);
+      return {};
+    }
+  }
 }
