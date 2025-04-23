@@ -1,543 +1,567 @@
-import { StackFrame } from '../../core/execution/StackFrame';
-import { HeaderLocation } from '../../utils/constants';
+// src/storage/formats/QuetzalFormat.ts
+import { ZMachineState } from '../../types';
 import { Logger } from '../../utils/log';
-import { Snapshot } from '../interfaces';
 import { FormatProvider } from './FormatProvider';
 
-/**
- * IFF chunk ID constants for Quetzal format
- */
-export enum QuetzalChunk {
-  /**
-   * IFF Form type for Quetzal
-   */
-  FormType = 'IFZS',
-
-  /**
-   * Story file identifier chunk
-   */
-  IFhd = 'IFhd',
-
-  /**
-   * Compressed memory chunk
-   */
-  CMem = 'CMem',
-
-  /**
-   * Uncompressed memory chunk
-   */
-  UMem = 'UMem',
-
-  /**
-   * Stacks chunk
-   */
-  Stks = 'Stks',
-
-  /**
-   * Interpreter-specific data
-   */
-  IntD = 'IntD',
-
-  /**
-   * Author info
-   */
-  AUTH = 'AUTH',
-
-  /**
-   * Copyright info
-   */
-  Copyright = '(c) ',
-
-  /**
-   * Annotation
-   */
-  ANNO = 'ANNO',
-}
-
-/**
- * Interface for IFF chunks
- */
-interface IffChunk {
-  /**
-   * Chunk ID (4 characters)
-   */
-  id: string;
-
-  /**
-   * Chunk data
-   */
-  data: Buffer;
-}
-
-/**
- * Quetzal format handler for Z-machine save files
- */
 export class QuetzalFormat implements FormatProvider {
+  // IFF chunk IDs
+  private static readonly FORM_ID = 'FORM';
+  private static readonly IFZS_ID = 'IFZS';
+  private static readonly IFHD_ID = 'IFhd';
+  private static readonly CMEM_ID = 'CMem';
+  private static readonly UMEM_ID = 'UMem';
+  private static readonly STKS_ID = 'Stks';
+  private static readonly ANNO_ID = 'ANNO';
+
   private logger: Logger;
 
-  /**
-   * Create a new QuetzalFormat handler
-   * @param logger The logger to use
-   */
-  constructor(options?: { logger?: Logger }) {
-    this.logger = options?.logger || new Logger('QuetzalFormat');
+  constructor() {
+    this.logger = new Logger('QuetzalFormat');
   }
 
-  /**
-   * Serialize a snapshot into a Quetzal file buffer
-   * @param snapshot The snapshot to serialize
-   * @returns The serialized Quetzal file buffer
-   */
-  serialize(snapshot: Snapshot): Buffer {
-    return this.createQuetzalFile(snapshot);
+  serialize(state: ZMachineState): Buffer {
+    // Create chunks
+    const ifhdChunk = this.createIFhdChunk(state);
+    const memChunk = this.createCMemChunk(state.memory, state.originalStory);
+    const stksChunk = this.createStksChunk(state);
+
+    // Calculate total size (FORM header + size + 'IFZS' + chunks)
+    const totalSize = 4 + 4 + 4 + ifhdChunk.length + memChunk.length + stksChunk.length;
+
+    // Create buffer for the entire file
+    const buffer = Buffer.alloc(totalSize);
+    let offset = 0;
+
+    // Write FORM header
+    buffer.write(QuetzalFormat.FORM_ID, offset, 'ascii');
+    offset += 4;
+
+    // Write size (excluding FORM ID and size field)
+    buffer.writeUInt32BE(totalSize - 8, offset);
+    offset += 4;
+
+    // Write IFZS ID
+    buffer.write(QuetzalFormat.IFZS_ID, offset, 'ascii');
+    offset += 4;
+
+    // Write chunks
+    ifhdChunk.copy(buffer, offset);
+    offset += ifhdChunk.length;
+
+    memChunk.copy(buffer, offset);
+    offset += memChunk.length;
+
+    stksChunk.copy(buffer, offset);
+
+    return buffer;
   }
 
-  /**
-   * Deserialize a Quetzal file buffer into a snapshot
-   * @param data The Quetzal file buffer
-   * @param originalStory Optional original story data for decompression
-   * @returns The deserialized snapshot
-   */
-  deserialize(data: Buffer, originalStory?: Buffer): Snapshot {
-    return this.parseQuetzalFile(data, originalStory);
-  }
-
-  /**
-   * Create a Quetzal file from a snapshot
-   * @param snapshot The snapshot to convert
-   * @param useCompression Whether to use compression for memory
-   * @param originalStoryData The original story data for compression
-   * @param annotation Optional annotation to include
-   * @returns Buffer containing Quetzal data
-   */
-  public createQuetzalFile(
-    snapshot: Snapshot,
-    useCompression: boolean = true,
-    originalStoryData?: Buffer,
-    annotation?: string
-  ): Buffer {
-    this.logger.debug('Creating Quetzal file');
-
-    const chunks: IffChunk[] = [];
-
-    // Add IFhd chunk - header info
-    chunks.push(this.createIFhdChunk(snapshot));
-
-    // Add memory chunk - either CMem or UMem
-    if (useCompression && originalStoryData) {
-      chunks.push(this.createCMemChunk(snapshot.mem, originalStoryData));
-    } else {
-      chunks.push(this.createUMemChunk(snapshot.mem));
+  deserialize(data: Buffer, originalStory: Buffer): ZMachineState {
+    if (!originalStory) {
+      throw new Error('Original story data is required for Quetzal format');
     }
 
-    // Add Stks chunk - stacks
-    chunks.push(this.createStksChunk(snapshot));
-
-    // Add optional annotation
-    if (annotation) {
-      chunks.push({
-        id: QuetzalChunk.ANNO,
-        data: Buffer.from(annotation, 'ascii'),
-      });
+    // Validate FORM header
+    if (data.toString('ascii', 0, 4) !== QuetzalFormat.FORM_ID) {
+      throw new Error('Invalid Quetzal file: missing FORM header');
     }
 
-    // Create the FORM
-    return this.createIffForm(QuetzalChunk.FormType, chunks);
-  }
-
-  /**
-   * Parse a Quetzal file into a snapshot
-   * @param quetzalData The Quetzal file data
-   * @param originalStoryData The original story data (for decompression)
-   * @returns The parsed snapshot
-   */
-  public parseQuetzalFile(quetzalData: Buffer, originalStoryData?: Buffer): Snapshot {
-    this.logger.debug('Parsing Quetzal file');
-
-    // Parse IFF FORM
-    const { formType, chunks } = this.parseIffForm(quetzalData);
-
-    if (formType !== QuetzalChunk.FormType) {
-      throw new Error(`Invalid Quetzal file: expected FORM type ${QuetzalChunk.FormType}, got ${formType}`);
+    // Validate IFZS ID
+    if (data.toString('ascii', 8, 12) !== QuetzalFormat.IFZS_ID) {
+      throw new Error('Invalid Quetzal file: missing IFZS identifier');
     }
 
-    // Parse required chunks
-    const iFhdChunk = chunks.find((chunk) => chunk.id === QuetzalChunk.IFhd);
-    const cMemChunk = chunks.find((chunk) => chunk.id === QuetzalChunk.CMem);
-    const uMemChunk = chunks.find((chunk) => chunk.id === QuetzalChunk.UMem);
-    const stksChunk = chunks.find((chunk) => chunk.id === QuetzalChunk.Stks);
+    // Parse chunks
+    const chunks = this.parseChunks(data);
 
-    if (!iFhdChunk) {
+    // Validate required chunks
+    if (!chunks[QuetzalFormat.IFHD_ID]) {
       throw new Error('Invalid Quetzal file: missing IFhd chunk');
     }
 
-    if (!cMemChunk && !uMemChunk) {
-      throw new Error('Invalid Quetzal file: missing memory chunk (CMem or UMem)');
+    if (!chunks[QuetzalFormat.CMEM_ID] && !chunks[QuetzalFormat.UMEM_ID]) {
+      throw new Error('Invalid Quetzal file: missing memory chunk');
     }
 
-    if (!stksChunk) {
+    if (!chunks[QuetzalFormat.STKS_ID]) {
       throw new Error('Invalid Quetzal file: missing Stks chunk');
     }
 
-    // Parse header chunk
-    const { releaseNumber, serialNumber, checksum, pc } = this.parseIFhdChunk(iFhdChunk.data);
+    // Parse chunks to create snapshot
+    const ifhdData = this.parseIFhdChunk(chunks[QuetzalFormat.IFHD_ID]);
 
-    // Parse memory chunk
-    let mem: Buffer;
-    if (cMemChunk && originalStoryData) {
-      mem = this.decompressCMemChunk(cMemChunk.data, originalStoryData);
-    } else if (uMemChunk) {
-      mem = Buffer.from(uMemChunk.data);
+    // Validate IFhd data against original story
+    this.validateIFhdData(ifhdData, originalStory);
+
+    // Parse memory
+    let memory: Buffer;
+    if (chunks[QuetzalFormat.CMEM_ID]) {
+      memory = this.parseCMemChunk(chunks[QuetzalFormat.CMEM_ID], originalStory);
     } else {
-      throw new Error('Cannot decompress memory: original story data not provided');
+      memory = this.parseUMemChunk(chunks[QuetzalFormat.UMEM_ID]);
     }
 
-    // Parse stacks chunk
-    const { stack, callstack } = this.parseStksChunk(stksChunk.data);
+    // Parse stacks
+    const { stack, callStack } = this.parseStksChunk(chunks[QuetzalFormat.STKS_ID]);
 
-    // Create snapshot
     return {
-      mem,
+      memory,
+      pc: ifhdData.pc,
       stack,
-      callstack,
-      pc,
+      callFrames: callStack,
+      originalStory: Buffer.from(originalStory),
     };
   }
 
-  /**
-   * Create an IFhd chunk
-   * @param snapshot The snapshot
-   * @returns The IFhd chunk
-   */
-  private createIFhdChunk(snapshot: Snapshot): IffChunk {
-    const mem = snapshot.mem;
+  extractMetadata(data: Buffer): { description?: string; [key: string]: unknown } {
+    const metadata: { description?: string; [key: string]: unknown } = {};
 
-    // Get header info
-    const releaseNumber = mem.readUInt16BE(HeaderLocation.HighMemBase - 2);
-    const serialBytes = mem.slice(HeaderLocation.Dictionary, HeaderLocation.Dictionary + 6);
-    const checksum = mem.readUInt16BE(HeaderLocation.Flags2 + 12);
+    try {
+      // Validate FORM header
+      if (data.toString('ascii', 0, 4) !== QuetzalFormat.FORM_ID) {
+        return metadata;
+      }
 
-    // Create chunk data
-    const data = Buffer.alloc(13); // IFhd is 13 bytes long
+      // Validate IFZS ID
+      if (data.toString('ascii', 8, 12) !== QuetzalFormat.IFZS_ID) {
+        return metadata;
+      }
 
-    // Write release number (at offset 0)
-    data.writeUInt16BE(releaseNumber, 0);
+      // Parse chunks
+      const chunks = this.parseChunks(data);
 
-    // Write serial number (at offset 2)
-    serialBytes.copy(data, 2);
+      // Extract ANNO chunk if present
+      if (chunks[QuetzalFormat.ANNO_ID]) {
+        const annoText = chunks[QuetzalFormat.ANNO_ID].toString('ascii');
+        metadata.description = annoText;
+      }
 
-    // Write checksum (at offset 8)
-    data.writeUInt16BE(checksum, 8);
-
-    // Write PC (at offset 10)
-    // Note: For Z-machine versions <= 3, PC should point to branch offset
-    // For Z-machine versions >= 4, PC should point to store variable
-    data.writeUInt8((snapshot.pc >> 16) & 0xff, 10);
-    data.writeUInt8((snapshot.pc >> 8) & 0xff, 11);
-    data.writeUInt8(snapshot.pc & 0xff, 12);
-
-    return {
-      id: QuetzalChunk.IFhd,
-      data,
-    };
-  }
-
-  /**
-   * Parse an IFhd chunk
-   * @param data The chunk data
-   * @returns The parsed header info
-   */
-  private parseIFhdChunk(data: Buffer): {
-    releaseNumber: number;
-    serialNumber: Buffer;
-    checksum: number;
-    pc: number;
-  } {
-    const releaseNumber = data.readUInt16BE(0);
-    const serialNumber = Buffer.from(data.slice(2, 8));
-    const checksum = data.readUInt16BE(8);
-
-    // PC is a 3-byte value (24 bits)
-    const pc = (data[10] << 16) | (data[11] << 8) | data[12];
-
-    return {
-      releaseNumber,
-      serialNumber,
-      checksum,
-      pc,
-    };
-  }
-
-  /**
-   * Create a CMem (compressed memory) chunk
-   * @param currentMem The current memory state
-   * @param originalMem The original memory state
-   * @returns The CMem chunk
-   */
-  private createCMemChunk(currentMem: Buffer, originalMem: Buffer): IffChunk {
-    // Find dynamic memory size - typically stored at address 0x0E
-    const dynamicMemSize = currentMem.readUInt16BE(HeaderLocation.StaticMemBase);
-
-    // Ensure the original memory is at least as large as dynamic memory
-    if (originalMem.length < dynamicMemSize) {
-      throw new Error(`Original story file too small for compression: expected at least ${dynamicMemSize} bytes`);
+      // Extract IFhd data if present
+      if (chunks[QuetzalFormat.IFHD_ID]) {
+        const ifhdData = this.parseIFhdChunk(chunks[QuetzalFormat.IFHD_ID]);
+        metadata.release = ifhdData.release;
+        metadata.serial = ifhdData.serial;
+        metadata.checksum = ifhdData.checksum;
+      }
+    } catch (error) {
+      this.logger.debug(`Error extracting metadata: ${error}`);
+      // Ignore errors during metadata extraction
     }
 
-    // Create a buffer to hold the compressed data
-    // In worst case, this could be slightly larger than dynamic memory
-    const compressedData = Buffer.alloc(dynamicMemSize * 2);
-    let compressedSize = 0;
+    return metadata;
+  }
 
-    // Compress the data using XOR + RLE algorithm
-    let runLength = 0;
+  private parseChunks(data: Buffer): { [id: string]: Buffer } {
+    const chunks: { [id: string]: Buffer } = {};
+    let offset = 12; // Skip FORM header, size, and IFZS ID
 
-    for (let i = 0; i < dynamicMemSize; i++) {
-      // XOR current memory with original memory
-      const xorByte = currentMem[i] ^ originalMem[i];
+    while (offset < data.length) {
+      // Read chunk ID
+      const chunkId = data.toString('ascii', offset, offset + 4);
+      offset += 4;
 
-      if (xorByte === 0) {
-        // Zero byte - part of a run
-        runLength++;
+      // Read chunk size
+      const chunkSize = data.readUInt32BE(offset);
+      offset += 4;
 
-        // If we've accumulated 256 zeroes, output the run and start a new one
-        if (runLength === 256) {
-          compressedData[compressedSize++] = 0;
-          compressedData[compressedSize++] = 255; // 255 + 1 = 256 zeroes
-          runLength = 0;
-        }
-      } else {
-        // Non-zero byte - output any pending run, then output this byte
-        if (runLength > 0) {
-          compressedData[compressedSize++] = 0;
-          compressedData[compressedSize++] = runLength - 1; // n+1 zeroes
-          runLength = 0;
-        }
+      // Extract chunk data
+      const chunkData = Buffer.alloc(chunkSize);
+      data.copy(chunkData, 0, offset, offset + chunkSize);
+      chunks[chunkId] = chunkData;
 
-        compressedData[compressedSize++] = xorByte;
+      // Move to next chunk (accounting for padding)
+      offset += chunkSize;
+      if (chunkSize % 2 !== 0) {
+        offset++; // Skip padding byte
       }
     }
 
-    // Output any final run
-    if (runLength > 0) {
-      compressedData[compressedSize++] = 0;
-      compressedData[compressedSize++] = runLength - 1; // n+1 zeroes
-    }
-
-    // Create the final compressed data buffer of the exact right size
-    const finalData = Buffer.from(compressedData.slice(0, compressedSize));
-
-    return {
-      id: QuetzalChunk.CMem,
-      data: finalData,
-    };
+    return chunks;
   }
 
-  /**
-   * Decompress a CMem chunk
-   * @param compressedData The compressed data
-   * @param originalMem The original memory
-   * @returns The decompressed memory
-   */
-  private decompressCMemChunk(compressedData: Buffer, originalMem: Buffer): Buffer {
-    // Find dynamic memory size - typically stored at address 0x0E
-    const dynamicMemSize = originalMem.readUInt16BE(HeaderLocation.StaticMemBase);
-
-    // Create a buffer to hold the decompressed data
-    // First, make a copy of the original file
-    const decompressedMem = Buffer.from(originalMem);
-
-    // Then decompress the CMem data on top of it
-    let memPos = 0;
-    let compPos = 0;
-
-    while (compPos < compressedData.length && memPos < dynamicMemSize) {
-      const byte = compressedData[compPos++];
-
-      if (byte === 0) {
-        // Start of a run of zeros
-        if (compPos >= compressedData.length) {
-          throw new Error('Invalid compression data: zero byte at end of data');
-        }
-
-        const runLength = compressedData[compPos++] + 1;
-
-        // Skip these bytes (they're already at the original values)
-        memPos += runLength;
-      } else {
-        // Non-zero byte - XOR with original memory
-        decompressedMem[memPos] = originalMem[memPos] ^ byte;
-        memPos++;
-      }
-    }
-
-    // If we have leftover compressed data, something's wrong
-    if (compPos < compressedData.length) {
-      this.logger.warn(`Ignoring ${compressedData.length - compPos} bytes of leftover compressed data`);
-    }
-
-    // If we haven't filled all of dynamic memory, assume the rest is unchanged
-    if (memPos < dynamicMemSize) {
-      this.logger.debug(`Leaving ${dynamicMemSize - memPos} bytes of dynamic memory unchanged`);
-    }
-
-    return decompressedMem;
-  }
-
-  /**
-   * Create a UMem (uncompressed memory) chunk
-   * @param mem The memory to store
-   * @returns The UMem chunk
-   */
-  private createUMemChunk(mem: Buffer): IffChunk {
-    // Find dynamic memory size - typically stored at address 0x0E
-    const dynamicMemSize = mem.readUInt16BE(HeaderLocation.StaticMemBase);
-
-    // Create chunk with just the dynamic memory portion
-    return {
-      id: QuetzalChunk.UMem,
-      data: Buffer.from(mem.slice(0, dynamicMemSize)),
-    };
-  }
-
-  /**
-   * Create a Stks (stacks) chunk
-   * @param snapshot The snapshot
-   * @returns The Stks chunk
-   */
-  private createStksChunk(snapshot: Snapshot): IffChunk {
-    const { stack, callstack } = snapshot;
-    const version = snapshot.mem[HeaderLocation.Version];
-
-    // Estimate size
-    // Each frame has:
-    // - 3 bytes for PC
-    // - 1 byte for flags
-    // - 1 byte for result variable
-    // - 1 byte for arguments bitmap
-    // - 2 bytes for eval stack size
-    // - 2 bytes per local variable
-    // - 2 bytes per eval stack entry
-    const totalFrameSize = callstack.reduce((total, frame) => {
-      return total + 8 + frame.locals.length * 2 + (frame.previousSP || 0) * 2;
-    }, 0);
-
-    // Add dummy frame size for V1-5 and V7-8
-    let dummyFrameSize = 0;
-    if (version !== 6) {
-      // We need a dummy frame with the evaluation stack at the top level
-      dummyFrameSize = 8 + stack.length * 2;
-    }
-
-    // Allocate buffer
-    const stksData = Buffer.alloc(totalFrameSize + dummyFrameSize);
+  private createIFhdChunk(state: ZMachineState): Buffer {
+    // IFhd chunk is 13 bytes + 8 bytes for header + 1 byte for odd-length padding
+    const buffer = Buffer.alloc(13 + 8 + 1);
     let offset = 0;
 
-    // Add dummy frame for non-V6 games
-    if (version !== 6) {
-      // Write return PC (0)
-      stksData.writeUInt8(0, offset++);
-      stksData.writeUInt8(0, offset++);
-      stksData.writeUInt8(0, offset++);
+    // Write chunk ID
+    buffer.write(QuetzalFormat.IFHD_ID, offset, 'ascii');
+    offset += 4;
 
-      // Write flags (0)
-      stksData.writeUInt8(0, offset++);
+    // Write chunk size
+    buffer.writeUInt32BE(13, offset);
+    offset += 4;
 
-      // Write variable number (0)
-      stksData.writeUInt8(0, offset++);
+    // Write release number (word at $2)
+    const release = state.originalStory.readUInt16BE(2);
+    buffer.writeUInt16BE(release, offset);
+    offset += 2;
 
-      // Write arguments bitmap (0)
-      stksData.writeUInt8(0, offset++);
+    // Write serial number (6 bytes at $12)
+    state.originalStory.copy(buffer, offset, 0x12, 0x18);
+    offset += 6;
 
-      // Write eval stack size
-      stksData.writeUInt16BE(stack.length, offset);
-      offset += 2;
+    // Write checksum (word at $1C)
+    const checksum = state.originalStory.readUInt16BE(0x1c);
+    buffer.writeUInt16BE(checksum, offset);
+    offset += 2;
 
-      // Write eval stack
-      for (let i = 0; i < stack.length; i++) {
-        stksData.writeUInt16BE(stack[i], offset);
-        offset += 2;
+    // Write PC (3 bytes)
+    const pc = state.pc;
+    buffer.writeUInt8((pc >> 16) & 0xff, offset);
+    offset++;
+    buffer.writeUInt16BE(pc & 0xffff, offset);
+    offset += 2;
+
+    // Add padding byte for odd-length chunk
+    buffer.writeUInt8(0, offset);
+
+    return buffer;
+  }
+
+  private parseIFhdChunk(data: Buffer): { release: number; serial: string; checksum: number; pc: number } {
+    if (data.length < 13) {
+      throw new Error('Invalid IFhd chunk: too short');
+    }
+
+    // Read release number (2 bytes)
+    const release = data.readUInt16BE(0);
+
+    // Read serial number (6 bytes)
+    const serial = data.toString('ascii', 2, 8);
+
+    // Read checksum (2 bytes)
+    const checksum = data.readUInt16BE(8);
+
+    // Read PC (3 bytes)
+    const pcHigh = data.readUInt8(10);
+    const pcLow = data.readUInt16BE(11);
+    const pc = (pcHigh << 16) | pcLow;
+
+    return { release, serial, checksum, pc };
+  }
+
+  private validateIFhdData(
+    ifhdData: { release: number; serial: string; checksum: number },
+    originalStory: Buffer
+  ): void {
+    // Read release number from original story
+    const originalRelease = originalStory.readUInt16BE(2);
+
+    // Read serial number from original story
+    const originalSerial = originalStory.toString('ascii', 0x12, 0x18);
+
+    // Read checksum from original story
+    const originalChecksum = originalStory.readUInt16BE(0x1c);
+
+    // Validate release number
+    if (ifhdData.release !== originalRelease) {
+      throw new Error(`Release number mismatch: expected ${originalRelease}, got ${ifhdData.release}`);
+    }
+
+    // Validate serial number
+    if (ifhdData.serial !== originalSerial) {
+      throw new Error(`Serial number mismatch: expected ${originalSerial}, got ${ifhdData.serial}`);
+    }
+
+    // Validate checksum
+    if (ifhdData.checksum !== originalChecksum) {
+      throw new Error(`Checksum mismatch: expected ${originalChecksum}, got ${ifhdData.checksum}`);
+    }
+  }
+
+  private createCMemChunk(memory: Buffer, originalStory: Buffer): Buffer {
+    // Determine dynamic memory size
+    const dynamicMemorySize = this.getDynamicMemorySize(originalStory);
+
+    // Create a buffer for dynamic memory
+    const dynamicMemory = Buffer.alloc(dynamicMemorySize);
+    memory.copy(dynamicMemory, 0, 0, dynamicMemorySize);
+
+    // XOR with original story data
+    const originalDynamicMemory = Buffer.alloc(dynamicMemorySize);
+    originalStory.copy(originalDynamicMemory, 0, 0, dynamicMemorySize);
+
+    for (let i = 0; i < dynamicMemorySize; i++) {
+      dynamicMemory[i] ^= originalDynamicMemory[i];
+    }
+
+    // Compress using run-length encoding
+    const compressed = this.compressMemory(dynamicMemory);
+
+    // Create the chunk buffer
+    const buffer = Buffer.alloc(compressed.length + 8);
+    let offset = 0;
+
+    // Write chunk ID
+    buffer.write(QuetzalFormat.CMEM_ID, offset, 'ascii');
+    offset += 4;
+
+    // Write chunk size
+    buffer.writeUInt32BE(compressed.length, offset);
+    offset += 4;
+
+    // Write compressed data
+    compressed.copy(buffer, offset);
+
+    return buffer;
+  }
+
+  private parseCMemChunk(data: Buffer, originalStory: Buffer): Buffer {
+    // Determine dynamic memory size
+    const dynamicMemorySize = this.getDynamicMemorySize(originalStory);
+
+    // Decompress the data
+    const decompressed = this.decompressMemory(data, dynamicMemorySize);
+
+    // Create a buffer for the entire memory
+    const memory = Buffer.from(originalStory);
+
+    // XOR with original story data for dynamic memory
+    const originalDynamicMemory = Buffer.alloc(dynamicMemorySize);
+    originalStory.copy(originalDynamicMemory, 0, 0, dynamicMemorySize);
+
+    for (let i = 0; i < dynamicMemorySize; i++) {
+      memory[i] = decompressed[i] ^ originalDynamicMemory[i];
+    }
+
+    return memory;
+  }
+
+  private parseUMemChunk(data: Buffer): Buffer {
+    // UMem is a direct copy of dynamic memory
+    // We need to prepend it with original story data
+    // This implementation is incomplete - we need original story data
+    return data;
+  }
+
+  private compressMemory(data: Buffer): Buffer {
+    // Implement run-length encoding:
+    // Non-zero bytes are stored as-is
+    // Zero bytes are stored as a zero followed by a count byte
+    const tempBuffer = Buffer.alloc(data.length * 2); // Worst case
+    let tempOffset = 0;
+    let i = 0;
+
+    while (i < data.length) {
+      if (data[i] !== 0) {
+        // Non-zero byte, store as-is
+        tempBuffer[tempOffset++] = data[i++];
+      } else {
+        // Zero byte, count consecutive zeros
+        let zeroCount = 1;
+        i++;
+
+        while (i < data.length && data[i] === 0 && zeroCount < 255) {
+          zeroCount++;
+          i++;
+        }
+
+        // Store zero byte followed by count
+        tempBuffer[tempOffset++] = 0;
+        tempBuffer[tempOffset++] = zeroCount;
       }
     }
 
-    // Add each frame
-    for (const frame of callstack) {
-      // Write return PC (3 bytes)
-      stksData.writeUInt8((frame.returnPC >> 16) & 0xff, offset++);
-      stksData.writeUInt8((frame.returnPC >> 8) & 0xff, offset++);
-      stksData.writeUInt8(frame.returnPC & 0xff, offset++);
+    // Create the final buffer with the exact size
+    const result = Buffer.alloc(tempOffset);
+    tempBuffer.copy(result, 0, 0, tempOffset);
+
+    return result;
+  }
+
+  private decompressMemory(compressedData: Buffer, targetSize: number): Buffer {
+    const result = Buffer.alloc(targetSize);
+    let resultOffset = 0;
+    let i = 0;
+
+    while (i < compressedData.length && resultOffset < targetSize) {
+      if (compressedData[i] !== 0) {
+        // Non-zero byte, copy as-is
+        result[resultOffset++] = compressedData[i++];
+      } else {
+        // Zero byte, expand run
+        i++; // Skip the zero
+
+        if (i >= compressedData.length) {
+          // Error: incomplete run at end of data
+          break;
+        }
+
+        const zeroCount = compressedData[i++];
+
+        // Write zeroCount+1 zeros
+        for (let j = 0; j < zeroCount && resultOffset < targetSize; j++) {
+          result[resultOffset++] = 0;
+        }
+      }
+    }
+
+    // If we didn't completely fill the result, assume the rest are zeros
+    while (resultOffset < targetSize) {
+      result[resultOffset++] = 0;
+    }
+
+    return result;
+  }
+
+  private createStksChunk(state: ZMachineState): Buffer {
+    // Calculate size needed for all stack frames
+    let size = 0;
+
+    // Add size for dummy frame if needed (Z-machine version <= 5 or >= 7)
+    // This is simplified - you should check Z-machine version
+    size += 6; // Fixed part of frame
+    size += 2; // Evaluation stack count
+
+    // Add size for real frames
+    for (const frame of state.callFrames) {
+      size += 6; // Fixed part of frame
+      size += frame.locals.length * 2; // Local variables (word each)
+      size += frame.stack.length * 2; // Evaluation stack (word each)
+    }
+
+    // Create buffer
+    const buffer = Buffer.alloc(size + 8); // Add 8 for chunk header
+    let offset = 0;
+
+    // Write chunk ID
+    buffer.write(QuetzalFormat.STKS_ID, offset, 'ascii');
+    offset += 4;
+
+    // Write chunk size
+    buffer.writeUInt32BE(size, offset);
+    offset += 4;
+
+    // Write dummy frame (if needed)
+    // This is simplified - you should check Z-machine version
+    buffer.writeUInt8(0, offset++); // Return PC high byte
+    buffer.writeUInt16BE(0, offset); // Return PC low bytes
+    offset += 2;
+
+    buffer.writeUInt8(0, offset++); // Flags
+    buffer.writeUInt8(0, offset++); // Variable number
+    buffer.writeUInt8(0, offset++); // Arguments supplied
+
+    // Write eval stack size for dummy frame
+    const dummyStackSize = state.stack.length;
+    buffer.writeUInt16BE(dummyStackSize, offset);
+    offset += 2;
+
+    // Write evaluation stack for dummy frame
+    for (const value of state.stack) {
+      buffer.writeUInt16BE(value, offset);
+      offset += 2;
+    }
+
+    // Write real frames
+    for (const frame of state.callFrames) {
+      // Write return PC
+      buffer.writeUInt8((frame.returnPC >> 16) & 0xff, offset++);
+      buffer.writeUInt16BE(frame.returnPC & 0xffff, offset);
+      offset += 2;
 
       // Write flags
-      // p is set if frame.resultVariable is null
-      const pFlag = frame.resultVariable === null ? 0x10 : 0x00;
-      const vCount = frame.locals.length;
-      const flags = pFlag | vCount;
-      stksData.writeUInt8(flags, offset++);
+      let flags = 0;
+      if (frame.discardResult) {
+        flags |= 0x10; // Set the p flag
+      }
+
+      // Set vvvv bits for number of locals
+      flags |= Math.min(frame.locals.length, 0x0f);
+      buffer.writeUInt8(flags, offset++);
 
       // Write variable number
-      stksData.writeUInt8(frame.resultVariable !== null ? frame.resultVariable : 0, offset++);
+      buffer.writeUInt8(frame.storeVariable || 0, offset++);
 
-      // Write arguments bitmap
-      // For each bit 0-6, set if argument was provided
-      let argBitmap = 0;
-      for (let i = 0; i < Math.min(frame.argumentCount, 7); i++) {
-        argBitmap |= 1 << i;
+      // Write arguments supplied
+      let args = 0;
+      for (let i = 0; i < Math.min(frame.argumentMask.length, 7); i++) {
+        if (frame.argumentMask[i]) {
+          args |= 1 << i;
+        }
       }
-      stksData.writeUInt8(argBitmap, offset++);
+      buffer.writeUInt8(args, offset++);
 
       // Write eval stack size
-      stksData.writeUInt16BE(frame.previousSP || 0, offset);
+      buffer.writeUInt16BE(frame.stack.length, offset);
       offset += 2;
 
       // Write local variables
-      for (let i = 0; i < frame.locals.length; i++) {
-        stksData.writeUInt16BE(frame.locals[i], offset);
+      for (const local of frame.locals) {
+        buffer.writeUInt16BE(local, offset);
         offset += 2;
       }
 
-      // For this frame, we don't actually store the eval stack data here -
-      // it's stored in the next frame's previousSP
+      // Write evaluation stack
+      for (const value of frame.stack) {
+        buffer.writeUInt16BE(value, offset);
+        offset += 2;
+      }
     }
 
-    return {
-      id: QuetzalChunk.Stks,
-      data: stksData,
-    };
+    return buffer;
   }
 
-  /**
-   * Parse a Stks (stacks) chunk
-   * @param data The chunk data
-   * @returns The parsed stacks
-   */
-  private parseStksChunk(data: Buffer): { stack: number[]; callstack: StackFrame[] } {
+  private parseStksChunk(data: Buffer): {
+    stack: number[];
+    callStack: {
+      returnPC: number;
+      discardResult: boolean;
+      storeVariable: number;
+      argumentMask: boolean[];
+      locals: number[];
+      stack: number[];
+    }[];
+  } {
     const stack: number[] = [];
-    const callstack: StackFrame[] = [];
-
+    const callStack: {
+      returnPC: number;
+      discardResult: boolean;
+      storeVariable: number;
+      argumentMask: boolean[];
+      locals: number[];
+      stack: number[];
+    }[] = [];
     let offset = 0;
 
-    // Process frames until we run out of data
+    // Parse dummy frame (for Z-machine version <= 5 or >= 7)
+    offset += 3; // Skip return PC
+    offset++; // Skip flags
+    offset++; // Skip variable number
+    offset++; // Skip arguments supplied
+
+    // Read eval stack size for dummy frame
+    const dummyStackSize = data.readUInt16BE(offset);
+    offset += 2;
+
+    // Read evaluation stack for dummy frame
+    for (let i = 0; i < dummyStackSize; i++) {
+      stack.push(data.readUInt16BE(offset));
+      offset += 2;
+    }
+
+    // Parse remaining frames
     while (offset < data.length) {
-      // Read return PC (3 bytes)
-      const pc = (data[offset] << 16) | (data[offset + 1] << 8) | data[offset + 2];
-      offset += 3;
+      // Read return PC
+      const pcHigh = data.readUInt8(offset++);
+      const pcLow = data.readUInt16BE(offset);
+      offset += 2;
+      const returnPC = (pcHigh << 16) | pcLow;
 
       // Read flags
-      const flags = data[offset++];
-      const pFlag = (flags & 0x10) !== 0;
-      const vCount = flags & 0x0f;
+      const flags = data.readUInt8(offset++);
+      const discardResult = (flags & 0x10) !== 0;
+      const localCount = flags & 0x0f;
 
       // Read variable number
-      const varNum = data[offset++];
+      const storeVariable = data.readUInt8(offset++);
 
-      // Read arguments bitmap
-      const argBitmap = data[offset++];
-
-      // Count arguments
-      let argCount = 0;
+      // Read arguments supplied
+      const argsSupplied = data.readUInt8(offset++);
+      const argumentMask: boolean[] = [];
       for (let i = 0; i < 7; i++) {
-        if ((argBitmap & (1 << i)) !== 0) {
-          argCount++;
-        }
+        argumentMask[i] = (argsSupplied & (1 << i)) !== 0;
       }
 
       // Read eval stack size
@@ -545,208 +569,51 @@ export class QuetzalFormat implements FormatProvider {
       offset += 2;
 
       // Read local variables
-      const locals = new Uint16Array(vCount);
-      for (let i = 0; i < vCount; i++) {
-        locals[i] = data.readUInt16BE(offset);
+      const locals: number[] = [];
+      for (let i = 0; i < localCount; i++) {
+        locals.push(data.readUInt16BE(offset));
         offset += 2;
       }
 
-      // Read eval stack for this frame
-      const evalStack = [];
+      // Read evaluation stack
+      const frameStack: number[] = [];
       for (let i = 0; i < evalStackSize; i++) {
-        evalStack.push(data.readUInt16BE(offset));
+        frameStack.push(data.readUInt16BE(offset));
         offset += 2;
       }
 
-      // Check if this is a dummy frame
-      const isDummyFrame = pc === 0 && vCount === 0 && argCount === 0;
-
-      if (isDummyFrame) {
-        // Add the dummy frame's stack to the global stack
-        stack.push(...evalStack);
-      } else {
-        // Add real frame to the callstack
-        callstack.push({
-          returnPC: pc,
-          previousSP: evalStackSize,
-          locals,
-          resultVariable: pFlag ? null : varNum,
-          argumentCount: argCount,
-          routineAddress: 0, // We don't have this info in Quetzal files
-        });
-
-        // Add the eval stack to the global stack
-        stack.push(...evalStack);
-      }
-    }
-
-    return { stack, callstack };
-  }
-
-  /**
-   * Create an IFF FORM
-   * @param formType The form type
-   * @param chunks The chunks to include
-   * @returns The IFF FORM data
-   */
-  private createIffForm(formType: string, chunks: IffChunk[]): Buffer {
-    // Calculate size:
-    // 4 bytes for 'FORM'
-    // 4 bytes for length
-    // 4 bytes for form type
-    // For each chunk:
-    //   4 bytes for ID
-    //   4 bytes for length
-    //   n bytes for data
-    //   0-1 bytes for padding
-
-    let totalSize = 4 + 4 + 4;
-
-    for (const chunk of chunks) {
-      totalSize += 4 + 4 + chunk.data.length;
-
-      // Add padding byte if data length is odd
-      if (chunk.data.length % 2 !== 0) {
-        totalSize += 1;
-      }
-    }
-
-    // Create buffer
-    const buffer = Buffer.alloc(totalSize);
-    let offset = 0;
-
-    // Write FORM header
-    buffer.write('FORM', offset);
-    offset += 4;
-
-    // Write size (excluding the 'FORM' and size field)
-    buffer.writeUInt32BE(totalSize - 8, offset);
-    offset += 4;
-
-    // Write form type
-    buffer.write(formType, offset);
-    offset += 4;
-
-    // Write each chunk
-    for (const chunk of chunks) {
-      // Write chunk ID
-      buffer.write(chunk.id, offset);
-      offset += 4;
-
-      // Write chunk length
-      buffer.writeUInt32BE(chunk.data.length, offset);
-      offset += 4;
-
-      // Write chunk data
-      chunk.data.copy(buffer, offset);
-      offset += chunk.data.length;
-
-      // Add padding byte if data length is odd
-      if (chunk.data.length % 2 !== 0) {
-        buffer[offset++] = 0;
-      }
-    }
-
-    return buffer;
-  }
-
-  /**
-   * Parse an IFF FORM
-   * @param data The IFF data
-   * @returns The form type and chunks
-   */
-  private parseIffForm(data: Buffer): { formType: string; chunks: IffChunk[] } {
-    if (data.length < 12) {
-      throw new Error('Invalid IFF file: too short');
-    }
-
-    // Read FORM header
-    const formTag = data.toString('ascii', 0, 4);
-    if (formTag !== 'FORM') {
-      throw new Error(`Invalid IFF file: expected 'FORM', got '${formTag}'`);
-    }
-
-    // Read form size
-    const formSize = data.readUInt32BE(4);
-    if (formSize + 8 > data.length) {
-      throw new Error(`Invalid IFF file: form size ${formSize} exceeds file size ${data.length}`);
-    }
-
-    // Read form type
-    const formType = data.toString('ascii', 8, 12);
-
-    // Parse chunks
-    const chunks: IffChunk[] = [];
-    let offset = 12;
-
-    while (offset < data.length) {
-      // Need at least 8 bytes for a chunk header
-      if (offset + 8 > data.length) {
-        break;
-      }
-
-      // Read chunk ID
-      const id = data.toString('ascii', offset, offset + 4);
-      offset += 4;
-
-      // Read chunk length
-      const length = data.readUInt32BE(offset);
-      offset += 4;
-
-      // Check if we have enough data for this chunk
-      if (offset + length > data.length) {
-        this.logger.warn(`Invalid IFF chunk: ${id} claims ${length} bytes but only ${data.length - offset} available`);
-        break;
-      }
-
-      // Read chunk data
-      const chunkData = Buffer.from(data.slice(offset, offset + length));
-      offset += length;
-
-      // Skip padding byte if chunk length is odd
-      if (length % 2 !== 0 && offset < data.length) {
-        offset += 1;
-      }
-
-      // Add chunk
-      chunks.push({
-        id,
-        data: chunkData,
+      // Add frame to call stack
+      callStack.push({
+        returnPC,
+        discardResult,
+        storeVariable,
+        argumentMask,
+        locals,
+        stack: frameStack,
       });
     }
 
-    return {
-      formType,
-      chunks,
-    };
+    return { stack, callStack };
   }
 
-  /**
-   * Extract metadata from a Quetzal file buffer
-   *
-   * @param data The Quetzal file buffer
-   * @returns Metadata object
-   */
-  extractMetadata(data: Buffer): { description?: string } {
-    try {
-      const { formType, chunks } = this.parseIffForm(data);
+  private getDynamicMemorySize(storyData: Buffer): number {
+    // Dynamic memory size depends on the Z-machine version
+    const version = storyData[0];
 
-      if (formType !== QuetzalChunk.FormType) {
-        return {};
-      }
-
-      // Look for annotation chunk
-      const annoChunk = chunks.find((chunk) => chunk.id === QuetzalChunk.ANNO);
-      if (annoChunk) {
-        return {
-          description: annoChunk.data.toString('utf8'),
-        };
-      }
-
-      return { description: 'No description found' };
-    } catch (error) {
-      this.logger.warn(`Failed to extract metadata: ${error}`);
-      return {};
+    switch (version) {
+      case 1:
+      case 2:
+      case 3:
+        return 0x10000; // V1-3: Up to 64K
+      case 4:
+      case 5:
+        return 0x10000; // V4-5: Up to 64K
+      case 6:
+      case 7:
+      case 8:
+        return 0x20000; // V6-8: Up to 128K
+      default:
+        throw new Error(`Unsupported Z-machine version: ${version}`);
     }
   }
 }

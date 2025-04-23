@@ -1,7 +1,10 @@
 import { Executor } from '../core/execution/Executor';
 import { UserStackManager } from '../core/execution/UserStack';
 import { Memory } from '../core/memory/Memory';
-import { Snapshot, Storage } from '../storage/interfaces';
+import { createMemoryStorage } from '../storage/factory';
+import { Snapshot } from '../storage/interfaces';
+import { Storage } from '../storage/Storage';
+import { ZMachineState } from '../types';
 import { InputProcessor, InputState } from '../ui/input/InputInterface';
 import { Capabilities, Screen } from '../ui/screen/interfaces';
 import { HeaderLocation } from '../utils/constants';
@@ -24,11 +27,11 @@ export class ZMachine {
   private _storage: Storage;
   private _undoStack: Snapshot[] = [];
   private readonly _maxUndoLevels = 10;
+  private readonly _originalStory: Buffer;
 
   /**
    * Creates a new Z-Machine interpreter
    * @param storyBuffer Buffer containing the story file
-   * @param logger Logger for debugging
    * @param screen Screen interface for output
    * @param storage Storage interface for save/restore
    * @param inputProcessor Input processor for handling user input
@@ -37,15 +40,18 @@ export class ZMachine {
   constructor(
     storyBuffer: Buffer,
     screen: Screen,
-    storage: Storage,
     inputProcessor: InputProcessor,
+    storage?: Storage,
     options?: { logger?: Logger }
   ) {
+    this._originalStory = storyBuffer;
     this._memory = new Memory(storyBuffer);
     this._logger = options?.logger || new Logger('ZMachine');
     this._screen = screen;
-    this._storage = storage;
     this._inputProcessor = inputProcessor;
+
+    // Use provided storage or create default memory storage
+    this._storage = storage || createMemoryStorage(storyBuffer);
 
     // Initialize state
     this._state = new GameState(this._memory);
@@ -82,6 +88,9 @@ export class ZMachine {
   }
   public get logger(): Logger {
     return this._logger;
+  }
+  public get originalStory(): Buffer {
+    return this._originalStory;
   }
 
   /**
@@ -203,32 +212,27 @@ export class ZMachine {
 
   /**
    * Save the current game state to storage
-   * @returns True if the save was successful
    */
-  saveGame(): boolean {
-    try {
-      const snapshot = this._state.createSnapshot();
-      this._storage.saveSnapshot(snapshot);
-      return true;
-    } catch (error) {
-      this._logger.error(`Failed to save game: ${error}`);
-      return false;
+  // Save the current state
+  async saveGame(): Promise<void> {
+    if (!this.storage) {
+      throw new Error('No storage provider available');
     }
+
+    const state = this.getState();
+    await this.storage.saveSnapshot(state);
   }
 
   /**
    * Restore a saved game state from storage
-   * @returns True if the restore was successful
    */
-  async restoreGame(): Promise<boolean> {
-    try {
-      const snapshot = await this._storage.loadSnapshot();
-      this._state.restoreFromSnapshot(snapshot);
-      return true;
-    } catch (error) {
-      this._logger.error(`Failed to restore game: ${error}`);
-      return false;
+  async restoreGame(): Promise<void> {
+    if (!this.storage) {
+      throw new Error('No storage provider available');
     }
+
+    const state = await this.storage.loadSnapshot();
+    this.setState(state);
   }
 
   /**
@@ -249,21 +253,12 @@ export class ZMachine {
         if (!filename) return false;
       }
 
-      // Get the snapshot
-      const snapshot = this._state.createSnapshot();
-
       // Save with custom filename if provided
       if (filename) {
         this._storage.setOptions({ filename });
       }
 
-      // If name parameter is provided, store it in memory at that address
-      if (name !== 0) {
-        // Store the filename in memory at the given address
-        // This would need code to convert the filename to Z-characters
-      }
-
-      await this._storage.saveSnapshot(snapshot);
+      await this._storage.saveSnapshot(this.getState());
       return true;
     } catch (error) {
       this._logger.error(`Failed to save to table: ${error}`);
@@ -317,7 +312,7 @@ export class ZMachine {
       }
 
       // Load the snapshot
-      const snapshot = await this._storage.loadSnapshot();
+      const snapshot: ZMachineState = await this._storage.loadSnapshot();
 
       // If name parameter is provided, store the loaded filename in memory
       if (name !== 0) {
@@ -347,7 +342,7 @@ export class ZMachine {
         // TODO: simplified - needs actual implementation
         // This would need to use a format the game understands
         // We could potentially use a new format: createQuetzalTableData(snapshot, bytes)
-        const serializedData = this.serializeSnapshotForTable(snapshot, bytes);
+        const serializedData = this.serializeSnapshotForTable(this.getState(), bytes);
         serializedData.copy(dataBuffer, 0, 0, Math.min(serializedData.length, bytes));
 
         // Copy to game memory
@@ -555,6 +550,31 @@ export class ZMachine {
         this._executor.resume();
       }
     }, time * 100); // Z-machine time is in 1/10 seconds
+  }
+
+  // Get the current state for saving
+  private getState(): ZMachineState {
+    return {
+      memory: this.memory.buffer,
+      pc: this.state.pc,
+      stack: this.state.stack.slice(),
+      callFrames: this.state.callstack.map((frame) => ({
+        ...frame,
+        discardResult: frame.discardResult || false,
+        storeVariable: frame.storeVariable || null,
+        argumentMask: frame.argumentMask || 0,
+        stack: frame.stack || [],
+      })),
+      originalStory: this.originalStory,
+    };
+  }
+
+  // Apply a loaded state
+  private setState(state: ZMachineState): void {
+    this.memory.setBuffer(state.memory);
+    this.state.pc = state.pc;
+    this.state.callStack = state.stack.slice();
+    this.stack.callFrames = state.callFrames.map((frame) => ({ ...frame }));
   }
 
   /**

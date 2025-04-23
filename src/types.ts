@@ -69,3 +69,26 @@ export enum OperandType {
  * but needs to be typed in the system
  */
 export type FIXME = unknown;
+
+/**
+ * Represents a single frame in the Z-Machine call stack
+ */
+export interface StackFrame {
+  returnPC: number;
+  discardResult: boolean;
+  storeVariable: number;
+  argumentMask: boolean[];
+  locals: number[];
+  stack: number[];
+}
+
+/**
+ * Represents the complete state of a Z-Machine that needs to be saved/restored
+ */
+export interface ZMachineState {
+  memory: Buffer;
+  pc: number;
+  stack: number[];
+  callFrames: StackFrame[];
+  originalStory: Buffer;
+}

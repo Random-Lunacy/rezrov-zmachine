@@ -1,5 +1,6 @@
+import { ZMachineState } from '../types';
 import { FormatProvider } from './formats/FormatProvider';
-import { SaveInfo, Snapshot, StorageOptions } from './interfaces';
+import { SaveInfo, StorageOptions } from './interfaces';
 import { StorageProvider } from './providers/StorageProvider';
 
 /**
@@ -9,36 +10,36 @@ import { StorageProvider } from './providers/StorageProvider';
 export class Storage {
   private formatProvider: FormatProvider;
   private storageProvider: StorageProvider;
+  private originalStory: Buffer;
   private options: StorageOptions = {};
-  private originalStoryData: Buffer;
 
   constructor(
     formatProvider: FormatProvider,
     storageProvider: StorageProvider,
-    originalStoryData: Buffer,
+    originalStory: Buffer,
     options?: StorageOptions
   ) {
     this.formatProvider = formatProvider;
     this.storageProvider = storageProvider;
-    this.originalStoryData = originalStoryData;
+    this.originalStory = originalStory;
     if (options) {
       this.options = options;
     }
   }
 
-  async saveSnapshot(snapshot: Snapshot, description?: string): Promise<void> {
+  async saveSnapshot(state: ZMachineState, description?: string): Promise<void> {
     const location = this.getStorageLocation();
-    const data = this.formatProvider.serialize(snapshot, this.originalStoryData);
+    const data = this.formatProvider.serialize(state, this.originalStory);
     await this.storageProvider.write(location, data);
   }
 
-  async loadSnapshot(): Promise<Snapshot> {
+  async loadSnapshot(): Promise<ZMachineState> {
     const location = this.getStorageLocation();
     const data = await this.storageProvider.read(location);
     if (!data) {
       throw new Error(`Save file not found: ${location}`);
     }
-    return this.formatProvider.deserialize(data, this.originalStoryData);
+    return this.formatProvider.deserialize(data, this.originalStory);
   }
 
   async getSaveInfo(): Promise<SaveInfo> {
