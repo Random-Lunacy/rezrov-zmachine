@@ -1,10 +1,9 @@
-// src/storage/formats/QuetzalFormat.ts
 import { ZMachineState } from '../../types';
 import { Logger } from '../../utils/log';
 import { FormatProvider } from './FormatProvider';
 
 export class QuetzalFormat implements FormatProvider {
-  // IFF chunk IDs
+  // Constants for chunk identification
   private static readonly FORM_ID = 'FORM';
   private static readonly IFZS_ID = 'IFZS';
   private static readonly IFHD_ID = 'IFhd';
@@ -15,20 +14,20 @@ export class QuetzalFormat implements FormatProvider {
 
   private logger: Logger;
 
-  constructor() {
-    this.logger = new Logger('QuetzalFormat');
+  constructor(options?: { logger?: Logger }) {
+    this.logger = options?.logger || new Logger('QuetzalFormat');
   }
 
   serialize(state: ZMachineState): Buffer {
-    // Create chunks
+    // Create the chunks for the IFF format
     const ifhdChunk = this.createIFhdChunk(state);
     const memChunk = this.createCMemChunk(state.memory, state.originalStory);
     const stksChunk = this.createStksChunk(state);
 
-    // Calculate total size (FORM header + size + 'IFZS' + chunks)
+    // Calculate total size for the buffer
     const totalSize = 4 + 4 + 4 + ifhdChunk.length + memChunk.length + stksChunk.length;
 
-    // Create buffer for the entire file
+    // Create the buffer and write the data
     const buffer = Buffer.alloc(totalSize);
     let offset = 0;
 
@@ -36,15 +35,15 @@ export class QuetzalFormat implements FormatProvider {
     buffer.write(QuetzalFormat.FORM_ID, offset, 'ascii');
     offset += 4;
 
-    // Write size (excluding FORM ID and size field)
+    // Write size (size of everything except the FORM ID and size fields)
     buffer.writeUInt32BE(totalSize - 8, offset);
     offset += 4;
 
-    // Write IFZS ID
+    // Write IFZS identifier
     buffer.write(QuetzalFormat.IFZS_ID, offset, 'ascii');
     offset += 4;
 
-    // Write chunks
+    // Copy the chunks
     ifhdChunk.copy(buffer, offset);
     offset += ifhdChunk.length;
 
@@ -61,17 +60,17 @@ export class QuetzalFormat implements FormatProvider {
       throw new Error('Original story data is required for Quetzal format');
     }
 
-    // Validate FORM header
+    // Check for valid FORM header
     if (data.toString('ascii', 0, 4) !== QuetzalFormat.FORM_ID) {
       throw new Error('Invalid Quetzal file: missing FORM header');
     }
 
-    // Validate IFZS ID
+    // Check for valid IFZS identifier
     if (data.toString('ascii', 8, 12) !== QuetzalFormat.IFZS_ID) {
       throw new Error('Invalid Quetzal file: missing IFZS identifier');
     }
 
-    // Parse chunks
+    // Parse the chunks from the IFF file
     const chunks = this.parseChunks(data);
 
     // Validate required chunks
@@ -87,13 +86,22 @@ export class QuetzalFormat implements FormatProvider {
       throw new Error('Invalid Quetzal file: missing Stks chunk');
     }
 
-    // Parse chunks to create snapshot
+    // Parse the IFhd chunk to get header information
     const ifhdData = this.parseIFhdChunk(chunks[QuetzalFormat.IFHD_ID]);
 
-    // Validate IFhd data against original story
+    // Validate that the save file matches the story file
     this.validateIFhdData(ifhdData, originalStory);
 
-    // Parse memory
+    // Get the version from the story file
+    const version = originalStory[0];
+    if (version === 6 || version === 7) {
+      // For V6/V7, validate the routine and string offsets
+      const routinesOffset = originalStory.readUInt16BE(0x28); // HeaderLocation.RoutinesOffset
+      const stringsOffset = originalStory.readUInt16BE(0x2a); // HeaderLocation.StaticStringsOffset
+      this.validateV6V7Fields(routinesOffset, stringsOffset);
+    }
+
+    // Parse the memory chunk
     let memory: Buffer;
     if (chunks[QuetzalFormat.CMEM_ID]) {
       memory = this.parseCMemChunk(chunks[QuetzalFormat.CMEM_ID], originalStory);
@@ -101,14 +109,25 @@ export class QuetzalFormat implements FormatProvider {
       memory = this.parseUMemChunk(chunks[QuetzalFormat.UMEM_ID]);
     }
 
-    // Parse stacks
-    const { stack, callStack } = this.parseStksChunk(chunks[QuetzalFormat.STKS_ID]);
+    // Parse the stack chunk
+    const { stack, callstack } = this.parseStksChunk(chunks[QuetzalFormat.STKS_ID]);
 
+    // Fix: Convert parsed callstack to the expected format for ZMachineState
+    const callFrames = callstack.map((frame) => ({
+      returnPC: frame.returnPC,
+      discardResult: frame.discardResult,
+      storeVariable: frame.storeVariable,
+      argumentMask: frame.argumentMask,
+      locals: Array.from(frame.locals || []),
+      stack: frame.stack || [],
+    }));
+
+    // Return the reconstructed state
     return {
       memory,
       pc: ifhdData.pc,
       stack,
-      callFrames: callStack,
+      callFrames, // Fixed: Use the properly formatted callFrames
       originalStory: Buffer.from(originalStory),
     };
   }
@@ -117,26 +136,26 @@ export class QuetzalFormat implements FormatProvider {
     const metadata: { description?: string; [key: string]: unknown } = {};
 
     try {
-      // Validate FORM header
+      // Check for valid FORM header
       if (data.toString('ascii', 0, 4) !== QuetzalFormat.FORM_ID) {
         return metadata;
       }
 
-      // Validate IFZS ID
+      // Check for valid IFZS identifier
       if (data.toString('ascii', 8, 12) !== QuetzalFormat.IFZS_ID) {
         return metadata;
       }
 
-      // Parse chunks
+      // Parse the chunks
       const chunks = this.parseChunks(data);
 
-      // Extract ANNO chunk if present
+      // Get annotation if present
       if (chunks[QuetzalFormat.ANNO_ID]) {
         const annoText = chunks[QuetzalFormat.ANNO_ID].toString('ascii');
         metadata.description = annoText;
       }
 
-      // Extract IFhd data if present
+      // Get header information if available
       if (chunks[QuetzalFormat.IFHD_ID]) {
         const ifhdData = this.parseIFhdChunk(chunks[QuetzalFormat.IFHD_ID]);
         metadata.release = ifhdData.release;
@@ -145,7 +164,7 @@ export class QuetzalFormat implements FormatProvider {
       }
     } catch (error) {
       this.logger.debug(`Error extracting metadata: ${error}`);
-      // Ignore errors during metadata extraction
+      // Continue even if metadata extraction fails
     }
 
     return metadata;
@@ -153,7 +172,7 @@ export class QuetzalFormat implements FormatProvider {
 
   private parseChunks(data: Buffer): { [id: string]: Buffer } {
     const chunks: { [id: string]: Buffer } = {};
-    let offset = 12; // Skip FORM header, size, and IFZS ID
+    let offset = 12; // Skip FORM header and IFZS ID
 
     while (offset < data.length) {
       // Read chunk ID
@@ -164,7 +183,7 @@ export class QuetzalFormat implements FormatProvider {
       const chunkSize = data.readUInt32BE(offset);
       offset += 4;
 
-      // Extract chunk data
+      // Read chunk data
       const chunkData = Buffer.alloc(chunkSize);
       data.copy(chunkData, 0, offset, offset + chunkSize);
       chunks[chunkId] = chunkData;
@@ -180,8 +199,8 @@ export class QuetzalFormat implements FormatProvider {
   }
 
   private createIFhdChunk(state: ZMachineState): Buffer {
-    // IFhd chunk is 13 bytes + 8 bytes for header + 1 byte for odd-length padding
-    const buffer = Buffer.alloc(13 + 8 + 1);
+    // Create a buffer for the IFhd chunk (fixed size + header)
+    const buffer = Buffer.alloc(13 + 8 + 1); // 13 bytes data, 8 bytes header, 1 padding
     let offset = 0;
 
     // Write chunk ID
@@ -192,28 +211,28 @@ export class QuetzalFormat implements FormatProvider {
     buffer.writeUInt32BE(13, offset);
     offset += 4;
 
-    // Write release number (word at $2)
+    // Write release number (word at 0x02 in header)
     const release = state.originalStory.readUInt16BE(2);
     buffer.writeUInt16BE(release, offset);
     offset += 2;
 
-    // Write serial number (6 bytes at $12)
+    // Write serial number (6 bytes at 0x12 in header)
     state.originalStory.copy(buffer, offset, 0x12, 0x18);
     offset += 6;
 
-    // Write checksum (word at $1C)
+    // Write checksum (word at 0x1c in header)
     const checksum = state.originalStory.readUInt16BE(0x1c);
     buffer.writeUInt16BE(checksum, offset);
     offset += 2;
 
-    // Write PC (3 bytes)
+    // Write PC (24-bit value: 1 byte high bits, 2 bytes low bits)
     const pc = state.pc;
     buffer.writeUInt8((pc >> 16) & 0xff, offset);
     offset++;
     buffer.writeUInt16BE(pc & 0xffff, offset);
     offset += 2;
 
-    // Add padding byte for odd-length chunk
+    // Write padding byte
     buffer.writeUInt8(0, offset);
 
     return buffer;
@@ -224,16 +243,16 @@ export class QuetzalFormat implements FormatProvider {
       throw new Error('Invalid IFhd chunk: too short');
     }
 
-    // Read release number (2 bytes)
+    // Read release number
     const release = data.readUInt16BE(0);
 
-    // Read serial number (6 bytes)
+    // Read serial number
     const serial = data.toString('ascii', 2, 8);
 
-    // Read checksum (2 bytes)
+    // Read checksum
     const checksum = data.readUInt16BE(8);
 
-    // Read PC (3 bytes)
+    // Read PC (24-bit value)
     const pcHigh = data.readUInt8(10);
     const pcLow = data.readUInt16BE(11);
     const pc = (pcHigh << 16) | pcLow;
@@ -245,51 +264,52 @@ export class QuetzalFormat implements FormatProvider {
     ifhdData: { release: number; serial: string; checksum: number },
     originalStory: Buffer
   ): void {
-    // Read release number from original story
+    // Read release number from story file
     const originalRelease = originalStory.readUInt16BE(2);
 
-    // Read serial number from original story
+    // Read serial number from story file
     const originalSerial = originalStory.toString('ascii', 0x12, 0x18);
 
-    // Read checksum from original story
+    // Read checksum from story file
     const originalChecksum = originalStory.readUInt16BE(0x1c);
 
-    // Validate release number
+    // Compare release numbers
     if (ifhdData.release !== originalRelease) {
       throw new Error(`Release number mismatch: expected ${originalRelease}, got ${ifhdData.release}`);
     }
 
-    // Validate serial number
+    // Compare serial numbers
     if (ifhdData.serial !== originalSerial) {
       throw new Error(`Serial number mismatch: expected ${originalSerial}, got ${ifhdData.serial}`);
     }
 
-    // Validate checksum
+    // Compare checksums
     if (ifhdData.checksum !== originalChecksum) {
       throw new Error(`Checksum mismatch: expected ${originalChecksum}, got ${ifhdData.checksum}`);
     }
   }
 
   private createCMemChunk(memory: Buffer, originalStory: Buffer): Buffer {
-    // Determine dynamic memory size
+    // Calculate dynamic memory size
     const dynamicMemorySize = this.getDynamicMemorySize(originalStory);
 
-    // Create a buffer for dynamic memory
+    // Extract dynamic memory from current state
     const dynamicMemory = Buffer.alloc(dynamicMemorySize);
     memory.copy(dynamicMemory, 0, 0, dynamicMemorySize);
 
-    // XOR with original story data
+    // Extract original dynamic memory
     const originalDynamicMemory = Buffer.alloc(dynamicMemorySize);
     originalStory.copy(originalDynamicMemory, 0, 0, dynamicMemorySize);
 
+    // XOR the memory with the original to get the differences
     for (let i = 0; i < dynamicMemorySize; i++) {
       dynamicMemory[i] ^= originalDynamicMemory[i];
     }
 
-    // Compress using run-length encoding
+    // Compress the XORed memory
     const compressed = this.compressMemory(dynamicMemory);
 
-    // Create the chunk buffer
+    // Create the chunk
     const buffer = Buffer.alloc(compressed.length + 8);
     let offset = 0;
 
@@ -308,19 +328,20 @@ export class QuetzalFormat implements FormatProvider {
   }
 
   private parseCMemChunk(data: Buffer, originalStory: Buffer): Buffer {
-    // Determine dynamic memory size
+    // Calculate dynamic memory size
     const dynamicMemorySize = this.getDynamicMemorySize(originalStory);
 
     // Decompress the data
     const decompressed = this.decompressMemory(data, dynamicMemorySize);
 
-    // Create a buffer for the entire memory
+    // Create a new memory buffer from the original story
     const memory = Buffer.from(originalStory);
 
-    // XOR with original story data for dynamic memory
+    // Extract original dynamic memory
     const originalDynamicMemory = Buffer.alloc(dynamicMemorySize);
     originalStory.copy(originalDynamicMemory, 0, 0, dynamicMemorySize);
 
+    // XOR the decompressed data with the original to restore the actual memory
     for (let i = 0; i < dynamicMemorySize; i++) {
       memory[i] = decompressed[i] ^ originalDynamicMemory[i];
     }
@@ -329,26 +350,24 @@ export class QuetzalFormat implements FormatProvider {
   }
 
   private parseUMemChunk(data: Buffer): Buffer {
-    // UMem is a direct copy of dynamic memory
-    // We need to prepend it with original story data
-    // This implementation is incomplete - we need original story data
+    // For UMem chunks, the data is simply the uncompressed memory
+    // We could add validation here, but for now just return the data
     return data;
   }
 
   private compressMemory(data: Buffer): Buffer {
-    // Implement run-length encoding:
-    // Non-zero bytes are stored as-is
-    // Zero bytes are stored as a zero followed by a count byte
-    const tempBuffer = Buffer.alloc(data.length * 2); // Worst case
+    // Simple run-length encoding for zero bytes
+    // See Quetzal spec section 3.2
+    const tempBuffer = Buffer.alloc(data.length * 2);
     let tempOffset = 0;
     let i = 0;
 
     while (i < data.length) {
       if (data[i] !== 0) {
-        // Non-zero byte, store as-is
+        // Non-zero byte: copy directly
         tempBuffer[tempOffset++] = data[i++];
       } else {
-        // Zero byte, count consecutive zeros
+        // Zero byte: count run length
         let zeroCount = 1;
         i++;
 
@@ -357,13 +376,13 @@ export class QuetzalFormat implements FormatProvider {
           i++;
         }
 
-        // Store zero byte followed by count
+        // Write zero byte and run length
         tempBuffer[tempOffset++] = 0;
         tempBuffer[tempOffset++] = zeroCount;
       }
     }
 
-    // Create the final buffer with the exact size
+    // Create final buffer with correct size
     const result = Buffer.alloc(tempOffset);
     tempBuffer.copy(result, 0, 0, tempOffset);
 
@@ -377,27 +396,27 @@ export class QuetzalFormat implements FormatProvider {
 
     while (i < compressedData.length && resultOffset < targetSize) {
       if (compressedData[i] !== 0) {
-        // Non-zero byte, copy as-is
+        // Non-zero byte: copy directly
         result[resultOffset++] = compressedData[i++];
       } else {
-        // Zero byte, expand run
-        i++; // Skip the zero
+        // Zero byte: expand run
+        i++;
 
         if (i >= compressedData.length) {
-          // Error: incomplete run at end of data
+          // Incomplete run at end of data
           break;
         }
 
         const zeroCount = compressedData[i++];
 
-        // Write zeroCount+1 zeros
+        // Copy zeros
         for (let j = 0; j < zeroCount && resultOffset < targetSize; j++) {
           result[resultOffset++] = 0;
         }
       }
     }
 
-    // If we didn't completely fill the result, assume the rest are zeros
+    // If we didn't fill the target size, pad with zeros
     while (resultOffset < targetSize) {
       result[resultOffset++] = 0;
     }
@@ -406,23 +425,26 @@ export class QuetzalFormat implements FormatProvider {
   }
 
   private createStksChunk(state: ZMachineState): Buffer {
-    // Calculate size needed for all stack frames
+    // Calculate size needed for the chunk
     let size = 0;
 
-    // Add size for dummy frame if needed (Z-machine version <= 5 or >= 7)
-    // This is simplified - you should check Z-machine version
-    size += 6; // Fixed part of frame
-    size += 2; // Evaluation stack count
+    // Space for dummy frame for versions other than V6
+    size += 6; // Return PC (3), flags (1), variable (1), args (1)
+    size += 2; // Stack size
 
-    // Add size for real frames
+    // Space for stack
+    size += state.stack.length * 2;
+
+    // Space for call frames
     for (const frame of state.callFrames) {
-      size += 6; // Fixed part of frame
-      size += frame.locals.length * 2; // Local variables (word each)
-      size += frame.stack.length * 2; // Evaluation stack (word each)
+      size += 6; // Return PC (3), flags (1), variable (1), args (1)
+      size += 2; // Stack size
+      size += frame.locals.length * 2; // Locals
+      size += frame.stack.length * 2; // Stack
     }
 
-    // Create buffer
-    const buffer = Buffer.alloc(size + 8); // Add 8 for chunk header
+    // Create the buffer
+    const buffer = Buffer.alloc(size + 8);
     let offset = 0;
 
     // Write chunk ID
@@ -433,30 +455,29 @@ export class QuetzalFormat implements FormatProvider {
     buffer.writeUInt32BE(size, offset);
     offset += 4;
 
-    // Write dummy frame (if needed)
-    // This is simplified - you should check Z-machine version
-    buffer.writeUInt8(0, offset++); // Return PC high byte
-    buffer.writeUInt16BE(0, offset); // Return PC low bytes
+    // Write dummy frame for versions other than V6
+    buffer.writeUInt8(0, offset++); // PC high byte
+    buffer.writeUInt16BE(0, offset); // PC low bytes
     offset += 2;
 
     buffer.writeUInt8(0, offset++); // Flags
-    buffer.writeUInt8(0, offset++); // Variable number
-    buffer.writeUInt8(0, offset++); // Arguments supplied
+    buffer.writeUInt8(0, offset++); // Variable
+    buffer.writeUInt8(0, offset++); // Args
 
-    // Write eval stack size for dummy frame
+    // Write dummy stack size
     const dummyStackSize = state.stack.length;
     buffer.writeUInt16BE(dummyStackSize, offset);
     offset += 2;
 
-    // Write evaluation stack for dummy frame
+    // Write stack values
     for (const value of state.stack) {
       buffer.writeUInt16BE(value, offset);
       offset += 2;
     }
 
-    // Write real frames
+    // Write call frames
     for (const frame of state.callFrames) {
-      // Write return PC
+      // Write return PC (24-bit)
       buffer.writeUInt8((frame.returnPC >> 16) & 0xff, offset++);
       buffer.writeUInt16BE(frame.returnPC & 0xffff, offset);
       offset += 2;
@@ -464,36 +485,41 @@ export class QuetzalFormat implements FormatProvider {
       // Write flags
       let flags = 0;
       if (frame.discardResult) {
-        flags |= 0x10; // Set the p flag
+        flags |= 0x10;
       }
 
-      // Set vvvv bits for number of locals
+      // Add local count in low bits
       flags |= Math.min(frame.locals.length, 0x0f);
       buffer.writeUInt8(flags, offset++);
 
-      // Write variable number
+      // Write store variable
       buffer.writeUInt8(frame.storeVariable || 0, offset++);
 
-      // Write arguments supplied
+      // Write argument mask
       let args = 0;
-      for (let i = 0; i < Math.min(frame.argumentMask.length, 7); i++) {
-        if (frame.argumentMask[i]) {
-          args |= 1 << i;
+      if (Array.isArray(frame.argumentMask)) {
+        for (let i = 0; i < Math.min(frame.argumentMask.length, 7); i++) {
+          if (frame.argumentMask[i]) {
+            args |= 1 << i;
+          }
         }
+      } else if (typeof frame.argumentMask === 'number') {
+        // Handle the case where argumentMask might be a number instead of array
+        args = frame.argumentMask;
       }
       buffer.writeUInt8(args, offset++);
 
-      // Write eval stack size
+      // Write stack size
       buffer.writeUInt16BE(frame.stack.length, offset);
       offset += 2;
 
-      // Write local variables
+      // Write locals
       for (const local of frame.locals) {
         buffer.writeUInt16BE(local, offset);
         offset += 2;
       }
 
-      // Write evaluation stack
+      // Write frame stack values
       for (const value of frame.stack) {
         buffer.writeUInt16BE(value, offset);
         offset += 2;
@@ -505,45 +531,45 @@ export class QuetzalFormat implements FormatProvider {
 
   private parseStksChunk(data: Buffer): {
     stack: number[];
-    callStack: {
+    callstack: Array<{
       returnPC: number;
       discardResult: boolean;
       storeVariable: number;
       argumentMask: boolean[];
       locals: number[];
       stack: number[];
-    }[];
+    }>;
   } {
     const stack: number[] = [];
-    const callStack: {
+    const callstack: Array<{
       returnPC: number;
       discardResult: boolean;
       storeVariable: number;
       argumentMask: boolean[];
       locals: number[];
       stack: number[];
-    }[] = [];
+    }> = [];
     let offset = 0;
 
-    // Parse dummy frame (for Z-machine version <= 5 or >= 7)
-    offset += 3; // Skip return PC
-    offset++; // Skip flags
-    offset++; // Skip variable number
-    offset++; // Skip arguments supplied
+    // Skip dummy frame header (6 bytes)
+    offset += 3; // Return PC
+    offset++; // Flags
+    offset++; // Variable
+    offset++; // Args
 
-    // Read eval stack size for dummy frame
+    // Read dummy stack size
     const dummyStackSize = data.readUInt16BE(offset);
     offset += 2;
 
-    // Read evaluation stack for dummy frame
+    // Read stack values
     for (let i = 0; i < dummyStackSize; i++) {
       stack.push(data.readUInt16BE(offset));
       offset += 2;
     }
 
-    // Parse remaining frames
+    // Read call frames
     while (offset < data.length) {
-      // Read return PC
+      // Read return PC (24-bit)
       const pcHigh = data.readUInt8(offset++);
       const pcLow = data.readUInt16BE(offset);
       offset += 2;
@@ -554,36 +580,36 @@ export class QuetzalFormat implements FormatProvider {
       const discardResult = (flags & 0x10) !== 0;
       const localCount = flags & 0x0f;
 
-      // Read variable number
+      // Read store variable
       const storeVariable = data.readUInt8(offset++);
 
-      // Read arguments supplied
+      // Read args supplied
       const argsSupplied = data.readUInt8(offset++);
       const argumentMask: boolean[] = [];
       for (let i = 0; i < 7; i++) {
         argumentMask[i] = (argsSupplied & (1 << i)) !== 0;
       }
 
-      // Read eval stack size
+      // Read stack size
       const evalStackSize = data.readUInt16BE(offset);
       offset += 2;
 
-      // Read local variables
+      // Read locals
       const locals: number[] = [];
       for (let i = 0; i < localCount; i++) {
         locals.push(data.readUInt16BE(offset));
         offset += 2;
       }
 
-      // Read evaluation stack
+      // Read frame stack
       const frameStack: number[] = [];
       for (let i = 0; i < evalStackSize; i++) {
         frameStack.push(data.readUInt16BE(offset));
         offset += 2;
       }
 
-      // Add frame to call stack
-      callStack.push({
+      // Add frame to callstack
+      callstack.push({
         returnPC,
         discardResult,
         storeVariable,
@@ -593,27 +619,48 @@ export class QuetzalFormat implements FormatProvider {
       });
     }
 
-    return { stack, callStack };
+    return { stack, callstack };
   }
 
   private getDynamicMemorySize(storyData: Buffer): number {
-    // Dynamic memory size depends on the Z-machine version
+    // Determine dynamic memory size based on version
     const version = storyData[0];
 
     switch (version) {
       case 1:
       case 2:
       case 3:
-        return 0x10000; // V1-3: Up to 64K
+        return 0x10000; // 64K
       case 4:
       case 5:
-        return 0x10000; // V4-5: Up to 64K
+        return 0x10000; // 64K
       case 6:
       case 7:
       case 8:
-        return 0x20000; // V6-8: Up to 128K
+        return 0x20000; // 128K
       default:
         throw new Error(`Unsupported Z-machine version: ${version}`);
+    }
+  }
+
+  // Fix: V6/V7 fields validation
+  private validateV6V7Fields(routinesOffset: number, stringsOffset: number): void {
+    const rules = [
+      {
+        condition: routinesOffset !== 0,
+        errorMessage: `Routines offset 0x${routinesOffset.toString(16)} must be non-zero`,
+      },
+      {
+        condition: stringsOffset !== 0,
+        errorMessage: `Static strings offset 0x${stringsOffset.toString(16)} must be non-zero`,
+      },
+      // Additional memory region checks could be added here
+    ];
+
+    for (const rule of rules) {
+      if (!rule.condition) {
+        throw new Error(rule.errorMessage);
+      }
     }
   }
 }

@@ -1,3 +1,13 @@
+/**
+ * Snapshot module for handling the serialization and deserialization of
+ * snapshots in a binary format. This module is responsible for creating
+ * a binary buffer from a snapshot object and reading a snapshot object
+ * from a binary buffer. It also includes validation functions to ensure
+ * the integrity of the snapshot data.
+ *
+ * It is used to store and retrieve the state of the Z-machine for undo
+ * and redo operations.
+ */
 import { StackFrame } from '../core/execution/StackFrame';
 import { Snapshot } from './interfaces';
 

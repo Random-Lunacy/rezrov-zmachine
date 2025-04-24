@@ -29,7 +29,7 @@ export class Storage {
 
   async saveSnapshot(state: ZMachineState, description?: string): Promise<void> {
     const location = this.getStorageLocation();
-    const data = this.formatProvider.serialize(state, this.originalStory);
+    const data = this.formatProvider.serialize(state);
     await this.storageProvider.write(location, data);
   }
 
@@ -43,13 +43,69 @@ export class Storage {
   }
 
   async getSaveInfo(): Promise<SaveInfo> {
-    throw new Error('Method not implemented.');
-    // Implementation to get save info
+    const location = this.getStorageLocation();
+    try {
+      const exists = await this.storageProvider.exists(location);
+      if (!exists) {
+        return {
+          exists: false,
+          path: location,
+        };
+      }
+
+      const data = await this.storageProvider.read(location);
+      let description = '';
+
+      if (data && this.formatProvider.extractMetadata) {
+        const metadata = this.formatProvider.extractMetadata(data);
+        description = metadata.description || '';
+      }
+
+      return {
+        exists: true,
+        path: location,
+        format: this.formatProvider.constructor.name.replace('Format', '').toLowerCase(),
+        description,
+      };
+    } catch (error) {
+      throw new Error(`Failed to get save info: ${error}`);
+    }
   }
 
   async listSaves(): Promise<SaveInfo[]> {
-    throw new Error('Method not implemented.');
-    // Implementation to list saves
+    try {
+      // Get potential save files
+      const pattern = this.options.filename?.replace(/\.[^.]+$/, '') || 'save';
+      const files = await this.storageProvider.list(`${pattern}*`);
+
+      const results: SaveInfo[] = [];
+
+      for (const file of files) {
+        try {
+          const data = await this.storageProvider.read(file);
+          if (!data) continue;
+
+          let description = '';
+          if (this.formatProvider.extractMetadata) {
+            const metadata = this.formatProvider.extractMetadata(data);
+            description = metadata.description || '';
+          }
+
+          results.push({
+            exists: true,
+            path: file,
+            format: this.formatProvider.constructor.name.replace('Format', '').toLowerCase(),
+            description,
+          });
+        } catch (e) {
+          // Skip files that can't be read or parsed
+        }
+      }
+
+      return results;
+    } catch (error) {
+      throw new Error(`Failed to list saves: ${error}`);
+    }
   }
 
   setOptions(options: StorageOptions): void {
