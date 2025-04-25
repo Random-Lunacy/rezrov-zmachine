@@ -3,7 +3,7 @@
  * It defines the Screen interface and the various types and enums used in the screen module.
  */
 import { ZMachine } from '../../interpreter/ZMachine';
-import { InputState } from '../input/InputHandler';
+import { InputState } from '../input/InputInterface';
 
 export enum TextStyle {
   Roman = 0,

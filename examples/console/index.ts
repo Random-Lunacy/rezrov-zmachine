@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 import * as fs from 'fs';
 import nopt from 'nopt';
 import StdioScreen from './StdioScreen';

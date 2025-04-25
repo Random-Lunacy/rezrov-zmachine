@@ -20,14 +20,13 @@ import { opcode } from './base';
 /**
  * Save the machine state to a given table
  */
-function save_undo(machine: ZMachine): void {
+async function save_undo(machine: ZMachine): Promise<void> {
   const resultVar = machine.state.readByte();
-
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} save_undo ${resultVar}`);
 
   try {
-    machine.saveUndo();
-    machine.state.storeVariable(resultVar, 1);
+    const success = machine.saveUndo();
+    machine.state.storeVariable(resultVar, success ? 1 : 0);
   } catch (error) {
     machine.logger.error(`Failed to save undo state: ${error}`);
     machine.state.storeVariable(resultVar, 0);
@@ -37,9 +36,8 @@ function save_undo(machine: ZMachine): void {
 /**
  * Restore the machine state from the last save_undo
  */
-function restore_undo(machine: ZMachine): void {
+async function restore_undo(machine: ZMachine): Promise<void> {
   const resultVar = machine.state.readByte();
-
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} restore_undo ${resultVar}`);
 
   try {
@@ -90,67 +88,69 @@ function piracy(machine: ZMachine): void {
   machine.state.doBranch(true, branchOnFalse, offset);
 }
 
-function save(machine: ZMachine, table: number, bytes: number, name: number = 0, prompt: number = -1): void {
-  // For Version 5 and later, use the extended format
+async function save(
+  machine: ZMachine,
+  table: number,
+  bytes: number,
+  name: number = 0,
+  prompt: number = -1
+): Promise<void> {
   if (machine.state.version >= 5) {
     const resultVar = machine.state.readByte();
-
     machine.logger.debug(`${machine.executor.op_pc.toString(16)} save (ext) ${table} ${bytes} ${name} ${prompt}`);
 
     try {
-      // If prompt parameter is provided and is 0, don't prompt
-      // If prompt is 1 or not provided (or -1 in our case), prompt behavior is determined by the interpreter
       const shouldPrompt = prompt === -1 || prompt === 1;
-
-      // This would need to save the table data to a file
-      const success = machine.saveToTable(table, bytes, name, shouldPrompt);
-
-      // Store the result (1 for success, 0 for failure)
+      const success = await machine.saveToTable(table, bytes, name, shouldPrompt);
       machine.state.storeVariable(resultVar, success ? 1 : 0);
     } catch (error) {
       machine.logger.error(`Failed to save: ${error}`);
       machine.state.storeVariable(resultVar, 0);
     }
   } else {
-    // For earlier versions, use the branch format
     const [offset, branchOnFalse] = machine.state.readBranchOffset();
-
     machine.logger.debug(`${machine.executor.op_pc.toString(16)} save -> [${!branchOnFalse}] ${offset}`);
 
-    const saved = machine.saveGame();
-    machine.state.doBranch(saved, branchOnFalse, offset);
+    try {
+      const saved = await machine.saveGame();
+      machine.state.doBranch(saved, branchOnFalse, offset);
+    } catch (error) {
+      machine.logger.error(`Failed to save game: ${error}`);
+      machine.state.doBranch(false, branchOnFalse, offset);
+    }
   }
 }
 
-function restore(machine: ZMachine, table: number, bytes: number, name: number = 0, prompt: number = -1): void {
-  // For Version 5 and later, use the extended format
+async function restore(
+  machine: ZMachine,
+  table: number,
+  bytes: number,
+  name: number = 0,
+  prompt: number = -1
+): Promise<void> {
   if (machine.state.version >= 5) {
     const resultVar = machine.state.readByte();
-
     machine.logger.debug(`${machine.executor.op_pc.toString(16)} restore (ext) ${table} ${bytes} ${name} ${prompt}`);
 
     try {
-      // If prompt parameter is provided and is 0, don't prompt
-      // If prompt is 1 or not provided (or -1 in our case), prompt behavior is determined by the interpreter
       const shouldPrompt = prompt === -1 || prompt === 1;
-
-      // This would need to restore the table data from a file
-      const success = machine.restoreFromTable(table, bytes, name, shouldPrompt);
-
-      // Store the result (2 for success after restoring, 0 for failure)
+      const success = await machine.restoreFromTable(table, bytes, name, shouldPrompt);
       machine.state.storeVariable(resultVar, success ? 2 : 0);
     } catch (error) {
       machine.logger.error(`Failed to restore: ${error}`);
       machine.state.storeVariable(resultVar, 0);
     }
   } else {
-    // For earlier versions, use the branch format
     const [offset, branchOnFalse] = machine.state.readBranchOffset();
-
     machine.logger.debug(`${machine.executor.op_pc.toString(16)} restore -> [${!branchOnFalse}] ${offset}`);
 
-    const restored = machine.restoreGame();
-    machine.state.doBranch(restored, branchOnFalse, offset);
+    try {
+      const restored = await machine.restoreGame();
+      machine.state.doBranch(restored, branchOnFalse, offset);
+    } catch (error) {
+      machine.logger.error(`Failed to restore game: ${error}`);
+      machine.state.doBranch(false, branchOnFalse, offset);
+    }
   }
 }
 

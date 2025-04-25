@@ -10,7 +10,7 @@ import { ZMachine } from '../../interpreter/ZMachine';
  * Function signature for opcode implementations
  * Takes a ZMachine instance and variable number of operands
  */
-export type OpcodeFn = (machine: ZMachine, ...operands: Array<number>) => void;
+export type OpcodeFn = (machine: ZMachine, ...operands: Array<number>) => void | Promise<void>;
 
 /**
  * Represents a Z-machine opcode with its mnemonic and implementation

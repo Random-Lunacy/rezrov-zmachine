@@ -1,13 +1,14 @@
-import { StackFrame } from '../core/execution/StackFrame';
+import { ZMachineState } from '../types';
 
 /**
- * Represents a snapshot of the Z-machine state
+ * Storage Interface
  */
-export interface Snapshot {
-  mem: Buffer;
-  stack: Array<number>;
-  callstack: Array<StackFrame>;
-  pc: number;
+export interface StorageInterface {
+  saveSnapshot(state: ZMachineState, description?: string): Promise<void>;
+  loadSnapshot(): Promise<ZMachineState>;
+  getSaveInfo(): Promise<SaveInfo>;
+  listSaves(): Promise<SaveInfo[]>;
+  setOptions(options: StorageOptions): void;
 }
 
 /**

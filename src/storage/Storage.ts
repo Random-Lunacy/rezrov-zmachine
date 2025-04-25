@@ -1,13 +1,13 @@
 import { ZMachineState } from '../types';
 import { FormatProvider } from './formats/FormatProvider';
-import { SaveInfo, StorageOptions } from './interfaces';
+import { SaveInfo, StorageInterface, StorageOptions } from './interfaces';
 import { StorageProvider } from './providers/StorageProvider';
 
 /**
  * Base Storage implementation, specific storage providers
  * (e.g., Quetzal, SimpleDat) should extend this class.
  */
-export class Storage {
+export class Storage implements StorageInterface {
   private formatProvider: FormatProvider;
   private storageProvider: StorageProvider;
   private originalStory: Buffer;

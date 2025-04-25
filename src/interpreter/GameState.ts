@@ -1,10 +1,9 @@
-import { createStackFrame, StackFrame } from '../core/execution/StackFrame';
+import { createStackFrame, deserializeStackFrame, serializeStackFrame, StackFrame } from '../core/execution/StackFrame';
 import { Memory } from '../core/memory/Memory';
 import { GameObject } from '../core/objects/GameObject';
 import { GameObjectFactory } from '../core/objects/GameObjectFactory';
 import { TextParser } from '../parsers/TextParser';
-import { Snapshot } from '../storage/interfaces';
-import { Address } from '../types';
+import { Address, ZMachineState } from '../types';
 import { HeaderLocation } from '../utils/constants';
 import { Logger } from '../utils/log';
 
@@ -142,6 +141,18 @@ export class GameState {
    */
   get dictionaryAddress(): number {
     return this._dict;
+  }
+
+  public get highMem(): number {
+    return this._highMem;
+  }
+
+  public get routinesOffset(): number {
+    return this._routinesOffset;
+  }
+
+  public get stringsOffset(): number {
+    return this._stringsOffset;
   }
 
   /**
@@ -366,45 +377,45 @@ export class GameState {
 
   /**
    * Create a snapshot of the current game state
-   * @returns Snapshot object
+   * @returns ZMachineState object
    */
-  createSnapshot(): Snapshot {
+  createSnapshot(): ZMachineState {
     return {
-      mem: Buffer.from(this._memory.buffer),
-      stack: [...this._stack],
-      callstack: [...this._callstack],
+      memory: Buffer.from(this._memory.buffer),
       pc: this._pc,
+      stack: [...this._stack],
+      callFrames: this._callstack.map((frame) => serializeStackFrame(frame)),
+      originalStory: Buffer.from(this._memory.buffer), // You might want to get this from elsewhere
     };
   }
 
   /**
    * Restore the game state from a snapshot
-   * @param snapshot Snapshot to restore from
+   * @param snapshot ZMachineState to restore from
    */
-  restoreFromSnapshot(snapshot: Snapshot): void {
-    // Reset object cache since we're loading new state
+  restoreFromSnapshot(state: ZMachineState): void {
+    // Reset object cache to ensure clean state
     this._objectFactory.resetCache();
 
-    // Restore PC
-    this._pc = snapshot.pc;
+    // Restore program counter
+    this._pc = state.pc;
 
     // Restore stack
-    this._stack = [...snapshot.stack];
+    this._stack = [...state.stack];
 
-    // Restore callstack
-    this._callstack = [...snapshot.callstack];
+    // Restore call stack (converting serialized frames back to StackFrame objects)
+    this._callstack = state.callFrames.map((frame) => deserializeStackFrame(frame));
 
     // Restore memory
-    // We need to copy the contents, not replace the buffer
-    const newBuffer = Buffer.from(snapshot.mem);
+    const newBuffer = Buffer.from(state.memory);
     for (let i = 0; i < newBuffer.length; i++) {
       this._memory.buffer[i] = newBuffer[i];
     }
 
-    // Re-read header values
+    // Re-read header values to ensure consistency
     this._readHeaderValues();
 
-    this.logger.info('Game state restored from snapshot');
+    this.logger.info('Game state restored from ZMachineState');
   }
 
   /**

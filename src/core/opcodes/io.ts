@@ -172,7 +172,6 @@ function sread(
   time: number = 0,
   routine: number = 0
 ): void {
-  // In V5+, we need to store the terminating character
   const version = machine.state.version;
   let resultVar = 0;
 
@@ -182,17 +181,17 @@ function sread(
 
   machine.logger.debug(`sread/aread: text=${textBuffer}, parse=${parseBuffer}, time=${time}, routine=${routine}`);
 
-  // Update status bar before getting input
+  // Update status bar if needed
   machine.state.updateStatusBar();
 
-  // Suspend execution and wait for input
+  // Suspend for text input
   throw new SuspendState({
     keyPress: false,
+    resultVar,
     textBuffer,
     parseBuffer,
     time,
     routine,
-    resultVar,
   });
 }
 
@@ -218,6 +217,7 @@ function read_char(machine: ZMachine, device: number = 0, time: number = 0, rout
 
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} read_char ${device} ${time} ${routine}`);
 
+  // Suspend for key input
   throw new SuspendState({
     keyPress: true,
     resultVar,

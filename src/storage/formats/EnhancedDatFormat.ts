@@ -1,7 +1,14 @@
 import { ZMachineState } from '../../types';
+import { Logger } from '../../utils/log';
 import { FormatProvider } from './FormatProvider';
 
 export class EnhancedDatFormat implements FormatProvider {
+  private logger: Logger;
+
+  constructor() {
+    this.logger = new Logger('EnhancedDatFormat');
+  }
+
   /**
    * Serializes a Z-Machine state to a Buffer using enhanced JSON serialization
    * that preserves Buffer objects and type information
@@ -53,7 +60,7 @@ export class EnhancedDatFormat implements FormatProvider {
       // Check format version for compatibility
       const version = parsed.__version || 0;
       if (version > 1) {
-        console.warn(`Warning: Save file uses newer format (${version}) than supported (1)`);
+        this.logger.warn(`Warning: Save file uses newer format (${version}) than supported (1)`);
       }
 
       // Restore proper types based on metadata
