@@ -1,10 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-import { Memory } from '../src/core/memory/Memory';
-import { GameObjectFactory } from '../src/core/objects/GameObjectFactory';
-import { HeaderLocation } from '../src/utils/constants';
-import { Logger, LogLevel } from '../src/utils/log';
+import { GameObjectFactory, HeaderLocation, Logger, LogLevel, Memory } from '../dist/index.js';
 
 /**
  * Example that demonstrates loading a Z-machine story file and

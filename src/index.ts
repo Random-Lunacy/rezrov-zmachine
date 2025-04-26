@@ -23,6 +23,7 @@ export { GameObjectFactory } from './core/objects/GameObjectFactory';
 
 // UI components
 export { BufferMode, Color, TextStyle } from './types';
+export { BaseInputProcessor } from './ui/input/InputInterface';
 export type { InputMode, InputProcessor, InputState } from './ui/input/InputInterface';
 export { ResourceStatus, ResourceType } from './ui/multimedia/MultimediaHandler';
 export type { MultimediaHandler } from './ui/multimedia/MultimediaHandler';

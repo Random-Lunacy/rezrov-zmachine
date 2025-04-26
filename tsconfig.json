@@ -18,7 +18,9 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "outDir": "./dist",
-    "rootDir": "./src"
+    "rootDir": "./src",
+    "declaration": true, // Generates corresponding .d.ts files
+    "declarationMap": true // Generates sourcemaps for .d.ts files
   },
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist"]
