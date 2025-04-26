@@ -251,7 +251,7 @@ npm install -g ts-node
 #### Run the example
 
 ```bash
-ts-node examples/console/index.ts path/to/story.z3
+npx tsx examples/console/index.ts path/to/story.z3
 ```
 
 ## Contributing
