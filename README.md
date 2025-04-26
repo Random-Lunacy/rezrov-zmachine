@@ -133,7 +133,7 @@ graph TD
   Storage -.- Utilities
   UI -.- Utilities
 
-style ZMachine fill:#063970,stroke:#21130d,stroke-width:2px
+style ZMachine fill:#063970,stroke:#21130d,stroke-width:2px,color:white
 ```
 
 - **Z-Machine**: The central controller that orchestrates all other components
@@ -241,14 +241,6 @@ Check the `examples` directory for complete working examples:
 - `console/index.ts` - A simple console-based implementation
 
 ### Running the `console` example
-
-#### Install ts-node if you haven't already
-
-```bash
-npm install -g ts-node
-```
-
-#### Run the example
 
 ```bash
 npx tsx examples/console/index.ts path/to/story.z3
