@@ -1,13 +1,19 @@
 import { Executor } from '../core/execution/Executor';
+import { serializeStackFrame } from '../core/execution/StackFrame';
 import { UserStackManager } from '../core/execution/UserStack';
 import { Memory } from '../core/memory/Memory';
-import { Snapshot, Storage } from '../storage/interfaces';
+import { EnhancedDatFormat } from '../storage/formats/EnhancedDatFormat';
+import { FormatProvider } from '../storage/formats/FormatProvider';
+import { SaveInfo, StorageInterface } from '../storage/interfaces';
+import { MemoryStorageProvider } from '../storage/providers/MemoryStorageProvider';
+import { StorageProvider } from '../storage/providers/StorageProvider';
+import { Storage } from '../storage/Storage';
+import { ZMachineState } from '../types';
 import { InputProcessor, InputState } from '../ui/input/InputInterface';
 import { Capabilities, Screen } from '../ui/screen/interfaces';
 import { HeaderLocation } from '../utils/constants';
 import { Logger } from '../utils/log';
 import { GameState } from './GameState';
-import { ZMachineVersion } from './Version';
 
 /**
  * Main Z-Machine interpreter class
@@ -21,31 +27,41 @@ export class ZMachine {
   private readonly _inputProcessor: InputProcessor;
   private readonly _logger: Logger;
   private readonly _userStackManager: UserStackManager | null = null;
-  private _storage: Storage;
-  private _undoStack: Snapshot[] = [];
+  private _storage: StorageInterface;
+  private _undoStack: ZMachineState[] = [];
   private readonly _maxUndoLevels = 10;
+  private readonly _originalStory: Buffer;
 
   /**
    * Creates a new Z-Machine interpreter
    * @param storyBuffer Buffer containing the story file
-   * @param logger Logger for debugging
    * @param screen Screen interface for output
-   * @param storage Storage interface for save/restore
    * @param inputProcessor Input processor for handling user input
+   * @param provider StorageProvider for saving game data. MemoryStorageProvider is used if none is specified
+   * @param format FormatProvider for saving game data. EnhancedDatFormat is used if none is specified
    * @param options Optional configuration options
    */
   constructor(
     storyBuffer: Buffer,
     screen: Screen,
-    storage: Storage,
     inputProcessor: InputProcessor,
+    provider?: StorageProvider,
+    format?: FormatProvider,
     options?: { logger?: Logger }
   ) {
+    this._originalStory = storyBuffer;
     this._memory = new Memory(storyBuffer);
     this._logger = options?.logger || new Logger('ZMachine');
     this._screen = screen;
-    this._storage = storage;
     this._inputProcessor = inputProcessor;
+
+    // Create a new Storage with provided StorageProvider, FormatProvider, and storyBuffer.
+    // Use defaults for the StorageProvider and / or FormatProvider if they are not provided.
+    this._storage = new Storage(
+      format ?? new EnhancedDatFormat(),
+      provider ?? new MemoryStorageProvider(),
+      storyBuffer
+    );
 
     // Initialize state
     this._state = new GameState(this._memory);
@@ -74,7 +90,7 @@ export class ZMachine {
   public get screen(): Screen {
     return this._screen;
   }
-  public get storage(): Storage {
+  public get storage(): StorageInterface {
     return this._storage;
   }
   get inputProcessor(): InputProcessor {
@@ -82,6 +98,9 @@ export class ZMachine {
   }
   public get logger(): Logger {
     return this._logger;
+  }
+  public get originalStory(): Buffer {
+    return this._originalStory;
   }
 
   /**
@@ -187,11 +206,13 @@ export class ZMachine {
    * Start executing the story file
    */
   execute(): void {
-    // Set initial PC from the header
+    // Set the program counter to the initial PC from the header
     this._state.pc = this._memory.getWord(HeaderLocation.InitialPC);
 
-    // Start the execution loop
-    this._executor.executeLoop();
+    // Start execution
+    this._executor.executeLoop().catch((error) => {
+      this._logger.error(`Execution error: ${error}`);
+    });
   }
 
   /**
@@ -203,12 +224,16 @@ export class ZMachine {
 
   /**
    * Save the current game state to storage
-   * @returns True if the save was successful
    */
-  saveGame(): boolean {
+  // Save the current state
+  async saveGame(): Promise<boolean> {
     try {
-      const snapshot = this._state.createSnapshot();
-      this._storage.saveSnapshot(snapshot);
+      if (!this._storage) {
+        throw new Error('No storage provider available');
+      }
+
+      const state = this.getState();
+      await this._storage.saveSnapshot(state);
       return true;
     } catch (error) {
       this._logger.error(`Failed to save game: ${error}`);
@@ -218,12 +243,15 @@ export class ZMachine {
 
   /**
    * Restore a saved game state from storage
-   * @returns True if the restore was successful
    */
   async restoreGame(): Promise<boolean> {
     try {
-      const snapshot = await this._storage.loadSnapshot();
-      this._state.restoreFromSnapshot(snapshot);
+      if (!this._storage) {
+        throw new Error('No storage provider available');
+      }
+
+      const state = await this._storage.loadSnapshot();
+      this.setState(state);
       return true;
     } catch (error) {
       this._logger.error(`Failed to restore game: ${error}`);
@@ -249,21 +277,22 @@ export class ZMachine {
         if (!filename) return false;
       }
 
-      // Get the snapshot
-      const snapshot = this._state.createSnapshot();
-
-      // Save with custom filename if provided
+      // Set storage options
       if (filename) {
         this._storage.setOptions({ filename });
       }
 
-      // If name parameter is provided, store it in memory at that address
-      if (name !== 0) {
-        // Store the filename in memory at the given address
-        // This would need code to convert the filename to Z-characters
+      // Create snapshot and save
+      const state = this.getState();
+      await this._storage.saveSnapshot(state);
+
+      // Write save metadata to the table if specified
+      if (table !== 0 && bytes > 0) {
+        // Get metadata about the save file
+        const saveInfo = await this._storage.getSaveInfo();
+        this.writeMetadataToTable(table, bytes, saveInfo);
       }
 
-      await this._storage.saveSnapshot(snapshot);
       return true;
     } catch (error) {
       this._logger.error(`Failed to save to table: ${error}`);
@@ -287,7 +316,6 @@ export class ZMachine {
     shouldPrompt: boolean = true
   ): Promise<boolean> {
     try {
-      // Version check - this is only for V5+
       if (this._state.version < 5) {
         this._logger.error('restoreFromTable only available in Version 5+');
         return false;
@@ -304,60 +332,33 @@ export class ZMachine {
         }
       }
 
-      // Configure storage with the selected filename if provided
+      // Set storage options
       if (filename) {
         this._storage.setOptions({ filename });
       }
 
-      // Check if the save exists
+      // Check if save exists
       const saveInfo = await this._storage.getSaveInfo();
       if (!saveInfo.exists) {
         this._logger.warn(`Save file not found: ${saveInfo.path}`);
         return false;
       }
 
-      // Load the snapshot
-      const snapshot = await this._storage.loadSnapshot();
+      // Load snapshot
+      const state = await this._storage.loadSnapshot();
 
-      // If name parameter is provided, store the loaded filename in memory
+      // Store filename in specified buffer if requested
       if (name !== 0) {
-        const filenameBuffer = Buffer.from(filename);
-
-        // Store the length first (if using Z-machine text format)
-        this._memory.setByte(name, Math.min(filenameBuffer.length, 255));
-
-        // Then store the actual characters
-        for (let i = 0; i < Math.min(filenameBuffer.length, 255); i++) {
-          this._memory.setByte(name + 1 + i, filenameBuffer[i]);
-        }
-
-        // Add null terminator if needed
-        if (filenameBuffer.length < 255) {
-          this._memory.setByte(name + 1 + filenameBuffer.length, 0);
-        }
+        this.storeFilenameInMemory(name, filename);
       }
 
-      // If table and bytes parameters are provided, copy the save data to the table
-      // This is used when the game wants to inspect/validate the save before restoring
+      // Update table with save metadata if requested
       if (table !== 0 && bytes > 0) {
-        // Create a buffer of the requested size
-        const dataBuffer = Buffer.alloc(bytes);
-
-        // Serialize the snapshot to the buffer
-        // TODO: simplified - needs actual implementation
-        // This would need to use a format the game understands
-        // We could potentially use a new format: createQuetzalTableData(snapshot, bytes)
-        const serializedData = this.serializeSnapshotForTable(snapshot, bytes);
-        serializedData.copy(dataBuffer, 0, 0, Math.min(serializedData.length, bytes));
-
-        // Copy to game memory
-        for (let i = 0; i < bytes; i++) {
-          this._memory.setByte(table + i, i < serializedData.length ? serializedData[i] : 0);
-        }
+        this.writeMetadataToTable(table, bytes, saveInfo);
       }
 
-      // Actually restore the game state
-      this._state.restoreFromSnapshot(snapshot);
+      // Restore state
+      this.setState(state);
 
       this._logger.info('Game state restored successfully');
       return true;
@@ -367,82 +368,106 @@ export class ZMachine {
     }
   }
 
-  /**
-   * Helper method to serialize a snapshot for a memory table
-   * This would need a specific implementation based on what format the game expects
-   */
-  private serializeSnapshotForTable(snapshot: Snapshot, maxBytes: number): Buffer {
-    // TODO: This is a placeholder - actual implementation would depend on what format
-    // the game expects in the table
-
-    // For example, we might create a simplified format with:
-    // - 2 bytes: format identifier (e.g., 0x1234)
-    // - 2 bytes: version number
-    // - 4 bytes: PC value
-    // - 2 bytes: stack size
-    // - remainder: stack and memory delta
-
+  private writeMetadataToTable(table: number, maxBytes: number, saveInfo: SaveInfo): void {
     const buffer = Buffer.alloc(maxBytes);
     let offset = 0;
 
-    // Format identifier
-    if (offset + 2 <= maxBytes) {
-      buffer.writeUInt16BE(0x1234, offset);
+    // Write magic number and version
+    if (offset + 4 <= maxBytes) {
+      buffer.writeUInt16BE(0x5a4d, offset); // 'ZM' in ASCII
       offset += 2;
-    }
-
-    // Version
-    if (offset + 2 <= maxBytes) {
       buffer.writeUInt16BE(this._state.version, offset);
       offset += 2;
     }
 
-    // PC
-    if (offset + 4 <= maxBytes) {
-      buffer.writeUInt32BE(snapshot.pc, offset);
+    // Write save file format
+    if (saveInfo.format && offset + 8 <= maxBytes) {
+      const formatStr = saveInfo.format.padEnd(8, ' ').substring(0, 8);
+      buffer.write(formatStr, offset, 'ascii');
+      offset += 8;
+    }
+
+    // Write save description if available
+    if (saveInfo.description && offset + saveInfo.description.length + 1 <= maxBytes) {
+      const desc = saveInfo.description;
+      const descLen = Math.min(desc.length, 255, maxBytes - offset - 1);
+
+      if (descLen > 0) {
+        buffer.writeUInt8(descLen, offset);
+        offset++;
+
+        buffer.write(desc.substring(0, descLen), offset, 'utf8');
+        offset += descLen;
+      }
+    }
+
+    // Write timestamp if available
+    if (saveInfo.lastModified && offset + 4 <= maxBytes) {
+      const timestamp = Math.floor(saveInfo.lastModified.getTime() / 1000);
+      buffer.writeUInt32BE(timestamp, offset);
       offset += 4;
     }
 
-    // Stack size
-    if (offset + 2 <= maxBytes) {
-      buffer.writeUInt16BE(snapshot.stack.length, offset);
-      offset += 2;
+    // Copy buffer to memory
+    for (let i = 0; i < maxBytes; i++) {
+      if (i < offset) {
+        this._memory.setByte(table + i, buffer[i]);
+      } else {
+        this._memory.setByte(table + i, 0);
+      }
+    }
+  }
+
+  private storeFilenameInMemory(address: number, filename: string): void {
+    const filenameBuffer = Buffer.from(filename);
+
+    // Write length byte
+    this._memory.setByte(address, Math.min(filenameBuffer.length, 255));
+
+    // Write filename
+    for (let i = 0; i < Math.min(filenameBuffer.length, 255); i++) {
+      this._memory.setByte(address + 1 + i, filenameBuffer[i]);
     }
 
-    // Stack data
-    for (let i = 0; i < snapshot.stack.length && offset + 2 <= maxBytes; i++) {
-      buffer.writeUInt16BE(snapshot.stack[i], offset);
-      offset += 2;
+    // Null terminate if there's room
+    if (filenameBuffer.length < 255) {
+      this._memory.setByte(address + 1 + filenameBuffer.length, 0);
     }
+  }
 
-    // We could include more data as needed
+  private getState(): ZMachineState {
+    return {
+      memory: Buffer.from(this.memory.buffer),
+      pc: this.state.pc,
+      stack: [...this.state.stack],
+      callFrames: this.state.callstack.map((frame) => serializeStackFrame(frame)),
+      originalStory: Buffer.from(this.originalStory),
+    };
+  }
 
-    return buffer;
+  private setState(state: ZMachineState): void {
+    this._state.restoreFromSnapshot(state);
   }
 
   /**
-   * Get the Z-Machine version
-   * @returns The Z-Machine version
-   */
-  getVersion(): ZMachineVersion {
-    return this._state.version;
-  }
-
-  /**
-   * Save the current state for undo
-   * @returns True if the save was successful
+   * Save the current state to the undo stack
+   * As per the Z-Machine specification (section 8.7.3.7),
+   * save_undo stores the current state for later restoration
    */
   saveUndo(): boolean {
     try {
-      // Create a snapshot
-      const snapshot = this._state.createSnapshot();
+      // Create snapshot of current state
+      const state = this.getState();
 
-      // Add to undo stack, keeping only the last N states
-      this._undoStack.push(snapshot);
+      // Add to undo stack (at the beginning for more efficient access)
+      this._undoStack.unshift(state);
+
+      // Trim undo stack if it exceeds maximum size
       if (this._undoStack.length > this._maxUndoLevels) {
-        this._undoStack.shift();
+        this._undoStack.pop();
       }
 
+      this._logger.debug(`Saved undo state (${this._undoStack.length}/${this._maxUndoLevels})`);
       return true;
     } catch (error) {
       this._logger.error(`Failed to save undo state: ${error}`);
@@ -451,8 +476,11 @@ export class ZMachine {
   }
 
   /**
-   * Restore the last saved state
-   * @returns True if the restore was successful
+   * Restore the most recent state from the undo stack
+   * As per the Z-Machine specification (section 8.7.3.8),
+   * restore_undo returns:
+   * 0 if restore failed because no undo state was available
+   * 2 if restore succeeded
    */
   restoreUndo(): boolean {
     try {
@@ -461,15 +489,18 @@ export class ZMachine {
         return false;
       }
 
-      // Pop the last state and restore it
-      const snapshot = this._undoStack.pop();
-      if (snapshot) {
-        this._state.restoreFromSnapshot(snapshot);
-      } else {
-        this._logger.warn('No undo states available to restore');
+      // Get the most recent state from the undo stack
+      const state = this._undoStack.shift();
+
+      if (!state) {
+        this._logger.error('Failed to retrieve undo state');
         return false;
       }
 
+      // Restore the state
+      this.setState(state);
+
+      this._logger.debug(`Restored undo state (${this._undoStack.length} remaining)`);
       return true;
     } catch (error) {
       this._logger.error(`Failed to restore undo state: ${error}`);
@@ -478,83 +509,33 @@ export class ZMachine {
   }
 
   /**
-   * Updates the status line for V1-V3 games
-   * Displays location name on the left and score/moves or time on the right
+   * Restart the Z-machine from the beginning
    */
-  updateStatusLine(): void {
-    // Skip for version 4+ games which handle status differently
-    if (this._state.version > 3) {
-      return;
-    }
+  restart(): void {
+    // Reset the machine state to its initial state
+    this._state.pc = this._memory.getWord(HeaderLocation.InitialPC);
 
-    // Get memory and required data
-    const memory = this._state.memory;
-    const globalVarsBase = this._state.globalVariablesAddress;
+    // Clear stacks
+    this._state.stack.length = 0;
+    this._state.callstack.length = 0;
 
-    // First global variable is always the current location
-    const locationVar = 0;
-    const locationObjNum = memory.getWord(globalVarsBase + 2 * locationVar);
-    const locationObj = this._state.getObject(locationObjNum);
-
-    // Determine if it's a score game or time game
-    // It's a score game if version < 3 or bit 1 of Flags1 is clear
-    const isScoreGame = this._state.version < 3 || (memory.getByte(HeaderLocation.Flags1) & 0x02) === 0;
-
-    // Content for left side of status bar is always the location name
-    const lhs = locationObj?.name || 'Unknown location';
-
-    // Content for right side depends on game type
-    let rhs: string;
-
-    if (isScoreGame) {
-      // Score and moves are in globals 1 and 2
-      const score = memory.getWord(globalVarsBase + 2 * 1);
-      const moves = memory.getWord(globalVarsBase + 2 * 2);
-      rhs = `Score: ${score}   Moves: ${moves}`;
-    } else {
-      // Time (hours and minutes) are in globals 1 and 2
-      const hours = memory.getWord(globalVarsBase + 2 * 1);
-      const minutes = memory.getWord(globalVarsBase + 2 * 2);
-      // Ensure minutes is displayed with leading zero if needed
-      const paddedMinutes = minutes.toString().padStart(2, '0');
-      rhs = `Time: ${hours}:${paddedMinutes}`;
-    }
-
-    // Pass to the screen implementation to actually display
-    this._screen.updateStatusBar(lhs, rhs);
-
-    this._logger.debug(`Updated status bar: [${lhs}] [${rhs}]`);
-  }
-
-  /**
-   * Restart the game from the beginning
-   */
-  restart(): boolean {
-    throw new Error('Method not implemented.');
-  }
-
-  /**
-   * Method to handle timed input
-   * @param time The time in tenths of seconds
-   * @param routine The routine to call
-   */
-  handleTimedInput(time: number, routine: number): void {
-    if (time <= 0 || routine <= 0) {
-      return; // No timer active
-    }
-
-    // Setup timeout
-    setTimeout(() => {
-      // If we're still waiting for input
-      if (this._executor.isSuspended) {
-        // Call the routine
-        const routineAddr = this._memory.unpackRoutineAddress(routine);
-        this._state.callRoutine(routineAddr, null);
-
-        // Resume execution
-        this._executor.resume();
+    // Reset memory to original story (except header)
+    const headerSize = 64; // Standard header size
+    for (let i = headerSize; i < this._memory.size; i++) {
+      if (this._memory.isDynamicMemory(i)) {
+        this._memory.buffer[i] = this._originalStory[i];
       }
-    }, time * 100); // Z-machine time is in 1/10 seconds
+    }
+
+    // Reset object factory cache
+    if (this._state['_objectFactory'] && typeof this._state['_objectFactory'].resetCache === 'function') {
+      this._state['_objectFactory'].resetCache();
+    }
+
+    // Re-execute from the beginning
+    this._executor.executeLoop().catch((error) => {
+      this._logger.error(`Error during restart execution: ${error}`);
+    });
   }
 
   /**

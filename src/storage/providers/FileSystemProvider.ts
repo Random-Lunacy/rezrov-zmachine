@@ -1,9 +1,10 @@
 import * as fs from 'fs/promises';
 import { glob } from 'glob';
 import * as path from 'path';
-import { StorageProvider, StorageStats } from '../interfaces';
+import { StorageStats } from '../interfaces';
+import { StorageProvider } from './StorageProvider';
 
-export class NodeFsProvider implements StorageProvider {
+export class FileSystemProvider implements StorageProvider {
   async read(location: string): Promise<Buffer | null> {
     try {
       return await fs.readFile(location);
@@ -50,7 +51,23 @@ export class NodeFsProvider implements StorageProvider {
   }
 
   async ensureDirectory(directory: string): Promise<void> {
-    await fs.mkdir(directory, { recursive: true });
+    try {
+      const stats = await fs.stat(directory);
+      if (!stats.isDirectory()) {
+        throw new Error(`A file with the same name as the directory '${directory}' already exists.`);
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        // Directory does not exist, attempt to create it
+        try {
+          await fs.mkdir(directory, { recursive: true });
+        } catch (mkdirError) {
+          throw new Error(`Failed to create directory '${directory}': ${(mkdirError as Error).message}`);
+        }
+      } else {
+        throw new Error(`Failed to check directory '${directory}': ${(error as Error).message}`);
+      }
+    }
   }
 
   async getStats(location: string): Promise<StorageStats | null> {

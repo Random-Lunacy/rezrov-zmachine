@@ -1,54 +1,111 @@
+import { ZMachineState } from '../types';
 import { FormatProvider } from './formats/FormatProvider';
-import { SaveInfo, Snapshot, StorageOptions } from './interfaces';
+import { SaveInfo, StorageInterface, StorageOptions } from './interfaces';
 import { StorageProvider } from './providers/StorageProvider';
 
 /**
  * Base Storage implementation, specific storage providers
  * (e.g., Quetzal, SimpleDat) should extend this class.
  */
-export class Storage {
+export class Storage implements StorageInterface {
   private formatProvider: FormatProvider;
   private storageProvider: StorageProvider;
+  private originalStory: Buffer;
   private options: StorageOptions = {};
-  private originalStoryData: Buffer;
 
   constructor(
     formatProvider: FormatProvider,
     storageProvider: StorageProvider,
-    originalStoryData: Buffer,
+    originalStory: Buffer,
     options?: StorageOptions
   ) {
     this.formatProvider = formatProvider;
     this.storageProvider = storageProvider;
-    this.originalStoryData = originalStoryData;
+    this.originalStory = originalStory;
     if (options) {
       this.options = options;
     }
   }
 
-  async saveSnapshot(snapshot: Snapshot, description?: string): Promise<void> {
+  async saveSnapshot(state: ZMachineState, description?: string): Promise<void> {
     const location = this.getStorageLocation();
-    const data = this.formatProvider.serialize(snapshot, this.originalStoryData);
+    const data = this.formatProvider.serialize(state);
     await this.storageProvider.write(location, data);
   }
 
-  async loadSnapshot(): Promise<Snapshot> {
+  async loadSnapshot(): Promise<ZMachineState> {
     const location = this.getStorageLocation();
     const data = await this.storageProvider.read(location);
     if (!data) {
       throw new Error(`Save file not found: ${location}`);
     }
-    return this.formatProvider.deserialize(data, this.originalStoryData);
+    return this.formatProvider.deserialize(data, this.originalStory);
   }
 
   async getSaveInfo(): Promise<SaveInfo> {
-    throw new Error('Method not implemented.');
-    // Implementation to get save info
+    const location = this.getStorageLocation();
+    try {
+      const exists = await this.storageProvider.exists(location);
+      if (!exists) {
+        return {
+          exists: false,
+          path: location,
+        };
+      }
+
+      const data = await this.storageProvider.read(location);
+      let description = '';
+
+      if (data && this.formatProvider.extractMetadata) {
+        const metadata = this.formatProvider.extractMetadata(data);
+        description = metadata.description || '';
+      }
+
+      return {
+        exists: true,
+        path: location,
+        format: this.formatProvider.constructor.name.replace('Format', '').toLowerCase(),
+        description,
+      };
+    } catch (error) {
+      throw new Error(`Failed to get save info: ${error}`);
+    }
   }
 
   async listSaves(): Promise<SaveInfo[]> {
-    throw new Error('Method not implemented.');
-    // Implementation to list saves
+    try {
+      // Get potential save files
+      const pattern = this.options.filename?.replace(/\.[^.]+$/, '') || 'save';
+      const files = await this.storageProvider.list(`${pattern}*`);
+
+      const results: SaveInfo[] = [];
+
+      for (const file of files) {
+        try {
+          const data = await this.storageProvider.read(file);
+          if (!data) continue;
+
+          let description = '';
+          if (this.formatProvider.extractMetadata) {
+            const metadata = this.formatProvider.extractMetadata(data);
+            description = metadata.description || '';
+          }
+
+          results.push({
+            exists: true,
+            path: file,
+            format: this.formatProvider.constructor.name.replace('Format', '').toLowerCase(),
+            description,
+          });
+        } catch (e) {
+          // Skip files that can't be read or parsed
+        }
+      }
+
+      return results;
+    } catch (error) {
+      throw new Error(`Failed to list saves: ${error}`);
+    }
   }
 
   setOptions(options: StorageOptions): void {

@@ -14,5 +14,19 @@
   "files.watcherExclude": {
     "**/target": true
   },
-  "cSpell.words": ["ebozz", "IFZS", "Infocom", "Planetfall", "rezrov", "Stks", "Toshok", "zmachine", "zork", "zscii"]
+  "cSpell.words": [
+    "cmem",
+    "ebozz",
+    "ifhd",
+    "ifzs",
+    "Infocom",
+    "Planetfall",
+    "rezrov",
+    "stks",
+    "Toshok",
+    "umem",
+    "zmachine",
+    "zork",
+    "zscii"
+  ]
 }

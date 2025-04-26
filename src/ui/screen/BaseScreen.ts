@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { ZMachine } from '../../interpreter/ZMachine';
 import { Logger } from '../../utils/log';
-import { InputState } from '../input/InputHandler';
+import { InputState } from '../input/InputInterface';
 import { Capabilities, Screen, ScreenSize } from './interfaces';
 
 /**

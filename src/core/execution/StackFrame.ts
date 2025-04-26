@@ -4,23 +4,16 @@
  * including the return address, local variables, and the routine being executed.
  */
 export interface StackFrame {
-  // Return address to resume at when routine finishes
+  // Core execution properties
   returnPC: number;
-
-  // Original stack pointer value when frame was created
   previousSP: number;
-
-  // Local variables for this routine (0-15)
   locals: Uint16Array;
-
-  // Variable to store result in (or null if discarding)
   resultVariable: number | null;
-
-  // Number of arguments passed to the routine
   argumentCount: number;
-
-  // Starting address of the routine (for debugging)
   routineAddress: number;
+
+  // Optional properties used for serialization
+  frameStack?: number[]; // For stack values specific to this frame
 }
 
 /**
@@ -58,4 +51,39 @@ export function createStackFrame(
     argumentCount,
     routineAddress,
   };
+}
+
+// Helper function to convert StackFrame to a serializable object
+export function serializeStackFrame(frame: StackFrame): SerializedStackFrame {
+  return {
+    returnPC: frame.returnPC,
+    discardResult: frame.resultVariable === null,
+    storeVariable: frame.resultVariable !== null ? frame.resultVariable : 0,
+    argumentMask: Array(frame.argumentCount).fill(true),
+    locals: Array.from(frame.locals),
+    stack: frame.frameStack || [],
+  };
+}
+
+// Helper function to deserialize a StackFrame
+export function deserializeStackFrame(serialized: SerializedStackFrame): StackFrame {
+  return {
+    returnPC: serialized.returnPC,
+    previousSP: 0, // This would need to be calculated during restoration
+    locals: new Uint16Array(serialized.locals),
+    resultVariable: serialized.discardResult ? null : serialized.storeVariable,
+    argumentCount: serialized.argumentMask.length,
+    routineAddress: 0, // This would need to be reconstructed during restoration
+    frameStack: serialized.stack,
+  };
+}
+
+// The serialized version used in storage
+export interface SerializedStackFrame {
+  returnPC: number;
+  discardResult: boolean;
+  storeVariable: number;
+  argumentMask: boolean[];
+  locals: number[];
+  stack: number[];
 }

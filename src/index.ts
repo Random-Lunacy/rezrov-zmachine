@@ -28,8 +28,15 @@ export { decodeZString, encodeZString } from './parsers/ZString';
 export type { ZString } from './parsers/ZString';
 
 // Storage exports
-export type { Snapshot, Storage } from './storage/interfaces';
-export { createSnapshotBuffer, readSnapshotFromBuffer } from './storage/Snapshot';
+export { createBrowserStorage, createFileSystemStorage, createMemoryStorage } from './storage/factory';
+export { EnhancedDatFormat } from './storage/formats/EnhancedDatFormat';
+export type { FormatProvider } from './storage/formats/FormatProvider';
+export { QuetzalFormat } from './storage/formats/QuetzalFormat';
+export { BrowserStorageProvider } from './storage/providers/BrowserStorageProvider';
+export { FileSystemProvider } from './storage/providers/FileSystemProvider';
+export { MemoryStorageProvider } from './storage/providers/MemoryStorageProvider';
+export type { StorageProvider } from './storage/providers/StorageProvider';
+export { Storage } from './storage/Storage';
 
 // Utility exports
 export { HeaderLocation, KnownGlobals, ZVersion } from './utils/constants';
@@ -39,4 +46,4 @@ export { initRandom, random, randomInt, randomSeed } from './utils/random';
 
 // Type exports
 export { InstructionForm, OperandType } from './types';
-export type { Address, FIXME, InputState, ZSCII } from './types';
+export type { Address, FIXME, ZSCII } from './types';

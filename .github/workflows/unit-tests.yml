@@ -1,4 +1,4 @@
-name: Run Unit Tests
+name: Build and run tests
 
 on:
   push:
@@ -23,7 +23,9 @@ jobs:
           cache: 'npm'
       - name: Install dependencies
         run: npm ci
-      #- name: Build
-      #  run: npm run build
-      - name: Run tests
+      - name: Build
+        run: npm run build
+      - name: Run unit tests
         run: npm run test:unit
+      - name: Run integration tests
+        run: npm run test:integration

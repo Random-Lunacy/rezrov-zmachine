@@ -62,7 +62,7 @@ export class Executor {
   /**
    * Main execution loop that runs until program termination or suspension
    */
-  executeLoop(): void {
+  async executeLoop(): Promise<void> {
     try {
       while (!this._quit && !this._suspended) {
         this._op_pc = this.zMachine.state.pc;
@@ -77,25 +77,11 @@ export class Executor {
       if (e instanceof SuspendState) {
         // New input handling
         this._suspended = true;
-        this._suspendedInputState = e.state;
+        this._suspendedInputState = { ...e.state, mode: InputMode.TEXT }; // Ensure 'mode' is set
 
         setImmediate(() => {
           try {
-            const state = e.state;
-            const inputState: InputState = {
-              mode: state.keyPress
-                ? state.time
-                  ? InputMode.TIMED_CHAR
-                  : InputMode.CHAR
-                : state.time
-                  ? InputMode.TIMED_TEXT
-                  : InputMode.TEXT,
-              resultVar: state.resultVar,
-              textBuffer: state.textBuffer,
-              parseBuffer: state.parseBuffer,
-              time: state.time,
-              routine: state.routine,
-            };
+            const inputState = e.toInputState();
 
             // Update status bar for V1-3
             if (this.zMachine.state.version <= 3) {
@@ -126,7 +112,7 @@ export class Executor {
   /**
    * Executes a single Z-machine instruction at the current PC
    */
-  executeInstruction(): void {
+  async executeInstruction(): Promise<void> {
     const state = this.zMachine.state;
     const op_pc = state.pc;
     const opcode = state.readByte();
@@ -134,14 +120,17 @@ export class Executor {
     this.logger.debug(`${hex(op_pc)}: opcode byte = ${hex(opcode)}`);
 
     const { form, reallyVariable, opcodeNumber, operandTypes } = this.decodeInstruction(opcode, state);
-
     const operands = this.readOperands(operandTypes, state);
-
     const op = this.resolveOpcode(form, reallyVariable, opcodeNumber, operands.length, op_pc, opcode);
 
     this.logger.debug(`Executing op = ${op.mnemonic} with operands [${operands.map((o) => hex(o)).join(', ')}]`);
 
-    op.impl(this.zMachine, ...operands);
+    const result = op.impl(this.zMachine, ...operands);
+
+    // If the opcode returns a Promise, await it
+    if (result instanceof Promise) {
+      await result;
+    }
   }
 
   /**
@@ -321,9 +310,9 @@ export class Executor {
   }
 
   /**
-   * Resumes execution after handling user input
+   * Resume execution after suspension
    */
-  resume(): void {
+  async resume(): Promise<void> {
     if (!this._suspended) {
       this.logger.warn('Called resume() when not suspended');
       return;
@@ -333,7 +322,7 @@ export class Executor {
     this._suspendedInputState = null;
 
     // Continue execution
-    this.executeLoop();
+    await this.executeLoop();
   }
 
   /**

@@ -1,6 +1,7 @@
 /**
  * Common type definitions for the Z-machine interpreter
  */
+import { SerializedStackFrame } from './core/execution/StackFrame';
 
 // Memory address in the Z-machine
 export type Address = number;
@@ -69,3 +70,14 @@ export enum OperandType {
  * but needs to be typed in the system
  */
 export type FIXME = unknown;
+
+/**
+ * Represents the complete state of a Z-Machine that needs to be saved/restored
+ */
+export interface ZMachineState {
+  memory: Buffer;
+  pc: number;
+  stack: number[];
+  callFrames: SerializedStackFrame[];
+  originalStory: Buffer;
+}
