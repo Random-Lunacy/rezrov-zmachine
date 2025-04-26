@@ -103,49 +103,6 @@ npm run test:integration
 npm run test:compliance
 ```
 
-## Usage
-
-### Basic Example
-
-```typescript
-import { ZMachine, Memory, BaseScreen, Logger, LogLevel } from 'rezrov-zmachine';
-import fs from 'fs';
-
-// Create a simple in-memory storage implementation
-class InMemoryStorage {
-  private snapshot: any = null;
-
-  saveSnapshot(snapshot: any): void {
-    this.snapshot = snapshot;
-  }
-
-  loadSnapshot(): any {
-    if (!this.snapshot) {
-      throw new Error('No snapshot available');
-    }
-    return this.snapshot;
-  }
-}
-
-// Load a story file
-const storyData = fs.readFileSync('path/to/zork1.z3');
-
-// Create the components
-const logger = new Logger(LogLevel.INFO);
-const screen = new BaseScreen(logger, 'console');
-const storage = new InMemoryStorage();
-
-// Create the Z-machine
-const machine = new ZMachine(storyData, logger, screen, storage);
-
-// Execute the program
-machine.execute();
-
-// In a real implementation, you would need to handle input/output
-// by creating a custom Screen implementation that connects to your
-// desired UI system (terminal, web, etc.)
-```
-
 ## Architecture
 
 Rezrov-ZMachine uses a layered architecture that separates the Z-Machine's core functions from interface implementations, making it adaptable to various environments. The diagram below illustrates the key components and their relationships:
@@ -281,6 +238,21 @@ if (box && key) {
 Check the `examples` directory for complete working examples:
 
 - `GameObjectExample.ts` - Exploring the game object tree
+- `console/index.ts` - A simple console-based implementation
+
+### Running the `console` example
+
+#### Install ts-node if you haven't already
+
+```bash
+npm install -g ts-node
+```
+
+#### Run the example
+
+```bash
+npx tsx examples/console/index.ts path/to/story.z3
+```
 
 ## Contributing
 

@@ -21,7 +21,7 @@ export class BaseScreen implements Screen {
    * @param options Optional options
    */
   constructor(id: string, options?: { logger?: Logger }) {
-    this.logger = options?.logger || new Logger('BaseScreen');
+    this.logger = options?.logger || new Logger(id ?? 'BaseScreen');
     this.id = id;
     this.currentStyles = 0;
   }
