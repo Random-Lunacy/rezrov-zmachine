@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Executor } from '../../../src/core/execution/Executor';
 import { SuspendState } from '../../../src/core/execution/SuspendState';
 import { ZMachine } from '../../../src/interpreter/ZMachine';
+import { InputMode } from '../../../src/ui/input/InputInterface';
 import { MockZMachine } from '../../mocks';
 
 describe('Executor', () => {
@@ -59,15 +60,23 @@ describe('Executor', () => {
       executor.executeLoop();
 
       // Verify suspension was handled properly
-      expect(mockZMachine.logger.debug).toHaveBeenCalledWith(expect.stringContaining('for text input'));
-      expect(mockZMachine.screen.getInputFromUser).toHaveBeenCalledWith(mockZMachine, expect.any(Object));
+      expect(mockZMachine.inputProcessor.startTextInput).toHaveBeenCalledWith(
+        mockZMachine,
+        expect.objectContaining({
+          resultVar: 42,
+          textBuffer: 0x1000,
+          parseBuffer: 0x1100,
+          mode: InputMode.TEXT,
+        })
+      );
     });
 
     it('should handle SuspendState exceptions for key input', () => {
       // Setup a suspension state for key input
       const inputState = {
-        keyPress: true,
         resultVar: 42,
+        keyPress: true,
+        mode: 2,
       };
 
       const suspendState = new SuspendState(inputState);
@@ -86,8 +95,12 @@ describe('Executor', () => {
       executor.executeLoop();
 
       // Verify key input was handled
-      expect(mockZMachine.logger.debug).toHaveBeenCalledWith(expect.stringContaining('for key input'));
-      expect(mockZMachine.screen.getKeyFromUser).toHaveBeenCalledWith(mockZMachine, expect.any(Object));
+      expect(mockZMachine.inputProcessor.startCharInput).toHaveBeenCalledWith(
+        mockZMachine,
+        expect.objectContaining({
+          mode: InputMode.CHAR,
+        })
+      );
     });
 
     it('should handle timed input', () => {
@@ -116,18 +129,12 @@ describe('Executor', () => {
       // Execute the loop
       executor.executeLoop();
 
-      // Update this part to match actual ZMachine implementation
-      // Instead of testing mockZMachine.handleTimedInput directly,
-      // we should test that the input processor is called with the
-      // right parameters or that the input state is properly configured
-      expect(mockZMachine.logger.debug).toHaveBeenCalledWith(expect.stringContaining('for text input'));
-
       // Check that we're setting up for timed input
-      // The exact implementation will depend on how the ZMachine actually handles this
-      expect(mockZMachine.screen.getInputFromUser).toHaveBeenCalledWith(
+      expect(mockZMachine.inputProcessor.startTextInput).toHaveBeenCalledWith(
         mockZMachine,
         expect.objectContaining({
           time: 10,
+          mode: InputMode.TIMED_TEXT,
           routine: 0x2000,
         })
       );
@@ -189,6 +196,7 @@ describe('Executor', () => {
         // Verify correct execution
         expect(mockZMachine.state.readByte).toHaveBeenCalledTimes(2);
         expect(mockJzOpcode.impl).toHaveBeenCalledWith(mockZMachine, 42);
+        expect(mockZMachine.logger.debug).toHaveBeenCalledWith(expect.stringContaining('Executing op = jz'));
       });
 
       it('should execute Variable form instructions', () => {
@@ -199,8 +207,11 @@ describe('Executor', () => {
         mockZMachine.state.readByte.mockReturnValueOnce(0x00); // No operands in type byte
 
         // Setup operand reads from variables
-        mockZMachine.state.readWord.mockReturnValueOnce(0x1234); // First operand
-        mockZMachine.state.readWord.mockReturnValueOnce(0x5678); // Second operand
+        mockZMachine.state.readWord
+          .mockReturnValueOnce(0x1234)
+          .mockReturnValueOnce(0x5678)
+          .mockReturnValueOnce(0x0000)
+          .mockReturnValueOnce(0x0000);
 
         // Setup a mock opcode implementation
         const mockCallVsOpcode = {
@@ -219,8 +230,9 @@ describe('Executor', () => {
 
         // Verify correct execution
         expect(mockZMachine.state.readByte).toHaveBeenCalledTimes(2);
-        expect(mockZMachine.state.readWord).toHaveBeenCalledTimes(2);
-        expect(mockCallVsOpcode.impl).toHaveBeenCalledWith(mockZMachine, 0x1234, 0x5678);
+        expect(mockZMachine.state.readWord).toHaveBeenCalledTimes(4);
+        expect(mockCallVsOpcode.impl).toHaveBeenCalledWith(mockZMachine, 0x1234, 0x5678, 0x0000, 0x0000);
+        expect(mockZMachine.logger.debug).toHaveBeenCalledWith(expect.stringContaining('Executing op = call_vs'));
       });
 
       it('should execute Extended form instructions (V5+)', () => {
@@ -256,7 +268,8 @@ describe('Executor', () => {
 
         // Verify correct execution
         expect(mockZMachine.state.readByte).toHaveBeenCalledTimes(4);
-        expect(mockSetFontOpcode.impl).toHaveBeenCalledWith(mockZMachine, 3);
+        expect(mockSetFontOpcode.impl).toHaveBeenCalledWith(mockZMachine, 0, 3, 0, 0);
+        expect(mockZMachine.logger.debug).toHaveBeenCalledWith(expect.stringContaining('Executing op = set_font'));
       });
 
       it('should handle async opcode implementations', async () => {
@@ -286,21 +299,15 @@ describe('Executor', () => {
         expect(asyncOpcode.impl).toHaveBeenCalledWith(mockZMachine, 5, 3);
       });
 
-      it('should handle missing opcode implementations', () => {
-        // Setup the state to read an instruction with no implementation
-        mockZMachine.state.readByte.mockReturnValueOnce(0x15); // Opcode
+      it('should handle missing opcode implementations', async () => {
+        mockZMachine.state.readByte.mockReturnValueOnce(0x90);
+        mockZMachine.state.readByte.mockReturnValueOnce(42);
 
-        // Setup operand reads
-        mockZMachine.state.readByte.mockReturnValueOnce(5);
-        mockZMachine.state.readByte.mockReturnValueOnce(3);
-
-        // Set up an empty opcode table
-        Object.defineProperty(executor, 'op2', {
-          value: Array(32).fill(null),
+        Object.defineProperty(executor, 'op1', {
+          value: Array(16).fill(null),
         });
 
-        // Execute the instruction should throw an error
-        expect(() => executor.executeInstruction()).toThrow(/No implementation found for opcode/);
+        await expect(executor.executeInstruction()).rejects.toThrowError(/No implementation found for opcode/);
         expect(mockZMachine.logger.error).toHaveBeenCalled();
       });
 
@@ -486,8 +493,32 @@ describe('Executor', () => {
     });
 
     describe('error handling', () => {
-      it('should handle and log errors during opcode execution', () => {
-        // Setup an opcode that throws an error
+      // it('should handle and log errors during opcode execution', () => {
+      //   // Setup an opcode that throws an error
+      //   const errorOpcode = {
+      //     mnemonic: 'error_opcode',
+      //     impl: vi.fn().mockImplementation(() => {
+      //       throw new Error('Opcode execution error');
+      //     }),
+      //   };
+
+      //   // Setup a simple instruction
+      //   mockZMachine.state.readByte.mockReturnValueOnce(0x90); // Short form opcode
+      //   mockZMachine.state.readByte.mockReturnValueOnce(42); // Single operand
+
+      //   // Set up the opcode table
+      //   Object.defineProperty(executor, 'op1', {
+      //     value: Array(16).fill(null),
+      //   });
+      //   executor.op1[0] = errorOpcode;
+
+      //   // Execute the instruction should propagate the error
+      //   expect(() => executor.executeInstruction()).toThrow('Opcode execution error');
+
+      //   // Error should be logged
+      //   expect(mockZMachine.logger.error).toHaveBeenCalled();
+      // });
+      it('should handle and log errors during opcode execution', async () => {
         const errorOpcode = {
           mnemonic: 'error_opcode',
           impl: vi.fn().mockImplementation(() => {
@@ -495,18 +526,16 @@ describe('Executor', () => {
           }),
         };
 
-        // Setup a simple instruction
-        mockZMachine.state.readByte.mockReturnValueOnce(0x90); // Short form opcode
-        mockZMachine.state.readByte.mockReturnValueOnce(42); // Single operand
+        mockZMachine.state.readByte.mockReturnValueOnce(0x90);
+        mockZMachine.state.readByte.mockReturnValueOnce(42);
 
-        // Set up the opcode table
         Object.defineProperty(executor, 'op1', {
           value: Array(16).fill(null),
         });
         executor.op1[0] = errorOpcode;
 
-        // Execute the instruction should propagate the error
-        expect(() => executor.executeInstruction()).toThrow('Opcode execution error');
+        // Use the async/await pattern with .rejects
+        await expect(executor.executeInstruction()).rejects.toThrow('Opcode execution error');
 
         // Error should be logged
         expect(mockZMachine.logger.error).toHaveBeenCalled();

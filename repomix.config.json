@@ -3,10 +3,17 @@
     "style": "markdown",
     "filePath": "rezrov-zmachine-output.md",
     "removeComments": true,
-    "showLineNumbers": true,
+    "showLineNumbers": false,
     "topFilesLength": 10
   },
   "ignore": {
-    "customPatterns": ["docs/**", "**.z3", "**.z4", "**.z5", "**/package-lock.json"]
+    "customPatterns": [
+      "docs/**",
+      "**/*.config.{js,cjs,mjs,ts,json}",
+      "**/*.{yml,yaml}",
+      "**/test/fixtures/**",
+      "**/package-lock.json",
+      ".gitignore"
+    ]
   }
 }
