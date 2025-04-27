@@ -7,6 +7,6 @@
     "topFilesLength": 10
   },
   "ignore": {
-    "customPatterns": ["*.test.ts", "docs/**", "**.z3"]
+    "customPatterns": ["docs/**", "**.z3", "**.z4", "**.z5", "**/package-lock.json"]
   }
 }

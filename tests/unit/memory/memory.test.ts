@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { Memory } from '../../src/core/memory/Memory';
-import { HeaderLocation } from '../../src/utils/constants';
-import { Logger } from '../../src/utils/log';
+import { Memory } from '../../../src/core/memory/Memory';
+import { HeaderLocation } from '../../../src/utils/constants';
+import { Logger } from '../../../src/utils/log';
 // filepath: src/core/memory/Memory.test.ts
 
 describe('Memory', () => {

@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { SuspendState } from '../../src/core/execution/SuspendState';
+import { describe, expect, it } from 'vitest';
+import { SuspendState } from '../../../src/core/execution/SuspendState';
 
 describe('SuspendState', () => {
   it('should create an instance with the provided state', () => {
@@ -10,7 +10,7 @@ describe('SuspendState', () => {
       textBuffer: 0x1000,
       parseBuffer: 0x1100,
       time: 10,
-      routine: 0x2000
+      routine: 0x2000,
     };
 
     // Act
@@ -32,7 +32,7 @@ describe('SuspendState', () => {
       keyPress: true,
       resultVar: 12,
       time: 5,
-      routine: 0x3000
+      routine: 0x3000,
     };
 
     // Act
@@ -52,7 +52,7 @@ describe('SuspendState', () => {
     // Setup
     const inputState = {
       keyPress: false,
-      resultVar: 42
+      resultVar: 42,
     };
 
     // Act
@@ -67,7 +67,7 @@ describe('SuspendState', () => {
     // Setup & Act
     const suspendState = new SuspendState({
       keyPress: false,
-      resultVar: 42
+      resultVar: 42,
     });
 
     // Assert
@@ -80,7 +80,7 @@ describe('SuspendState', () => {
     // Setup - minimum required properties
     const inputState = {
       keyPress: false,
-      resultVar: 42
+      resultVar: 42,
     };
 
     // Act

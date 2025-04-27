@@ -4,6 +4,9 @@ import { StorageProvider } from '../../src/storage/providers/StorageProvider';
 import { ZMachineState } from '../../src/types';
 import { Logger } from '../../src/utils/log';
 
+/**
+ * StorageInterface implementation for use in integrations tests
+ */
 export class TestStorage implements StorageInterface {
   private snapshot: ZMachineState | null = null;
   private formatProvider: FormatProvider;

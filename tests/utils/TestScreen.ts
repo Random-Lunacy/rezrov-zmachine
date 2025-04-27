@@ -3,6 +3,9 @@ import { InputState } from '../../src/ui/input/InputInterface';
 import { Capabilities, Screen, ScreenSize } from '../../src/ui/screen/interfaces';
 import { Logger } from '../../src/utils/log';
 
+/**
+ * Screen implementation for use in integrations tests
+ */
 export class TestScreen implements Screen {
   private logger: Logger;
   private output: string[] = [];

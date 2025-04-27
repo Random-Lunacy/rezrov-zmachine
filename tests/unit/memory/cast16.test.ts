@@ -1,6 +1,6 @@
 // Unit test for cast16.ts
-import { toI16, toU16 } from '../../src/core/memory/cast16';
 import { describe, expect, it } from 'vitest';
+import { toI16, toU16 } from '../../../src/core/memory/cast16';
 
 describe('cast16 utility', () => {
   it('toI16 converts unsigned to signed', () => {

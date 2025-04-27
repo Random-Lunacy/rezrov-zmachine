@@ -24,6 +24,9 @@ Over the years, the format has evolved through several versions, from v1 (used f
 - [**The Digital Antiquarian: Infocom History**](https://www.filfre.net/tag/infocom/)
   A great historical deep-dive into Infocom and the evolution of its technology.
 
+- [**Quetzal Z-machine Common Save-File Format**](https://inform-fiction.org/zmachine/standards/quetzal/index.html)
+  Quetzal is a standardized file format for the saved state of Z-machine games, invented by Martin Frost.
+
 ## Acknowledgments
 
 This project is a port/refactoring of the [ebozz](https://github.com/toshok/ebozz) Z-machine implementation by Chris Toshok. While maintaining the same general architecture, rezrov-zmachine aims to modernize the codebase and improve modularity.
@@ -235,10 +238,24 @@ if (box && key) {
 
 ## Examples
 
-Check the `examples` directory for complete working examples:
+The `examples` directory contains a few examples of how to use `rezrov-zmachine` in a project.
 
-- `GameObjectExample.ts` - Exploring the game object tree
-- `console/index.ts` - A simple console-based implementation
+- `GameObjectExample.ts` - Explore the game object tree
+- `console/index.ts` - A simple console-based client implementation
+
+### Running `GameObjectExample`
+
+With the `minimal.z3` test fixture
+
+```bash
+npx tsx examples/GameObjectExample.ts
+```
+
+With a specific story file
+
+```bash
+npx tsx examples/GameObjectExample.ts path/to/story.z3
+```
 
 ### Running the `console` example
 
@@ -252,4 +269,49 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
-MIT
+MIT License
+
+Copyright (c) 2025 Random Lunacy
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+### ebozz
+
+Portions of this code were taken from the [ebozz](https://github.com/toshok/ebozz) Z-machine implementation by Chris Toshok.
+
+The MIT License (MIT)
+Copyright (c) 2016-2023 Chris Toshok
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

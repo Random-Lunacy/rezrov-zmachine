@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { createStackFrame } from '../../src/core/execution/StackFrame';
+import { describe, expect, it } from 'vitest';
+import { createStackFrame } from '../../../src/core/execution/StackFrame';
 
 describe('StackFrame', () => {
   describe('createStackFrame', () => {
@@ -105,15 +105,7 @@ describe('StackFrame', () => {
 
       // Act & Assert
       expect(() => {
-        createStackFrame(
-          returnPC,
-          previousSP,
-          numLocals,
-          storesResult,
-          resultVar,
-          argumentCount,
-          routineAddress
-        );
+        createStackFrame(returnPC, previousSP, numLocals, storesResult, resultVar, argumentCount, routineAddress);
       }).toThrow('Invalid number of locals: 16. Z-Machine allows 0-15 locals.');
     });
 
@@ -129,15 +121,7 @@ describe('StackFrame', () => {
 
       // Act & Assert
       expect(() => {
-        createStackFrame(
-          returnPC,
-          previousSP,
-          numLocals,
-          storesResult,
-          resultVar,
-          argumentCount,
-          routineAddress
-        );
+        createStackFrame(returnPC, previousSP, numLocals, storesResult, resultVar, argumentCount, routineAddress);
       }).toThrow('Invalid number of locals: -1. Z-Machine allows 0-15 locals.');
     });
   });
