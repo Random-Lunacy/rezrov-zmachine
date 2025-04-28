@@ -53,7 +53,7 @@
     "vitest": "^3.1.1"
   },
   "dependencies": {
-    "glob": "^11.0.1",
+    "glob": "^11.0.2",
     "seedrandom": "^3.0.5"
   }
 }
