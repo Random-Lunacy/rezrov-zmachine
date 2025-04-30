@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createStackFrame } from '../../../src/core/execution/StackFrame';
+import { createStackFrame, deserializeStackFrame, serializeStackFrame } from '../../../src/core/execution/StackFrame';
 
 describe('StackFrame', () => {
   describe('createStackFrame', () => {
@@ -123,6 +123,112 @@ describe('StackFrame', () => {
       expect(() => {
         createStackFrame(returnPC, previousSP, numLocals, storesResult, resultVar, argumentCount, routineAddress);
       }).toThrow('Invalid number of locals: -1. Z-Machine allows 0-15 locals.');
+    });
+
+    it('should preserve routine address correctly', () => {
+      const routineAddress = 0x5678;
+      const stackFrame = createStackFrame(
+        0x1234, // returnPC
+        10, // previousSP
+        3, // numLocals
+        true, // storesResult
+        5, // resultVar
+        2, // argumentCount
+        routineAddress
+      );
+
+      expect(stackFrame.routineAddress).toBe(routineAddress);
+    });
+
+    describe('serializeStackFrame', () => {
+      it('should correctly serialize a stack frame', () => {
+        const stackFrame = createStackFrame(
+          0x1234, // returnPC
+          10, // previousSP
+          3, // numLocals
+          true, // storesResult
+          5, // resultVar
+          2, // argumentCount
+          0x5678 // routineAddress
+        );
+
+        // Populate locals and frame stack for a more comprehensive test
+        stackFrame.locals[0] = 42;
+        stackFrame.locals[1] = 99;
+        stackFrame.frameStack = [10, 20, 30];
+
+        const serialized = serializeStackFrame(stackFrame);
+
+        expect(serialized).toEqual({
+          returnPC: 0x1234,
+          discardResult: false,
+          storeVariable: 5,
+          argumentMask: [true, true],
+          locals: [42, 99, 0],
+          stack: [10, 20, 30],
+        });
+      });
+
+      it('should handle frames with no locals or frame stack', () => {
+        const stackFrame = createStackFrame(
+          0x1234, // returnPC
+          10, // previousSP
+          0, // numLocals
+          false, // storesResult
+          0, // resultVar
+          0, // argumentCount
+          0x5678 // routineAddress
+        );
+
+        const serialized = serializeStackFrame(stackFrame);
+
+        expect(serialized).toEqual({
+          returnPC: 0x1234,
+          discardResult: true,
+          storeVariable: 0,
+          argumentMask: [],
+          locals: [],
+          stack: [],
+        });
+      });
+    });
+
+    describe('deserializeStackFrame', () => {
+      it('should correctly deserialize a stack frame', () => {
+        const serializedFrame = {
+          returnPC: 0x1234,
+          discardResult: false,
+          storeVariable: 5,
+          argumentMask: [true, true],
+          locals: [42, 99, 0],
+          stack: [10, 20, 30],
+        };
+
+        const deserialized = deserializeStackFrame(serializedFrame);
+
+        expect(deserialized.returnPC).toBe(0x1234);
+        expect(deserialized.resultVariable).toBe(5);
+        expect(deserialized.locals).toEqual(new Uint16Array([42, 99, 0]));
+        expect(deserialized.frameStack).toEqual([10, 20, 30]);
+        expect(deserialized.previousSP).toBe(0);
+        expect(deserialized.routineAddress).toBe(0);
+        expect(deserialized.argumentCount).toBe(2);
+      });
+
+      it('should handle discarded result frames', () => {
+        const serializedFrame = {
+          returnPC: 0x5678,
+          discardResult: true,
+          storeVariable: 0,
+          argumentMask: [],
+          locals: [],
+          stack: [],
+        };
+
+        const deserialized = deserializeStackFrame(serializedFrame);
+
+        expect(deserialized.resultVariable).toBeNull();
+      });
     });
   });
 });

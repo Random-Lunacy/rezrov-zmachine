@@ -50,9 +50,8 @@ export class GameObjectFactory {
    * @param version Z-machine version
    * @param objTable Object table address
    */
-  constructor(memory: Memory, logger: Logger, version: number, objTable: number, options?: { logger?: Logger }) {
+  constructor(memory: Memory, version: number, objTable: number, options?: { logger?: Logger }) {
     this.memory = memory;
-    this.logger = logger;
     this.version = version;
     this.objTable = objTable;
     this.objectCache = new Map<number, GameObject>();

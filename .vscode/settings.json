@@ -27,6 +27,7 @@
     "umem",
     "zmachine",
     "zork",
-    "zscii"
+    "zscii",
+    "zstr"
   ]
 }
