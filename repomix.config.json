@@ -1,10 +1,12 @@
 {
   "output": {
-    "style": "markdown",
-    "filePath": "rezrov-zmachine-output.md",
+    "style": "xml",
+    "filePath": "rezrov-zmachine-output.xml",
     "removeComments": true,
+    "removeEMptyLines": true,
     "showLineNumbers": false,
-    "topFilesLength": 10
+    "topFilesLength": 0,
+    "compress": true
   },
   "ignore": {
     "customPatterns": [
