@@ -11,9 +11,9 @@ describe('Memory', () => {
   beforeEach(() => {
     mockBuffer = Buffer.alloc(0x10000);
     mockLogger = new Logger('TestLogger');
-    vi.spyOn(mockLogger, 'error');
-    vi.spyOn(mockLogger, 'warn');
-    vi.spyOn(mockLogger, 'debug');
+    mockLogger.warn = vi.fn();
+    mockLogger.error = vi.fn();
+    mockLogger.debug = vi.fn();
 
     // Set up a minimal valid header for testing
     mockBuffer[HeaderLocation.Version] = 3;

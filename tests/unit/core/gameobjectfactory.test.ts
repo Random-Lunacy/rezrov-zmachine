@@ -139,9 +139,9 @@ describe('GameObjectFactory', () => {
     mockLogger = new Logger('TestLogger');
     Logger.setLevel(LogLevel.DEBUG);
 
-    vi.spyOn(mockLogger, 'debug');
-    vi.spyOn(mockLogger, 'warn');
-    vi.spyOn(mockLogger, 'error');
+    mockLogger.warn = vi.fn();
+    mockLogger.error = vi.fn();
+    mockLogger.debug = vi.fn();
 
     setupFactoryMemoryMock();
 

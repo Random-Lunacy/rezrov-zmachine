@@ -37,9 +37,9 @@ describe('GameObject', () => {
     mockLogger = new Logger('TestLogger');
     Logger.setLevel(LogLevel.DEBUG);
 
-    vi.spyOn(mockLogger, 'debug');
-    vi.spyOn(mockLogger, 'warn');
-    vi.spyOn(mockLogger, 'error');
+    mockLogger.warn = vi.fn();
+    mockLogger.error = vi.fn();
+    mockLogger.debug = vi.fn();
 
     // Setup default mock implementation for most tests
     setupObjectMemoryMock();
