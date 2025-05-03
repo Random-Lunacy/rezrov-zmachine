@@ -193,13 +193,33 @@ export class GameObject {
       const sizeByte = this.memory.getByte(addr);
       if (sizeByte === 0) break; // End of property list
 
-      const propNum = this.version <= 3 ? sizeByte & 0x1f : sizeByte & 0x3f;
+      // Get property number - different for V5+
+      let propNum;
+      if (this.version <= 3) {
+        propNum = sizeByte & 0x1f; // V1-3: bits 0-4
+      } else {
+        // V4+: depends on bit 7
+        if ((sizeByte & 0x80) === 0) {
+          propNum = sizeByte & 0x3f; // V4+: bits 0-5 when bit 7 is clear
+        } else {
+          propNum = sizeByte & 0x3f; // V4+: bits 0-5 when bit 7 is set
+        }
+      }
 
       if (propNum === prop) return addr;
       if (propNum < prop) break; // Properties are in descending order
 
       // Skip to next property
-      addr += GameObject._propDataLen(this.memory, this.version, addr) + (this.version <= 3 ? 1 : 2);
+      const propLen = GameObject._propDataLen(this.memory, this.version, addr);
+
+      // The increment depends on version and size byte format
+      if (this.version <= 3) {
+        addr += propLen + 1; // V1-3: size byte + data
+      } else if ((sizeByte & 0x80) === 0) {
+        addr += propLen + 1; // V4+: simple format (bit 7 clear)
+      } else {
+        addr += propLen + 2; // V4+: long format (bit 7 set)
+      }
     }
 
     return 0; // Property not found
