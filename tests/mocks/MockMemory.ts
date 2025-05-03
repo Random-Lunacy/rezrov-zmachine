@@ -8,6 +8,7 @@ export class MockMemory {
   setWord = vi.fn();
   getZString = vi.fn().mockReturnValue([]);
   copyBlock = vi.fn();
+  checkPackedAddressAlignment = vi.fn();
   unpackRoutineAddress = vi.fn().mockImplementation((addr: number) => addr * 2);
   validateRoutineHeader = vi.fn().mockReturnValue(true);
   getAlphabetTables = vi

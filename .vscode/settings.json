@@ -16,19 +16,28 @@
   },
   "cSpell.words": [
     "cmem",
+    "colour",
     "ebozz",
     "ifhd",
     "ifzs",
     "Infocom",
+    "loadb",
+    "loadw",
+    "paddr",
     "Planetfall",
     "rezrov",
+    "sread",
     "stks",
+    "storeb",
+    "storew",
+    "tokenise",
     "Toshok",
     "umem",
     "zmachine",
     "zork",
     "zscii",
-    "zstr"
+    "zstr",
+    "zstring"
   ],
   "Lua.runtime.special": {
     "import": "require"
