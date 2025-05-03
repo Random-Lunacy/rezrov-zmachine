@@ -34,7 +34,7 @@
     "@types/seedrandom": "^3.0.8",
     "@typescript-eslint/eslint-plugin": "^8.29.1",
     "@typescript-eslint/parser": "^8.31.0",
-    "@vitest/coverage-v8": "^3.1.1",
+    "@vitest/coverage-v8": "^3.1.2",
     "@vitest/ui": "^3.1.1",
     "chalk": "^5.3.0",
     "eslint": "^9.25.1",
@@ -42,7 +42,7 @@
     "eslint-plugin-prettier": "^5.2.6",
     "eslint-plugin-sort-class-members": "^1.21.0",
     "globals": "^16.0.0",
-    "nopt": "^7.2.0",
+    "nopt": "^8.1.0",
     "prettier": "^3.5.3",
     "prettier-plugin-organize-imports": "^4.1.0",
     "readline-sync": "^1.4.10",
@@ -53,7 +53,7 @@
     "vitest": "^3.1.1"
   },
   "dependencies": {
-    "glob": "^11.0.1",
+    "glob": "^11.0.2",
     "seedrandom": "^3.0.5"
   }
 }
