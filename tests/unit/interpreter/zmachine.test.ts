@@ -360,7 +360,7 @@ describe('ZMachine', () => {
       });
 
       // Spy on memory.setByte to track table updates
-      const setBytespy = vi.spyOn(zmachine.memory, 'setByte');
+      const setByteSpy = vi.spyOn(zmachine.memory, 'setByte');
 
       const tableAddr = 0x1000;
       const bytes = 32;
