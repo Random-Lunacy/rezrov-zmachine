@@ -1,4 +1,13 @@
 import { readFileSync } from 'fs';
+import {
+  byteToPackedAddress,
+  getMaxFileSize,
+  isAddressAligned,
+  requiresNonZeroOffsets,
+  unpackRoutineAddress,
+  unpackStringAddress,
+  ZMachineVersion,
+} from '../../interpreter/Version';
 import { AlphabetTableManager } from '../../parsers/AlphabetTable';
 import { ZString } from '../../parsers/ZString';
 import { Address } from '../../types';
@@ -152,9 +161,7 @@ export class Memory {
    * Get the maximum file size for the current Z-machine version
    */
   private getMaxFileSize(): number {
-    if (this._version <= 3) return 128 * 1024;
-    if (this._version <= 5) return 256 * 1024;
-    return 512 * 1024;
+    return getMaxFileSize(this._version as ZMachineVersion);
   }
 
   /**
@@ -514,49 +521,44 @@ export class Memory {
    * Checks if a byte address is properly aligned for the current Z-machine version
    */
   checkPackedAddressAlignment(byteAddr: number, isRoutine: boolean = true): boolean {
-    // Check alignment requirements based on version
-    if (this._version <= 3) {
-      // Must be on a 2-byte boundary
-      return byteAddr % 2 === 0;
-    } else if (this._version <= 5) {
-      // Must be on a 4-byte boundary
-      return byteAddr % 4 === 0;
-    } else if (this._version <= 7) {
-      // Must be on a 4-byte boundary relative to the offset
-      const offset = isRoutine
+    const version = this._version as ZMachineVersion;
+
+    // For V6/V7, we need to pass the offsets from memory
+    const routineOffset =
+      version === ZMachineVersion.V6 || version === ZMachineVersion.V7
         ? this.getWord(HeaderLocation.RoutinesOffset)
-        : this.getWord(HeaderLocation.StaticStringsOffset);
-      return (byteAddr - offset) % 4 === 0;
-    } else {
-      // Must be on an 8-byte boundary
-      return byteAddr % 8 === 0;
-    }
+        : 0;
+
+    const stringOffset =
+      version === ZMachineVersion.V6 || version === ZMachineVersion.V7
+        ? this.getWord(HeaderLocation.StaticStringsOffset)
+        : 0;
+
+    return isAddressAligned(version, byteAddr, isRoutine, routineOffset, stringOffset);
   }
 
   /**
    * Converts a packed address to a byte address according to Z-machine version rules
    */
   packedToByteAddress(packedAddr: number, isRoutine: boolean = true): number {
-    let byteAddr: number;
-
     if (packedAddr < 0) {
       throw new Error(`Invalid negative packed address: ${packedAddr}`);
     }
 
-    if (this._version <= 3) {
-      byteAddr = 2 * packedAddr;
-    } else if (this._version <= 5) {
-      byteAddr = 4 * packedAddr;
-    } else if (this._version <= 7) {
-      const offset = isRoutine
+    const version = this._version as ZMachineVersion;
+    let offset = 0;
+
+    // Only look up offsets from header for versions that need them
+    if (version >= ZMachineVersion.V6 && version <= ZMachineVersion.V7) {
+      offset = isRoutine
         ? this.getWord(HeaderLocation.RoutinesOffset)
         : this.getWord(HeaderLocation.StaticStringsOffset);
-      byteAddr = 4 * packedAddr + offset;
-    } else if (this._version === 8) {
-      byteAddr = 8 * packedAddr;
-    } else {
-      throw new Error(`Unknown Z-machine version: ${this._version}`);
     }
+
+    // Use the Version module functions
+    const byteAddr = isRoutine
+      ? unpackRoutineAddress(version, packedAddr, offset)
+      : unpackStringAddress(version, packedAddr, offset);
 
     // Verify the computed address is within bounds
     if (byteAddr < 0 || byteAddr >= this.size) {
@@ -574,28 +576,20 @@ export class Memory {
       throw new Error(`Address 0x${byteAddr.toString(16)} is not in high memory`);
     }
 
-    if (!this.checkPackedAddressAlignment(byteAddr, isRoutine)) {
-      throw new Error(`Address 0x${byteAddr.toString(16)} is not properly aligned for packed address`);
-    }
+    const version = this._version as ZMachineVersion;
 
-    let packedAddr: number;
-
-    if (this._version <= 3) {
-      packedAddr = Math.floor(byteAddr / 2);
-    } else if (this._version <= 5) {
-      packedAddr = Math.floor(byteAddr / 4);
-    } else if (this._version <= 7) {
-      const offset = isRoutine
+    // For V6/V7, we need to pass the offsets from memory
+    const routineOffset =
+      version === ZMachineVersion.V6 || version === ZMachineVersion.V7
         ? this.getWord(HeaderLocation.RoutinesOffset)
-        : this.getWord(HeaderLocation.StaticStringsOffset);
-      packedAddr = Math.floor((byteAddr - offset) / 4);
-    } else if (this._version === 8) {
-      packedAddr = Math.floor(byteAddr / 8);
-    } else {
-      throw new Error(`Unknown Z-machine version: ${this._version}`);
-    }
+        : 0;
 
-    return packedAddr;
+    const stringOffset =
+      version === ZMachineVersion.V6 || version === ZMachineVersion.V7
+        ? this.getWord(HeaderLocation.StaticStringsOffset)
+        : 0;
+
+    return byteToPackedAddress(version, byteAddr, isRoutine, routineOffset, stringOffset);
   }
 
   /**
@@ -799,20 +793,22 @@ export class Memory {
    * Get the validation rules for V5+ story files
    */
   private getV5PlusValidationRules(): ValidationRule[] {
+    const version = this._version as ZMachineVersion;
+
     return [
       {
         description: 'Valid routine/string offsets in V6/V7',
         condition: () => {
-          if (this._version !== 6 && this._version !== 7) return true;
+          if (!requiresNonZeroOffsets(version)) return true;
 
           const routinesOffset = this.getWord(HeaderLocation.RoutinesOffset);
           const stringsOffset = this.getWord(HeaderLocation.StaticStringsOffset);
 
           return routinesOffset !== 0 && stringsOffset !== 0;
         },
-        errorMessage: `V${this._version} requires non-zero routine and string offsets`,
+        errorMessage: `V${version} requires non-zero routine and string offsets`,
       },
-      // Add other V5+ specific rules
+      // Other V5+ specific rules
     ];
   }
 
@@ -905,33 +901,18 @@ export class Memory {
     // Versions 6 and 7 require routine and string offsets
     const routinesOffset = this.getWord(HeaderLocation.RoutinesOffset);
     const stringsOffset = this.getWord(HeaderLocation.StaticStringsOffset);
+    const version = this._version as ZMachineVersion;
 
     const rules: ValidationRule[] = [
       {
         description: 'Routines offset must be non-zero',
-        condition: () => routinesOffset != 0,
-        errorMessage: `Routines offset 0x${routinesOffset.toString(16)} must be non-zero`,
+        condition: () => !requiresNonZeroOffsets(version) || routinesOffset != 0,
+        errorMessage: `Routines offset 0x${routinesOffset.toString(16)} must be non-zero for version ${version}`,
       },
       {
         description: 'Static String offset must be non-zero',
-        condition: () => routinesOffset != 0,
-        errorMessage: `Static strings offset 0x${stringsOffset.toString(16)} must be non-zero`,
-      },
-      {
-        description: 'Routines offset must be in valid memory',
-        condition: () =>
-          (this.isDynamicMemory(routinesOffset) &&
-            this.isStaticMemory(routinesOffset) &&
-            this.isHighMemory(routinesOffset)) == true,
-        errorMessage: `Routine offset at 0x${routinesOffset.toString(16)} is not in a valid memory region`,
-      },
-      {
-        description: 'Static strings offset must be in valid memory',
-        condition: () =>
-          (this.isDynamicMemory(stringsOffset) &&
-            this.isStaticMemory(stringsOffset) &&
-            this.isHighMemory(stringsOffset)) == true,
-        errorMessage: `Static strings offset at 0x${stringsOffset.toString(16)} is not in a valid memory region`,
+        condition: () => !requiresNonZeroOffsets(version) || stringsOffset != 0,
+        errorMessage: `Static strings offset 0x${stringsOffset.toString(16)} must be non-zero for version ${version}`,
       },
     ];
 
