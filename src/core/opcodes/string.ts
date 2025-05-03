@@ -92,14 +92,21 @@ function print_num(machine: ZMachine, value: number): void {
  */
 function print_table(machine: ZMachine, zscii_text: number, width: number, height: number = 1, skip: number = 0): void {
   machine.logger.debug(`print_table: addr=${zscii_text}, width=${width}, height=${height}, skip=${skip}`);
-  // This is a complex operation that prints a table of text
-  // For now, we'll implement a simple version that just prints the text
+
   for (let i = 0; i < height; i++) {
     const row = [];
+
+    // Calculate the starting address for this row
+    // For each subsequent row, we skip (width + skip) bytes from the previous row's start
+    const rowStartAddr = zscii_text + i * (width + skip);
+
+    // Read each character in the current row
     for (let j = 0; j < width; j++) {
-      const charCode = machine.memory.getByte(zscii_text + i * (width + skip) + j);
+      const charCode = machine.memory.getByte(rowStartAddr + j);
       row.push(String.fromCharCode(charCode));
     }
+
+    // Print the row
     machine.screen.print(machine, row.join('') + '\n');
   }
 }
