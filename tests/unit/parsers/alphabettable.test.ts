@@ -209,7 +209,7 @@ describe('AlphabetTableManager', () => {
       // Lookup characters from each alphabet
       expect(alphabetManager.getZCharForCharacter('h')).toEqual({ alphabet: 0, zChar: 13 });
       expect(alphabetManager.getZCharForCharacter('T')).toEqual({ alphabet: 1, zChar: 25 });
-      expect(alphabetManager.getZCharForCharacter('5')).toEqual({ alphabet: 2, zChar: 11 });
+      expect(alphabetManager.getZCharForCharacter('5')).toEqual({ alphabet: 2, zChar: 13 });
     });
 
     it('should handle special case for newline', () => {
