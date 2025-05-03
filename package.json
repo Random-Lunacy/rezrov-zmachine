@@ -42,7 +42,7 @@
     "eslint-plugin-prettier": "^5.2.6",
     "eslint-plugin-sort-class-members": "^1.21.0",
     "globals": "^16.0.0",
-    "nopt": "^7.2.0",
+    "nopt": "^8.1.0",
     "prettier": "^3.5.3",
     "prettier-plugin-organize-imports": "^4.1.0",
     "readline-sync": "^1.4.10",
