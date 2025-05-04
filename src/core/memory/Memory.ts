@@ -782,8 +782,6 @@ export class Memory {
       rules.push(...this.getV5PlusValidationRules());
     } else if (this._version >= 4) {
       rules.push(...this.getV4ValidationRules());
-    } else if (this._version >= 1) {
-      rules.push(...this.getV1To3ValidationRules());
     }
 
     return rules;
@@ -835,24 +833,6 @@ export class Memory {
         errorMessage: `V4 alphabet table at 0x${this.getWord(HeaderLocation.AlphabetTable).toString(16)} is invalid`,
       },
       // Add other V4 specific rules
-    ];
-  }
-
-  /**
-   * Get the validation rules for V1-V3 story files
-   */
-  private getV1To3ValidationRules(): ValidationRule[] {
-    return [
-      {
-        description: 'Has status line flag',
-        condition: () => {
-          const flags1 = this.getByte(HeaderLocation.Flags1);
-          return (flags1 & 0x10) !== 0;
-        },
-        errorMessage: `V1-3 story file is missing the status line flag`,
-        isWarning: true, // This should be a warning rather than an error
-      },
-      // Add other V1-3 specific rules
     ];
   }
 
