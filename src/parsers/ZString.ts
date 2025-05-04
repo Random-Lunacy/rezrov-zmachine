@@ -20,7 +20,6 @@ export function decodeZString(memory: Memory, zStr: ZString, expandAbbreviations
   const result: string[] = [];
   let unicodeMode = false;
   let unicodeHigh = 0;
-  let nextCharIsShiftLocked = false; // For Version 1-2 shift lock behavior
 
   // Get alphabet table (either custom or default)
   const version = memory.getByte(HeaderLocation.Version);
@@ -38,7 +37,7 @@ export function decodeZString(memory: Memory, zStr: ZString, expandAbbreviations
         case 1:
         case 2:
         case 3:
-          if (expandAbbreviations) {
+          if (expandAbbreviations && version >= 3) {
             const nextChar = zStr[++i];
             const abbrevIndex = 32 * (zChar - 1) + nextChar;
             const abbrevTableAddr = memory.getWord(HeaderLocation.AbbreviationsTable);
@@ -46,15 +45,25 @@ export function decodeZString(memory: Memory, zStr: ZString, expandAbbreviations
 
             const abbrevText = decodeZString(memory, memory.getZString(abbrevAddr), false);
             result.push(abbrevText);
+          } else if (version <= 2) {
+            // In V1-2, Z-characters 2 and 3 are temporary shift characters
+            if (zChar === 2) {
+              // Shift table: from A0->A1, from A1->A2, from A2->A0
+              alphabet = alphabet === 0 ? 1 : alphabet === 1 ? 2 : 0;
+            } else if (zChar === 3) {
+              // Shift table: from A0->A2, from A1->A0, from A2->A1
+              alphabet = alphabet === 0 ? 2 : alphabet === 1 ? 0 : 1;
+            }
           }
           break;
 
         case 4:
           // Shift behavior depends on version
           if (version <= 2) {
+            // In V1-2, shift lock to alphabet A1
             alphabet = 1;
-            nextCharIsShiftLocked = true;
           } else {
+            // In V3+, temporary shift to A1
             alphabet = 1;
           }
           break;
@@ -62,9 +71,10 @@ export function decodeZString(memory: Memory, zStr: ZString, expandAbbreviations
         case 5:
           // Shift behavior depends on version
           if (version <= 2) {
+            // In V1-2, shift lock to alphabet A2
             alphabet = 2;
-            nextCharIsShiftLocked = true;
           } else {
+            // In V3+, temporary shift to A2
             alphabet = 2;
           }
           break;
@@ -95,7 +105,7 @@ export function decodeZString(memory: Memory, zStr: ZString, expandAbbreviations
       // Newline
       result.push('\n');
 
-      // Reset shift after newline
+      // Reset shift after newline in V3+
       if (version > 2) {
         alphabet = 0;
       }
@@ -108,13 +118,11 @@ export function decodeZString(memory: Memory, zStr: ZString, expandAbbreviations
         result.push('?');
       }
 
-      // Reset shift if not shift locked (Version 3+) or if it was a one-time shift lock
-      if (version > 2 || !nextCharIsShiftLocked) {
+      // Reset shift only if we're in V3+ (temporary shifts)
+      if (version > 2) {
         alphabet = 0;
       }
-
-      // Reset shift lock flag
-      nextCharIsShiftLocked = false;
+      // For V1-2, we maintain the current alphabet until another shift character is encountered
     }
   }
 

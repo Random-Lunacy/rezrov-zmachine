@@ -20,4 +20,5 @@ export class MockMemory {
   isDynamicMemory = vi.fn().mockImplementation((addr: number) => addr < 0x4000);
   isStaticMemory = vi.fn().mockImplementation((addr: number) => addr >= 0x4000 && addr < 0x8000);
   isHighMemory = vi.fn().mockImplementation((addr: number) => addr >= 0x8000);
+  zsciiToUnicode = vi.fn();
 }
