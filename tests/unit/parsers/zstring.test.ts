@@ -117,6 +117,16 @@ describe('ZString', () => {
         });
       });
 
+      it('should handle version 1-2 shift lock behavior', () => {
+        // In v1-2, shift chars 4 and 5 lock the shift
+        const zString = [13, 10, 17, 17, 20, 4, 23, 24, 28, 8, 5, 13, 14, 15];
+        const result = decodeZString(mockMemory as unknown as Memory, zString);
+
+        // After shifting to A1 with char 4, all chars should be from A1 until another shift
+        // After shifting to A2 with char 5, all chars should be from A2
+        expect(result).toBe('helloRSWC789');
+      });
+
       it('should handle single-character shifts with Z-char 2', () => {
         // From A0 -> A1: 'h' (A0) + shift to A1 (2) + 'A' (A1) + 'i' (A0)
         let zString = [13, 2, 6, 14];
@@ -207,22 +217,6 @@ describe('ZString', () => {
       const zString = [13, 10, 17, 17, 20, 5, 7, 29, 20, 23, 17, 9];
       const result = decodeZString(mockMemory as unknown as Memory, zString);
       expect(result).toBe('hello\nworld');
-    });
-
-    it('should handle version 1-2 shift lock behavior', () => {
-      // Set version to 2
-      mockMemory.getByte.mockImplementation((addr: number) => {
-        if (addr === HeaderLocation.Version) return 2;
-        return 0;
-      });
-
-      // In v1-2, shift chars 4 and 5 lock the shift
-      const zString = [13, 10, 17, 17, 20, 4, 23, 24, 28, 8, 5, 13, 14, 15];
-      const result = decodeZString(mockMemory as unknown as Memory, zString);
-
-      // After shifting to A1 with char 4, all chars should be from A1 until another shift
-      // After shifting to A2 with char 5, all chars should be from A2
-      expect(result).toBe('helloRSWC789');
     });
 
     it('should handle ZSCII escape sequences in V5+', () => {
