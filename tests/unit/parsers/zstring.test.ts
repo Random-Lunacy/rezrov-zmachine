@@ -40,7 +40,7 @@ describe('ZString', () => {
     mockMemory.getZString.mockImplementation((addr: number) => {
       if (addr === 0x1000) {
         // Simple abbreviation that decodes to "the "
-        return [0, 20, 13, 14, 0];
+        return [25, 13, 10, 0];
       }
       return [];
     });
@@ -102,7 +102,7 @@ describe('ZString', () => {
 
     it('should handle space character', () => {
       // Z-char 0 is space
-      const zString = [13, 10, 17, 17, 20, 0, 29, 20, 23, 17, 9];
+      const zString = [13, 10, 17, 17, 20, 0, 28, 20, 23, 17, 9];
       const result = decodeZString(mockMemory as unknown as Memory, zString);
       expect(result).toBe('hello world');
     });
@@ -117,7 +117,7 @@ describe('ZString', () => {
 
     it('should handle multiple abbreviations', () => {
       // Z-string with multiple abbreviations
-      const zString = [1, 5, 13, 10, 17, 17, 20, 0, 1, 5, 29, 20, 23, 17, 9];
+      const zString = [1, 5, 13, 10, 17, 17, 20, 0, 1, 5, 28, 20, 23, 17, 9];
       const result = decodeZString(mockMemory as unknown as Memory, zString);
       // Should expand to "the hello the world"
       expect(result).toBe('the hello the world');
@@ -125,7 +125,7 @@ describe('ZString', () => {
 
     it('should handle newline character', () => {
       // Newline is A2 char 7
-      const zString = [13, 10, 17, 17, 20, 5, 7, 29, 20, 23, 17, 9];
+      const zString = [13, 10, 17, 17, 20, 5, 7, 28, 20, 23, 17, 9];
       const result = decodeZString(mockMemory as unknown as Memory, zString);
       expect(result).toBe('hello\nworld');
     });
@@ -139,7 +139,7 @@ describe('ZString', () => {
 
       // ZSCII escape is A2 char 6, followed by two 5-bit values that make a 10-bit unicode char
       // Example: A2(6) + 0x03 + 0x08 = unicode char 0x0068 = 'h'
-      const zString = [5, 6, 3, 8, 11, 17, 17, 20];
+      const zString = [5, 6, 3, 8, 10, 17, 17, 20];
       const result = decodeZString(mockMemory as unknown as Memory, zString);
 
       // The unicode char should be converted through zsciiToUnicode
@@ -165,12 +165,12 @@ describe('ZString', () => {
 
     it('should handle alphabets resetting after shift in V3+', () => {
       // In V3+, shifts are temporary
-      const zString = [13, 10, 17, 17, 20, 4, 23, 11, 17, 17, 20];
+      const zString = [13, 10, 17, 17, 20, 4, 13, 10, 17, 17, 20];
       const result = decodeZString(mockMemory as unknown as Memory, zString);
 
       // After shifting to A1 with char 4, only the next char should be from A1
       // then it should revert to A0
-      expect(result).toBe('helloRello');
+      expect(result).toBe('helloHello');
     });
 
     it('should return ? for invalid character indices', () => {

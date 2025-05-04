@@ -153,7 +153,8 @@ export function decodeZString(memory: Memory, zStr: ZString, expandAbbreviations
       }
     } else if (alphabet === 2 && zChar === 6 && version >= 5) {
       // ZSCII escape sequence (V5+)
-      if (i + 1 < zStr.length) {
+      if (i + 2 < zStr.length) {
+        // Check for TWO more characters
         unicodeMode = true;
         unicodeHigh = zStr[++i];
         continue;
