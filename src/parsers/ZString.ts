@@ -16,14 +16,156 @@ export type ZString = Array<ZSCII>;
  * @returns The decoded string
  */
 export function decodeZString(memory: Memory, zStr: ZString, expandAbbreviations: boolean = true): string {
+  const version = memory.getByte(HeaderLocation.Version);
+
+  // Use version-specific decoder
+  if (version <= 2) {
+    return decodeZStringV1V2(memory, zStr, expandAbbreviations);
+  } else {
+    return decodeZStringV3Plus(memory, zStr, expandAbbreviations);
+  }
+}
+
+/**
+ * Decodes a Z-string for Z-Machine versions 1 and 2
+ * These versions have distinct shift behavior with shift and shift-lock characters
+ */
+function decodeZStringV1V2(memory: Memory, zStr: ZString, expandAbbreviations: boolean): string {
   let alphabet = 0; // Current alphabet (0=A0, 1=A1, 2=A2)
-  let lockedAlphabet = 0; // Locked alphabet for V1-2 (used after temporary shifts)
+  let lockedAlphabet = 0; // Locked alphabet
   const result: string[] = [];
   let unicodeMode = false;
   let unicodeHigh = 0;
   let tempShift = false; // Track if current shift is temporary
 
-  // Get alphabet table (either custom or default)
+  // Get alphabet table
+  const alphabetTables = memory.getAlphabetTables();
+
+  for (let i = 0; i < zStr.length; i++) {
+    const zChar = zStr[i];
+
+    if (zChar <= 5) {
+      switch (zChar) {
+        case 0: // Space
+          result.push(' ');
+          break;
+
+        case 1: // Abbreviation
+          if (expandAbbreviations) {
+            const nextChar = zStr[++i];
+            const abbrevIndex = 32 * (zChar - 1) + nextChar;
+            const abbrevTableAddr = memory.getWord(HeaderLocation.AbbreviationsTable);
+            const abbrevAddr = memory.getWord(abbrevTableAddr + abbrevIndex * 2) * 2;
+
+            const abbrevText = decodeZString(memory, memory.getZString(abbrevAddr), false);
+            result.push(abbrevText);
+          }
+          break;
+
+        case 2: // Temporary shift
+          tempShift = true;
+          if (alphabet === 0) {
+            alphabet = 1; // A0 -> A1
+          } else if (alphabet === 1) {
+            alphabet = 2; // A1 -> A2
+          } else {
+            alphabet = 0; // A2 -> A0
+          }
+          break;
+
+        case 3: // Temporary shift
+          tempShift = true;
+          if (alphabet === 0) {
+            alphabet = 2; // A0 -> A2
+          } else if (alphabet === 1) {
+            alphabet = 0; // A1 -> A0
+          } else {
+            alphabet = 1; // A2 -> A1
+          }
+          break;
+
+        case 4: // Shift lock
+          tempShift = false;
+          if (alphabet === 0) {
+            alphabet = 1; // A0 -> A1
+            lockedAlphabet = 1; // Lock to A1
+          } else if (alphabet === 1) {
+            alphabet = 2; // A1 -> A2
+            lockedAlphabet = 2; // Lock to A2
+          } else {
+            alphabet = 0; // A2 -> A0
+            lockedAlphabet = 0; // Lock to A0
+          }
+          break;
+
+        case 5: // Shift lock
+          tempShift = false;
+          if (alphabet === 0) {
+            alphabet = 2; // A0 -> A2
+            lockedAlphabet = 2; // Lock to A2
+          } else if (alphabet === 1) {
+            alphabet = 0; // A1 -> A0
+            lockedAlphabet = 0; // Lock to A0
+          } else {
+            alphabet = 1; // A2 -> A1
+            lockedAlphabet = 1; // Lock to A1
+          }
+          break;
+      }
+    } else if (unicodeMode) {
+      // Handle ZSCII escape sequence
+      const lowBits = zChar;
+      const unicodeChar = (unicodeHigh << 5) | lowBits;
+      result.push(String.fromCodePoint(unicodeChar));
+      unicodeMode = false;
+
+      // Return to locked alphabet after Unicode
+      alphabet = lockedAlphabet;
+    } else if (alphabet === 2 && zChar === 6) {
+      // ZSCII escape sequence - not fully implemented in V1-2 but handle as best we can
+      if (i + 2 < zStr.length) {
+        unicodeMode = true;
+        unicodeHigh = zStr[++i];
+        continue;
+      } else {
+        result.push('?');
+        break;
+      }
+    } else if (alphabet === 2 && zChar === 7) {
+      // Newline
+      result.push('\n');
+    } else {
+      // Regular character
+      const alphabetIndex = zChar - 6;
+
+      if (alphabetIndex >= 0 && alphabetIndex < alphabetTables[alphabet].length) {
+        result.push(alphabetTables[alphabet][alphabetIndex]);
+      } else {
+        result.push('?');
+      }
+
+      // Handle shift reset
+      if (tempShift) {
+        // In V1-2, return to locked alphabet after temporary shift
+        alphabet = lockedAlphabet;
+        tempShift = false;
+      }
+    }
+  }
+
+  return result.join('');
+}
+
+/**
+ * Decodes a Z-string for Z-Machine versions 3 and up
+ */
+function decodeZStringV3Plus(memory: Memory, zStr: ZString, expandAbbreviations: boolean): string {
+  let alphabet = 0; // Current alphabet (0=A0, 1=A1, 2=A2)
+  const result: string[] = [];
+  let unicodeMode = false;
+  let unicodeHigh = 0;
+
+  // Get version-specific information
   const version = memory.getByte(HeaderLocation.Version);
   const alphabetTables = memory.getAlphabetTables();
 
@@ -36,7 +178,9 @@ export function decodeZString(memory: Memory, zStr: ZString, expandAbbreviations
           result.push(' ');
           break;
 
-        case 1: // Abbreviation 1
+        case 1: // Abbreviation
+        case 2: // Abbreviation
+        case 3: // Abbreviation
           if (expandAbbreviations) {
             const nextChar = zStr[++i];
             const abbrevIndex = 32 * (zChar - 1) + nextChar;
@@ -48,88 +192,12 @@ export function decodeZString(memory: Memory, zStr: ZString, expandAbbreviations
           }
           break;
 
-        case 2: // Shift or abbreviation
-          if (version <= 2) {
-            // V1-2 shift behavior
-            tempShift = true;
-            if (alphabet === 0)
-              alphabet = 1; // A0 -> A1
-            else if (alphabet === 1)
-              alphabet = 2; // A1 -> A2
-            else alphabet = 0; // A2 -> A0
-          } else if (expandAbbreviations) {
-            // V3+ abbreviation
-            const nextChar = zStr[++i];
-            const abbrevIndex = 32 * (zChar - 1) + nextChar;
-            const abbrevTableAddr = memory.getWord(HeaderLocation.AbbreviationsTable);
-            const abbrevAddr = memory.getWord(abbrevTableAddr + abbrevIndex * 2) * 2;
-
-            const abbrevText = decodeZString(memory, memory.getZString(abbrevAddr), false);
-            result.push(abbrevText);
-          }
+        case 4: // Shift to A1 (temporary)
+          alphabet = 1;
           break;
 
-        case 3: // Shift or abbreviation
-          if (version <= 2) {
-            // V1-2 shift behavior
-            tempShift = true;
-            if (alphabet === 0)
-              alphabet = 2; // A0 -> A2
-            else if (alphabet === 1)
-              alphabet = 0; // A1 -> A0
-            else alphabet = 1; // A2 -> A1
-          } else if (expandAbbreviations) {
-            // V3+ abbreviation
-            const nextChar = zStr[++i];
-            const abbrevIndex = 32 * (zChar - 1) + nextChar;
-            const abbrevTableAddr = memory.getWord(HeaderLocation.AbbreviationsTable);
-            const abbrevAddr = memory.getWord(abbrevTableAddr + abbrevIndex * 2) * 2;
-
-            const abbrevText = decodeZString(memory, memory.getZString(abbrevAddr), false);
-            result.push(abbrevText);
-          }
-          break;
-
-        case 4: // Shift lock or shift
-          if (version <= 2) {
-            // V1-2 shift lock behavior
-            tempShift = false;
-            if (alphabet === 0) {
-              alphabet = 1; // A0 -> A1
-              lockedAlphabet = 1; // Lock to A1
-            } else if (alphabet === 1) {
-              alphabet = 2; // A1 -> A2
-              lockedAlphabet = 2; // Lock to A2
-            } else {
-              alphabet = 0; // A2 -> A0
-              lockedAlphabet = 0; // Lock to A0
-            }
-          } else {
-            // V3+ shift behavior
-            alphabet = 1;
-            tempShift = true;
-          }
-          break;
-
-        case 5: // Shift lock or shift
-          if (version <= 2) {
-            // V1-2 shift lock behavior
-            tempShift = false;
-            if (alphabet === 0) {
-              alphabet = 2; // A0 -> A2
-              lockedAlphabet = 2; // Lock to A2
-            } else if (alphabet === 1) {
-              alphabet = 0; // A1 -> A0
-              lockedAlphabet = 0; // Lock to A0
-            } else {
-              alphabet = 1; // A2 -> A1
-              lockedAlphabet = 1; // Lock to A1
-            }
-          } else {
-            // V3+ shift behavior
-            alphabet = 2;
-            tempShift = true;
-          }
+        case 5: // Shift to A2 (temporary)
+          alphabet = 2;
           break;
       }
     } else if (unicodeMode) {
@@ -144,17 +212,10 @@ export function decodeZString(memory: Memory, zStr: ZString, expandAbbreviations
       }
 
       unicodeMode = false;
-
-      // Return to appropriate alphabet after Unicode
-      if (version <= 2) {
-        alphabet = lockedAlphabet;
-      } else {
-        alphabet = 0;
-      }
+      alphabet = 0; // Always return to A0 after unicode in V3+
     } else if (alphabet === 2 && zChar === 6 && version >= 5) {
       // ZSCII escape sequence (V5+)
       if (i + 2 < zStr.length) {
-        // Check for TWO more characters
         unicodeMode = true;
         unicodeHigh = zStr[++i];
         continue;
@@ -165,11 +226,7 @@ export function decodeZString(memory: Memory, zStr: ZString, expandAbbreviations
     } else if (alphabet === 2 && zChar === 7) {
       // Newline
       result.push('\n');
-
-      // V3+ reset after newline
-      if (version > 2) {
-        alphabet = 0;
-      }
+      alphabet = 0; // Always return to A0 after newline in V3+
     } else {
       // Regular character
       const alphabetIndex = zChar - 6;
@@ -180,16 +237,9 @@ export function decodeZString(memory: Memory, zStr: ZString, expandAbbreviations
         result.push('?');
       }
 
-      // Handle shift reset
-      if (tempShift) {
-        if (version <= 2) {
-          // In V1-2, return to locked alphabet
-          alphabet = lockedAlphabet;
-        } else {
-          // In V3+, always return to A0
-          alphabet = 0;
-        }
-        tempShift = false;
+      // In V3+, always return to A0 after shift
+      if (alphabet !== 0) {
+        alphabet = 0;
       }
     }
   }

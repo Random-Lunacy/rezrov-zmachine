@@ -439,24 +439,24 @@ describe('ZString', () => {
         if (addr === HeaderLocation.Version) return 2;
         return 0;
       });
-    });
 
-    afterEach(() => {
-      // Reset version to 3 after each test
-      mockMemory.getByte.mockImplementation((addr: number) => {
-        if (addr === HeaderLocation.Version) return 3;
-        return 0;
-      });
+      // For V2, the correct alphabet table has \n as the second character in A2
+      mockMemory.getAlphabetTables.mockReturnValue([
+        'abcdefghijklmnopqrstuvwxyz',
+        'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+        ' \n0123456789.,!?_#\'"/\\-:()',
+      ]);
     });
 
     it('should handle version 1-2 shift lock behavior', () => {
-      // In v1-2, shift chars 4 and 5 lock the shift
-      const zString = [13, 10, 17, 17, 20, 4, 23, 24, 28, 8, 5, 13, 14, 15];
+      // Z-string with shifts between alphabets
+      // A0(h) + A0(e) + A0(l) + A0(l) + A0(o) + shift lock to A1 + A1(R) + A1(S) + A1(W) + A1(C) + shift lock to A0 + A0(b) + A0(h) + A0(i)
+      const zString = [13, 10, 17, 17, 20, 4, 23, 24, 28, 8, 5, 7, 13, 14];
       const result = decodeZString(mockMemory as unknown as Memory, zString);
 
       // After shifting to A1 with char 4, all chars should be from A1 until another shift
-      // After shifting to A2 with char 5, all chars should be from A2
-      expect(result).toBe('helloRSWC789');
+      // After shifting to A0 with char 5 (from A1), all chars should be from A0
+      expect(result).toBe('helloRSWCbhi');
     });
 
     it('should handle single-character shifts with Z-char 2', () => {
@@ -465,32 +465,32 @@ describe('ZString', () => {
       let result = decodeZString(mockMemory as unknown as Memory, zString);
       expect(result).toBe('hAi');
 
-      // From A1 -> A2: shift to A1 (4) + 'A' (A1) + shift to A2 (2) + '1' (A2) + 'B' (A1)
-      zString = [4, 6, 2, 13, 7];
+      // From A1 -> A2: shift lock to A1 (4) + 'A' (A1) + shift to A2 (2) + '\n' (A2) + 'B' (A1)
+      zString = [4, 6, 2, 7, 7];
       result = decodeZString(mockMemory as unknown as Memory, zString);
-      expect(result).toBe('A1B');
+      expect(result).toBe('A\nB');
 
-      // From A2 -> A0: shift to A2 (5) + '1' (A2) + shift to A0 (2) + 'a' (A0) + '2' (A2)
-      zString = [5, 13, 2, 6, 14];
+      // From A2 -> A0: shift lock to A2 (5) + '\n' (A2) + shift to A0 (2) + 'a' (A0) + '0' (A2)
+      zString = [5, 7, 2, 6, 13];
       result = decodeZString(mockMemory as unknown as Memory, zString);
-      expect(result).toBe('1a2');
+      expect(result).toBe('\na0');
     });
 
     it('should handle single-character shifts with Z-char 3', () => {
-      // From A0 -> A2: 'h' (A0) + shift to A2 (3) + '1' (A2) + 'i' (A0)
-      let zString = [13, 3, 13, 14];
+      // From A0 -> A2: 'h' (A0) + shift to A2 (3) + '\n' (A2) + 'i' (A0)
+      let zString = [13, 3, 7, 14];
       let result = decodeZString(mockMemory as unknown as Memory, zString);
-      expect(result).toBe('h1i');
+      expect(result).toBe('h\ni');
 
-      // From A1 -> A0: shift to A1 (4) + 'A' (A1) + shift to A0 (3) + 'a' (A0) + 'B' (A1)
+      // From A1 -> A0: shift lock to A1 (4) + 'A' (A1) + shift to A0 (3) + 'a' (A0) + 'B' (A1)
       zString = [4, 6, 3, 6, 7];
       result = decodeZString(mockMemory as unknown as Memory, zString);
       expect(result).toBe('AaB');
 
-      // From A2 -> A1: shift to A2 (5) + '1' (A2) + shift to A1 (3) + 'A' (A1) + '2' (A2)
-      zString = [5, 13, 3, 6, 14];
+      // From A2 -> A1: shift lock to A2 (5) + '\n' (A2) + shift to A1 (3) + 'A' (A1) + '0' (A2)
+      zString = [5, 7, 3, 6, 13];
       result = decodeZString(mockMemory as unknown as Memory, zString);
-      expect(result).toBe('1A2');
+      expect(result).toBe('\nA0');
     });
 
     it('should maintain shift lock until single-character shift is used', () => {
@@ -502,22 +502,22 @@ describe('ZString', () => {
 
     it('should allow shifting between all three alphabets in sequence', () => {
       // A complex sequence using all shift mechanisms:
-      // 'a' (A0) + shift lock to A1 (4) + 'B' (A1) + single shift to A2 (2) + '1' (A2) +
-      // 'C' (A1) + single shift to A0 (3) + 'b' (A0) + 'D' (A1) + shift lock to A2 (5) +
-      // '23' (A2) + single shift to A1 (3) + 'E' (A1) + '4' (A2)
-      const zString = [6, 4, 7, 2, 13, 8, 3, 7, 9, 5, 14, 15, 3, 10, 16];
+      // 'a' (A0) + shift lock to A1 (4) + 'B' (A1) + single shift to A2 (2) + '\n' (A2) +
+      // 'C' (A1) + single shift to A0 (3) + 'b' (A0) + 'D' (A1) + shift lock to A0 (5) +
+      // 'hij' (A0) + single shift to A1 (2) + 'K' (A1) + 'k' (A0)
+      const zString = [6, 4, 7, 2, 7, 8, 3, 7, 9, 5, 13, 14, 15, 2, 16, 16];
       const result = decodeZString(mockMemory as unknown as Memory, zString);
-      expect(result).toBe('aB1CbD23E4');
+      expect(result).toBe('aB\nCbDhijKk');
     });
 
     it('should handle combinations of single shifts and shift locks', () => {
       // Start in A0, use single shifts and locks in combination
       // 'hi' (A0) + single shift to A1 (2) + 'A' (A1) + 'j' (A0) +
-      // shift lock to A1 (4) + 'BC' (A1) + single shift to A2 (2) + '1' (A2) +
-      // 'D' (A1) + shift lock to A2 (5) + '23' (A2) + single shift to A0 (2) + 'k' (A0) + '4' (A2)
-      const zString = [13, 14, 2, 6, 15, 4, 7, 8, 2, 13, 9, 5, 14, 15, 2, 16, 16];
+      // shift lock to A1 (4) + 'BC' (A1) + single shift to A2 (2) + '\n' (A2) +
+      // 'D' (A1) + shift lock to A0 (5) + 'hij' (A0) + single shift to A1 (2) + 'K' (A1) + 'k' (A0)
+      const zString = [13, 14, 2, 6, 15, 4, 7, 8, 2, 7, 9, 5, 13, 14, 15, 2, 16, 16];
       const result = decodeZString(mockMemory as unknown as Memory, zString);
-      expect(result).toBe('hiAjBC1D23k4');
+      expect(result).toBe('hiAjBC\nDhijKk');
     });
   });
 });
