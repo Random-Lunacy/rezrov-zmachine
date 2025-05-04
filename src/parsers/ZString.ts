@@ -309,29 +309,31 @@ export function encodeZString(
  * @param version Z-machine version (affects encoding)
  * @returns Packed words
  */
-export function packZCharacters(zChars: number[], version: number): number[] {
+export function packZCharacters(zChars: number[], version: number, padding: number = 0x05): number[] {
   const resolution = version > 3 ? 3 : 2;
   const words: number[] = [];
 
+  // Calculate how many words we actually need based on the input length
+  // (rounded up to the nearest triplet)
+  const neededWords = Math.ceil(zChars.length / 3);
+  const actualResolution = Math.min(neededWords, resolution);
+
   // Pack 3 Z-characters into each word
-  for (let i = 0; i < resolution; i++) {
+  for (let i = 0; i < actualResolution; i++) {
     const index = i * 3;
+    const char1 = index < zChars.length ? zChars[index] : padding;
+    const char2 = index + 1 < zChars.length ? zChars[index + 1] : padding;
+    const char3 = index + 2 < zChars.length ? zChars[index + 2] : padding;
 
-    if (index < zChars.length) {
-      const char1 = zChars[index];
-      const char2 = index + 1 < zChars.length ? zChars[index + 1] : 5; // Padding
-      const char3 = index + 2 < zChars.length ? zChars[index + 2] : 5; // Padding
+    // Pack the characters into a 16-bit word
+    let word = (char1 << 10) | (char2 << 5) | char3;
 
-      // Pack the characters into a 16-bit word
-      let word = (char1 << 10) | (char2 << 5) | char3;
-
-      // Set terminator bit on last word
-      if (i === resolution - 1) {
-        word |= 0x8000;
-      }
-
-      words.push(word);
+    // Set terminator bit on last word
+    if (i === actualResolution - 1) {
+      word |= 0x8000;
     }
+
+    words.push(word);
   }
 
   return words;

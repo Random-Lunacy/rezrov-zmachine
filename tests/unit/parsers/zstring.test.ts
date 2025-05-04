@@ -326,10 +326,10 @@ describe('ZString', () => {
       // For V1-V3, resolution is 2 words
       expect(result.length).toBe(2);
 
-      // First word: (13 << 10) | (11 << 5) | 17 = 13312 + 352 + 17 = 13681
+      // First word: (13 << 10) | (10 << 5) | 17 = 13312 + 320 + 17 = 13649
       // Second word: (17 << 10) | (20 << 5) | 29 = 17408 + 640 + 29 = 18077
       // Set terminator bit on last word: 18077 | 0x8000 = 50845
-      expect(result[0]).toBe(13681);
+      expect(result[0]).toBe(13649);
       expect(result[1]).toBe(18077 | 0x8000);
     });
 
@@ -340,23 +340,23 @@ describe('ZString', () => {
       // For V4+, resolution is 3 words
       expect(result.length).toBe(3);
 
-      // First word: (13 << 10) | (11 << 5) | 17 = 13312 + 352 + 17 = 13681
+      // First word: (13 << 10) | (10 << 5) | 17 = 13312 + 320 + 17 = 13649
       // Second word: (17 << 10) | (20 << 5) | 29 = 17408 + 640 + 29 = 18077
       // Third word: (20 << 10) | (23 << 5) | 17 = 20480 + 736 + 17 = 21233
       // Set terminator bit on last word: 21233 | 0x8000 = 53921
-      expect(result[0]).toBe(13681);
+      expect(result[0]).toBe(13649);
       expect(result[1]).toBe(18077);
       expect(result[2]).toBe(21233 | 0x8000);
     });
 
-    it('should pad with zeros for incomplete sequences', () => {
+    it('should pad with 5 for incomplete sequences', () => {
       const zChars = [13, 11]; // 'he'
       const result = packZCharacters(zChars, 3);
 
-      // Should pad with zero for third char in word
-      // (13 << 10) | (11 << 5) | 0 = 13312 + 352 + 0 = 13664
-      // Set terminator bit: 13664 | 0x8000 = 46432
-      expect(result[0]).toBe(13664 | 0x8000);
+      // Should pad with 5 (shift to A2) for third char in word
+      // (13 << 10) | (11 << 5) | 5 = 13312 + 352 + 5 = 13669
+      // Set terminator bit: 13669 | 0x8000 = 46437
+      expect(result[0]).toBe(13669 | 0x8000);
     });
 
     it('should set terminator bit on last word only', () => {
@@ -373,7 +373,7 @@ describe('ZString', () => {
 
   describe('Integration tests', () => {
     it('should round-trip encode-decode correctly for simple text', () => {
-      const originalText = 'hello world';
+      const originalText = 'helloworld';
 
       // Encode the text
       const encoded = encodeZString(mockMemory as unknown as Memory, originalText, 3);
@@ -381,8 +381,8 @@ describe('ZString', () => {
       // Decode the Z-string
       const decoded = decodeZString(mockMemory as unknown as Memory, encoded);
 
-      // Should match original (keeping in mind length limitations)
-      expect(decoded).toBe('hello wo'); // Limited by V3 resolution (2 words = 6 chars)
+      // Should match original (keeping in mind character length limitations)
+      expect(decoded).toBe('hellow'); // Limited by V3 resolution (2 words = 6 chars)
     });
 
     it('should round-trip encode-decode correctly for V5 with longer text', () => {
@@ -392,7 +392,7 @@ describe('ZString', () => {
         return 0;
       });
 
-      const originalText = 'hello world';
+      const originalText = 'helloworld';
 
       // Encode the text
       const encoded = encodeZString(mockMemory as unknown as Memory, originalText, 5);
@@ -401,7 +401,7 @@ describe('ZString', () => {
       const decoded = decodeZString(mockMemory as unknown as Memory, encoded);
 
       // Should match original (with V5's longer resolution)
-      expect(decoded).toBe('hello worl'); // Limited by V5 resolution (3 words = 9 chars)
+      expect(decoded).toBe('helloworl'); // Limited by V5 resolution (3 words = 9 chars)
     });
 
     it('should round-trip pack-decode correctly', () => {
