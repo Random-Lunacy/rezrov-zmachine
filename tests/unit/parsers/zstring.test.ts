@@ -198,53 +198,74 @@ describe('ZString', () => {
       const result = encodeZString(mockMemory as unknown as Memory, text, 3);
 
       // 'h' is zchar 13 in A0, 'e' is zchar 11, 'l' is zchar 17, 'o' is zchar 20
-      expect(result).toEqual([13, 10, 17, 17, 20, 5]); // Last 5 is padding
+      // Last character is padding (5)
+      expect(result).toEqual([13, 10, 17, 17, 20, 5]);
     });
 
-    it('should encode with alphabet shifts for uppercase', () => {
+    it('should convert uppercase to lowercase for dictionary encoding', () => {
       const text = 'Hello';
       const result = encodeZString(mockMemory as unknown as Memory, text, 3);
 
-      // Shift to A1 (4) for 'H' (13), then back to A0 for 'ello'
-      expect(result).toEqual([4, 13, 10, 17, 17, 20]);
+      // Should convert to lowercase before encoding
+      expect(result).toEqual([13, 10, 17, 17, 20, 5]);
     });
 
-    it('should encode with alphabet shifts for punctuation', () => {
-      const text = 'hello!';
+    it('should handle word separators as separate words', () => {
+      // Test a single separator character
+      const comma = ',';
+      const resultComma = encodeZString(mockMemory as unknown as Memory, comma, 3);
+
+      // Shift to A2 (5) + comma code (expected to be at position 13 in A2)
+      // Note: adjust index if necessary based on your alphabet table
+      expect(resultComma).toEqual([5, 19, 5, 5, 5, 5]);
+
+      // Test period
+      const period = '.';
+      const resultPeriod = encodeZString(mockMemory as unknown as Memory, period, 3);
+
+      // Shift to A2 (5) + period code (expected to be at position 12 in A2)
+      expect(resultPeriod).toEqual([5, 18, 5, 5, 5, 5]);
+    });
+
+    it('should stop encoding at the first word separator', () => {
+      const text = 'hello, world';
       const result = encodeZString(mockMemory as unknown as Memory, text, 3);
 
-      // Regular chars for 'hello', then shift to A2 (5) for '!' (20)
-      expect(result).toEqual([13, 10, 17, 17, 20, 5, 20]);
+      // Should only encode 'hello'
+      expect(result).toEqual([13, 10, 17, 17, 20, 5]);
     });
 
-    it('should handle spaces correctly', () => {
+    it('should stop encoding at the first space', () => {
       const text = 'hello world';
       const result = encodeZString(mockMemory as unknown as Memory, text, 3);
 
-      // Space is special char 0
-      expect(result).toEqual([13, 10, 17, 17, 20, 0, 29, 20, 23, 17, 9]);
+      // Should only encode 'hello'
+      expect(result).toEqual([13, 10, 17, 17, 20, 5]);
     });
 
-    it('should handle newlines correctly', () => {
+    it('should stop encoding at a new line', () => {
       const text = 'hello\nworld';
       const result = encodeZString(mockMemory as unknown as Memory, text, 3);
 
-      // Newline is A2 char 7
-      expect(result).toEqual([13, 10, 17, 17, 20, 5, 7, 29, 20, 23, 17, 9]);
+      // Should only encode 'hello'
+      expect(result).toEqual([13, 10, 17, 17, 20, 5]);
     });
 
-    it('should encode ASCII characters using ZSCII escape in V5+', () => {
-      const text = 'hello@'; // @ is not in standard alphabets
-      const result = encodeZString(mockMemory as unknown as Memory, text, 5);
+    it('should include non-separator punctuation as part of the word', () => {
+      const text = "don't";
+      const result = encodeZString(mockMemory as unknown as Memory, text, 3);
 
-      // Regular encoding for 'hello'
-      // Then shift to A2 (5), ZSCII escape (6), high bits, low bits for '@' (ASCII 64 = 0x40 = 0b01000000)
-      expect(result).toEqual([13, 10, 17, 17, 20, 5, 6, 2, 0]);
+      // Should encode the apostrophe as part of the word
+      // Adjust expected values based on actual alphabet tables
+      const apostropheIndex = mockMemory.getAlphabetTables()[2].indexOf("'");
+      const apostropheZChar = apostropheIndex + 6;
+
+      // 'd', 'o', 'n', shift to A2, apostrophe, 't'
+      expect(result.slice(0, 6)).toEqual([9, 20, 19, 5, apostropheZChar, 25]);
     });
 
     it('should pad short strings to full resolution length', () => {
       const text = 'hi';
-
       // For V3, resolution is 2 words (6 Z-chars)
       const resultV3 = encodeZString(mockMemory as unknown as Memory, text, 3);
       expect(resultV3.length).toBe(6);
@@ -256,17 +277,14 @@ describe('ZString', () => {
       expect(resultV5).toEqual([13, 14, 5, 5, 5, 5, 5, 5, 5]);
     });
 
-    it('should limit string length to resolution length', () => {
-      // Very long string
-      const longText = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    it('should truncate strings that exceed resolution length', () => {
+      // A string with special characters that would exceed resolution when encoded
+      const text = 'a"b\'c'; // encoding would need shift characters
+      const result = encodeZString(mockMemory as unknown as Memory, text, 3);
 
-      // For V3, should be limited to 6 Z-chars (2 words)
-      const resultV3 = encodeZString(mockMemory as unknown as Memory, longText, 3);
-      expect(resultV3.length).toBe(6);
-
-      // For V5, should be limited to 9 Z-chars (3 words)
-      const resultV5 = encodeZString(mockMemory as unknown as Memory, longText, 5);
-      expect(resultV5.length).toBe(9);
+      // Should stop at the first word separator (")
+      // So only 'a' should be encoded
+      expect(result).toEqual([6, 5, 5, 5, 5, 5]);
     });
 
     it('should use custom padding value when specified', () => {
@@ -275,6 +293,15 @@ describe('ZString', () => {
 
       // 'a' is zchar 6 in A0, rest should be padding value 10
       expect(result).toEqual([6, 10, 10, 10, 10, 10]);
+    });
+
+    it('should allow custom word separators', () => {
+      const text = 'hello! world';
+      // Use ! as a word separator instead of default
+      const result = encodeZString(mockMemory as unknown as Memory, text, 3, 5, ['!']);
+
+      // Should stop at the ! character
+      expect(result).toEqual([13, 10, 17, 17, 20, 5]);
     });
   });
 

@@ -198,75 +198,105 @@ export function decodeZString(memory: Memory, zStr: ZString, expandAbbreviations
 }
 
 /**
- * Encodes a string into Z-string format
+ * Encodes a string into Z-string format for dictionary lookup
  *
+ * @param memory The Memory object to access alphabet tables
  * @param text The string to encode
- * @param version Z-machine version (affects encoding)
- * @param padding Padding value for incomplete Z-strings
+ * @param version Z-machine version (affects encoding length)
+ * @param padding Padding value for incomplete Z-strings (default 0x05)
+ * @param separators Optional array of word separator characters
  * @returns Encoded Z-string
  */
-export function encodeZString(memory: Memory, text: string, version: number, padding: number = 0x05): ZString {
+export function encodeZString(
+  memory: Memory,
+  text: string,
+  version: number,
+  padding: number = 0x05,
+  separators: string[] = ['.', ',', '"']
+): ZString {
   const resolution = version > 3 ? 3 : 2;
-  // Remove the toLowerCase() call to preserve case information
-  text = text.slice(0, resolution * 3);
+  const maxZChars = resolution * 3;
   const zChars: Array<number> = [];
 
-  // Get alphabet tables
-  const alphabetTables = memory.getAlphabetTables();
+  // For dictionary lookups, convert to lowercase per spec
+  text = text.toLowerCase();
 
-  for (const char of text) {
-    if (char === ' ') {
-      // Space is special Z-char 0
-      zChars.push(0);
-      continue;
-    }
-
-    // Try alphabet A0 (lowercase letters)
-    const a0Index = alphabetTables[0].indexOf(char);
-    if (a0Index >= 0) {
-      zChars.push(a0Index + 6);
-      continue;
-    }
-
-    // Try alphabet A1 (uppercase letters)
-    const a1Index = alphabetTables[1].indexOf(char);
-    if (a1Index >= 0) {
-      zChars.push(4); // Shift to A1
-      zChars.push(a1Index + 6);
-      continue;
-    }
-
-    // Try alphabet A2 (punctuation/digits)
-    const a2Index = alphabetTables[2].indexOf(char);
+  // Check if the input is a single word separator character
+  if (text.length === 1 && separators.includes(text)) {
+    // Encode the separator as its own dictionary word
+    const a2Index = memory.getAlphabetTables()[2].indexOf(text);
     if (a2Index >= 0) {
       zChars.push(5); // Shift to A2
       zChars.push(a2Index + 6);
-      continue;
+    }
+  } else {
+    // Process as a regular word
+    // First, check if there are any word separators in the text
+    let wordEnd = text.length;
+    for (const separator of separators) {
+      const sepIndex = text.indexOf(separator);
+      if (sepIndex !== -1 && sepIndex < wordEnd) {
+        wordEnd = sepIndex;
+      }
     }
 
-    // Special case for newline
-    if (char === '\n') {
-      zChars.push(5); // Shift to A2
-      zChars.push(7); // Newline in A2
-      continue;
+    // Also check for spaces (which are word dividers but not words themselves)
+    const spaceIndex = text.indexOf(' ');
+    if (spaceIndex !== -1 && spaceIndex < wordEnd) {
+      wordEnd = spaceIndex;
     }
 
-    // Fall back to ZSCII escape sequence for other characters
-    const charCode = char.charCodeAt(0);
-    if (charCode >= 32 && charCode <= 126) {
-      zChars.push(5); // Shift to A2
-      zChars.push(6); // ZSCII escape
-      zChars.push((charCode >> 5) & 0x1f);
-      zChars.push(charCode & 0x1f);
-    } else {
-      // Use padding for unsupported characters
-      zChars.push(padding);
+    // Also check for new line (which is a word divider but not a word itself)
+    const newLineIndex = text.indexOf('\n');
+    if (newLineIndex !== -1 && newLineIndex < wordEnd) {
+      wordEnd = newLineIndex;
+    }
+
+    // Get just the first word
+    const word = text.substring(0, wordEnd);
+
+    // Get alphabet tables
+    const alphabetTables = memory.getAlphabetTables();
+
+    // Encode each character of the word
+    for (const char of word) {
+      // Since the text is already lowercased, we only need to check alphabet A0 for letters
+      const a0Index = alphabetTables[0].indexOf(char);
+      if (a0Index >= 0) {
+        zChars.push(a0Index + 6);
+        continue;
+      }
+
+      // Check A2 for punctuation/digits
+      const a2Index = alphabetTables[2].indexOf(char);
+      if (a2Index >= 0) {
+        zChars.push(5); // Shift to A2
+        zChars.push(a2Index + 6);
+        continue;
+      }
+
+      // Fall back to ZSCII escape sequence for other characters
+      const charCode = char.charCodeAt(0);
+      if (charCode >= 32 && charCode <= 126) {
+        zChars.push(5); // Shift to A2
+        zChars.push(6); // ZSCII escape
+        zChars.push((charCode >> 5) & 0x1f);
+        zChars.push(charCode & 0x1f);
+      } else {
+        // Use padding for unsupported characters
+        zChars.push(padding);
+      }
     }
   }
 
-  // Pad to full resolution length
-  while (zChars.length < resolution * 3) {
+  // Pad to exact resolution length
+  while (zChars.length < maxZChars) {
     zChars.push(padding);
+  }
+
+  // If we've exceeded the resolution length (possible with shift codes), truncate
+  if (zChars.length > maxZChars) {
+    zChars.length = maxZChars;
   }
 
   return zChars;
