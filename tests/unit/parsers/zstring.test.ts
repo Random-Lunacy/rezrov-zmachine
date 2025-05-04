@@ -213,8 +213,8 @@ describe('ZString', () => {
       const text = 'hello!';
       const result = encodeZString(mockMemory as unknown as Memory, text, 3);
 
-      // Regular chars for 'hello', then shift to A2 (5) for '!' (17)
-      expect(result).toEqual([13, 10, 17, 17, 20, 5, 17]);
+      // Regular chars for 'hello', then shift to A2 (5) for '!' (20)
+      expect(result).toEqual([13, 10, 17, 17, 20, 5, 20]);
     });
 
     it('should handle spaces correctly', () => {

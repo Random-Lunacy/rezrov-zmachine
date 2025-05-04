@@ -207,13 +207,20 @@ export function decodeZString(memory: Memory, zStr: ZString, expandAbbreviations
  */
 export function encodeZString(memory: Memory, text: string, version: number, padding: number = 0x05): ZString {
   const resolution = version > 3 ? 3 : 2;
-  text = text.slice(0, resolution * 3).toLowerCase();
+  // Remove the toLowerCase() call to preserve case information
+  text = text.slice(0, resolution * 3);
   const zChars: Array<number> = [];
 
-  // Get alphabet tables (should be accessible from a central place)
+  // Get alphabet tables
   const alphabetTables = memory.getAlphabetTables();
 
   for (const char of text) {
+    if (char === ' ') {
+      // Space is special Z-char 0
+      zChars.push(0);
+      continue;
+    }
+
     // Try alphabet A0 (lowercase letters)
     const a0Index = alphabetTables[0].indexOf(char);
     if (a0Index >= 0) {
