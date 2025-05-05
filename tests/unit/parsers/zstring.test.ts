@@ -470,10 +470,10 @@ describe('ZString', () => {
       result = decodeZString(mockMemory as unknown as Memory, zString);
       expect(result).toBe('A\nB');
 
-      // From A2 -> A0: shift lock to A2 (5) + '\n' (A2) + shift to A0 (2) + 'a' (A0) + '0' (A2)
+      // From A2 -> A0: shift lock to A2 (5) + '\n' (A2) + shift to A0 (2) + 'a' (A0) + '5' (A2)
       zString = [5, 7, 2, 6, 13];
       result = decodeZString(mockMemory as unknown as Memory, zString);
-      expect(result).toBe('\na0');
+      expect(result).toBe('\na5');
     });
 
     it('should handle single-character shifts with Z-char 3', () => {
@@ -487,10 +487,10 @@ describe('ZString', () => {
       result = decodeZString(mockMemory as unknown as Memory, zString);
       expect(result).toBe('AaB');
 
-      // From A2 -> A1: shift lock to A2 (5) + '\n' (A2) + shift to A1 (3) + 'A' (A1) + '0' (A2)
+      // From A2 -> A1: shift lock to A2 (5) + '\n' (A2) + shift to A1 (3) + 'A' (A1) + '5' (A2)
       zString = [5, 7, 3, 6, 13];
       result = decodeZString(mockMemory as unknown as Memory, zString);
-      expect(result).toBe('\nA0');
+      expect(result).toBe('\nA5');
     });
 
     it('should maintain shift lock until single-character shift is used', () => {

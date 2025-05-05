@@ -31,12 +31,12 @@ export function decodeZString(memory: Memory, zStr: ZString, expandAbbreviations
  * These versions have distinct shift behavior with shift and shift-lock characters
  */
 function decodeZStringV1V2(memory: Memory, zStr: ZString, expandAbbreviations: boolean): string {
-  let alphabet = 0; // Current alphabet (0=A0, 1=A1, 2=A2)
+  let currentAlphabet = 0; // Current alphabet (0=A0, 1=A1, 2=A2)
   let lockedAlphabet = 0; // Locked alphabet
   const result: string[] = [];
   let unicodeMode = false;
   let unicodeHigh = 0;
-  let tempShift = false; // Track if current shift is temporary
+  let isTemporaryShift = false; // Track if the current character uses a temporary shift
 
   // Get alphabet table
   const alphabetTables = memory.getAlphabetTables();
@@ -44,111 +44,93 @@ function decodeZStringV1V2(memory: Memory, zStr: ZString, expandAbbreviations: b
   for (let i = 0; i < zStr.length; i++) {
     const zChar = zStr[i];
 
-    if (zChar <= 5) {
-      switch (zChar) {
-        case 0: // Space
-          result.push(' ');
-          break;
+    if (zChar === 0) {
+      // Space
+      result.push(' ');
+    } else if (zChar === 1) {
+      // Abbreviation
+      if (expandAbbreviations && i + 1 < zStr.length) {
+        const nextChar = zStr[++i];
+        const abbrevIndex = 32 * (zChar - 1) + nextChar;
+        const abbrevTableAddr = memory.getWord(HeaderLocation.AbbreviationsTable);
+        const abbrevAddr = memory.getWord(abbrevTableAddr + abbrevIndex * 2) * 2;
 
-        case 1: // Abbreviation
-          if (expandAbbreviations) {
-            const nextChar = zStr[++i];
-            const abbrevIndex = 32 * (zChar - 1) + nextChar;
-            const abbrevTableAddr = memory.getWord(HeaderLocation.AbbreviationsTable);
-            const abbrevAddr = memory.getWord(abbrevTableAddr + abbrevIndex * 2) * 2;
-
-            const abbrevText = decodeZString(memory, memory.getZString(abbrevAddr), false);
-            result.push(abbrevText);
-          }
-          break;
-
-        case 2: // Temporary shift
-          tempShift = true;
-          if (alphabet === 0) {
-            alphabet = 1; // A0 -> A1
-          } else if (alphabet === 1) {
-            alphabet = 2; // A1 -> A2
-          } else {
-            alphabet = 0; // A2 -> A0
-          }
-          break;
-
-        case 3: // Temporary shift
-          tempShift = true;
-          if (alphabet === 0) {
-            alphabet = 2; // A0 -> A2
-          } else if (alphabet === 1) {
-            alphabet = 0; // A1 -> A0
-          } else {
-            alphabet = 1; // A2 -> A1
-          }
-          break;
-
-        case 4: // Shift lock
-          tempShift = false;
-          if (alphabet === 0) {
-            alphabet = 1; // A0 -> A1
-            lockedAlphabet = 1; // Lock to A1
-          } else if (alphabet === 1) {
-            alphabet = 2; // A1 -> A2
-            lockedAlphabet = 2; // Lock to A2
-          } else {
-            alphabet = 0; // A2 -> A0
-            lockedAlphabet = 0; // Lock to A0
-          }
-          break;
-
-        case 5: // Shift lock
-          tempShift = false;
-          if (alphabet === 0) {
-            alphabet = 2; // A0 -> A2
-            lockedAlphabet = 2; // Lock to A2
-          } else if (alphabet === 1) {
-            alphabet = 0; // A1 -> A0
-            lockedAlphabet = 0; // Lock to A0
-          } else {
-            alphabet = 1; // A2 -> A1
-            lockedAlphabet = 1; // Lock to A1
-          }
-          break;
+        const abbrevText = decodeZString(memory, memory.getZString(abbrevAddr), false);
+        result.push(abbrevText);
       }
+    } else if (zChar === 2) {
+      // Shift character 2 - for next character only
+      isTemporaryShift = true;
+      if (currentAlphabet === 0)
+        currentAlphabet = 1; // A0 -> A1
+      else if (currentAlphabet === 1)
+        currentAlphabet = 2; // A1 -> A2
+      else currentAlphabet = 0; // A2 -> A0
+    } else if (zChar === 3) {
+      // Shift character 3 - for next character only
+      isTemporaryShift = true;
+      if (currentAlphabet === 0)
+        currentAlphabet = 2; // A0 -> A2
+      else if (currentAlphabet === 1)
+        currentAlphabet = 0; // A1 -> A0
+      else currentAlphabet = 1; // A2 -> A1
+    } else if (zChar === 4) {
+      // Shift lock character 4 - permanent until changed
+      if (currentAlphabet === 0)
+        currentAlphabet = 1; // A0 -> A1
+      else if (currentAlphabet === 1)
+        currentAlphabet = 2; // A1 -> A2
+      else currentAlphabet = 0; // A2 -> A0
+      lockedAlphabet = currentAlphabet;
+      isTemporaryShift = false;
+    } else if (zChar === 5) {
+      // Shift lock character 5 - permanent until changed
+      if (currentAlphabet === 0)
+        currentAlphabet = 2; // A0 -> A2
+      else if (currentAlphabet === 1)
+        currentAlphabet = 0; // A1 -> A0
+      else currentAlphabet = 1; // A2 -> A1
+      lockedAlphabet = currentAlphabet;
+      isTemporaryShift = false;
     } else if (unicodeMode) {
       // Handle ZSCII escape sequence
       const lowBits = zChar;
       const unicodeChar = (unicodeHigh << 5) | lowBits;
       result.push(String.fromCodePoint(unicodeChar));
       unicodeMode = false;
-
-      // Return to locked alphabet after Unicode
-      alphabet = lockedAlphabet;
-    } else if (alphabet === 2 && zChar === 6) {
+    } else if (currentAlphabet === 2 && zChar === 6) {
       // ZSCII escape sequence - not fully implemented in V1-2 but handle as best we can
-      if (i + 2 < zStr.length) {
+      if (i + 1 < zStr.length) {
         unicodeMode = true;
         unicodeHigh = zStr[++i];
-        continue;
       } else {
         result.push('?');
-        break;
       }
-    } else if (alphabet === 2 && zChar === 7) {
+    } else if (currentAlphabet === 2 && zChar === 7) {
       // Newline
       result.push('\n');
+
+      // If this was a temporary shift, return to locked alphabet
+      if (isTemporaryShift) {
+        currentAlphabet = lockedAlphabet;
+        isTemporaryShift = false;
+      }
     } else {
       // Regular character
-      const alphabetIndex = zChar - 6;
+      const charIndex = zChar - 6;
 
-      if (alphabetIndex >= 0 && alphabetIndex < alphabetTables[alphabet].length) {
-        result.push(alphabetTables[alphabet][alphabetIndex]);
+      if (charIndex >= 0 && charIndex < alphabetTables[currentAlphabet].length) {
+        // Get the actual character from the correct alphabet table
+        const actualChar = alphabetTables[currentAlphabet][charIndex];
+        result.push(actualChar);
       } else {
         result.push('?');
       }
 
-      // Handle shift reset
-      if (tempShift) {
-        // In V1-2, return to locked alphabet after temporary shift
-        alphabet = lockedAlphabet;
-        tempShift = false;
+      // If this was a temporary shift, return to locked alphabet
+      if (isTemporaryShift) {
+        currentAlphabet = lockedAlphabet;
+        isTemporaryShift = false;
       }
     }
   }
