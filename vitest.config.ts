@@ -10,7 +10,15 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
-      exclude: ['**/node_modules/**', '**/dist/**'],
+      exclude: [
+        '**/node_modules/**',
+        '**/dist/**',
+        '**/examples/**',
+        '**/tests/**',
+        'eslint.config.mjs',
+        'prettier.config.cjs',
+        'vitest.config.ts',
+      ],
     },
     testTimeout: 10000,
     reporters: ['default', 'html'],
