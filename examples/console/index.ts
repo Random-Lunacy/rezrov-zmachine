@@ -274,7 +274,7 @@ class StdioInputProcessor extends BaseInputProcessor {
     this.loadTerminatingCharacters = this.loadTerminatingCharacters.bind(this);
   }
 
-  startTextInput(machine: ZMachine, state: InputState): void {
+  protected doStartTextInput(machine: ZMachine, state: InputState): void {
     this.logger.debug('Starting text input');
 
     // Load custom terminating characters if available
@@ -292,19 +292,7 @@ class StdioInputProcessor extends BaseInputProcessor {
     this.getInputAsync(machine, state);
   }
 
-  private getInputAsync(machine: ZMachine, state: InputState): void {
-    // This is a simple implementation using readline-sync
-    // In a real app, you might use readline or other async input methods
-    try {
-      const input = readline.question('');
-      this.onInputComplete(machine, input);
-    } catch (error) {
-      this.logger.error(`Error getting input: ${error}`);
-      machine.executor.resume();
-    }
-  }
-
-  startCharInput(machine: ZMachine, state: InputState): void {
+  protected doStartCharInput(machine: ZMachine, state: InputState): void {
     this.logger.debug('Starting char input');
 
     // Set up timed input if needed
@@ -317,6 +305,18 @@ class StdioInputProcessor extends BaseInputProcessor {
       this.onKeyPress(machine, key);
     } catch (error) {
       this.logger.error(`Error getting key press: ${error}`);
+      machine.executor.resume();
+    }
+  }
+
+  private getInputAsync(machine: ZMachine, state: InputState): void {
+    // This is a simple implementation using readline-sync
+    // In a real app, you might use readline or other async input methods
+    try {
+      const input = readline.question('');
+      this.onInputComplete(machine, input);
+    } catch (error) {
+      this.logger.error(`Error getting input: ${error}`);
       machine.executor.resume();
     }
   }
