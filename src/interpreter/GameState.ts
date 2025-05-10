@@ -49,7 +49,7 @@ export class GameState {
     this._readHeaderValues();
 
     // Initialize object factory
-    this._objectFactory = new GameObjectFactory(this._memory, this.logger, this._version, this._objectTable);
+    this._objectFactory = new GameObjectFactory(this._memory, this._version, this._objectTable, options);
   }
 
   /**

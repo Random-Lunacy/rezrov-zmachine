@@ -27,6 +27,7 @@ export class Storage implements StorageInterface {
     }
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async saveSnapshot(state: ZMachineState, description?: string): Promise<void> {
     const location = this.getStorageLocation();
     const data = this.formatProvider.serialize(state);
@@ -97,6 +98,7 @@ export class Storage implements StorageInterface {
             format: this.formatProvider.constructor.name.replace('Format', '').toLowerCase(),
             description,
           });
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
         } catch (e) {
           // Skip files that can't be read or parsed
         }

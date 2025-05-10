@@ -2,6 +2,9 @@ import { ZMachine } from '../../src/interpreter/ZMachine';
 import { InputProcessor, InputState } from '../../src/ui/input/InputInterface';
 import { Logger } from '../../src/utils/log';
 
+/**
+ * InputProcessor implementation for use in integrations tests
+ */
 export class TestInputProcessor implements InputProcessor {
   private logger: Logger;
   private autoRespond: boolean = true;

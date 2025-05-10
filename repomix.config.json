@@ -1,12 +1,21 @@
 {
   "output": {
-    "style": "markdown",
-    "filePath": "rezrov-zmachine-output.md",
+    "style": "xml",
+    "filePath": "rezrov-zmachine-output.xml",
     "removeComments": true,
-    "showLineNumbers": true,
-    "topFilesLength": 10
+    "removeEMptyLines": true,
+    "showLineNumbers": false,
+    "topFilesLength": 0,
+    "compress": true
   },
   "ignore": {
-    "customPatterns": ["*.test.ts", "docs/**", "**.z3"]
+    "customPatterns": [
+      "docs/**",
+      "**/*.config.{js,cjs,mjs,ts,json}",
+      "**/*.{yml,yaml}",
+      "**/test/fixtures/**",
+      "**/package-lock.json",
+      ".gitignore"
+    ]
   }
 }
