@@ -9,6 +9,8 @@ export class MockGameState {
   memory = {
     getByte: vi.fn().mockReturnValue(0),
     getWord: vi.fn().mockReturnValue(0),
+    setByte: vi.fn(),
+    setWord: vi.fn(),
     unpackRoutineAddress: vi.fn().mockImplementation((addr: number) => addr * 2),
     validateRoutineHeader: vi.fn().mockReturnValue(true),
   };

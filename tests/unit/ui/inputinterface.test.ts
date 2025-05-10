@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { Executor } from '../../../src/core/execution/Executor';
+import { ZMachine } from '../../../src/interpreter/ZMachine';
 import { BaseInputProcessor, InputMode, InputState } from '../../../src/ui/input/InputInterface';
 import { HeaderLocation } from '../../../src/utils/constants';
 import { MockZMachine, createMockZMachine } from '../../mocks';
+import { MockExecutor } from '../../mocks/MockExecutor';
 
 // Create a concrete implementation of BaseInputProcessor for testing
 class TestInputProcessor extends BaseInputProcessor {
@@ -48,6 +51,9 @@ describe('InputInterface', () => {
   beforeEach(() => {
     machine = createMockZMachine();
     inputProcessor = new TestInputProcessor();
+
+    // Add mock executor
+    machine.executor = new MockExecutor(machine as any as ZMachine) as Partial<Executor> as Executor;
   });
 
   afterEach(() => {
@@ -69,7 +75,7 @@ describe('InputInterface', () => {
     describe('startTextInput', () => {
       it('should call doStartTextInput with valid buffers', () => {
         // Set up valid text and parse buffers
-        machine.memory.getByte.mockImplementation((addr) => {
+        machine.state.memory.getByte.mockImplementation((addr) => {
           if (addr === 0x1000) return 20; // Max length
           return 0;
         });
@@ -88,7 +94,7 @@ describe('InputInterface', () => {
 
       it('should handle invalid text buffer', () => {
         // Make text buffer validation fail
-        machine.memory.getByte.mockImplementation(() => {
+        machine.state.memory.getByte.mockImplementation(() => {
           throw new Error('Memory access error');
         });
 
@@ -111,7 +117,7 @@ describe('InputInterface', () => {
 
       it('should handle invalid parse buffer', () => {
         // Make text buffer validation succeed
-        machine.memory.getByte.mockImplementation((addr) => {
+        machine.state.memory.getByte.mockImplementation((addr) => {
           if (addr === 0x1000) return 20; // Max length
           if (addr >= 0x1000 && addr < 0x1000 + 20) return 0;
           throw new Error('Memory access error');
@@ -136,7 +142,7 @@ describe('InputInterface', () => {
 
       it('should set up timed input if required', () => {
         // Set up valid text and parse buffers
-        machine.memory.getByte.mockImplementation((addr) => {
+        machine.state.memory.getByte.mockImplementation((addr) => {
           if (addr === 0x1000) return 20; // Max length
           return 0;
         });
@@ -359,7 +365,7 @@ describe('InputInterface', () => {
           routine: 0x1234,
         };
 
-        machine.memory.unpackRoutineAddress.mockReturnValue(0x2468);
+        machine.state.memory.unpackRoutineAddress.mockReturnValue(0x2468);
 
         inputProcessor.onInputTimeout(machine as any, state);
 
@@ -388,7 +394,7 @@ describe('InputInterface', () => {
         machine.state.version = 3;
 
         // Set up text buffer with max length 10
-        machine.memory.getByte.mockImplementation((addr) => {
+        machine.state.memory.getByte.mockImplementation((addr) => {
           if (addr === 0x1000) return 10; // Max length
           return 0;
         });
@@ -398,11 +404,11 @@ describe('InputInterface', () => {
 
         // Should store as null-terminated string
         // 't' = 116, 'e' = 101, 's' = 115, 't' = 116, followed by 0
-        expect(machine.memory.setByte).toHaveBeenCalledWith(0x1000 + 1, 116); // 't'
-        expect(machine.memory.setByte).toHaveBeenCalledWith(0x1000 + 2, 101); // 'e'
-        expect(machine.memory.setByte).toHaveBeenCalledWith(0x1000 + 3, 115); // 's'
-        expect(machine.memory.setByte).toHaveBeenCalledWith(0x1000 + 4, 116); // 't'
-        expect(machine.memory.setByte).toHaveBeenCalledWith(0x1000 + 5, 0); // null terminator
+        expect(machine.state.memory.setByte).toHaveBeenCalledWith(0x1000 + 1, 116); // 't'
+        expect(machine.state.memory.setByte).toHaveBeenCalledWith(0x1000 + 2, 101); // 'e'
+        expect(machine.state.memory.setByte).toHaveBeenCalledWith(0x1000 + 3, 115); // 's'
+        expect(machine.state.memory.setByte).toHaveBeenCalledWith(0x1000 + 4, 116); // 't'
+        expect(machine.state.memory.setByte).toHaveBeenCalledWith(0x1000 + 5, 0); // null terminator
       });
 
       it('should store text input according to V5+ format', () => {
@@ -410,7 +416,7 @@ describe('InputInterface', () => {
         machine.state.version = 5;
 
         // Set up text buffer with max length 10
-        machine.memory.getByte.mockImplementation((addr) => {
+        machine.state.memory.getByte.mockImplementation((addr) => {
           if (addr === 0x1000) return 10; // Max length
           return 0;
         });
@@ -419,11 +425,11 @@ describe('InputInterface', () => {
         inputProcessor.exposedStoreTextInput(machine, 'test', 0x1000);
 
         // Should store with length prefix (4) followed by characters
-        expect(machine.memory.setByte).toHaveBeenCalledWith(0x1000 + 1, 4); // length
-        expect(machine.memory.setByte).toHaveBeenCalledWith(0x1000 + 2, 116); // 't'
-        expect(machine.memory.setByte).toHaveBeenCalledWith(0x1000 + 3, 101); // 'e'
-        expect(machine.memory.setByte).toHaveBeenCalledWith(0x1000 + 4, 115); // 's'
-        expect(machine.memory.setByte).toHaveBeenCalledWith(0x1000 + 5, 116); // 't'
+        expect(machine.state.memory.setByte).toHaveBeenCalledWith(0x1000 + 1, 4); // length
+        expect(machine.state.memory.setByte).toHaveBeenCalledWith(0x1000 + 2, 116); // 't'
+        expect(machine.state.memory.setByte).toHaveBeenCalledWith(0x1000 + 3, 101); // 'e'
+        expect(machine.state.memory.setByte).toHaveBeenCalledWith(0x1000 + 4, 115); // 's'
+        expect(machine.state.memory.setByte).toHaveBeenCalledWith(0x1000 + 5, 116); // 't'
       });
 
       it('should truncate input that exceeds max length', () => {
@@ -431,7 +437,7 @@ describe('InputInterface', () => {
         machine.state.version = 3;
 
         // Set up text buffer with max length 5
-        machine.memory.getByte.mockImplementation((addr) => {
+        machine.state.memory.getByte.mockImplementation((addr) => {
           if (addr === 0x1000) return 5; // Max length - 1 for terminator = 4 chars
           return 0;
         });
@@ -440,21 +446,21 @@ describe('InputInterface', () => {
         inputProcessor.exposedStoreTextInput(machine, 'testing', 0x1000);
 
         // Should store only first 4 chars ('test') + null terminator
-        expect(machine.memory.setByte).toHaveBeenCalledWith(0x1000 + 1, 116); // 't'
-        expect(machine.memory.setByte).toHaveBeenCalledWith(0x1000 + 2, 101); // 'e'
-        expect(machine.memory.setByte).toHaveBeenCalledWith(0x1000 + 3, 115); // 's'
-        expect(machine.memory.setByte).toHaveBeenCalledWith(0x1000 + 4, 116); // 't'
-        expect(machine.memory.setByte).toHaveBeenCalledWith(0x1000 + 5, 0); // null terminator
+        expect(machine.state.memory.setByte).toHaveBeenCalledWith(0x1000 + 1, 116); // 't'
+        expect(machine.state.memory.setByte).toHaveBeenCalledWith(0x1000 + 2, 101); // 'e'
+        expect(machine.state.memory.setByte).toHaveBeenCalledWith(0x1000 + 3, 115); // 's'
+        expect(machine.state.memory.setByte).toHaveBeenCalledWith(0x1000 + 4, 116); // 't'
+        expect(machine.state.memory.setByte).toHaveBeenCalledWith(0x1000 + 5, 0); // null terminator
 
         // 'ing' should not be stored
-        expect(machine.memory.setByte).not.toHaveBeenCalledWith(0x1000 + 6, 105); // 'i'
+        expect(machine.state.memory.setByte).not.toHaveBeenCalledWith(0x1000 + 6, 105); // 'i'
       });
     });
 
     describe('loadTerminatingCharacters', () => {
       it('should default to Enter (13) terminator', () => {
         // No custom terminators in header
-        machine.memory.getWord.mockImplementation((addr) => {
+        machine.state.memory.getWord.mockImplementation((addr) => {
           if (addr === HeaderLocation.TerminatingChars) return 0;
           return 0;
         });
@@ -470,13 +476,13 @@ describe('InputInterface', () => {
         machine.state.version = 5;
 
         // Set terminating chars table address
-        machine.memory.getWord.mockImplementation((addr) => {
+        machine.state.memory.getWord.mockImplementation((addr) => {
           if (addr === HeaderLocation.TerminatingChars) return 0x2000;
           return 0;
         });
 
         // Set up terminating chars table: 27 (Escape), 129 (F1), 0 (end)
-        machine.memory.getByte.mockImplementation((addr) => {
+        machine.state.memory.getByte.mockImplementation((addr) => {
           if (addr === 0x2000) return 27; // Escape
           if (addr === 0x2001) return 129; // F1
           if (addr === 0x2002) return 0; // End of table
@@ -497,13 +503,13 @@ describe('InputInterface', () => {
         machine.state.version = 5;
 
         // Set terminating chars table address
-        machine.memory.getWord.mockImplementation((addr) => {
+        machine.state.memory.getWord.mockImplementation((addr) => {
           if (addr === HeaderLocation.TerminatingChars) return 0x2000;
           return 0;
         });
 
         // Set up terminating chars table: 255 (any function key), 0 (end)
-        machine.memory.getByte.mockImplementation((addr) => {
+        machine.state.memory.getByte.mockImplementation((addr) => {
           if (addr === 0x2000) return 255; // Any function key
           if (addr === 0x2001) return 0; // End of table
           return 0;
@@ -534,13 +540,13 @@ describe('InputInterface', () => {
         machine.state.version = 5;
 
         // Set terminating chars table address
-        machine.memory.getWord.mockImplementation((addr) => {
+        machine.state.memory.getWord.mockImplementation((addr) => {
           if (addr === HeaderLocation.TerminatingChars) return 0x2000;
           return 0;
         });
 
         // Set up terminating chars table: 27 (valid), 65 (invalid - 'A'), 0 (end)
-        machine.memory.getByte.mockImplementation((addr) => {
+        machine.state.memory.getByte.mockImplementation((addr) => {
           if (addr === 0x2000) return 27; // Escape (valid)
           if (addr === 0x2001) return 65; // 'A' (invalid)
           if (addr === 0x2002) return 0; // End of table
@@ -564,7 +570,7 @@ describe('InputInterface', () => {
         machine.state.version = 3;
 
         // Set up valid text buffer with max length 5
-        machine.memory.getByte.mockImplementation((addr) => {
+        machine.state.memory.getByte.mockImplementation((addr) => {
           if (addr === 0x1000) return 5; // Max length
           return 0;
         });
@@ -579,7 +585,7 @@ describe('InputInterface', () => {
         machine.state.version = 5;
 
         // Set up valid text buffer with max length 5
-        machine.memory.getByte.mockImplementation((addr) => {
+        machine.state.memory.getByte.mockImplementation((addr) => {
           if (addr === 0x1000) return 5; // Max length
           return 0;
         });
@@ -591,7 +597,7 @@ describe('InputInterface', () => {
 
       it('should fail validation on invalid address', () => {
         // Make getByte throw for invalid addresses
-        machine.memory.getByte.mockImplementation((addr) => {
+        machine.state.memory.getByte.mockImplementation((addr) => {
           if (addr === 0x1000) return 5; // Max length
           throw new Error('Invalid memory access');
         });
@@ -605,7 +611,7 @@ describe('InputInterface', () => {
     describe('validateParseBuffer', () => {
       it('should validate parse buffer', () => {
         // Set up valid parse buffer
-        machine.memory.getByte.mockImplementation((addr) => {
+        machine.state.memory.getByte.mockImplementation((addr) => {
           if (addr === 0x2000) return 4; // Max tokens
           if (addr === 0x2000 + 1) return 0; // Actual tokens
           if (addr === 0x2000 + 4) return 0; // First token length
@@ -613,7 +619,7 @@ describe('InputInterface', () => {
           return 0;
         });
 
-        machine.memory.getWord.mockImplementation((addr) => {
+        machine.state.memory.getWord.mockImplementation((addr) => {
           if (addr === 0x2000 + 2) return 0x3000; // First token address
           return 0;
         });
@@ -625,7 +631,7 @@ describe('InputInterface', () => {
 
       it('should fail validation on invalid address', () => {
         // Make getByte throw for invalid addresses
-        machine.memory.getByte.mockImplementation((addr) => {
+        machine.state.memory.getByte.mockImplementation((addr) => {
           if (addr === 0x2000) return 4; // Max tokens
           throw new Error('Invalid memory access');
         });
@@ -703,7 +709,7 @@ describe('InputInterface', () => {
         inputProcessor.exposedProcessTextInput(machine, 'test', 13);
 
         // Should still store text input
-        expect(machine.memory.setByte).toHaveBeenCalled();
+        expect(machine.state.memory.setByte).toHaveBeenCalled();
 
         // But should not tokenize
         expect(machine.state.tokenizeLine).not.toHaveBeenCalled();
