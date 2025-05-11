@@ -252,7 +252,7 @@ export abstract class BaseInputProcessor implements InputProcessor {
    */
   onInputTimeout(machine: ZMachine, state: InputState): void {
     if (state.routine) {
-      const routineAddr = machine.memory.unpackRoutineAddress(state.routine);
+      const routineAddr = machine.state.memory.unpackRoutineAddress(state.routine);
       machine.state.callRoutine(routineAddr, null);
       machine.executor.resume();
     }
@@ -316,7 +316,7 @@ export abstract class BaseInputProcessor implements InputProcessor {
 
     // Only V5+ can specify custom terminating characters
     if (version >= 5) {
-      const headerTermCharsAddr = machine.memory.getWord(HeaderLocation.TerminatingChars);
+      const headerTermCharsAddr = machine.state.memory.getWord(HeaderLocation.TerminatingChars);
       if (headerTermCharsAddr !== 0) {
         this.loadCustomTerminatingChars(machine, headerTermCharsAddr);
       }
@@ -336,7 +336,7 @@ export abstract class BaseInputProcessor implements InputProcessor {
     try {
       const customTermChars: number[] = [];
       let addr = tableAddr;
-      let char = machine.memory.getByte(addr);
+      let char = machine.state.memory.getByte(addr);
 
       // Read the table until we reach a zero byte or invalid memory
       while (char !== 0) {
@@ -348,7 +348,7 @@ export abstract class BaseInputProcessor implements InputProcessor {
         }
 
         addr++;
-        char = machine.memory.getByte(addr);
+        char = machine.state.memory.getByte(addr);
       }
 
       // Special handling for 255 (any function key)
@@ -423,23 +423,23 @@ export abstract class BaseInputProcessor implements InputProcessor {
     // Ensure the text buffer is at least 3 bytes long
     try {
       // Check if we can access the first 3 bytes of the buffer
-      machine.memory.getByte(textBuffer); // Max length byte
-      machine.memory.getByte(textBuffer + 1); // First data byte
-      machine.memory.getByte(textBuffer + 2); // Second data byte (or terminator)
+      machine.state.memory.getByte(textBuffer); // Max length byte
+      machine.state.memory.getByte(textBuffer + 1); // First data byte
+      machine.state.memory.getByte(textBuffer + 2); // Second data byte (or terminator)
 
       // Additional version-specific validation
       const version = machine.state.version;
-      const maxLength = machine.memory.getByte(textBuffer);
+      const maxLength = machine.state.memory.getByte(textBuffer);
 
       if (version <= 4) {
         // V1-4: Check if we can access the full buffer size (+1 for terminator)
         for (let i = 0; i <= maxLength; i++) {
-          machine.memory.getByte(textBuffer + 1 + i);
+          machine.state.memory.getByte(textBuffer + 1 + i);
         }
       } else {
         // V5+: Check if we can access the full buffer size (+1 for length byte)
         for (let i = 0; i < maxLength; i++) {
-          machine.memory.getByte(textBuffer + 2 + i);
+          machine.state.memory.getByte(textBuffer + 2 + i);
         }
       }
 
@@ -460,20 +460,20 @@ export abstract class BaseInputProcessor implements InputProcessor {
     // Ensure the parse buffer is at least 6 bytes long
     try {
       // Check if we can access the first 6 bytes of the buffer
-      machine.memory.getByte(parseBuffer); // Max tokens byte
-      machine.memory.getByte(parseBuffer + 1); // Actual tokens byte
-      machine.memory.getWord(parseBuffer + 2); // First token address
-      machine.memory.getByte(parseBuffer + 4); // First token length
-      machine.memory.getByte(parseBuffer + 5); // First token position
+      machine.state.memory.getByte(parseBuffer); // Max tokens byte
+      machine.state.memory.getByte(parseBuffer + 1); // Actual tokens byte
+      machine.state.memory.getWord(parseBuffer + 2); // First token address
+      machine.state.memory.getByte(parseBuffer + 4); // First token length
+      machine.state.memory.getByte(parseBuffer + 5); // First token position
 
       // Additional validation to ensure we can access all potential entries
-      const maxTokens = machine.memory.getByte(parseBuffer);
+      const maxTokens = machine.state.memory.getByte(parseBuffer);
       if (maxTokens > 0) {
         // Ensure we can access the last potential entry
         const lastEntryStart = parseBuffer + 2 + (maxTokens - 1) * 4;
-        machine.memory.getWord(lastEntryStart);
-        machine.memory.getByte(lastEntryStart + 2);
-        machine.memory.getByte(lastEntryStart + 3);
+        machine.state.memory.getWord(lastEntryStart);
+        machine.state.memory.getByte(lastEntryStart + 2);
+        machine.state.memory.getByte(lastEntryStart + 3);
       }
 
       return true;
