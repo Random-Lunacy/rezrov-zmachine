@@ -94,7 +94,7 @@ describe('InputInterface', () => {
 
       it('should handle invalid text buffer', () => {
         // Make text buffer validation fail
-        machine.memory.getByte.mockImplementation(() => {
+        machine.state.memory.getByte.mockImplementation(() => {
           throw new Error('Memory access error');
         });
 
