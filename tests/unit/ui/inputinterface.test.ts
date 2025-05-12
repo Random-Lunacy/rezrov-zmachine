@@ -287,7 +287,7 @@ describe('InputInterface', () => {
         });
 
         // Spy on processTextInput
-        const processTextInputSpy = vi.spyOn(inputProcessor, 'exposedProcessTextInput');
+        const processTextInputSpy = vi.spyOn(inputProcessor as any, 'processTextInput');
 
         inputProcessor.onInputComplete(machine as any, 'test', 13);
 
@@ -303,7 +303,7 @@ describe('InputInterface', () => {
         });
 
         // Spy on processCharInput
-        const processCharInputSpy = vi.spyOn(inputProcessor, 'exposedProcessCharInput');
+        const processCharInputSpy = vi.spyOn(inputProcessor as any, 'processCharInput');
 
         inputProcessor.onInputComplete(machine as any, 't', 13);
 
@@ -656,7 +656,7 @@ describe('InputInterface', () => {
         });
 
         // Spy on storeTextInput
-        const storeTextInputSpy = vi.spyOn(inputProcessor, 'exposedStoreTextInput');
+        const storeTextInputSpy = vi.spyOn(inputProcessor as any, 'storeTextInput');
 
         inputProcessor.exposedProcessTextInput(machine, 'test', 13);
 
@@ -680,7 +680,7 @@ describe('InputInterface', () => {
         });
 
         // Spy on storeTextInput
-        const storeTextInputSpy = vi.spyOn(inputProcessor, 'exposedStoreTextInput');
+        const storeTextInputSpy = vi.spyOn(inputProcessor as any, 'storeTextInput');
 
         inputProcessor.exposedProcessTextInput(machine, 'test', 27); // Use Escape (27) as terminator
 
@@ -704,7 +704,7 @@ describe('InputInterface', () => {
         });
 
         // Make parse buffer validation fail
-        vi.spyOn(inputProcessor, 'exposedValidateParseBuffer').mockReturnValue(false);
+        vi.spyOn(inputProcessor as any, 'validateParseBuffer').mockReturnValue(false);
 
         inputProcessor.exposedProcessTextInput(machine, 'test', 13);
 

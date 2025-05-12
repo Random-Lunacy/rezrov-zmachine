@@ -400,6 +400,9 @@ export abstract class BaseInputProcessor implements InputProcessor {
     // Enter/Return is always valid
     if (code === 13) return true;
 
+    // Escape key is valid
+    if (code === 27) return true;
+
     // Function keys (129-154)
     if (code >= 129 && code <= 154) return true;
 
