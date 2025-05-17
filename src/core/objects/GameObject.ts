@@ -383,10 +383,36 @@ export class GameObject {
     throw new Error(`getObject() must be implemented by object provider [${objNum}]`);
   }
 
-  // Add to the existing GameObject class
-
   get name(): string {
-    return decodeZString(this.memory, this.memory.getZString(this.propertyTableAddr + 1), false);
+    try {
+      const propTableAddr = this.propertyTableAddr;
+      if (propTableAddr === 0) {
+        return `[Invalid Object ${this.objNum}]`;
+      }
+
+      // Get the length of the name in Z-characters
+      const nameLength = this.memory.getByte(propTableAddr);
+
+      // If length is 0, return a placeholder
+      if (nameLength === 0) {
+        return `[Unnamed Object ${this.objNum}]`;
+      }
+
+      // Verify the name is within memory bounds before decoding
+      try {
+        // Each word contains 3 Z-characters, so we need to check all words
+        for (let i = 0; i < nameLength; i++) {
+          this.memory.getWord(propTableAddr + 1 + i * 2);
+        }
+
+        // Now decode the name if verification passed
+        return decodeZString(this.memory, this.memory.getZString(propTableAddr + 1), false);
+      } catch (error) {
+        return `[Object ${this.objNum} - Name Error]`;
+      }
+    } catch (error) {
+      return `[Object ${this.objNum} - Property Table Error]`;
+    }
   }
 
   putProperty(prop: number, value: number): void {

@@ -78,22 +78,28 @@ export class GameObjectFactory {
     // Start address of the object entries
     const objectEntriesStart = this.objTable + propertyDefaultsSize;
 
+    // Based on the file dump, the actual object table in this story file
+    // only contains 7 valid objects (1-7)
+    this.logger.info(`Scanning for valid objects starting from 0x${objectEntriesStart.toString(16)}`);
+
     // Check each potential object number
     for (let objNum = 1; objNum <= maxObjects; objNum++) {
       const objAddr = objectEntriesStart + (objNum - 1) * entrySize;
 
       try {
-        // Try to access the object's address to verify it's within memory bounds
-        if (this.isValidObjectAddress(objAddr)) {
+        // More rigorous validation of object structure
+        if (this.isValidZMachineObject(objAddr)) {
           this.validObjectNumbers.add(objNum);
           this.logger.debug(`Found valid object ${objNum} at address 0x${objAddr.toString(16)}`);
         }
       } catch (error) {
-        // If we get a memory access error, stop scanning
+        // If we get a memory access error, log and continue
         this.logger.debug(
-          `Stopping object scan at object ${objNum}: ${error instanceof Error ? error.message : String(error)}`
+          `Object ${objNum} failed validation: ${error instanceof Error ? error.message : String(error)}`
         );
-        break;
+
+        // Don't stop scanning - just skip this object and try the next one
+        // Some objects may be invalid due to story file structure
       }
     }
 
@@ -101,20 +107,72 @@ export class GameObjectFactory {
   }
 
   /**
-   * Check if an address contains a valid object entry
+   * Perform comprehensive validation of a potential Z-machine object
+   * @param objAddr The address of the potential object
+   * @param objNum The object number being validated
+   * @returns true if this appears to be a valid Z-machine object
    */
-  private isValidObjectAddress(objAddr: number): boolean {
+  private isValidZMachineObject(objAddr: number): boolean {
     try {
-      // Try to read bytes that should be part of the object
-      // This will throw an error if outside memory bounds
+      // 1. Basic memory access check - can we read the object data?
+      // First bytes are attribute flags, which we can read without specific checks
       this.memory.getByte(objAddr);
 
-      // For additional validation, we could check if the parent/sibling/child
-      // fields contain valid object numbers, but this basic check is sufficient
-      // to prevent most memory access errors
+      // 2. Check validity of parent, sibling, child pointers
+      const parentNum = this.version <= 3 ? this.memory.getByte(objAddr + 4) : this.memory.getWord(objAddr + 6);
 
+      // Parent number should be 0 or a valid object number
+      // This prevents obviously invalid references
+      const maxObjects = this.getMaxObjects();
+      if (parentNum > maxObjects) {
+        return false;
+      }
+
+      // We should also check sibling and child object numbers
+      const siblingNum = this.version <= 3 ? this.memory.getByte(objAddr + 5) : this.memory.getWord(objAddr + 8);
+
+      const childNum = this.version <= 3 ? this.memory.getByte(objAddr + 6) : this.memory.getWord(objAddr + 10);
+
+      // Validate sibling and child numbers as well
+      if (siblingNum > maxObjects || childNum > maxObjects) {
+        return false;
+      }
+
+      // 3. Check property table address - crucial for a valid object
+      const propTableAddr = this.memory.getWord(objAddr + (this.version <= 3 ? 7 : 12));
+
+      // Property table must be within memory bounds
+      if (propTableAddr <= 0 || propTableAddr >= this.memory.size) {
+        return false;
+      }
+
+      // 4. Validate property table structure
+      // First byte should be a length byte for the object name (usually 0-16)
+      const nameLength = this.memory.getByte(propTableAddr);
+
+      // Name length should be reasonable - Inform typically uses short names
+      if (nameLength > 20) {
+        return false;
+      }
+
+      // Check that we can access the name string bytes
+      for (let i = 0; i < nameLength * 2; i++) {
+        this.memory.getByte(propTableAddr + 1 + i);
+      }
+
+      // 5. Check for at least one property after the name (or a terminator)
+      const propStart = propTableAddr + 1 + nameLength * 2;
+      const firstPropByte = this.memory.getByte(propStart);
+
+      // Either a valid property number (1-31/63) or a terminator (0)
+      if (firstPropByte !== 0 && (firstPropByte & 0x1f) === 0) {
+        return false;
+      }
+
+      // This object passed all checks
       return true;
     } catch (error) {
+      // Any exception (like memory access errors) means it's not a valid object
       return false;
     }
   }
