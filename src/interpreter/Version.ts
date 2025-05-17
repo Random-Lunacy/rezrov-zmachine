@@ -177,3 +177,92 @@ export function getMaxTextBufferLength(version: ZMachineVersion): number {
 export function usesLengthPrefixedText(version: ZMachineVersion): boolean {
   return version >= ZMachineVersion.V5;
 }
+
+/**
+ * Checks if a byte address is properly aligned for the given Z-machine version
+ * @param version Z-machine version
+ * @param byteAddr Byte address to check
+ * @param isRoutine Whether this is a routine address (vs. string address)
+ * @param routineOffset Routine offset for V6-7 (if applicable)
+ * @param stringOffset String offset for V6-7 (if applicable)
+ * @returns True if the address is properly aligned
+ */
+export function isAddressAligned(
+  version: ZMachineVersion,
+  byteAddr: number,
+  isRoutine: boolean = true,
+  routineOffset: number = 0,
+  stringOffset: number = 0
+): boolean {
+  // Check alignment requirements based on version
+  if (version <= ZMachineVersion.V3) {
+    // Must be on a 2-byte boundary
+    return byteAddr % 2 === 0;
+  } else if (version <= ZMachineVersion.V5) {
+    // Must be on a 4-byte boundary
+    return byteAddr % 4 === 0;
+  } else if (version <= ZMachineVersion.V7) {
+    // Must be on a 4-byte boundary relative to the offset
+    const offset = isRoutine ? routineOffset : stringOffset;
+    return (byteAddr - offset) % 4 === 0;
+  } else if (version === ZMachineVersion.V8) {
+    // Must be on an 8-byte boundary
+    return byteAddr % 8 === 0;
+  } else {
+    throw new Error(`Unknown Z-machine version: ${version}`);
+  }
+}
+
+/**
+ * Converts a byte address to a packed address
+ * @param version Z-machine version
+ * @param byteAddr Byte address to convert
+ * @param isRoutine Whether this is a routine address (vs. string address)
+ * @param routineOffset Routine offset for V6-7 (if applicable)
+ * @param stringOffset String offset for V6-7 (if applicable)
+ * @returns Packed address
+ */
+export function byteToPackedAddress(
+  version: ZMachineVersion,
+  byteAddr: number,
+  isRoutine: boolean = true,
+  routineOffset: number = 0,
+  stringOffset: number = 0
+): number {
+  if (!isAddressAligned(version, byteAddr, isRoutine, routineOffset, stringOffset)) {
+    throw new Error(`Address 0x${byteAddr.toString(16)} is not properly aligned for packed address`);
+  }
+
+  if (version <= ZMachineVersion.V3) {
+    return Math.floor(byteAddr / 2);
+  } else if (version <= ZMachineVersion.V5) {
+    return Math.floor(byteAddr / 4);
+  } else if (version <= ZMachineVersion.V7) {
+    const offset = isRoutine ? routineOffset : stringOffset;
+    return Math.floor((byteAddr - offset) / 4);
+  } else if (version === ZMachineVersion.V8) {
+    return Math.floor(byteAddr / 8);
+  } else {
+    throw new Error(`Unknown Z-machine version: ${version}`);
+  }
+}
+
+/**
+ * Gets the maximum file size for a specific Z-machine version
+ * @param version Z-machine version
+ * @returns Maximum file size in bytes
+ */
+export function getMaxFileSize(version: ZMachineVersion): number {
+  if (version <= ZMachineVersion.V3) return 128 * 1024;
+  if (version <= ZMachineVersion.V5) return 256 * 1024;
+  return 512 * 1024;
+}
+
+/**
+ * Checks if a Z-machine version requires non-zero routine and string offsets
+ * @param version Z-machine version
+ * @returns True if the version requires non-zero offsets
+ */
+export function requiresNonZeroOffsets(version: ZMachineVersion): boolean {
+  return version === ZMachineVersion.V6 || version === ZMachineVersion.V7;
+}

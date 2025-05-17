@@ -101,6 +101,7 @@ export class EnhancedDatFormat implements FormatProvider {
         format: 'enhanced',
       };
     } catch (e) {
+      this.logger.debug(`Error reading save file: ${e}`);
       return {
         description: 'Unreadable save file',
         format: 'unknown',

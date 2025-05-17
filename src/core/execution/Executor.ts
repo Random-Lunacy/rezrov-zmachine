@@ -125,11 +125,15 @@ export class Executor {
 
     this.logger.debug(`Executing op = ${op.mnemonic} with operands [${operands.map((o) => hex(o)).join(', ')}]`);
 
-    const result = op.impl(this.zMachine, ...operands);
+    try {
+      const result = op.impl(this.zMachine, ...operands);
 
-    // If the opcode returns a Promise, await it
-    if (result instanceof Promise) {
-      await result;
+      if (result instanceof Promise) {
+        await result;
+      }
+    } catch (e) {
+      this.logger.error(`Error executing opcode ${op.mnemonic}: ${e}`);
+      throw e; // Re-throw to allow caller to handle
     }
   }
 
@@ -153,31 +157,34 @@ export class Executor {
     let form: InstructionForm;
     let opcodeNumber: number;
 
-    if ((opcode & 0xc0) === 0xc0) {
+    if (opcode === 0xbe && state.version >= 5) {
+      // Check for Extended opcode first
+      form = InstructionForm.Extended;
+      opcodeNumber = state.readByte();
+      const typesByte = state.readByte();
+      operandTypes = this.decodeOperandTypes(typesByte);
+    } else if ((opcode & 0xc0) === 0xc0) {
+      // Then Variable form
       form = InstructionForm.Variable;
       reallyVariable = (opcode & 0x20) !== 0;
       const typesByte = state.readByte();
       operandTypes = this.decodeOperandTypes(typesByte);
       opcodeNumber = opcode & 0x1f;
     } else if ((opcode & 0x80) === 0x80) {
+      // Then Short form
       form = InstructionForm.Short;
       const opType = (opcode & 0x30) >> 4;
       if (opType !== OperandType.Omitted) {
         operandTypes = [opType];
       }
       opcodeNumber = opcode & 0x0f;
-    } else if (opcode === 190 && state.version >= 5) {
-      form = InstructionForm.Extended;
-      opcodeNumber = state.readByte();
-      const typesByte = state.readByte();
-      operandTypes = this.decodeOperandTypes(typesByte);
     } else {
+      // Finally Long form
       form = InstructionForm.Long;
       operandTypes.push((opcode & 0x40) === 0x40 ? OperandType.Variable : OperandType.Small);
       operandTypes.push((opcode & 0x20) === 0x20 ? OperandType.Variable : OperandType.Small);
       opcodeNumber = opcode & 0x1f;
     }
-
     return { form, reallyVariable, opcodeNumber, operandTypes };
   }
 
