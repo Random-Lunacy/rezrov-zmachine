@@ -70,10 +70,6 @@ export class GameObjectFactory {
    * Scan the object table to identify which object numbers are valid
    * This prevents attempting to create objects that don't exist in the story file
    */
-  /**
-   * Scan the object table to identify which object numbers are valid
-   * This prevents attempting to create objects that don't exist in the story file
-   */
   private identifyValidObjects(): void {
     const entrySize = this.version <= 3 ? 9 : 14;
     const propertyDefaultsSize = this.version <= 3 ? 31 * 2 : 63 * 2;
@@ -83,46 +79,63 @@ export class GameObjectFactory {
 
     this.logger.info(`Scanning for valid objects starting from 0x${objectEntriesStart.toString(16)}`);
 
-    // Find the lowest property table address to determine the end of the object table
-    let lowestPropertyAddr = this.memory.size; // Start with maximum possible value
-    let objectAddr = objectEntriesStart;
-    let objNum = 1;
+    // Store all property table addresses we find
+    const propertyTableAddresses = new Set<number>();
+    let maxValidObjects = 0;
 
+    // First pass: collect all property table addresses and determine max object count
     try {
-      while (objectAddr < lowestPropertyAddr) {
-        // Get the property table address for this object
-        const propTableAddr = this.memory.getWord(objectAddr + (this.version <= 3 ? 7 : 12));
+      // Check against static memory boundary, which is the upper limit
+      const staticMemoryStart = this.memory.getWord(0x0e);
 
-        // Update lowest property address if this one is lower
-        if (propTableAddr > 0 && propTableAddr < lowestPropertyAddr) {
-          lowestPropertyAddr = propTableAddr;
+      // Iterate through potential objects until we reach static memory
+      let objectAddr = objectEntriesStart;
+      let objNum = 1;
+
+      while (objectAddr + entrySize <= staticMemoryStart) {
+        try {
+          // Get the property table address for this object
+          const propTableAddr = this.memory.getWord(objectAddr + (this.version <= 3 ? 7 : 12));
+
+          // If it's a valid address, add to our collection
+          if (propTableAddr > 0 && propTableAddr < staticMemoryStart) {
+            propertyTableAddresses.add(propTableAddr);
+
+            // If this looks valid, update max valid objects
+            maxValidObjects = objNum;
+          } else {
+            // If we find an invalid property table address, we might be past the object table
+            break;
+          }
+
+          // Move to next object
+          objectAddr += entrySize;
+          objNum++;
+
+          // Safety check to prevent excessive objects
+          if (objNum > this.getMaxObjects()) break;
+        } catch (error) {
+          // If we hit a memory error, we've gone too far
+          break;
         }
-
-        // Move to next object
-        objectAddr += entrySize;
-        objNum++;
-
-        // Safety check to prevent infinite loops
-        if (objNum > 255) break;
       }
 
-      // Calculate the maximum valid object number
-      const maxValidObjects = Math.max(1, (objectAddr - objectEntriesStart) / entrySize - 1);
-
+      this.logger.info(`Found ${propertyTableAddresses.size} property tables`);
       this.logger.info(`Calculated maximum valid object: ${maxValidObjects}`);
-      this.logger.info(`Lowest property table address: 0x${lowestPropertyAddr.toString(16)}`);
 
-      // Now validate each object up to the calculated maximum
+      // Second pass: validate each object up to the calculated maximum
       for (let i = 1; i <= maxValidObjects; i++) {
         const objAddr = objectEntriesStart + (i - 1) * entrySize;
 
         try {
-          // Still do basic validation to ensure the object is properly structured
-          if (this.isValidZMachineObject(objAddr)) {
+          // Add additional check for property table validity
+          const propTableAddr = this.memory.getWord(objAddr + (this.version <= 3 ? 7 : 12));
+
+          if (propertyTableAddresses.has(propTableAddr) && this.isValidZMachineObject(objAddr)) {
             this.validObjectNumbers.add(i);
             this.logger.debug(`Found valid object ${i} at address 0x${objAddr.toString(16)}`);
           } else {
-            this.logger.debug(`Object ${i} failed structural validation`);
+            this.logger.debug(`Object ${i} failed validation`);
           }
         } catch (error) {
           this.logger.debug(`Object ${i} failed with error: ${error instanceof Error ? error.message : String(error)}`);
