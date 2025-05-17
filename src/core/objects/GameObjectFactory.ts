@@ -42,6 +42,7 @@ export class GameObjectFactory {
   private readonly objTable: number;
   private readonly objectCache: Map<number, GameObject>;
   private readonly hasOptionsLogger: boolean;
+  private readonly validObjectNumbers: Set<number>; // NEW: Track valid object numbers
 
   /**
    * Create a new GameObjectFactory
@@ -55,11 +56,67 @@ export class GameObjectFactory {
     this.version = version;
     this.objTable = objTable;
     this.objectCache = new Map<number, GameObject>();
-    this.hasOptionsLogger = !!options?.logger;
+    this.validObjectNumbers = new Set<number>(); // NEW
     this.hasOptionsLogger = options?.logger !== undefined;
     this.logger = options?.logger || new Logger('GameObjectFactory');
 
     this.logger.debug(`Created GameObjectFactory for version ${version} object table at ${objTable.toString(16)}`);
+
+    // NEW: Identify valid objects during initialization
+    this.identifyValidObjects();
+  }
+
+  /**
+   * Scan the object table to identify which object numbers are valid
+   * This prevents attempting to create objects that don't exist in the story file
+   */
+  private identifyValidObjects(): void {
+    const maxObjects = this.getMaxObjects();
+    const entrySize = this.version <= 3 ? 9 : 14;
+    const propertyDefaultsSize = this.version <= 3 ? 31 * 2 : 63 * 2;
+
+    // Start address of the object entries
+    const objectEntriesStart = this.objTable + propertyDefaultsSize;
+
+    // Check each potential object number
+    for (let objNum = 1; objNum <= maxObjects; objNum++) {
+      const objAddr = objectEntriesStart + (objNum - 1) * entrySize;
+
+      try {
+        // Try to access the object's address to verify it's within memory bounds
+        if (this.isValidObjectAddress(objAddr)) {
+          this.validObjectNumbers.add(objNum);
+          this.logger.debug(`Found valid object ${objNum} at address 0x${objAddr.toString(16)}`);
+        }
+      } catch (error) {
+        // If we get a memory access error, stop scanning
+        this.logger.debug(
+          `Stopping object scan at object ${objNum}: ${error instanceof Error ? error.message : String(error)}`
+        );
+        break;
+      }
+    }
+
+    this.logger.info(`Identified ${this.validObjectNumbers.size} valid objects in the story file`);
+  }
+
+  /**
+   * Check if an address contains a valid object entry
+   */
+  private isValidObjectAddress(objAddr: number): boolean {
+    try {
+      // Try to read bytes that should be part of the object
+      // This will throw an error if outside memory bounds
+      this.memory.getByte(objAddr);
+
+      // For additional validation, we could check if the parent/sibling/child
+      // fields contain valid object numbers, but this basic check is sufficient
+      // to prevent most memory access errors
+
+      return true;
+    } catch (error) {
+      return false;
+    }
   }
 
   /**
@@ -81,9 +138,8 @@ export class GameObjectFactory {
       return null;
     }
 
-    // Validate object number
-    const maxObjects = this.getMaxObjects();
-    if (objNum < 0 || objNum > maxObjects) {
+    // NEW: Check if this is a valid object number
+    if (!this.validObjectNumbers.has(objNum)) {
       this.logger.warn(`Invalid object number: ${objNum}`);
       return null;
     }
@@ -96,7 +152,7 @@ export class GameObjectFactory {
 
     this.logger.debug(`Creating new object ${objNum}`);
     if (this.hasOptionsLogger) {
-      obj = new ManagedGameObject(this.memory, this.version, this.objTable, objNum, this, { logger: this.logger }); // Pass logger in options
+      obj = new ManagedGameObject(this.memory, this.version, this.objTable, objNum, this, { logger: this.logger });
     } else {
       obj = new ManagedGameObject(this.memory, this.version, this.objTable, objNum, this);
     }
@@ -122,10 +178,10 @@ export class GameObjectFactory {
    */
   getAllObjects(): GameObject[] {
     const objects: GameObject[] = [];
-    const maxObjects = this.getMaxObjects();
 
-    for (let i = 1; i <= maxObjects; i++) {
-      const obj = this.getObject(i);
+    // Only iterate over valid object numbers
+    for (const objNum of this.validObjectNumbers) {
+      const obj = this.getObject(objNum);
       if (obj) {
         objects.push(obj);
       }

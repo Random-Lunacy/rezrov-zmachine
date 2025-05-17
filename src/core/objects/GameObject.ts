@@ -62,11 +62,21 @@ export class GameObject {
 
     // Calculate object address based on version-specific object entry size
     if (this.version <= 3) {
-      // V3: 9-byte entries, 31 * 2 bytes for default properties
+      // V1-3: 9-byte entries, 31 * 2 bytes for default properties
       this.objAddr = this.objTable + 31 * 2 + (objNum - 1) * 9;
     } else {
       // V4+: 14-byte entries, 63 * 2 bytes for default properties
       this.objAddr = this.objTable + 63 * 2 + (objNum - 1) * 14;
+    }
+
+    // Verify this is a valid object address
+    try {
+      // Access first byte of the object to verify it's valid
+      memory.getByte(this.objAddr);
+    } catch (error) {
+      throw new Error(
+        `Invalid object address for object ${objNum}: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 
@@ -125,10 +135,17 @@ export class GameObject {
 
   // Relationship Handling
   get parent(): GameObject | null {
-    const parentObjNum =
-      this.version <= 3 ? this.memory.getByte(this.objAddr + 4) : this.memory.getWord(this.objAddr + 6);
+    try {
+      const parentObjNum =
+        this.version <= 3 ? this.memory.getByte(this.objAddr + 4) : this.memory.getWord(this.objAddr + 6);
 
-    return parentObjNum === 0 ? null : this.getObject(parentObjNum);
+      return parentObjNum === 0 ? null : this.getObject(parentObjNum);
+    } catch (error) {
+      this.logger.warn(
+        `Error accessing parent for object ${this.objNum}: ${error instanceof Error ? error.message : String(error)}`
+      );
+      return null;
+    }
   }
 
   set parent(po: GameObject | null) {
@@ -142,10 +159,17 @@ export class GameObject {
   }
 
   get sibling(): GameObject | null {
-    const siblingObjNum =
-      this.version <= 3 ? this.memory.getByte(this.objAddr + 5) : this.memory.getWord(this.objAddr + 8);
+    try {
+      const siblingObjNum =
+        this.version <= 3 ? this.memory.getByte(this.objAddr + 5) : this.memory.getWord(this.objAddr + 8);
 
-    return siblingObjNum === 0 ? null : this.getObject(siblingObjNum);
+      return siblingObjNum === 0 ? null : this.getObject(siblingObjNum);
+    } catch (error) {
+      this.logger.warn(
+        `Error accessing sibling for object ${this.objNum}: ${error instanceof Error ? error.message : String(error)}`
+      );
+      return null;
+    }
   }
 
   set sibling(so: GameObject | null) {
@@ -159,10 +183,17 @@ export class GameObject {
   }
 
   get child(): GameObject | null {
-    const childObjNum =
-      this.version <= 3 ? this.memory.getByte(this.objAddr + 6) : this.memory.getWord(this.objAddr + 10);
+    try {
+      const childObjNum =
+        this.version <= 3 ? this.memory.getByte(this.objAddr + 6) : this.memory.getWord(this.objAddr + 10);
 
-    return childObjNum === 0 ? null : this.getObject(childObjNum);
+      return childObjNum === 0 ? null : this.getObject(childObjNum);
+    } catch (error) {
+      this.logger.warn(
+        `Error accessing child for object ${this.objNum}: ${error instanceof Error ? error.message : String(error)}`
+      );
+      return null;
+    }
   }
 
   set child(co: GameObject | null) {

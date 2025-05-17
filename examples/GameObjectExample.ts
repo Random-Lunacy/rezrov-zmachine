@@ -64,12 +64,19 @@ interface GameObject {
 }
 
 function displayObjectTree(obj: GameObject, depth: number): void {
-  const indent = '  '.repeat(depth);
-  const logger: Logger = new Logger('GameObjectExample');
-  logger.info(`${indent}[${obj.objNum}] ${obj.name}`);
+  try {
+    const indent = '  '.repeat(depth);
+    const logger: Logger = new Logger('GameObjectExample');
+    logger.info(`${indent}[${obj.objNum}] ${obj.name}`);
 
-  for (let child = obj.child; child !== null; child = child.sibling) {
-    displayObjectTree(child, depth + 1);
+    let child = obj.child;
+    while (child !== null) {
+      displayObjectTree(child, depth + 1);
+      child = child.sibling;
+    }
+  } catch (error) {
+    const logger: Logger = new Logger('GameObjectExample');
+    logger.error(`Error displaying object tree: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
