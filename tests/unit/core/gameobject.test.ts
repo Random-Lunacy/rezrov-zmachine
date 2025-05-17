@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Memory } from '../../../src/core/memory/Memory';
 import { GameObject } from '../../../src/core/objects/GameObject';
+import { GameObjectFactory } from '../../../src/core/objects/GameObjectFactory';
 import { MAX_ATTRIBUTES_V3, MAX_ATTRIBUTES_V4 } from '../../../src/utils/constants';
 import { Logger, LogLevel } from '../../../src/utils/log';
 import { MockMemory } from '../../mocks/MockMemory';
@@ -479,6 +480,80 @@ describe('GameObject', () => {
 
       expect(GameObject.getPropertyLength(mockMemory as any, 3, 0x200 + 12)).toBe(3);
       expect(GameObject.getPropertyLength(mockMemory as any, 3, 0)).toBe(0);
+    });
+  });
+
+  describe('Integration Tests', () => {
+    it('should correctly parse the object tree from a memory image', () => {
+      // This test would use a realistic memory setup mimicking a minimal Z-machine story file
+      // We could either construct this manually or load a small test story file
+
+      // For brevity, let's focus on mocking the key parts
+      const staticMemory = 0x500;
+      const objTable = 0x100;
+      const objEntriesStart = objTable + 31 * 2;
+
+      // Setup memory mocks for a simple tree:
+      // Object 1 (parent=0, child=2, sibling=0) - root
+      //   Object 2 (parent=1, child=3, sibling=0) - child of 1
+      //     Object 3 (parent=2, child=0, sibling=0) - child of 2
+
+      // Clear mocks
+      mockMemory.getWord.mockReset();
+      mockMemory.getByte.mockReset();
+
+      // Static memory
+      mockMemory.getWord.mockImplementation((addr: number) => {
+        if (addr === 0x0e) return staticMemory;
+
+        // Property tables
+        if (addr === objEntriesStart + 7) return 0x300; // Obj 1
+        if (addr === objEntriesStart + 9 + 7) return 0x320; // Obj 2
+        if (addr === objEntriesStart + 18 + 7) return 0x340; // Obj 3
+
+        return 0;
+      });
+
+      mockMemory.getByte.mockImplementation((addr: number) => {
+        // Object 1
+        if (addr === objEntriesStart + 4) return 0; // Parent
+        if (addr === objEntriesStart + 5) return 0; // Sibling
+        if (addr === objEntriesStart + 6) return 2; // Child
+
+        // Object 2
+        if (addr === objEntriesStart + 9 + 4) return 1; // Parent
+        if (addr === objEntriesStart + 9 + 5) return 0; // Sibling
+        if (addr === objEntriesStart + 9 + 6) return 3; // Child
+
+        // Object 3
+        if (addr === objEntriesStart + 18 + 4) return 2; // Parent
+        if (addr === objEntriesStart + 18 + 5) return 0; // Sibling
+        if (addr === objEntriesStart + 18 + 6) return 0; // Child
+
+        // Property tables
+        if (addr === 0x300 || addr === 0x320 || addr === 0x340) return 5; // Name length
+        if (addr === 0x300 + 11 || addr === 0x320 + 11 || addr === 0x340 + 11) return 0x21; // Property size
+
+        return 0;
+      });
+
+      // Create factory with these mocks
+      const factory = new GameObjectFactory(mockMemory as any, version, objTable, { logger: mockLogger });
+
+      // Get root objects
+      const roots = factory.findRootObjects();
+
+      // Validate object tree structure
+      expect(roots.length).toBe(1);
+      expect(roots[0].objNum).toBe(1);
+
+      const child = roots[0].child;
+      expect(child).not.toBeNull();
+      expect(child?.objNum).toBe(2);
+
+      const grandchild = child?.child;
+      expect(grandchild).not.toBeNull();
+      expect(grandchild?.objNum).toBe(3);
     });
   });
 });
