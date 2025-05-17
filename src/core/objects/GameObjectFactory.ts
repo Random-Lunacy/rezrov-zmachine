@@ -115,6 +115,7 @@ export class GameObjectFactory {
           // Safety check to prevent excessive objects
           if (objNum > this.getMaxObjects()) break;
         } catch (error) {
+          this.logger.debug(`Memory error iterating objects at address 0x${objectAddr.toString(16)} - ${error}`);
           // If we hit a memory error, we've gone too far
           break;
         }
@@ -214,6 +215,7 @@ export class GameObjectFactory {
       // This object passed all checks
       return true;
     } catch (error) {
+      this.logger.debug(`Invalid object at address 0x${objAddr.toString(16)} - ${error}`);
       // Any exception (like memory access errors) means it's not a valid object
       return false;
     }
