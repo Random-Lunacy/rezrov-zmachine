@@ -24,7 +24,7 @@ async function runGameObjectExample(storyFilePath: string): Promise<void> {
     logger.info(`Z-machine version: ${version}`);
     logger.info(`Object table at: 0x${objectTableAddr.toString(16)}`);
 
-    const factory = new GameObjectFactory(memory, logger, version, objectTableAddr);
+    const factory = new GameObjectFactory(memory, version, objectTableAddr, { logger });
 
     const rootObjects = factory.findRootObjects();
     logger.info(`Found ${rootObjects.length} root objects`);
