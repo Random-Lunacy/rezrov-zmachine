@@ -243,6 +243,8 @@ The `examples` directory contains a few examples of how to use `rezrov-zmachine`
 - `GameObjectExample.ts` - Explore the game object tree
 - `console/index.ts` - A simple console-based client implementation
 
+Before running the examples you must build the project with `npm run build`.
+
 ### Running `GameObjectExample`
 
 With the `minimal.z3` test fixture

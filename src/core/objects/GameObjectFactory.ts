@@ -70,40 +70,69 @@ export class GameObjectFactory {
    * Scan the object table to identify which object numbers are valid
    * This prevents attempting to create objects that don't exist in the story file
    */
+  /**
+   * Scan the object table to identify which object numbers are valid
+   * This prevents attempting to create objects that don't exist in the story file
+   */
   private identifyValidObjects(): void {
-    const maxObjects = this.getMaxObjects();
     const entrySize = this.version <= 3 ? 9 : 14;
     const propertyDefaultsSize = this.version <= 3 ? 31 * 2 : 63 * 2;
 
     // Start address of the object entries
     const objectEntriesStart = this.objTable + propertyDefaultsSize;
 
-    // Based on the file dump, the actual object table in this story file
-    // only contains 7 valid objects (1-7)
     this.logger.info(`Scanning for valid objects starting from 0x${objectEntriesStart.toString(16)}`);
 
-    // Check each potential object number
-    for (let objNum = 1; objNum <= maxObjects; objNum++) {
-      const objAddr = objectEntriesStart + (objNum - 1) * entrySize;
+    // Find the lowest property table address to determine the end of the object table
+    let lowestPropertyAddr = this.memory.size; // Start with maximum possible value
+    let objectAddr = objectEntriesStart;
+    let objNum = 1;
 
-      try {
-        // More rigorous validation of object structure
-        if (this.isValidZMachineObject(objAddr)) {
-          this.validObjectNumbers.add(objNum);
-          this.logger.debug(`Found valid object ${objNum} at address 0x${objAddr.toString(16)}`);
+    try {
+      while (objectAddr < lowestPropertyAddr) {
+        // Get the property table address for this object
+        const propTableAddr = this.memory.getWord(objectAddr + (this.version <= 3 ? 7 : 12));
+
+        // Update lowest property address if this one is lower
+        if (propTableAddr > 0 && propTableAddr < lowestPropertyAddr) {
+          lowestPropertyAddr = propTableAddr;
         }
-      } catch (error) {
-        // If we get a memory access error, log and continue
-        this.logger.debug(
-          `Object ${objNum} failed validation: ${error instanceof Error ? error.message : String(error)}`
-        );
 
-        // Don't stop scanning - just skip this object and try the next one
-        // Some objects may be invalid due to story file structure
+        // Move to next object
+        objectAddr += entrySize;
+        objNum++;
+
+        // Safety check to prevent infinite loops
+        if (objNum > 255) break;
       }
-    }
 
-    this.logger.info(`Identified ${this.validObjectNumbers.size} valid objects in the story file`);
+      // Calculate the maximum valid object number
+      const maxValidObjects = Math.max(1, (objectAddr - objectEntriesStart) / entrySize - 1);
+
+      this.logger.info(`Calculated maximum valid object: ${maxValidObjects}`);
+      this.logger.info(`Lowest property table address: 0x${lowestPropertyAddr.toString(16)}`);
+
+      // Now validate each object up to the calculated maximum
+      for (let i = 1; i <= maxValidObjects; i++) {
+        const objAddr = objectEntriesStart + (i - 1) * entrySize;
+
+        try {
+          // Still do basic validation to ensure the object is properly structured
+          if (this.isValidZMachineObject(objAddr)) {
+            this.validObjectNumbers.add(i);
+            this.logger.debug(`Found valid object ${i} at address 0x${objAddr.toString(16)}`);
+          } else {
+            this.logger.debug(`Object ${i} failed structural validation`);
+          }
+        } catch (error) {
+          this.logger.debug(`Object ${i} failed with error: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      }
+
+      this.logger.info(`Identified ${this.validObjectNumbers.size} valid objects in the story file`);
+    } catch (error) {
+      this.logger.error(`Error scanning object table: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   /**
