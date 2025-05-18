@@ -520,4 +520,80 @@ describe('ZString', () => {
       expect(result).toBe('hiAjBC\nDhijKk');
     });
   });
+  // Test suite for Version 1 Z-character 1 handling
+  describe('Version 1 specific behavior', () => {
+    beforeEach(() => {
+      mockMemory.getByte.mockImplementation((addr: number) => {
+        if (addr === HeaderLocation.Version) return 1;
+        return 0;
+      });
+    });
+
+    it('should handle Z-character 1 as newline in Version 1', () => {
+      const zString = [1]; // Z-character 1 in Version 1
+      const result = decodeZString(mockMemory as unknown as Memory, zString);
+      expect(result).toBe('\n'); // Should be decoded as newline
+    });
+
+    it('should not interpret Z-character 1 as abbreviation in Version 1', () => {
+      // Mock abbreviation table and string
+      mockMemory.getWord.mockImplementation((addr: number) => {
+        if (addr === HeaderLocation.AbbreviationsTable) return 0x1000;
+        if (addr === 0x1000) return 0x0800; // This would be an abbreviation in V2+
+        return 0;
+      });
+
+      const zString = [1, 5]; // Z-character 1 followed by index 5
+      const result = decodeZString(mockMemory as unknown as Memory, zString);
+
+      // Should be decoded as newline followed by whatever character 5 maps to
+      // NOT as an abbreviation
+      expect(result).not.toBe('the '); // This would be the abbreviation in V2+
+      expect(result.startsWith('\n')).toBe(true);
+    });
+  });
+
+  // Test suite for Version 2 abbreviation handling
+  describe('Version 2 specific behavior', () => {
+    beforeEach(() => {
+      mockMemory.getByte.mockImplementation((addr: number) => {
+        if (addr === HeaderLocation.Version) return 2;
+        return 0;
+      });
+    });
+
+    it('should handle Z-character 1 as abbreviation in Version 2', () => {
+      // Mock abbreviation table and string
+      mockMemory.getWord.mockImplementation((addr: number) => {
+        if (addr === HeaderLocation.AbbreviationsTable) return 0x1000;
+        if (addr === 0x1000 + 5 * 2) return 0x0800; // Abbreviation entry
+        return 0;
+      });
+
+      // Mock the getZString result for the abbreviation
+      mockMemory.getZString.mockImplementation((addr: number) => {
+        if (addr === 0x1000) return [25, 13, 10, 0]; // "the "
+        return [];
+      });
+
+      const zString = [1, 5]; // Z-character 1 followed by index 5
+      const result = decodeZString(mockMemory as unknown as Memory, zString);
+
+      expect(result).toBe('the '); // Assuming abbreviation 5 is "the "
+    });
+
+    it('should handle abbreviation table validation in Version 2', () => {
+      // Mock invalid abbreviation table address
+      mockMemory.getWord.mockImplementation((addr: number) => {
+        if (addr === HeaderLocation.AbbreviationsTable) return 0;
+        return 0;
+      });
+
+      const zString = [1, 5]; // Z-character 1 followed by index 5
+      const result = decodeZString(mockMemory as unknown as Memory, zString);
+
+      // Should gracefully handle invalid abbreviation table
+      expect(result).toBe('?');
+    });
+  });
 });

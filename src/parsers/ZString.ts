@@ -20,17 +20,20 @@ export function decodeZString(memory: Memory, zStr: ZString, expandAbbreviations
 
   // Use version-specific decoder
   if (version <= 2) {
-    return decodeZStringV1V2(memory, zStr, expandAbbreviations);
+    // Version 2 only supports z-character 1 as abbreviation
+    return decodeZStringV1V2(memory, zStr, expandAbbreviations, version);
   } else {
+    // Version 3+ supports z-characters 1, 2, and 3 as abbreviations
     return decodeZStringV3Plus(memory, zStr, expandAbbreviations);
   }
 }
 
 /**
- * Decodes a Z-string for Z-Machine versions 1 and 2
- * These versions have distinct shift behavior with shift and shift-lock characters
+ * Decodes a Z-string for Z-Machine version 2
+ * This versions shares distinct shift behavior with shift and shift-lock characters with v1 and
+ * supports a single abbreviation set via z-character 1.
  */
-function decodeZStringV1V2(memory: Memory, zStr: ZString, expandAbbreviations: boolean): string {
+function decodeZStringV1V2(memory: Memory, zStr: ZString, expandAbbreviations: boolean, version: number): string {
   let currentAlphabet = 0; // Current alphabet (0=A0, 1=A1, 2=A2)
   let lockedAlphabet = 0; // Locked alphabet
   const result: string[] = [];
@@ -48,16 +51,8 @@ function decodeZStringV1V2(memory: Memory, zStr: ZString, expandAbbreviations: b
       // Space
       result.push(' ');
     } else if (zChar === 1) {
-      // Abbreviation
-      if (expandAbbreviations && i + 1 < zStr.length) {
-        const nextChar = zStr[++i];
-        const abbrevIndex = 32 * (zChar - 1) + nextChar;
-        const abbrevTableAddr = memory.getWord(HeaderLocation.AbbreviationsTable);
-        const abbrevAddr = memory.getWord(abbrevTableAddr + abbrevIndex * 2) * 2;
-
-        const abbrevText = decodeZString(memory, memory.getZString(abbrevAddr), false);
-        result.push(abbrevText);
-      }
+      // Handle Z-character 1 based on version
+      i = handleZChar1ForV1V2(memory, zStr, i, result, expandAbbreviations, version);
     } else if (zChar === 2) {
       // Shift character 2 - for next character only
       isTemporaryShift = true;
@@ -136,6 +131,56 @@ function decodeZStringV1V2(memory: Memory, zStr: ZString, expandAbbreviations: b
   }
 
   return result.join('');
+}
+
+function handleZChar1ForV1V2(
+  memory: Memory,
+  zStr: Array<number>,
+  index: number,
+  result: string[],
+  expandAbbreviations: boolean,
+  version: number
+): number {
+  if (version === 1) {
+    // In Version 1, Z-character 1 is a newline
+    result.push('\n');
+    return index; // No change to index
+  } else {
+    // version === 2
+    // In Version 2, Z-character 1 is an abbreviation marker
+    if (expandAbbreviations && index + 1 < zStr.length) {
+      const nextChar = zStr[index + 1];
+      const abbrevIndex = nextChar;
+      const abbrevTableAddr = memory.getWord(HeaderLocation.AbbreviationsTable);
+
+      // Add validation here
+      if (abbrevTableAddr === 0 || !memory.isDynamicMemory(abbrevTableAddr)) {
+        result.push('?'); // Invalid table address
+        return index;
+      }
+
+      const entryAddr = abbrevTableAddr + abbrevIndex * 2;
+
+      // Validate entry address
+      if (!memory.isDynamicMemory(entryAddr + 1)) {
+        result.push('?'); // Invalid entry address
+        return index;
+      }
+
+      const abbrevAddr = memory.getWord(entryAddr) * 2;
+
+      try {
+        const abbrevText = decodeZString(memory, memory.getZString(abbrevAddr), false);
+        result.push(abbrevText);
+      } catch (e) {
+        result.push('?'); // Error during abbreviation resolution
+      }
+
+      return index + 1; // Consume the next character
+    }
+
+    return index; // No change to index if not expanding or incomplete
+  }
 }
 
 /**
