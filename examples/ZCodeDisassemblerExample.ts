@@ -4,17 +4,81 @@ import { fileURLToPath } from 'url';
 
 import {
   decodeZString,
+  Executor,
   HeaderLocation,
+  InputState,
   InstructionForm,
   Logger,
   LogLevel,
   Memory,
-  OperandType,
+  Opcode,
+  ZMachine,
 } from '../dist/index.js';
+
+// For creating minimal mocks
+import { BaseInputProcessor } from '../dist/ui/input/InputInterface.js';
+import { BaseScreen } from '../dist/ui/screen/BaseScreen.js';
+import { Capabilities, ScreenSize } from '../dist/ui/screen/interfaces.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+/**
+ * Minimal implementation of Screen interface for disassembler
+ */
+class MinimalScreen extends BaseScreen {
+  constructor() {
+    super('Disassembler', { logger: new Logger('MinimalScreen') });
+  }
+
+  getCapabilities(): Capabilities {
+    return {
+      hasColors: false,
+      hasBold: false,
+      hasItalic: false,
+      hasFixedPitch: false,
+      hasReverseVideo: false,
+      hasSplitWindow: false,
+      hasDisplayStatusBar: false,
+      hasPictures: false,
+      hasSound: false,
+      hasTimedKeyboardInput: false,
+    };
+  }
+
+  getSize(): ScreenSize {
+    return { rows: 25, cols: 80 };
+  }
+
+  print(_machine: ZMachine, _str: string): void {
+    // No-op for disassembler
+  }
+}
+
+/**
+ * Minimal implementation of InputProcessor interface for disassembler
+ */
+class MinimalInputProcessor extends BaseInputProcessor {
+  constructor() {
+    super({ logger: new Logger('MinimalInput') });
+  }
+
+  protected doStartTextInput(_machine: ZMachine, _state: InputState): void {
+    // No-op for disassembler
+  }
+
+  protected doStartCharInput(_machine: ZMachine, _state: InputState): void {
+    // No-op for disassembler
+  }
+
+  async promptForFilename(_machine: ZMachine, _operation: string): Promise<string> {
+    return 'dummy.sav';
+  }
+}
+
+/**
+ * Z-Machine code disassembler using the Executor class for opcode decoding
+ */
 class ZCodeDisassembler {
   private memory: Memory;
   private version: number;
@@ -24,13 +88,8 @@ class ZCodeDisassembler {
   private routineAddresses: Set<number> = new Set();
   private stringAddresses: Set<number> = new Set();
   private routineCalls: Map<number, Set<number>> = new Map(); // Maps called routine address to caller addresses
-
-  // Opcode maps for different forms
-  private opcodeNames0: Map<number, string> = new Map();
-  private opcodeNames1: Map<number, string> = new Map();
-  private opcodeNames2: Map<number, string> = new Map();
-  private opcodeNamesV: Map<number, string> = new Map();
-  private opcodeNamesExt: Map<number, string> = new Map();
+  private mockZMachine: ZMachine;
+  private executor: Executor;
 
   constructor(memory: Memory, logger: Logger) {
     this.memory = memory;
@@ -39,134 +98,29 @@ class ZCodeDisassembler {
     this.highMemStart = memory.highMemoryStart;
     this.staticMemStart = memory.dynamicMemoryEnd;
 
-    // Initialize opcode name maps
-    this.initOpcodeNames();
+    // Create minimal implementations of required interfaces
+    const screen = new MinimalScreen();
+    const inputProcessor = new MinimalInputProcessor();
+
+    // Create a ZMachine instance with our memory
+    this.mockZMachine = new ZMachine(memory.buffer, screen, inputProcessor, undefined, undefined, {
+      logger: new Logger('MockZMachine', LogLevel.ERROR),
+    });
+
+    // Create an Executor instance
+    this.executor = new Executor(this.mockZMachine, {
+      logger: new Logger('MockExecutor', LogLevel.ERROR),
+    });
   }
 
-  private initOpcodeNames(): void {
-    // 0OP opcodes
-    this.opcodeNames0.set(0, 'RTRUE');
-    this.opcodeNames0.set(1, 'RFALSE');
-    this.opcodeNames0.set(2, 'PRINT');
-    this.opcodeNames0.set(3, 'PRINT_RET');
-    this.opcodeNames0.set(4, 'NOP');
-    this.opcodeNames0.set(5, 'SAVE');
-    this.opcodeNames0.set(6, 'RESTORE');
-    this.opcodeNames0.set(7, 'RESTART');
-    this.opcodeNames0.set(8, 'RET_POPPED');
-    this.opcodeNames0.set(9, this.version <= 4 ? 'POP' : 'CATCH');
-    this.opcodeNames0.set(10, 'QUIT');
-    this.opcodeNames0.set(11, 'NEW_LINE');
-    this.opcodeNames0.set(12, 'SHOW_STATUS');
-    this.opcodeNames0.set(13, 'VERIFY');
-    this.opcodeNames0.set(14, 'EXTENDED');
-    this.opcodeNames0.set(15, 'PIRACY');
-
-    // 1OP opcodes
-    this.opcodeNames1.set(0, 'JZ');
-    this.opcodeNames1.set(1, 'GET_SIBLING');
-    this.opcodeNames1.set(2, 'GET_CHILD');
-    this.opcodeNames1.set(3, 'GET_PARENT');
-    this.opcodeNames1.set(4, 'GET_PROP_LEN');
-    this.opcodeNames1.set(5, 'INC');
-    this.opcodeNames1.set(6, 'DEC');
-    this.opcodeNames1.set(7, 'PRINT_ADDR');
-    this.opcodeNames1.set(8, 'CALL_1S');
-    this.opcodeNames1.set(9, 'REMOVE_OBJ');
-    this.opcodeNames1.set(10, 'PRINT_OBJ');
-    this.opcodeNames1.set(11, 'RET');
-    this.opcodeNames1.set(12, 'JUMP');
-    this.opcodeNames1.set(13, 'PRINT_PADDR');
-    this.opcodeNames1.set(14, 'LOAD');
-    this.opcodeNames1.set(15, this.version <= 4 ? 'NOT' : 'CALL_1N');
-
-    // 2OP opcodes
-    this.opcodeNames2.set(1, 'JE');
-    this.opcodeNames2.set(2, 'JL');
-    this.opcodeNames2.set(3, 'JG');
-    this.opcodeNames2.set(4, 'DEC_CHK');
-    this.opcodeNames2.set(5, 'INC_CHK');
-    this.opcodeNames2.set(6, 'JIN');
-    this.opcodeNames2.set(7, 'TEST');
-    this.opcodeNames2.set(8, 'OR');
-    this.opcodeNames2.set(9, 'AND');
-    this.opcodeNames2.set(10, 'TEST_ATTR');
-    this.opcodeNames2.set(11, 'SET_ATTR');
-    this.opcodeNames2.set(12, 'CLEAR_ATTR');
-    this.opcodeNames2.set(13, 'STORE');
-    this.opcodeNames2.set(14, 'INSERT_OBJ');
-    this.opcodeNames2.set(15, 'LOADW');
-    this.opcodeNames2.set(16, 'LOADB');
-    this.opcodeNames2.set(17, 'GET_PROP');
-    this.opcodeNames2.set(18, 'GET_PROP_ADDR');
-    this.opcodeNames2.set(19, 'GET_NEXT_PROP');
-    this.opcodeNames2.set(20, 'ADD');
-    this.opcodeNames2.set(21, 'SUB');
-    this.opcodeNames2.set(22, 'MUL');
-    this.opcodeNames2.set(23, 'DIV');
-    this.opcodeNames2.set(24, 'MOD');
-    this.opcodeNames2.set(25, 'CALL_2S');
-    this.opcodeNames2.set(26, 'CALL_2N');
-    this.opcodeNames2.set(27, 'SET_COLOUR');
-    this.opcodeNames2.set(28, 'THROW');
-
-    // VAR opcodes
-    this.opcodeNamesV.set(0, this.version <= 3 ? 'CALL' : 'CALL_VS');
-    this.opcodeNamesV.set(1, 'STOREW');
-    this.opcodeNamesV.set(2, 'STOREB');
-    this.opcodeNamesV.set(3, 'PUT_PROP');
-    this.opcodeNamesV.set(4, this.version >= 5 ? 'READ' : 'SREAD');
-    this.opcodeNamesV.set(5, 'PRINT_CHAR');
-    this.opcodeNamesV.set(6, 'PRINT_NUM');
-    this.opcodeNamesV.set(7, 'RANDOM');
-    this.opcodeNamesV.set(8, 'PUSH');
-    this.opcodeNamesV.set(9, 'PULL');
-    this.opcodeNamesV.set(10, 'SPLIT_WINDOW');
-    this.opcodeNamesV.set(11, 'SET_WINDOW');
-    this.opcodeNamesV.set(12, 'CALL_VS2');
-    this.opcodeNamesV.set(13, 'ERASE_WINDOW');
-    this.opcodeNamesV.set(14, 'ERASE_LINE');
-    this.opcodeNamesV.set(15, 'SET_CURSOR');
-    this.opcodeNamesV.set(16, 'GET_CURSOR');
-    this.opcodeNamesV.set(17, 'SET_TEXT_STYLE');
-    this.opcodeNamesV.set(18, 'BUFFER_MODE');
-    this.opcodeNamesV.set(19, 'OUTPUT_STREAM');
-    this.opcodeNamesV.set(20, 'INPUT_STREAM');
-    this.opcodeNamesV.set(21, 'SOUND_EFFECT');
-    this.opcodeNamesV.set(22, 'READ_CHAR');
-    this.opcodeNamesV.set(23, 'SCAN_TABLE');
-    this.opcodeNamesV.set(24, 'NOT');
-    this.opcodeNamesV.set(25, 'CALL_VN');
-    this.opcodeNamesV.set(26, 'CALL_VN2');
-    this.opcodeNamesV.set(27, 'TOKENISE');
-    this.opcodeNamesV.set(28, 'ENCODE_TEXT');
-    this.opcodeNamesV.set(29, 'COPY_TABLE');
-    this.opcodeNamesV.set(30, 'PRINT_TABLE');
-    this.opcodeNamesV.set(31, 'CHECK_ARG_COUNT');
-
-    // EXT opcodes (V5+)
-    if (this.version >= 5) {
-      this.opcodeNamesExt.set(0, 'SAVE');
-      this.opcodeNamesExt.set(1, 'RESTORE');
-      this.opcodeNamesExt.set(2, 'LOG_SHIFT');
-      this.opcodeNamesExt.set(3, 'ART_SHIFT');
-      this.opcodeNamesExt.set(4, 'SET_FONT');
-      this.opcodeNamesExt.set(5, 'DRAW_PICTURE');
-      this.opcodeNamesExt.set(6, 'PICTURE_DATA');
-      this.opcodeNamesExt.set(7, 'ERASE_PICTURE');
-      this.opcodeNamesExt.set(8, 'SET_MARGINS');
-      this.opcodeNamesExt.set(9, 'SAVE_UNDO');
-      this.opcodeNamesExt.set(10, 'RESTORE_UNDO');
-      this.opcodeNamesExt.set(11, 'PRINT_UNICODE');
-      this.opcodeNamesExt.set(12, 'CHECK_UNICODE');
-      this.opcodeNamesExt.set(13, 'SET_TRUE_COLOUR');
-    }
-  }
-
+  /**
+   * Main disassembly method - identifies and disassembles all routines
+   */
   public disassemble(): void {
     // Find the initial PC
     const initialPC = this.memory.getWord(HeaderLocation.InitialPC);
-    // First find the initial routine address
+
+    // Find the initial routine address
     const initialRoutineAddr = this.findContainingRoutine(initialPC);
 
     if (initialRoutineAddr > 0) {
@@ -181,15 +135,17 @@ class ZCodeDisassembler {
     // to find routine calls and branch destinations
     this.disassembleRoutine(initialRoutineAddr, true);
 
-    // We need to find more routines by following calls
+    // Scan for more routines in high memory
+    this.scanForMoreRoutines();
+
+    // Keep finding routines by following calls until we've found all
     let foundNewRoutines = true;
     const processed = new Set<number>();
 
-    // Keep finding routines until we've processed all reachable ones
+    // Process all known routines to find more through calls
     while (foundNewRoutines) {
       foundNewRoutines = false;
 
-      // Process all known routines
       for (const addr of this.routineAddresses) {
         if (!processed.has(addr)) {
           this.disassembleRoutine(addr, true);
@@ -201,9 +157,7 @@ class ZCodeDisassembler {
 
     // Calculate memory ranges for the z-code section
     const minRoutineAddr = Math.min(...Array.from(this.routineAddresses));
-    const maxInstrAddr = Math.max(...Array.from(this.routineAddresses));
 
-    // Second pass: Disassemble for output
     // Find the highest code address by disassembling all routines
     let highestCodeAddr = 0;
     for (const addr of this.routineAddresses) {
@@ -248,6 +202,91 @@ class ZCodeDisassembler {
     this.dumpStrings();
   }
 
+  /**
+   * Scans high memory for routine headers
+   */
+  private scanForMoreRoutines(): void {
+    // Scan through high memory to find routine headers
+    for (let addr = this.highMemStart; addr < this.memory.size - 10; addr++) {
+      if (this.isValidRoutineHeader(addr)) {
+        this.routineAddresses.add(addr);
+      }
+    }
+  }
+
+  /**
+   * Determines if an address contains a valid routine header
+   */
+  private isValidRoutineHeader(addr: number): boolean {
+    try {
+      const numLocals = this.memory.getByte(addr);
+
+      // Check if this would be a valid routine with reasonable local count
+      if (numLocals <= 15) {
+        // For V1-4, check that we have enough space for locals
+        if (this.version <= 4) {
+          const localVarsSpace = 1 + numLocals * 2;
+
+          // Make sure we have enough space for the locals and at least one instruction
+          if (addr + localVarsSpace + 1 < this.memory.size) {
+            // Check if the first byte after locals could be a valid opcode
+            const firstOpcodeByte = this.memory.getByte(addr + localVarsSpace);
+
+            // Try to decode it - if it succeeds, it's likely a routine
+            try {
+              // Save the original PC
+              const originalPC = this.mockZMachine.state.pc;
+
+              // Set PC to the potential instruction
+              this.mockZMachine.state.pc = addr + localVarsSpace + 1;
+
+              // Try to decode
+              this.executor.decodeInstruction(firstOpcodeByte, this.mockZMachine.state);
+
+              // Restore PC
+              this.mockZMachine.state.pc = originalPC;
+
+              return true;
+            } catch (e) {
+              // If decoding fails, it's not a valid routine
+              return false;
+            }
+          }
+        } else {
+          // For V5+, only check the locals count byte and next byte
+          if (addr + 2 < this.memory.size) {
+            const firstOpcodeByte = this.memory.getByte(addr + 1);
+
+            try {
+              // Save the original PC
+              const originalPC = this.mockZMachine.state.pc;
+
+              // Set PC to the potential instruction
+              this.mockZMachine.state.pc = addr + 2;
+
+              // Try to decode
+              this.executor.decodeInstruction(firstOpcodeByte, this.mockZMachine.state);
+
+              // Restore PC
+              this.mockZMachine.state.pc = originalPC;
+
+              return true;
+            } catch (e) {
+              return false;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      // Skip on memory access errors
+    }
+
+    return false;
+  }
+
+  /**
+   * Finds the routine that contains a given address
+   */
   private findContainingRoutine(addr: number): number {
     // Scan backward from the address to find a valid routine header
     let routineAddr = addr;
@@ -255,32 +294,10 @@ class ZCodeDisassembler {
 
     for (let i = 0; i < maxScan && routineAddr >= this.highMemStart; i++) {
       routineAddr--;
-      try {
-        // Check if this might be a routine header
-        const numLocals = this.memory.getByte(routineAddr);
 
-        // Check if this would be a valid routine with reasonable local count
-        if (numLocals <= 15) {
-          // For V1-4, check that we have enough space for locals
-          if (this.version <= 4) {
-            const localVarsSpace = 1 + numLocals * 2;
-            if (routineAddr + localVarsSpace > addr) {
-              continue; // Not enough space
-            }
-
-            // Check the first instruction at routineAddr + 1 + numLocals * 2
-            if (this.isValidInstruction(routineAddr + localVarsSpace)) {
-              return routineAddr;
-            }
-          } else {
-            // For V5+, only need to check the locals count byte
-            if (this.isValidInstruction(routineAddr + 1)) {
-              return routineAddr;
-            }
-          }
-        }
-      } catch (e) {
-        // Skip on memory access errors
+      // Check if routineAddr is a valid routine header
+      if (this.isValidRoutineHeader(routineAddr)) {
+        return routineAddr;
       }
     }
 
@@ -288,18 +305,9 @@ class ZCodeDisassembler {
     return 0;
   }
 
-  private isValidInstruction(addr: number): boolean {
-    try {
-      const opcode = this.memory.getByte(addr);
-
-      // Simple validation check: try to decode the instruction
-      this.decodeInstruction(opcode, addr + 1);
-      return true;
-    } catch (e) {
-      return false;
-    }
-  }
-
+  /**
+   * Disassembles a single routine
+   */
   private disassembleRoutine(routineAddr: number, analyzeOnly: boolean = false): void {
     if (routineAddr === 0 || routineAddr >= this.memory.size) {
       return;
@@ -333,7 +341,7 @@ class ZCodeDisassembler {
             const localValue = this.memory.getWord(pc);
 
             if (!analyzeOnly) {
-              localsLine += `${(localValue & 0xff).toString(16).padStart(2, '0')}${((localValue >> 8) & 0xff).toString(16).padStart(2, '0')} `;
+              localsLine += `${(localValue & 0xff).toString(16).padStart(2, '0')} ${((localValue >> 8) & 0xff).toString(16).padStart(2, '0')} `;
               valuesText += `L${i.toString().padStart(2, '0')}=0x${localValue.toString(16).padStart(4, '0')} `;
             }
 
@@ -350,12 +358,15 @@ class ZCodeDisassembler {
       }
 
       // Disassemble routine body
-      return this.disassembleFrom(pc, analyzeOnly);
+      this.disassembleFrom(pc, analyzeOnly);
     } catch (error) {
       this.logger.warn(`Error disassembling routine at 0x${routineAddr.toString(16)}: ${error}`);
     }
   }
 
+  /**
+   * Finds the end address of a routine
+   */
   private findRoutineEndAddress(routineAddr: number): number {
     try {
       const numLocals = this.memory.getByte(routineAddr);
@@ -369,31 +380,60 @@ class ZCodeDisassembler {
       // Trace until we hit a return instruction or the next routine
       let lastInstrAddr = pc;
 
+      // Store original PC
+      const originalPC = this.mockZMachine.state.pc;
+
       while (pc < this.memory.size) {
         try {
           const startInsAddr = pc;
           const opcode = this.memory.getByte(pc++);
 
-          // Check if this looks like a routine header (this would be the start of the next routine)
-          // for safety, only consider it a routine boundary if it's one we already identified
+          // Check if this is the start of another routine
           if (this.routineAddresses.has(startInsAddr)) {
+            // Restore PC
+            this.mockZMachine.state.pc = originalPC;
             return lastInstrAddr;
           }
 
-          const { form, opcodeNumber, operandTypes, nextPC } = this.decodeInstruction(opcode, pc);
-          pc = nextPC;
+          // Set PC to the current instruction for decoding
+          this.mockZMachine.state.pc = pc;
+
+          // Decode the instruction using Executor
+          const { form, reallyVariable, opcodeNumber, operandTypes } = this.executor.decodeInstruction(
+            opcode,
+            this.mockZMachine.state
+          );
+
+          // Update PC to after the type bytes
+          pc = this.mockZMachine.state.pc;
 
           // Update the last instruction address
           lastInstrAddr = pc - 1;
 
-          // Read operands based on types
-          for (const opType of operandTypes) {
-            if (opType === OperandType.Large) {
-              pc += 2;
-            } else if (opType === OperandType.Small || opType === OperandType.Variable) {
-              pc += 1;
-            }
+          // Read operands using Executor
+          this.mockZMachine.state.pc = pc;
+          const operands = this.executor.readOperands(operandTypes, this.mockZMachine.state);
+          pc = this.mockZMachine.state.pc;
+
+          // Get the opcode using Executor
+          let opcodeImpl: Opcode;
+          try {
+            opcodeImpl = this.executor.resolveOpcode(
+              form,
+              reallyVariable,
+              opcodeNumber,
+              operandTypes.length,
+              startInsAddr,
+              opcodeByte
+            );
+          } catch (e) {
+            // If resolveOpcode fails, create a placeholder
+            opcodeImpl = {
+              mnemonic: `UNKNOWN_${form}_${opcodeNumber}`,
+              impl: () => {},
+            };
           }
+          const opName = opcodeImpl.mnemonic;
 
           // Read variable number and/or branch offset if needed
           if (this.hasStoreVar(form, opcodeNumber)) {
@@ -410,7 +450,6 @@ class ZCodeDisassembler {
           }
 
           // Special handling for text-containing opcodes
-          const opName = this.getOpcodeName(form, opcodeNumber);
           if (opName === 'PRINT') {
             // Skip until the end of the string (high bit set)
             let endFound = false;
@@ -432,6 +471,8 @@ class ZCodeDisassembler {
             opName === 'QUIT' ||
             opName === 'THROW'
           ) {
+            // Restore PC
+            this.mockZMachine.state.pc = originalPC;
             return pc - 1;
           }
         } catch (error) {
@@ -440,15 +481,23 @@ class ZCodeDisassembler {
         }
       }
 
+      // Restore PC
+      this.mockZMachine.state.pc = originalPC;
       return lastInstrAddr;
     } catch (error) {
       return routineAddr;
     }
   }
 
+  /**
+   * Disassembles Z-code starting from a given address
+   */
   private disassembleFrom(startPC: number, analyzeOnly: boolean = false): void {
     let pc = startPC;
     const instructionBytes: Map<number, Array<number>> = new Map();
+
+    // Store original PC
+    const originalPC = this.mockZMachine.state.pc;
 
     // Loop until we reach a return opcode or an error
     while (pc < this.memory.size) {
@@ -456,65 +505,79 @@ class ZCodeDisassembler {
         const startInsAddr = pc; // Remember where this instruction started
         instructionBytes.set(startInsAddr, []);
 
-        const opcode = this.memory.getByte(pc++);
-        instructionBytes.get(startInsAddr)?.push(opcode);
+        const opcodeByte = this.memory.getByte(pc++);
+        instructionBytes.get(startInsAddr)?.push(opcodeByte);
 
-        // Check if this looks like a routine header (this would be the start of the next routine)
-        if (this.routineAddresses.has(startInsAddr)) {
+        // Check if this is the start of another routine
+        if (this.routineAddresses.has(startInsAddr) && startInsAddr !== startPC) {
           // We've hit the next routine, stop disassembling
           break;
         }
 
-        const { form, opcodeNumber, operandTypes, nextPC } = this.decodeInstruction(opcode, pc);
+        // Set PC for Executor to use
+        this.mockZMachine.state.pc = pc;
+
+        // Decode the instruction using Executor
+        const { form, reallyVariable, opcodeNumber, operandTypes } = this.executor.decodeInstruction(
+          opcodeByte,
+          this.mockZMachine.state
+        );
 
         // Add the type bytes if any
         if (form === InstructionForm.Extended || form === InstructionForm.Variable) {
-          for (let i = pc; i < nextPC; i++) {
-            instructionBytes.get(startInsAddr)?.push(this.memory.getByte(i));
+          const typeBytesCount = this.mockZMachine.state.pc - pc;
+          for (let i = 0; i < typeBytesCount; i++) {
+            instructionBytes.get(startInsAddr)?.push(this.memory.getByte(pc + i));
           }
         }
 
-        pc = nextPC; // Update the PC with the value returned from decodeInstruction
+        // Update PC after decoding
+        pc = this.mockZMachine.state.pc;
 
-        // Get the opcode name
-        let opName = this.getOpcodeName(form, opcodeNumber);
-        if (!opName) {
-          opName = `UNKNOWN_${form}_${opcodeNumber}`;
+        // Get the opcode using Executor
+        let opcode: Opcode;
+        try {
+          opcode = this.executor.resolveOpcode(
+            form,
+            reallyVariable,
+            opcodeNumber,
+            operandTypes.length,
+            startInsAddr,
+            opcodeByte
+          );
+        } catch (e) {
+          // If resolveOpcode fails, create a placeholder
+          opcode = {
+            mnemonic: `UNKNOWN_${form}_${opcodeNumber}`,
+            impl: () => {},
+          };
+        }
+        const opName = opcode.mnemonic;
+
+        // Read operands using Executor
+        this.mockZMachine.state.pc = pc;
+        const operands = this.executor.readOperands(operandTypes, this.mockZMachine.state);
+
+        // Add operand bytes to instruction bytes
+        const operandBytesCount = this.mockZMachine.state.pc - pc;
+        for (let i = 0; i < operandBytesCount; i++) {
+          instructionBytes.get(startInsAddr)?.push(this.memory.getByte(pc + i));
         }
 
-        // Read operands based on types
-        const operands: number[] = [];
+        // Update PC after reading operands
+        pc = this.mockZMachine.state.pc;
 
-        for (const opType of operandTypes) {
-          if (opType === OperandType.Large) {
-            const val = this.memory.getWord(pc);
-            operands.push(val);
-            instructionBytes.get(startInsAddr)?.push(val & 0xff, (val >> 8) & 0xff);
-            pc += 2;
-          } else if (opType === OperandType.Small) {
-            const val = this.memory.getByte(pc);
-            operands.push(val);
-            instructionBytes.get(startInsAddr)?.push(val);
-            pc += 1;
-          } else if (opType === OperandType.Variable) {
-            const val = this.memory.getByte(pc);
-            operands.push(val);
-            instructionBytes.get(startInsAddr)?.push(val);
-            pc += 1;
-          }
-        }
-
-        // Read variable number and/or branch offset if needed
+        // Handle store variable
         let storeVar: number | null = null;
-        let branchInfo = '';
-        let branchTarget = 0;
-
         if (this.hasStoreVar(form, opcodeNumber)) {
           storeVar = this.memory.getByte(pc);
           instructionBytes.get(startInsAddr)?.push(storeVar);
           pc += 1;
         }
 
+        // Handle branch offset
+        let branchInfo = '';
+        let branchTarget = 0;
         if (this.hasBranch(form, opcodeNumber)) {
           const branch = this.memory.getByte(pc);
           instructionBytes.get(startInsAddr)?.push(branch);
@@ -552,9 +615,8 @@ class ZCodeDisassembler {
             branchTarget = targetPC;
           }
 
-          // If we branch to a valid address, add it to routine addresses
+          // If we branch to a valid address, check if it's a routine
           if (branchTarget > 0 && branchTarget >= this.highMemStart && branchTarget < this.memory.size) {
-            // See if this is the start of a routine
             const routineStart = this.findContainingRoutine(branchTarget);
             if (routineStart > 0 && routineStart !== startInsAddr) {
               this.routineAddresses.add(routineStart);
@@ -585,9 +647,9 @@ class ZCodeDisassembler {
           }
 
           instructionBytes.get(startInsAddr)?.push(...textBytes);
-          textString = decodeZString(this.memory, zstring);
+          textString = decodeZString(this.memory, zstring).replace(/\n/g, '^');
         } else if (opName === 'PRINT_PADDR' && operands.length === 1) {
-          // Register the string address
+          // Register the string address for the static strings section
           try {
             const addr = this.memory.unpackStringAddress(operands[0]);
             this.stringAddresses.add(addr);
@@ -595,7 +657,7 @@ class ZCodeDisassembler {
             // Try to decode the string for annotation
             try {
               const zstring = this.memory.getZString(addr);
-              textString = decodeZString(this.memory, zstring);
+              textString = decodeZString(this.memory, zstring).replace(/\n/g, '^');
 
               // Add string number
               const stringIndex =
@@ -637,7 +699,7 @@ class ZCodeDisassembler {
 
           // Format instruction bytes
           const bytes = instructionBytes.get(startInsAddr) || [];
-          const bytesText = bytes.map((b) => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
+          const bytesText = bytes.map((b) => b.toString(16).padStart(2, '0')).join(' ');
 
           // If this is a PRINT instruction, format it with nice alignment
           if (opName === 'PRINT') {
@@ -657,7 +719,7 @@ class ZCodeDisassembler {
           // Special alignment for PRINT_PADDR
           else if (opName === 'PRINT_PADDR' && textString) {
             const operandText = operands.map((op) => this.formatOperand(op, opName)).join(', ');
-            this.logger.info(`${addrText} ${bytesText.padEnd(23)} ${opName} ${operandText} "${textString}"`);
+            this.logger.info(`${addrText} ${bytesText.padEnd(23)} ${opName} ${operandText} ${textString}`);
           }
           // Standard formatting for other instructions
           else {
@@ -696,10 +758,15 @@ class ZCodeDisassembler {
         }
       } catch (error) {
         // Handle disassembly errors
-        this.logger.warn(`Error at 0x${pc.toString(16)}: ${error}`);
+        if (!analyzeOnly) {
+          this.logger.warn(`Error at 0x${pc.toString(16)}: ${error}`);
+        }
         break;
       }
     }
+
+    // Restore original PC
+    this.mockZMachine.state.pc = originalPC;
 
     // Add a blank line after each routine if not in analysis mode
     if (!analyzeOnly) {
@@ -707,6 +774,9 @@ class ZCodeDisassembler {
     }
   }
 
+  /**
+   * Formats an operand value for display
+   */
   private formatOperand(value: number, opName: string): string {
     // For certain opcodes, we want to show the operand in a specific format
     if ((opName === 'CALL' || opName === 'CALL_VS' || opName === 'CALL_1S' || opName === 'CALL_2S') && value > 0) {
@@ -739,147 +809,115 @@ class ZCodeDisassembler {
     }
   }
 
-  private decodeInstruction(
-    opcode: number,
-    pc: number
-  ): {
-    form: InstructionForm;
-    opcodeNumber: number;
-    operandTypes: OperandType[];
-    nextPC: number; // Return the updated PC
-  } {
-    let operandTypes: OperandType[] = [];
-    let form: InstructionForm;
-    let opcodeNumber: number;
-    let nextPC = pc; // Track where we are reading from
-
-    if (opcode === 0xbe && this.version >= 5) {
-      // Extended form (only in V5+)
-      form = InstructionForm.Extended;
-      opcodeNumber = this.memory.getByte(nextPC++);
-      const typesByte = this.memory.getByte(nextPC++);
-      operandTypes = this.decodeOperandTypes(typesByte);
-    } else if ((opcode & 0xc0) === 0xc0) {
-      // Variable form
-      form = InstructionForm.Variable;
-      const isVarForm = (opcode & 0x20) !== 0;
-      const typesByte = this.memory.getByte(nextPC++);
-      operandTypes = this.decodeOperandTypes(typesByte);
-      opcodeNumber = opcode & 0x1f;
-    } else if ((opcode & 0x80) === 0x80) {
-      // Short form
-      form = InstructionForm.Short;
-      const opType = (opcode & 0x30) >> 4;
-      if (opType !== OperandType.Omitted) {
-        operandTypes = [opType];
-      }
-      opcodeNumber = opcode & 0x0f;
-    } else {
-      // Long form
-      form = InstructionForm.Long;
-      operandTypes.push((opcode & 0x40) === 0x40 ? OperandType.Variable : OperandType.Small);
-      operandTypes.push((opcode & 0x20) === 0x20 ? OperandType.Variable : OperandType.Small);
-      opcodeNumber = opcode & 0x1f;
-    }
-
-    return { form, opcodeNumber, operandTypes, nextPC };
-  }
-
-  private decodeOperandTypes(typesByte: number): OperandType[] {
-    const operandTypes: OperandType[] = [];
-    for (let i = 0; i < 4; i++) {
-      const opType = (typesByte >> ((3 - i) * 2)) & 0x03;
-      if (opType !== OperandType.Omitted) {
-        operandTypes.push(opType);
-      } else {
-        break;
-      }
-    }
-    return operandTypes;
-  }
-
-  private getOpcodeName(form: InstructionForm, opcodeNumber: number): string | undefined {
-    switch (form) {
-      case InstructionForm.Short:
-        return this.opcodeNames0.get(opcodeNumber);
-      case InstructionForm.Long:
-        return this.opcodeNames2.get(opcodeNumber);
-      case InstructionForm.Variable:
-        return this.opcodeNamesV.get(opcodeNumber);
-      case InstructionForm.Extended:
-        return this.opcodeNamesExt.get(opcodeNumber);
-      default:
-        return undefined;
-    }
-  }
-
+  /**
+   * Determines if an opcode stores a result in a variable
+   */
   private hasStoreVar(form: InstructionForm, opcodeNumber: number): boolean {
-    // List of opcodes that store a result in a variable
-    const storeVarOpcodes1 = new Set(['GET_SIBLING', 'GET_CHILD', 'GET_PARENT', 'GET_PROP_LEN', 'LOAD']);
-    const storeVarOpcodes2 = new Set([
-      'OR',
-      'AND',
-      'GET_PROP',
-      'GET_PROP_ADDR',
-      'GET_NEXT_PROP',
-      'ADD',
-      'SUB',
-      'MUL',
-      'DIV',
-      'MOD',
-    ]);
-    const storeVarOpcodesV = new Set(['CALL', 'CALL_VS', 'RANDOM', 'SCAN_TABLE']);
-    const storeVarOpcodesExt = new Set([
-      'LOG_SHIFT',
-      'ART_SHIFT',
-      'SET_FONT',
-      'SAVE',
-      'RESTORE',
-      'SAVE_UNDO',
-      'RESTORE_UNDO',
-    ]);
+    // We need to check the actual opcode resolved by the Executor
+    try {
+      // Set PC to a safe value - we're just checking opcode behavior
+      const originalPC = this.mockZMachine.state.pc;
+      this.mockZMachine.state.pc = this.highMemStart;
 
-    const opName = this.getOpcodeName(form, opcodeNumber);
-    if (!opName) return false;
+      const opcode = this.executor.resolveOpcode(
+        form,
+        form === InstructionForm.Variable, // reallyVariable
+        opcodeNumber,
+        0, // operandCount doesn't matter for this check
+        this.highMemStart, // op_pc
+        0 // raw opcode byte doesn't matter for this check
+      );
 
-    switch (form) {
-      case InstructionForm.Short:
-        return false; // 0OP opcodes don't store results
-      case InstructionForm.Long:
-        return storeVarOpcodes2.has(opName);
-      case InstructionForm.Variable:
-        return storeVarOpcodesV.has(opName);
-      case InstructionForm.Extended:
-        return storeVarOpcodesExt.has(opName);
-      default:
-        return false;
+      // Restore PC
+      this.mockZMachine.state.pc = originalPC;
+
+      // List of opcodes that store a result in a variable
+      const storeVarOpcodes = new Set([
+        'GET_SIBLING',
+        'GET_CHILD',
+        'GET_PARENT',
+        'GET_PROP_LEN',
+        'LOAD',
+        'OR',
+        'AND',
+        'GET_PROP',
+        'GET_PROP_ADDR',
+        'GET_NEXT_PROP',
+        'ADD',
+        'SUB',
+        'MUL',
+        'DIV',
+        'MOD',
+        'CALL',
+        'CALL_VS',
+        'RANDOM',
+        'SCAN_TABLE',
+        'LOG_SHIFT',
+        'ART_SHIFT',
+        'SET_FONT',
+        'SAVE',
+        'RESTORE',
+        'SAVE_UNDO',
+        'RESTORE_UNDO',
+        'NOT',
+      ]);
+
+      return storeVarOpcodes.has(opcode.mnemonic);
+    } catch (e) {
+      // If we can't resolve the opcode, assume it doesn't store a var
+      return false;
     }
   }
 
+  /**
+   * Determines if an opcode has a branch offset
+   */
   private hasBranch(form: InstructionForm, opcodeNumber: number): boolean {
-    // List of opcodes that have branch instructions
-    const branchOpcodes1 = new Set(['JZ', 'GET_SIBLING', 'GET_CHILD']);
-    const branchOpcodes2 = new Set(['JE', 'JL', 'JG', 'DEC_CHK', 'INC_CHK', 'JIN', 'TEST', 'TEST_ATTR']);
-    const branchOpcodesV = new Set(['SCAN_TABLE']);
-    const branchOpcodesExt = new Set(['PICTURE_DATA']);
+    // We need to check the actual opcode resolved by the Executor
+    try {
+      // Set PC to a safe value - we're just checking opcode behavior
+      const originalPC = this.mockZMachine.state.pc;
+      this.mockZMachine.state.pc = this.highMemStart;
 
-    const opName = this.getOpcodeName(form, opcodeNumber);
-    if (!opName) return false;
+      const opcode = this.executor.resolveOpcode(
+        form,
+        form === InstructionForm.Variable, // reallyVariable
+        opcodeNumber,
+        0, // operandCount doesn't matter for this check
+        this.highMemStart, // op_pc
+        0 // raw opcode byte doesn't matter for this check
+      );
 
-    switch (form) {
-      case InstructionForm.Short:
-        return branchOpcodes1.has(opName);
-      case InstructionForm.Long:
-        return branchOpcodes2.has(opName);
-      case InstructionForm.Variable:
-        return branchOpcodesV.has(opName);
-      case InstructionForm.Extended:
-        return branchOpcodesExt.has(opName);
-      default:
-        return false;
+      // Restore PC
+      this.mockZMachine.state.pc = originalPC;
+
+      // List of opcodes that have branch instructions
+      const branchOpcodes = new Set([
+        'JZ',
+        'GET_SIBLING',
+        'GET_CHILD',
+        'JE',
+        'JL',
+        'JG',
+        'DEC_CHK',
+        'INC_CHK',
+        'JIN',
+        'TEST',
+        'TEST_ATTR',
+        'SCAN_TABLE',
+        'PICTURE_DATA',
+      ]);
+
+      return branchOpcodes.has(opcode.mnemonic);
+    } catch (e) {
+      // If we can't resolve the opcode, assume it doesn't have a branch
+      return false;
     }
   }
 
+  /**
+   * Dumps all static strings
+   */
   private dumpStrings(): void {
     // Sort string addresses
     const sortedAddresses = [...this.stringAddresses].sort((a, b) => a - b);
@@ -888,7 +926,7 @@ class ZCodeDisassembler {
     for (const addr of sortedAddresses) {
       try {
         const zstring = this.memory.getZString(addr);
-        const text = decodeZString(this.memory, zstring);
+        const text = decodeZString(this.memory, zstring).replace(/\n/g, '^');
 
         const addrText = addr.toString(16).padStart(5, '0');
         this.logger.info(`${addrText} S${stringIndex.toString().padStart(4, '0')} "${text}"`);
@@ -900,6 +938,9 @@ class ZCodeDisassembler {
   }
 }
 
+/**
+ * Main entry point for the Z-code disassembler example
+ */
 async function runZCodeDisassemblerExample(storyFilePath: string): Promise<void> {
   const logger = new Logger('ZCodeDisassembler');
   Logger.setLevel(LogLevel.INFO);

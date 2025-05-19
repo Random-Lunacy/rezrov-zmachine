@@ -143,7 +143,7 @@ export class Executor {
    * @param state The current state of the Z-machine
    * @returns An object containing the instruction form, operand types, and opcode number
    */
-  private decodeInstruction(
+  public decodeInstruction(
     opcode: number,
     state: ZMachine['state']
   ): {
@@ -193,7 +193,7 @@ export class Executor {
    * @param typesByte The byte representing operand types
    * @returns An array of operand types
    */
-  private decodeOperandTypes(typesByte: number): Array<OperandType> {
+  public decodeOperandTypes(typesByte: number): Array<OperandType> {
     const operandTypes: Array<OperandType> = [];
     for (let i = 0; i < 4; i++) {
       const opType = (typesByte >> ((3 - i) * 2)) & 0x03;
@@ -212,7 +212,7 @@ export class Executor {
    * @param state The current state of the Z-machine
    * @returns An array of operand values
    */
-  private readOperands(operandTypes: Array<OperandType>, state: ZMachine['state']): Array<number> {
+  public readOperands(operandTypes: Array<OperandType>, state: ZMachine['state']): Array<number> {
     const operands: Array<number> = [];
     for (const opType of operandTypes) {
       switch (opType) {
@@ -244,7 +244,7 @@ export class Executor {
    * @param opcode The opcode byte
    * @returns The resolved opcode implementation
    */
-  private resolveOpcode(
+  public resolveOpcode(
     form: InstructionForm,
     reallyVariable: boolean,
     opcodeNumber: number,
