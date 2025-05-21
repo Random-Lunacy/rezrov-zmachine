@@ -24,6 +24,240 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 /**
+ * Creates a state-preserving wrapper for decoding Z-machine instructions
+ */
+class InstructionDecoder {
+  private zMachine: ZMachine;
+  private executor: Executor;
+  private memory: Memory;
+  private originalPC: number;
+
+  constructor(zMachine: ZMachine) {
+    this.zMachine = zMachine;
+    this.executor = zMachine.executor;
+    this.memory = zMachine.memory;
+  }
+
+  /**
+   * Decode an instruction at a specific address without affecting machine state
+   */
+  decodeAt(address: number): {
+    form: InstructionForm;
+    opcodeNumber: number;
+    operandTypes: Array<OperandType>;
+    operands: Array<number>;
+    bytes: number[];
+    length: number;
+    opname: string;
+    storeVar?: number;
+    branchInfo?: { target: number; condition: boolean };
+    text?: string;
+  } {
+    // Save original state
+    this.originalPC = this.zMachine.state.pc;
+    const bytes: number[] = [];
+
+    try {
+      // Set PC to the target address for decoding
+      this.zMachine.state.pc = address;
+      let pc = address;
+
+      // Read opcode byte
+      const opcodeByte = this.memory.getByte(pc++);
+      bytes.push(opcodeByte);
+
+      // Use executor to decode instruction form and operand types
+      const { form, reallyVariable, opcodeNumber, operandTypes } = this.executor.decodeInstruction(
+        opcodeByte,
+        this.zMachine.state
+      );
+
+      // Track bytes consumed by opcode and type bytes
+      const afterTypeBytes = this.zMachine.state.pc;
+      for (let i = pc; i < afterTypeBytes; i++) {
+        bytes.push(this.memory.getByte(i));
+      }
+      pc = afterTypeBytes;
+
+      // Read operands
+      const operands = this.executor.readOperands(operandTypes, this.zMachine.state);
+
+      // Track bytes consumed by operands
+      const afterOperands = this.zMachine.state.pc;
+      for (let i = pc; i < afterOperands; i++) {
+        bytes.push(this.memory.getByte(i));
+      }
+      pc = afterOperands;
+
+      // Resolve opcode name safely
+      let opname: string;
+      try {
+        const op = this.executor.resolveOpcode(
+          form,
+          reallyVariable,
+          opcodeNumber,
+          operands.length,
+          address,
+          opcodeByte
+        );
+        opname = op.mnemonic;
+      } catch (e) {
+        // Fallback for unknown opcodes
+        opname = `UNKNOWN_${opcodeNumber.toString(16)}`;
+      }
+
+      // Special case: Store variable
+      let storeVar: number | undefined;
+      if (this.storesVariable(opname)) {
+        storeVar = this.memory.getByte(pc++);
+        bytes.push(storeVar);
+      }
+
+      // Special case: Branch instructions
+      let branchInfo: { target: number; condition: boolean } | undefined;
+      if (this.hasBranch(opname)) {
+        const branch = this.memory.getByte(pc++);
+        bytes.push(branch);
+
+        const branchOn = (branch & 0x80) !== 0;
+
+        if ((branch & 0x40) !== 0) {
+          // 1-byte offset
+          const offset = branch & 0x3f;
+          if (offset > 1) {
+            const targetPC = pc + offset - 2;
+            branchInfo = { target: targetPC, condition: branchOn };
+          }
+          // offset 0 = RFALSE, offset 1 = RTRUE - no target needed
+        } else {
+          // 2-byte offset
+          const second = this.memory.getByte(pc++);
+          bytes.push(second);
+
+          let offset = ((branch & 0x3f) << 8) | second;
+          if ((branch & 0x20) !== 0) {
+            // Negative offset (signed 14-bit)
+            offset = offset - 0x4000;
+          }
+
+          const targetPC = pc + offset - 2;
+          branchInfo = { target: targetPC, condition: branchOn };
+        }
+      }
+
+      // Special case: PRINT opcode with embedded Z-string
+      let text: string | undefined;
+      if (opname === 'PRINT') {
+        const zchars: number[] = [];
+        let endFound = false;
+
+        while (!endFound && pc < this.memory.size) {
+          const word = this.memory.getWord(pc);
+          bytes.push(word & 0xff, (word >> 8) & 0xff);
+          pc += 2;
+
+          // Extract Z-characters from the word
+          zchars.push((word >> 10) & 0x1f);
+          zchars.push((word >> 5) & 0x1f);
+          zchars.push(word & 0x1f);
+
+          // Check for end of string (high bit set)
+          if ((word & 0x8000) !== 0) {
+            endFound = true;
+          }
+        }
+
+        // Decode the Z-string
+        text = decodeZString(this.memory, zchars).replace(/\n/g, '^');
+      }
+
+      // Calculate final instruction length
+      const length = pc - address;
+
+      return {
+        form,
+        opcodeNumber,
+        operandTypes,
+        operands,
+        bytes,
+        length,
+        opname,
+        storeVar,
+        branchInfo,
+        text,
+      };
+    } finally {
+      // Always restore original state
+      this.zMachine.state.pc = this.originalPC;
+    }
+  }
+
+  /**
+   * Check if opcode stores variables
+   */
+  private storesVariable(opname: string): boolean {
+    // Opcodes that store results to a variable
+    const storeOpcodes = [
+      'GET_SIBLING',
+      'GET_CHILD',
+      'GET_PARENT',
+      'GET_PROP_LEN',
+      'LOAD',
+      'OR',
+      'AND',
+      'GET_PROP',
+      'GET_PROP_ADDR',
+      'GET_NEXT_PROP',
+      'ADD',
+      'SUB',
+      'MUL',
+      'DIV',
+      'MOD',
+      'CALL',
+      'CALL_VS',
+      'CALL_1S',
+      'CALL_2S',
+      'RANDOM',
+      'SCAN_TABLE',
+      'LOG_SHIFT',
+      'ART_SHIFT',
+      'SET_FONT',
+      'SAVE',
+      'RESTORE',
+      'SAVE_UNDO',
+      'RESTORE_UNDO',
+      'NOT',
+    ];
+
+    return storeOpcodes.includes(opname);
+  }
+
+  /**
+   * Check if opcode has a branch
+   */
+  private hasBranch(opname: string): boolean {
+    // Opcodes that have branch offsets
+    const branchOpcodes = [
+      'JZ',
+      'GET_SIBLING',
+      'GET_CHILD',
+      'JE',
+      'JL',
+      'JG',
+      'DEC_CHK',
+      'INC_CHK',
+      'JIN',
+      'TEST',
+      'TEST_ATTR',
+      'SCAN_TABLE',
+      'PICTURE_DATA',
+    ];
+
+    return branchOpcodes.includes(opname);
+  }
+}
+
+/**
  * Minimal implementation of Screen interface for disassembler
  */
 class MinimalScreen extends BaseScreen {
@@ -90,6 +324,7 @@ class ZCodeDisassembler {
   private routineCalls: Map<number, Set<number>> = new Map(); // Maps called routine address to caller addresses
   private zMachine: ZMachine;
   private executor: Executor;
+  private decoder: InstructionDecoder;
 
   constructor(storyData: Buffer, logger: Logger) {
     this.logger = logger;
@@ -111,6 +346,7 @@ class ZCodeDisassembler {
 
     // Get the executor from the ZMachine
     this.executor = this.zMachine.executor;
+    this.decoder = new InstructionDecoder(this.zMachine);
   }
 
   /**
@@ -203,7 +439,7 @@ class ZCodeDisassembler {
       // Get the number of locals
       const numLocals = this.memory.getByte(routineAddr);
 
-      // Validate this is a real routine - local count shouldn't be too high
+      // Validate this is a real routine
       if (numLocals > 15) {
         this.logger.warn(`Implausible number of locals at 0x${routineAddr.toString(16)}: ${numLocals}`);
         return routineAddr;
@@ -215,108 +451,33 @@ class ZCodeDisassembler {
         pc += numLocals * 2; // Skip local variable initializations in v1-4
       }
 
-      // Store original PC
-      const originalPC = this.zMachine.state.pc;
       let lastInstrAddr = pc;
 
-      // Trace execution until return
+      // Trace through instructions
       while (pc < this.memory.size) {
         // Check if this address is the start of another known routine
         if (pc !== routineAddr && this.routineAddresses.has(pc)) {
-          this.zMachine.state.pc = originalPC;
           return pc - 1;
         }
 
         try {
-          const instructionStart = pc;
-          lastInstrAddr = pc;
+          // Use our decoder to get complete instruction info
+          const instruction = this.decoder.decodeAt(pc);
+          lastInstrAddr = pc + instruction.length - 1;
 
-          // Get the opcode and decode it
-          this.zMachine.state.pc = pc;
-          const opcodeByte = this.memory.getByte(pc++);
-
-          // Decode the instruction using the executor
-          const { form, reallyVariable, opcodeNumber, operandTypes } = this.executor.decodeInstruction(
-            opcodeByte,
-            this.zMachine.state
-          );
-
-          // Update PC after opcode type bytes
-          pc = this.zMachine.state.pc;
-
-          // Read operands
-          const operands = this.executor.readOperands(operandTypes, this.zMachine.state);
-          pc = this.zMachine.state.pc;
-          lastInstrAddr = pc - 1;
-
-          // Resolve opcode name using the executor's tables
-          let opname: string;
-          try {
-            const opcodeImpl = this.executor.resolveOpcode(
-              form,
-              reallyVariable,
-              opcodeNumber,
-              operands.length,
-              instructionStart,
-              opcodeByte
-            );
-            opname = opcodeImpl.mnemonic;
-          } catch (e) {
-            opname = this.safelyResolveOpcode(form, opcodeNumber, opcodeByte);
+          // Check for return instructions
+          if (['RTRUE', 'RFALSE', 'RET', 'RET_POPPED', 'QUIT'].includes(instruction.opname)) {
+            return lastInstrAddr;
           }
 
-          // Handle special cases based on opcode
-
-          // 1. Check if this stores a variable (adds 1 byte)
-          if (this.storesVariable(opname)) {
-            pc += 1;
-            lastInstrAddr = pc - 1;
-          }
-
-          // 2. Handle branch instructions
-          if (this.hasBranch(opname)) {
-            const branch = this.memory.getByte(pc++);
-            lastInstrAddr = pc - 1;
-
-            if ((branch & 0x40) === 0) {
-              // 2-byte branch offset
-              pc += 1;
-              lastInstrAddr = pc - 1;
-            }
-          }
-
-          // 3. Handle PRINT with its embedded Z-string
-          if (opname === 'PRINT') {
-            let endFound = false;
-            while (!endFound && pc < this.memory.size) {
-              const word = this.memory.getWord(pc);
-              pc += 2;
-              lastInstrAddr = pc - 1;
-              if ((word & 0x8000) !== 0) {
-                endFound = true;
-              }
-            }
-          }
-
-          // 4. Check for return instructions
-          if (
-            opname === 'RTRUE' ||
-            opname === 'RFALSE' ||
-            opname === 'RET' ||
-            opname === 'RET_POPPED' ||
-            opname === 'QUIT'
-          ) {
-            this.zMachine.state.pc = originalPC;
-            return pc;
-          }
+          // Move to next instruction
+          pc += instruction.length;
         } catch (e) {
-          // If we can't decode this instruction, just skip one byte
-          pc++;
+          // If decoding fails, skip one byte
+          pc += 1;
         }
       }
 
-      // Restore PC
-      this.zMachine.state.pc = originalPC;
       return lastInstrAddr;
     } catch (e) {
       this.logger.warn(`Error finding routine end: ${e}`);
@@ -388,194 +549,45 @@ class ZCodeDisassembler {
    */
   private disassembleInstructions(startPC: number, analyzeOnly: boolean = false): void {
     let pc = startPC;
-    const instructionBytes: Map<number, Array<number>> = new Map();
-
-    // Store original PC
-    const originalPC = this.zMachine.state.pc;
 
     // Loop until we reach a return opcode or a new routine
     while (pc < this.memory.size) {
       try {
-        const startInsAddr = pc; // Remember where this instruction started
-        instructionBytes.set(startInsAddr, []);
-
-        const opcodeByte = this.memory.getByte(pc++);
-        instructionBytes.get(startInsAddr)?.push(opcodeByte);
+        const instructionStart = pc;
 
         // Check if this is another routine's start
         if (pc > startPC && this.routineAddresses.has(pc)) {
           break;
         }
 
-        // Set PC for decoding
-        this.zMachine.state.pc = pc;
+        // Use our decoder to get complete instruction info
+        const instruction = this.decoder.decodeAt(pc);
 
-        // Decode the instruction
-        const { form, reallyVariable, opcodeNumber, operandTypes } = this.executor.decodeInstruction(
-          opcodeByte,
-          this.zMachine.state
-        );
+        // Move to next instruction
+        pc += instruction.length;
 
-        // Add any type bytes to instruction bytes
-        const typeBytesCount = this.zMachine.state.pc - pc;
-        for (let i = 0; i < typeBytesCount; i++) {
-          instructionBytes.get(startInsAddr)?.push(this.memory.getByte(pc + i));
-        }
-
-        // Update PC after decoding
-        pc = this.zMachine.state.pc;
-
-        // Get the opcode
-        let opname: string;
-        try {
-          const opcodeImpl = this.executor.resolveOpcode(
-            form,
-            reallyVariable,
-            opcodeNumber,
-            operandTypes.length,
-            startInsAddr,
-            opcodeByte
-          );
-          opname = opcodeImpl.mnemonic;
-        } catch (e) {
-          opname = this.safelyResolveOpcode(form, opcodeNumber, opcodeByte);
-        }
-
-        // Read operands
-        this.zMachine.state.pc = pc;
-        const operands = this.executor.readOperands(operandTypes, this.zMachine.state);
-
-        // Add operand bytes to instruction bytes
-        const operandBytesCount = this.zMachine.state.pc - pc;
-        for (let i = 0; i < operandBytesCount; i++) {
-          instructionBytes.get(startInsAddr)?.push(this.memory.getByte(pc + i));
-        }
-
-        // Update PC after reading operands
-        pc = this.zMachine.state.pc;
-
-        // Handle store variable
-        let storeVar: number | null = null;
-        if (this.storesVariable(opname)) {
-          storeVar = this.memory.getByte(pc);
-          instructionBytes.get(startInsAddr)?.push(storeVar);
-          pc += 1;
-        }
-
-        // Handle branch offset
-        let branchInfo = '';
-        let branchTarget = 0;
-        if (this.hasBranch(opname)) {
-          const branch = this.memory.getByte(pc);
-          instructionBytes.get(startInsAddr)?.push(branch);
-          pc += 1;
-
-          let offset;
-          const branchOn = (branch & 0x80) !== 0;
-
-          if ((branch & 0x40) !== 0) {
-            // 1-byte offset
-            offset = branch & 0x3f;
-            if (offset === 0) {
-              branchInfo = `[${branchOn ? 'TRUE' : 'FALSE'} -> RFALSE]`;
-            } else if (offset === 1) {
-              branchInfo = `[${branchOn ? 'TRUE' : 'FALSE'} -> RTRUE]`;
-            } else {
-              const targetPC = pc + offset - 2;
-              branchInfo = `[${branchOn ? 'TRUE' : 'FALSE'} -> ${targetPC.toString(16).padStart(5, '0')}]`;
-              branchTarget = targetPC;
-            }
-          } else {
-            // 2-byte offset
-            const second = this.memory.getByte(pc);
-            instructionBytes.get(startInsAddr)?.push(second);
-            pc += 1;
-
-            offset = ((branch & 0x3f) << 8) | second;
-            if ((branch & 0x20) !== 0) {
-              // Negative offset (signed 14-bit)
-              offset = offset - 0x4000;
-            }
-
-            const targetPC = pc + offset - 2;
-            branchInfo = `[${branchOn ? 'TRUE' : 'FALSE'} -> ${targetPC.toString(16).padStart(5, '0')}]`;
-            branchTarget = targetPC;
-          }
-
-          // If we branch to a valid address, check if it's a routine
-          if (branchTarget > 0 && branchTarget >= this.highMemStart && branchTarget < this.memory.size) {
-            // Could add routines discovered via branches if needed
-          }
-        }
-
-        // Special handling for text-containing opcodes
-        let textString = '';
-        const textBytes: number[] = [];
-
-        if (opname === 'PRINT') {
-          // Handle PRINT instruction with its embedded Z-string
-          const zchars: number[] = [];
-          let endFound = false;
-
-          while (!endFound && pc < this.memory.size) {
-            const word = this.memory.getWord(pc);
-            textBytes.push(word & 0xff, (word >> 8) & 0xff);
-            pc += 2;
-
-            // Extract Z-characters from the word
-            zchars.push((word >> 10) & 0x1f);
-            zchars.push((word >> 5) & 0x1f);
-            zchars.push(word & 0x1f);
-
-            // Check for end of string (high bit set)
-            if ((word & 0x8000) !== 0) {
-              endFound = true;
-            }
-          }
-
-          // Add all the text bytes to the instruction
-          instructionBytes.get(startInsAddr)?.push(...textBytes);
-
-          // Decode the Z-string using the existing decoder
-          textString = decodeZString(this.memory, zchars).replace(/\n/g, '^');
-        } else if (opname === 'PRINT_PADDR' && operands.length === 1) {
-          // Handle PRINT_PADDR instruction
-          try {
-            // Unpack the packed address to get the actual string address
-            const addr = this.memory.unpackStringAddress(operands[0]);
-            this.stringAddresses.add(addr);
-
-            // Try to decode the string
-            const zstring = this.memory.getZString(addr);
-            textString = decodeZString(this.memory, zstring).replace(/\n/g, '^');
-
-            // Add string number based on sorted order
-            const stringIndex =
-              Array.from(this.stringAddresses)
-                .sort((a, b) => a - b)
-                .indexOf(addr) + 1;
-
-            textString = `S${stringIndex.toString().padStart(4, '0')} "${textString}"`;
-          } catch (e) {
-            this.logger.warn(`Error unpacking string address: ${e}`);
-          }
-        } else if (
-          (opname === 'CALL' || opname === 'CALL_VS' || opname === 'CALL_1S' || opname === 'CALL_2S') &&
-          operands.length > 0
+        // Register routine calls
+        if (
+          (instruction.opname === 'CALL' ||
+            instruction.opname === 'CALL_VS' ||
+            instruction.opname === 'CALL_1S' ||
+            instruction.opname === 'CALL_2S') &&
+          instruction.operands.length > 0
         ) {
-          // Register the routine address for potential disassembly
           try {
-            const routineAddr = operands[0] > 0 ? this.memory.unpackRoutineAddress(operands[0]) : 0;
+            const routineAddr =
+              instruction.operands[0] > 0 ? this.memory.unpackRoutineAddress(instruction.operands[0]) : 0;
+
             if (routineAddr > 0) {
               this.routineAddresses.add(routineAddr);
 
-              // Register the caller-callee relationship
+              // Register caller-callee relationship
               if (!this.routineCalls.has(routineAddr)) {
                 this.routineCalls.set(routineAddr, new Set());
               }
 
-              // Find the containing routine for this call
-              const containingRoutine = this.findContainingRoutine(startInsAddr);
+              // Find containing routine
+              const containingRoutine = this.findContainingRoutine(instructionStart);
               if (containingRoutine > 0) {
                 this.routineCalls.get(routineAddr)?.add(containingRoutine);
               }
@@ -585,72 +597,13 @@ class ZCodeDisassembler {
           }
         }
 
-        // Skip the analysis display during discovery phase
+        // Print instruction if not in analysis mode
         if (!analyzeOnly) {
-          // Format the disassembly line
-          const addrText = startInsAddr.toString(16).padStart(5, '0');
-
-          // Format instruction bytes
-          const bytes = instructionBytes.get(startInsAddr) || [];
-          const bytesText = bytes.map((b) => b.toString(16).padStart(2, '0')).join(' ');
-
-          // If this is a PRINT instruction, format it with nice alignment
-          if (opname === 'PRINT') {
-            // First line: address and first 8 bytes (if available)
-            const firstLineBytesCount = Math.min(8, bytes.length);
-            const firstLineBytes = bytes.slice(0, firstLineBytesCount);
-            const firstLine = firstLineBytes.map((b) => b.toString(16).padStart(2, '0')).join(' ');
-            this.logger.info(`${addrText} ${firstLine.padEnd(23)} PRINT "${textString}"`);
-
-            // If there are more bytes, continue on new lines with proper indentation
-            for (let i = 8; i < bytes.length; i += 8) {
-              const chunk = bytes
-                .slice(i, i + 8)
-                .map((b) => b.toString(16).padStart(2, '0'))
-                .join(' ');
-              if (chunk.trim().length > 0) {
-                this.logger.info(`      ${chunk.padEnd(23)}`);
-              }
-            }
-          }
-          // Special alignment for PRINT_PADDR
-          else if (opname === 'PRINT_PADDR' && textString) {
-            const operandText = operands.map((op) => this.formatOperand(op, opname)).join(', ');
-            this.logger.info(`${addrText} ${bytesText.padEnd(23)} PRINT_PADDR ${operandText} ${textString}`);
-          }
-          // Standard formatting for other instructions
-          else {
-            // Format operand list for display
-            const operandText = operands.map((op) => this.formatOperand(op, opname)).join(', ');
-
-            // Build the final disassembly line
-            let disassembly = `${addrText} ${bytesText.padEnd(23)} ${opname}`;
-
-            if (operands.length > 0) {
-              disassembly += ` ${operandText}`;
-            }
-
-            if (storeVar !== null) {
-              disassembly += ` -> G${storeVar}`;
-            }
-
-            if (branchInfo) {
-              disassembly += ` ${branchInfo}`;
-            }
-
-            this.logger.info(disassembly);
-          }
+          this.printInstruction(instructionStart, instruction);
         }
 
-        // Check if we've hit a return or other terminating instruction
-        if (
-          opname === 'RTRUE' ||
-          opname === 'RFALSE' ||
-          opname === 'RET' ||
-          opname === 'RET_POPPED' ||
-          opname === 'QUIT' ||
-          opname === 'THROW'
-        ) {
+        // Check if we've hit a terminating instruction
+        if (['RTRUE', 'RFALSE', 'RET', 'RET_POPPED', 'QUIT'].includes(instruction.opname)) {
           break;
         }
       } catch (error) {
@@ -662,13 +615,57 @@ class ZCodeDisassembler {
       }
     }
 
-    // Restore original PC
-    this.zMachine.state.pc = originalPC;
-
     // Add a blank line after each routine if not in analysis mode
     if (!analyzeOnly) {
       this.logger.info('');
     }
+  }
+
+  // Helper method to print a formatted instruction
+  private printInstruction(address: number, instruction: ReturnType<InstructionDecoder['decodeAt']>): void {
+    const addrText = address.toString(16).padStart(5, '0');
+    const bytesText = instruction.bytes.map((b) => b.toString(16).padStart(2, '0')).join(' ');
+
+    // Special handling for PRINT instruction
+    if (instruction.opname === 'PRINT' && instruction.text) {
+      // Format first line
+      const firstLineBytes = instruction.bytes.slice(0, Math.min(8, instruction.bytes.length));
+      const firstLineBytesText = firstLineBytes.map((b) => b.toString(16).padStart(2, '0')).join(' ');
+      this.logger.info(`${addrText} ${firstLineBytesText.padEnd(23)} PRINT "${instruction.text}"`);
+
+      // Format additional lines if needed
+      for (let i = 8; i < instruction.bytes.length; i += 8) {
+        const chunk = instruction.bytes
+          .slice(i, i + 8)
+          .map((b) => b.toString(16).padStart(2, '0'))
+          .join(' ');
+        if (chunk.trim().length > 0) {
+          this.logger.info(`      ${chunk.padEnd(23)}`);
+        }
+      }
+      return;
+    }
+
+    // Format operand list
+    const operandText = instruction.operands.map((op) => this.formatOperand(op, instruction.opname)).join(', ');
+
+    // Build disassembly line
+    let disassembly = `${addrText} ${bytesText.padEnd(23)} ${instruction.opname}`;
+
+    if (instruction.operands.length > 0) {
+      disassembly += ` ${operandText}`;
+    }
+
+    if (instruction.storeVar !== undefined) {
+      disassembly += ` -> G${instruction.storeVar}`;
+    }
+
+    if (instruction.branchInfo) {
+      const { target, condition } = instruction.branchInfo;
+      disassembly += ` [${condition ? 'TRUE' : 'FALSE'} -> ${target.toString(16).padStart(5, '0')}]`;
+    }
+
+    this.logger.info(disassembly);
   }
 
   /**
