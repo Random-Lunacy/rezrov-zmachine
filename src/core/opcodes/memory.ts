@@ -13,12 +13,19 @@
  */
 
 import { ZMachine } from '../../interpreter/ZMachine';
+import { OperandType } from '../../types';
 import { opcode } from './base';
 
 /**
  * Copy a region of memory
  */
-function copy_table(machine: ZMachine, sourceAddr: number, destAddr: number, size: number): void {
+function copy_table(
+  machine: ZMachine,
+  _operandTypes: OperandType[],
+  sourceAddr: number,
+  destAddr: number,
+  size: number
+): void {
   if (size === 0) {
     machine.logger.debug('copy_table: no-op');
     return; // No-op
@@ -51,7 +58,14 @@ function copy_table(machine: ZMachine, sourceAddr: number, destAddr: number, siz
 /**
  * Scan through a table looking for a particular word/byte
  */
-function scan_table(machine: ZMachine, value: number, table: number, length: number, form: number = 0x82): void {
+function scan_table(
+  machine: ZMachine,
+  _operandTypes: OperandType[],
+  value: number,
+  table: number,
+  length: number,
+  form: number = 0x82
+): void {
   const resultVar = machine.state.readByte();
   const [offset, branchOnFalse] = machine.state.readBranchOffset();
 
@@ -90,7 +104,7 @@ function scan_table(machine: ZMachine, value: number, table: number, length: num
 /**
  * Loads a word from an array.
  */
-function loadw(machine: ZMachine, array: number, wordIndex: number): void {
+function loadw(machine: ZMachine, _operandTypes: OperandType[], array: number, wordIndex: number): void {
   const resultVar = machine.state.readByte();
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} loadw ${array} ${wordIndex} -> (${resultVar})`);
 
@@ -101,7 +115,7 @@ function loadw(machine: ZMachine, array: number, wordIndex: number): void {
 /**
  * Loads a byte from an array.
  */
-function loadb(machine: ZMachine, array: number, byteIndex: number): void {
+function loadb(machine: ZMachine, _operandTypes: OperandType[], array: number, byteIndex: number): void {
   const resultVar = machine.state.readByte();
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} loadb ${array} ${byteIndex} -> (${resultVar})`);
 
@@ -112,7 +126,13 @@ function loadb(machine: ZMachine, array: number, byteIndex: number): void {
 /**
  * Stores a word in an array.
  */
-function storew(machine: ZMachine, array: number, wordIndex: number, value: number): void {
+function storew(
+  machine: ZMachine,
+  _operandTypes: OperandType[],
+  array: number,
+  wordIndex: number,
+  value: number
+): void {
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} storew ${array} ${wordIndex} ${value}`);
 
   const address = (array + 2 * wordIndex) & 0xffff;
@@ -122,7 +142,13 @@ function storew(machine: ZMachine, array: number, wordIndex: number, value: numb
 /**
  * Stores a byte in an array.
  */
-function storeb(machine: ZMachine, array: number, byteIndex: number, value: number): void {
+function storeb(
+  machine: ZMachine,
+  _operandTypes: OperandType[],
+  array: number,
+  byteIndex: number,
+  value: number
+): void {
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} storeb ${array} ${byteIndex} ${value}`);
 
   const address = (array + byteIndex) & 0xffff;

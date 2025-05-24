@@ -267,6 +267,7 @@ export class ZMachine {
    * @param shouldPrompt Whether to prompt the user for a filename (optional)
    * @returns True if the save was successful
    */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async saveToTable(table: number, bytes: number, name: number = 0, shouldPrompt: boolean = true): Promise<boolean> {
     try {
       let filename = '';

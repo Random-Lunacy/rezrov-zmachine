@@ -5,6 +5,7 @@ import { GameObjectFactory } from '../core/objects/GameObjectFactory';
 import { TextParser } from '../parsers/TextParser';
 import { Address, ZMachineState } from '../types';
 import { HeaderLocation } from '../utils/constants';
+import { hex } from '../utils/debug';
 import { Logger } from '../utils/log';
 
 /**
@@ -49,7 +50,7 @@ export class GameState {
     this._readHeaderValues();
 
     // Initialize object factory
-    this._objectFactory = new GameObjectFactory(this._memory, this.logger, this._version, this._objectTable);
+    this._objectFactory = new GameObjectFactory(this._memory, this._version, this._objectTable, options);
   }
 
   /**
@@ -68,9 +69,9 @@ export class GameState {
     }
 
     this.logger.debug(`Z-machine version: ${this._version}`);
-    this.logger.debug(`Global variables: 0x${this._globalVars.toString(16)}`);
-    this.logger.debug(`Object table: 0x${this._objectTable.toString(16)}`);
-    this.logger.debug(`Dictionary: 0x${this._dict.toString(16)}`);
+    this.logger.debug(`Global variables address: 0x${this._globalVars.toString(16)}`);
+    this.logger.debug(`Object table address: 0x${this._objectTable.toString(16)}`);
+    this.logger.debug(`Dictionary address: 0x${this._dict.toString(16)}`);
   }
 
   /**
@@ -249,12 +250,12 @@ export class GameState {
       }
 
       frame.locals[variable - 1] = value;
-      this.logger.debug(`Stored ${value} (0x${value.toString(16)}) in local ${variable}`);
+      this.logger.debug(`Stored ${value} (0x${hex(value)}) in L${hex(variable)}`);
     } else {
       // Global variable
       const addr = this._globalVars + 2 * (variable - 16);
       this._memory.setWord(addr, value);
-      this.logger.debug(`Stored ${value} (0x${value.toString(16)}) in global ${variable}`);
+      this.logger.debug(`Stored ${value} (0x${hex(value)}) in G${hex(variable - 16)}`);
     }
   }
 
@@ -271,11 +272,6 @@ export class GameState {
         this.storeVariable(returnVar, 0);
       }
       return;
-    }
-
-    // Validate routine address is in high memory and properly aligned
-    if (!this.memory.isHighMemory(routineAddress) || !this.memory.checkPackedAddressAlignment(routineAddress, true)) {
-      throw new Error(`Invalid routine address: 0x${routineAddress.toString(16)}`);
     }
 
     // Read the number of locals
@@ -440,16 +436,20 @@ export class GameState {
    * Read a Z-string from memory at the current PC and advance PC
    */
   readZString(): Array<number> {
+    const startPC = this._pc;
     const zString = this._memory.getZString(this._pc);
 
-    // Calculate how many bytes the Z-string takes in memory
-    // Each Z-string word encodes 3 Z-characters
-    const wordCount = Math.ceil(zString.length / 3);
+    // Count actual words read by scanning until high bit is found
+    let wordCount = 0;
+    let addr = startPC;
+    while (true) {
+      const word = this._memory.getWord(addr);
+      wordCount++;
+      addr += 2;
+      if ((word & 0x8000) !== 0) break;
+    }
 
-    // Move PC past the Z-string
-    // The last word has its high bit set, so we know when to stop
     this._pc += wordCount * 2;
-
     return zString;
   }
 

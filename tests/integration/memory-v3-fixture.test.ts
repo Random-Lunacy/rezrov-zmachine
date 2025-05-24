@@ -15,7 +15,7 @@ describe('Memory with minimal.z3 fixture', () => {
   beforeAll(() => {
     memory = Memory.fromFile(join(__dirname, '../fixtures/minimal.z3'));
     logger = new Logger('MemoryTest');
-    objectFactory = new GameObjectFactory(memory, logger, 3, memory.getWord(HeaderLocation.ObjectTable));
+    objectFactory = new GameObjectFactory(memory, 3, memory.getWord(HeaderLocation.ObjectTable), { logger });
   });
 
   describe('Memory structure', () => {

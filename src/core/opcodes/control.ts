@@ -18,6 +18,7 @@
  * - `nop`: No-op instruction. Does nothing.
  */
 import { ZMachine } from '../../interpreter/ZMachine';
+import { OperandType } from '../../types';
 import { hex } from '../../utils/debug';
 import { toI16 } from '../memory/cast16';
 import { opcode } from './base';
@@ -25,7 +26,7 @@ import { opcode } from './base';
 /**
  * Jumps if equal
  */
-function je(machine: ZMachine, a: number, b: number, c?: number, d?: number): void {
+function je(machine: ZMachine, _operandTypes: OperandType[], a: number, b: number, c?: number, d?: number): void {
   // Validate that we have at least 2 operands
   if (b === undefined) {
     throw new Error('je opcode requires at least 2 operands');
@@ -42,10 +43,11 @@ function je(machine: ZMachine, a: number, b: number, c?: number, d?: number): vo
 
   machine.state.doBranch(cond, branchOnFalse, offset);
 }
+
 /**
  * Jumps if less than
  */
-function jl(machine: ZMachine, a: number, b: number): void {
+function jl(machine: ZMachine, _operandTypes: OperandType[], a: number, b: number): void {
   const [offset, branchOnFalse] = machine.state.readBranchOffset();
   machine.logger.debug(
     `${hex(machine.state.pc)} jl ${hex(a)} ${hex(b)} -> [${!branchOnFalse}] ${hex(machine.state.pc + offset - 2)}`
@@ -57,7 +59,7 @@ function jl(machine: ZMachine, a: number, b: number): void {
 /**
  * Jumps if greater than
  */
-function jg(machine: ZMachine, a: number, b: number): void {
+function jg(machine: ZMachine, _operandTypes: OperandType[], a: number, b: number): void {
   const [offset, branchOnFalse] = machine.state.readBranchOffset();
   machine.logger.debug(
     `${hex(machine.state.pc)} jg ${hex(a)} ${hex(b)} -> [${!branchOnFalse}] ${hex(machine.state.pc + offset - 2)}`
@@ -69,7 +71,7 @@ function jg(machine: ZMachine, a: number, b: number): void {
 /**
  * Jumps if zero
  */
-function jz(machine: ZMachine, a: number): void {
+function jz(machine: ZMachine, _operandTypes: OperandType[], a: number): void {
   const [offset, branchOnFalse] = machine.state.readBranchOffset();
   machine.logger.debug(
     `${hex(machine.state.pc)} jz ${hex(a)} -> [${!branchOnFalse}] ${hex(machine.state.pc + offset - 2)}`
@@ -81,7 +83,7 @@ function jz(machine: ZMachine, a: number): void {
 /**
  * Unconditional jump
  */
-function jump(machine: ZMachine, offset: number): void {
+function jump(machine: ZMachine, _operandTypes: OperandType[], offset: number): void {
   machine.logger.debug(`${hex(machine.state.pc)} jump ${hex(offset)}`);
   machine.state.pc = machine.state.pc + toI16(offset) - 2;
 }
@@ -89,7 +91,7 @@ function jump(machine: ZMachine, offset: number): void {
 /**
  * Tests bits
  */
-function test(machine: ZMachine, bitmap: number, flags: number): void {
+function test(machine: ZMachine, _operandTypes: OperandType[], bitmap: number, flags: number): void {
   const [offset, branchOnFalse] = machine.state.readBranchOffset();
   machine.logger.debug(
     `${hex(machine.state.pc)} test ${hex(bitmap)} ${hex(flags)} -> [${!branchOnFalse}] ${hex(
@@ -103,7 +105,7 @@ function test(machine: ZMachine, bitmap: number, flags: number): void {
 /**
  * Checks the argument count
  */
-function check_arg_count(machine: ZMachine, argNumber: number): void {
+function check_arg_count(machine: ZMachine, _operandTypes: OperandType[], argNumber: number): void {
   const [offset, branchOnFalse] = machine.state.readBranchOffset();
   machine.logger.debug(
     `${hex(machine.state.pc)} check_arg_count ${hex(argNumber)} -> [${!branchOnFalse}] ${hex(
@@ -141,7 +143,7 @@ function ret_popped(machine: ZMachine): void {
 /**
  * Returns from a routine with the specified value
  */
-function ret(machine: ZMachine, value: number): void {
+function ret(machine: ZMachine, _operandTypes: OperandType[], value: number): void {
   machine.logger.debug(`${hex(machine.state.pc)} ret ${hex(value)}`);
   machine.state.returnFromRoutine(value);
 }

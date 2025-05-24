@@ -18,13 +18,14 @@
  */
 import { ZMachine } from '../../interpreter/ZMachine';
 import { decodeZString } from '../../parsers/ZString';
+import { OperandType } from '../../types';
 import { toI16 } from '../memory/cast16';
 import { opcode } from './base';
 
 /**
  * Print the string at the given address
  */
-function print_addr(machine: ZMachine, stringAddr: number): void {
+function print_addr(machine: ZMachine, _operandTypes: OperandType[], stringAddr: number): void {
   machine.logger.debug(`print_addr ${stringAddr.toString(16)}`);
   machine.screen.print(machine, decodeZString(machine.memory, machine.memory.getZString(stringAddr), true));
 }
@@ -32,7 +33,7 @@ function print_addr(machine: ZMachine, stringAddr: number): void {
 /**
  * Print a string at a packed address
  */
-function print_paddr(machine: ZMachine, packedAddr: number): void {
+function print_paddr(machine: ZMachine, _operandTypes: OperandType[], packedAddr: number): void {
   const addr = machine.state.memory.unpackStringAddress(packedAddr);
   machine.logger.debug(`print_paddr ${packedAddr} -> ${addr}`);
 
@@ -73,7 +74,7 @@ function print_ret(machine: ZMachine): void {
 /**
  * Print a single character
  */
-function print_char(machine: ZMachine, ...chars: Array<number>): void {
+function print_char(machine: ZMachine, _operandTypes: OperandType[], ...chars: Array<number>): void {
   machine.logger.debug(`print_char(${chars})`);
   machine.screen.print(machine, chars.map((c) => String.fromCharCode(c)).join(''));
 }
@@ -81,7 +82,7 @@ function print_char(machine: ZMachine, ...chars: Array<number>): void {
 /**
  * Print a number
  */
-function print_num(machine: ZMachine, value: number): void {
+function print_num(machine: ZMachine, _operandTypes: OperandType[], value: number): void {
   const numStr = toI16(value).toString();
   machine.logger.debug(`print_num ${value} -> ${numStr}`);
   machine.screen.print(machine, numStr);
@@ -90,16 +91,30 @@ function print_num(machine: ZMachine, value: number): void {
 /**
  * Print a table of characters
  */
-function print_table(machine: ZMachine, zscii_text: number, width: number, height: number = 1, skip: number = 0): void {
+function print_table(
+  machine: ZMachine,
+  _operandTypes: OperandType[],
+  zscii_text: number,
+  width: number,
+  height: number = 1,
+  skip: number = 0
+): void {
   machine.logger.debug(`print_table: addr=${zscii_text}, width=${width}, height=${height}, skip=${skip}`);
-  // This is a complex operation that prints a table of text
-  // For now, we'll implement a simple version that just prints the text
+
   for (let i = 0; i < height; i++) {
     const row = [];
+
+    // Calculate the starting address for this row
+    // For each subsequent row, we skip (width + skip) bytes from the previous row's start
+    const rowStartAddr = zscii_text + i * (width + skip);
+
+    // Read each character in the current row
     for (let j = 0; j < width; j++) {
-      const charCode = machine.memory.getByte(zscii_text + i * (width + skip) + j);
+      const charCode = machine.memory.getByte(rowStartAddr + j);
       row.push(String.fromCharCode(charCode));
     }
+
+    // Print the row
     machine.screen.print(machine, row.join('') + '\n');
   }
 }
@@ -107,7 +122,14 @@ function print_table(machine: ZMachine, zscii_text: number, width: number, heigh
 /**
  * Tokenize input text
  */
-function tokenize(machine: ZMachine, text: number, dict: number, parse: number = 0, flag: number = 0): void {
+function tokenize(
+  machine: ZMachine,
+  _operandTypes: OperandType[],
+  text: number,
+  dict: number,
+  parse: number = 0,
+  flag: number = 0
+): void {
   machine.logger.debug(`tokenise: text=${text}, dict=${dict}, parse=${parse}, flag=${flag}`);
   machine.state.tokenizeLine(text, parse, dict, flag !== 0);
 }
@@ -115,7 +137,7 @@ function tokenize(machine: ZMachine, text: number, dict: number, parse: number =
 /**
  * Print a Unicode character
  */
-function print_unicode(machine: ZMachine, charCode: number): void {
+function print_unicode(machine: ZMachine, _operandTypes: OperandType[], charCode: number): void {
   machine.logger.debug(`print_unicode ${charCode}`);
   // For now, we'll just convert to the nearest ASCII equivalent
   // In a real implementation, this would handle proper Unicode
@@ -126,7 +148,7 @@ function print_unicode(machine: ZMachine, charCode: number): void {
 /**
  * Check if a Unicode character can be displayed
  */
-function check_unicode(machine: ZMachine, charCode: number): void {
+function check_unicode(machine: ZMachine, _operandTypes: OperandType[], charCode: number): void {
   const resultVar = machine.state.readByte();
   machine.logger.debug(`check_unicode ${charCode} -> ${resultVar}`);
 
@@ -135,14 +157,14 @@ function check_unicode(machine: ZMachine, charCode: number): void {
   machine.state.storeVariable(resultVar, canDisplay ? 3 : 0);
 }
 
-function print_form(machine: ZMachine, form: number): void {
+function print_form(machine: ZMachine, _operandTypes: OperandType[], form: number): void {
   const string = machine.memory.getZString(form);
   const encoded_text = decodeZString(machine.memory, string, true);
   machine.logger.debug(`print_form ${form} -> ${encoded_text}`);
   throw new Error(`Unimplemented opcode: print_form`);
 }
 
-function encode_text(machine: ZMachine, text: number): void {
+function encode_text(machine: ZMachine, _operandTypes: OperandType[], text: number): void {
   const encoded_text = machine.memory.getZString(text);
   machine.logger.debug(`encode_text ${text} -> ${encoded_text}`);
   throw new Error(`Unimplemented opcode: encode_text`);

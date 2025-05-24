@@ -15,12 +15,13 @@
  * - `show_status`: Updates the status bar (for versions <= 3).
  */
 import { ZMachine } from '../../interpreter/ZMachine';
+import { OperandType } from '../../types';
 import { opcode } from './base';
 
 /**
  * Save the machine state to a given table
  */
-async function save_undo(machine: ZMachine): Promise<void> {
+async function save_undo(machine: ZMachine, _operandTypes: OperandType[]): Promise<void> {
   const resultVar = machine.state.readByte();
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} save_undo ${resultVar}`);
 
@@ -36,7 +37,7 @@ async function save_undo(machine: ZMachine): Promise<void> {
 /**
  * Restore the machine state from the last save_undo
  */
-async function restore_undo(machine: ZMachine): Promise<void> {
+async function restore_undo(machine: ZMachine, _operandTypes: OperandType[]): Promise<void> {
   const resultVar = machine.state.readByte();
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} restore_undo ${resultVar}`);
 
@@ -52,7 +53,7 @@ async function restore_undo(machine: ZMachine): Promise<void> {
 /**
  * Restart the game from the beginning
  */
-function restart(machine: ZMachine): void {
+function restart(machine: ZMachine, _operandTypes: OperandType[]): void {
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} restart`);
   machine.restart();
 }
@@ -60,7 +61,7 @@ function restart(machine: ZMachine): void {
 /**
  * Verify the game file checksum
  */
-function verify(machine: ZMachine): void {
+function verify(machine: ZMachine, _operandTypes: OperandType[]): void {
   const [offset, branchOnFalse] = machine.state.readBranchOffset();
 
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} verify -> [${!branchOnFalse}] ${offset}`);
@@ -79,7 +80,7 @@ function verify(machine: ZMachine): void {
 /**
  * Piracy check - always returns true (game is genuine)
  */
-function piracy(machine: ZMachine): void {
+function piracy(machine: ZMachine, _operandTypes: OperandType[]): void {
   const [offset, branchOnFalse] = machine.state.readBranchOffset();
 
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} piracy -> [${!branchOnFalse}] ${offset}`);
@@ -90,6 +91,7 @@ function piracy(machine: ZMachine): void {
 
 async function save(
   machine: ZMachine,
+  _operandTypes: OperandType[],
   table: number,
   bytes: number,
   name: number = 0,
@@ -123,6 +125,7 @@ async function save(
 
 async function restore(
   machine: ZMachine,
+  _operandTypes: OperandType[],
   table: number,
   bytes: number,
   name: number = 0,
@@ -157,7 +160,7 @@ async function restore(
 /**
  * Quit the game
  */
-function quit(machine: ZMachine): void {
+function quit(machine: ZMachine, _operandTypes: OperandType[]): void {
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} quit`);
   machine.quit();
 }
@@ -165,7 +168,7 @@ function quit(machine: ZMachine): void {
 /**
  * Update the status bar (for versions <= 3)
  */
-function show_status(machine: ZMachine): void {
+function show_status(machine: ZMachine, _operandTypes: OperandType[]): void {
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} show_status`);
   machine.state.updateStatusBar();
 }

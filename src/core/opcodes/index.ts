@@ -2,6 +2,7 @@
  * This module consolidates all the opcodes from different modules and provides a unified interface for them.
  */
 import { ZMachine } from '../../interpreter/ZMachine';
+import { OperandType } from '../../types';
 import { Opcode, unimplementedOpcode } from './base';
 import { callOpcodes } from './call';
 import { controlOpcodes } from './control';
@@ -54,11 +55,11 @@ op0[8] = allOpcodes.ret_popped;
 op0[9] = {
   // Handle pop_catch for different versions
   mnemonic: 'pop_catch',
-  impl: (machine: ZMachine, ...args: Array<number>): void => {
+  impl: (machine: ZMachine, _operandTypes: OperandType[], ...args: Array<number>): void => {
     const version = machine.state.version;
     const implementation =
       version <= 4 ? versionSpecificOps.pop_catch.v1to4.impl : versionSpecificOps.pop_catch.v5plus.impl;
-    implementation(machine, ...args);
+    implementation(machine, _operandTypes, ...args);
   },
 };
 op0[10] = allOpcodes.quit;
@@ -87,11 +88,11 @@ op1[14] = allOpcodes.load;
 op1[15] = {
   // Handle not_call_1n for different versions
   mnemonic: 'not_call_1n',
-  impl: (machine: ZMachine, ...args: Array<number>): void => {
+  impl: (machine: ZMachine, _operandTypes: OperandType[], ...args: Array<number>): void => {
     const version = machine.state.version;
     const implementation =
       version <= 4 ? versionSpecificOps.not_call_1n.v1to4.impl : versionSpecificOps.not_call_1n.v5plus.impl;
-    implementation(machine, ...args);
+    implementation(machine, _operandTypes, ...args);
   },
 };
 

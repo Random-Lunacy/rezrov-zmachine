@@ -66,9 +66,89 @@ export abstract class BaseInputProcessor implements InputProcessor {
   protected terminatingChars: number[] = [13]; // Default to just Enter key
   protected timeoutHandle: ReturnType<typeof setTimeout> | null = null;
 
+  startTextInput(machine: ZMachine, state: InputState): void {
+    // Validate the text buffer
+    if (state.textBuffer && !this.validateTextBuffer(machine, state.textBuffer)) {
+      machine.logger.error('Text input cancelled due to invalid text buffer');
+      this.onInputComplete(machine, '', 13); // Return empty input with Enter as terminator
+      return;
+    }
+
+    // Validate the parse buffer if provided
+    if (state.parseBuffer && !this.validateParseBuffer(machine, state.parseBuffer)) {
+      machine.logger.error('Text input cancelled due to invalid parse buffer');
+      this.onInputComplete(machine, '', 13); // Return empty input with Enter as terminator
+      return;
+    }
+
+    // Load terminating characters
+    this.loadTerminatingCharacters(machine);
+
+    // Set up timed input if required
+    if (state.time && state.time > 0 && state.routine) {
+      this.handleTimedInput(machine, state);
+    }
+
+    // Concrete implementation provided by subclasses
+    this.doStartTextInput(machine, state);
+  }
+
+  /**
+   * Start character input with validation
+   * @param machine The Z-Machine instance
+   * @param state The input state
+   */
+  startCharInput(machine: ZMachine, state: InputState): void {
+    // Load terminating characters
+    this.loadTerminatingCharacters(machine);
+
+    // Set up timed input if required
+    if (state.time && state.time > 0 && state.routine) {
+      this.handleTimedInput(machine, state);
+    }
+
+    // Concrete implementation provided by subclasses
+    this.doStartCharInput(machine, state);
+  }
+
+  /**
+   * Process text input with buffer validation
+   * @param machine The Z-Machine instance
+   * @param input The input string
+   * @param termChar The terminating character
+   */
+  protected processTextInput(machine: ZMachine, input: string, termChar: number): void {
+    const state = machine.getInputState();
+    if (!state || !state.textBuffer) return;
+
+    // Validate the text buffer before writing to it
+    if (!this.validateTextBuffer(machine, state.textBuffer)) {
+      machine.logger.error('Cannot store text input due to invalid text buffer');
+      return;
+    }
+
+    // Store the text in the text buffer
+    this.storeTextInput(machine, input, state.textBuffer);
+
+    // Tokenize the input if parse buffer is provided
+    if (state.parseBuffer) {
+      // Validate the parse buffer before writing to it
+      if (!this.validateParseBuffer(machine, state.parseBuffer)) {
+        machine.logger.error('Cannot tokenize input due to invalid parse buffer');
+      } else {
+        machine.state.tokenizeLine(state.textBuffer, state.parseBuffer);
+      }
+    }
+
+    // Store terminating character if running V5+
+    if (machine.state.version >= 5 && state.resultVar !== undefined) {
+      machine.state.storeVariable(state.resultVar, termChar);
+    }
+  }
+
   // Abstract methods that must be implemented by platform-specific subclasses
-  abstract startTextInput(machine: ZMachine, state: InputState): void;
-  abstract startCharInput(machine: ZMachine, state: InputState): void;
+  protected abstract doStartTextInput(machine: ZMachine, state: InputState): void;
+  protected abstract doStartCharInput(machine: ZMachine, state: InputState): void;
   abstract promptForFilename(machine: ZMachine, operation: string): Promise<string>;
 
   /**
@@ -97,18 +177,36 @@ export abstract class BaseInputProcessor implements InputProcessor {
 
   /**
    * Process terminating characters
-   * This method is called to determine the terminating character for the input.
-   * It can be overridden by subclasses to provide custom behavior.
+   * @param input The input string
+   * @param terminators List of terminating characters
+   * @returns The terminating character code or 13 (Enter) by default
    */
-  processTerminatingCharacters(input: string, terminators: number[]): number {
-    // Default processing logic
-    if (input.length === 0) return 13; // Default to Enter
+  processTerminatingCharacters(input: string, terminators: number[] = this.terminatingChars): number {
+    // Default to Enter/Return
+    if (input.length === 0) return 13;
 
     const lastChar = input.charCodeAt(input.length - 1);
+
+    // Check if the last character is a terminator
     if (terminators.includes(lastChar)) {
       return lastChar;
     }
-    return 13; // Default to Enter
+
+    // Check if we have any special keys in the input
+    for (let i = 0; i < input.length; i++) {
+      const charCode = input.charCodeAt(i);
+
+      // Is this a function key code used as a terminator?
+      if (
+        terminators.includes(charCode) &&
+        ((charCode >= 129 && charCode <= 154) || (charCode >= 252 && charCode <= 254))
+      ) {
+        return charCode;
+      }
+    }
+
+    // Default to Enter/Return
+    return 13;
   }
 
   /**
@@ -154,33 +252,9 @@ export abstract class BaseInputProcessor implements InputProcessor {
    */
   onInputTimeout(machine: ZMachine, state: InputState): void {
     if (state.routine) {
-      const routineAddr = machine.memory.unpackRoutineAddress(state.routine);
+      const routineAddr = machine.state.memory.unpackRoutineAddress(state.routine);
       machine.state.callRoutine(routineAddr, null);
       machine.executor.resume();
-    }
-  }
-
-  /**
-   * Process text input
-   * This method is called to process text input.
-   * It stores the input in the text buffer and tokenizes it if a parse buffer is provided.
-   * It also handles the terminating character if running V5+.
-   */
-  protected processTextInput(machine: ZMachine, input: string, termChar: number): void {
-    const state = machine.getInputState();
-    if (!state || !state.textBuffer) return;
-
-    // Store the text in the text buffer
-    this.storeTextInput(machine, input, state.textBuffer);
-
-    // Tokenize the input if parse buffer is provided
-    if (state.parseBuffer) {
-      machine.state.tokenizeLine(state.textBuffer, state.parseBuffer);
-    }
-
-    // Store terminating character if running V5+
-    if (machine.state.version >= 5 && state.resultVar !== undefined) {
-      machine.state.storeVariable(state.resultVar, termChar);
     }
   }
 
@@ -230,34 +304,185 @@ export abstract class BaseInputProcessor implements InputProcessor {
   }
 
   /**
-   * Load terminating characters from the Z-Machine header
-   * This method loads the terminating characters from the Z-Machine header.
-   * It sets the terminating characters based on the version of the Z-Machine.
+   * Validates and loads terminating characters from the Z-Machine header
+   * @param machine The Z-Machine instance
+   * @returns Array of valid terminating characters
    */
   protected loadTerminatingCharacters(machine: ZMachine): void {
     const version = machine.state.version;
 
-    // Default terminating characters (always includes Enter)
+    // Default terminating characters (always includes Enter/Return)
     this.terminatingChars = [13];
 
-    // V5+ can specify custom terminating characters
+    // Only V5+ can specify custom terminating characters
     if (version >= 5) {
-      const headerTermChars = machine.memory.getWord(HeaderLocation.TerminatingChars);
-      if (headerTermChars !== 0) {
-        const customTermChars: number[] = [];
-        let addr = headerTermChars;
-        let char = machine.memory.getByte(addr);
+      const headerTermCharsAddr = machine.state.memory.getWord(HeaderLocation.TerminatingChars);
+      if (headerTermCharsAddr !== 0) {
+        this.loadCustomTerminatingChars(machine, headerTermCharsAddr);
+      }
+    }
 
-        while (char !== 0) {
+    machine.logger.debug(
+      `Loaded ${this.terminatingChars.length} terminating characters: ${this.terminatingChars.join(', ')}`
+    );
+  }
+
+  /**
+   * Loads and validates custom terminating characters
+   * @param machine The Z-Machine instance
+   * @param tableAddr Address of the terminating characters table
+   */
+  private loadCustomTerminatingChars(machine: ZMachine, tableAddr: number): void {
+    try {
+      const customTermChars: number[] = [];
+      let addr = tableAddr;
+      let char = machine.state.memory.getByte(addr);
+
+      // Read the table until we reach a zero byte or invalid memory
+      while (char !== 0) {
+        // Add to our list if it's a valid terminating character
+        if (this.isValidTerminatingCharacter(char)) {
           customTermChars.push(char);
-          addr++;
-          char = machine.memory.getByte(addr);
+        } else {
+          machine.logger.warn(`Invalid terminating character ${char} at address 0x${addr.toString(16)}`);
         }
 
-        if (customTermChars.length > 0) {
-          this.terminatingChars = customTermChars;
+        addr++;
+        char = machine.state.memory.getByte(addr);
+      }
+
+      // Special handling for 255 (any function key)
+      if (customTermChars.includes(255)) {
+        machine.logger.debug('Special terminator 255 found: any function key will terminate input');
+
+        // Replace 255 with all function key codes
+        customTermChars.splice(customTermChars.indexOf(255), 1);
+
+        // Add all function key codes (129-154, 252-254)
+        for (let i = 129; i <= 154; i++) {
+          if (!customTermChars.includes(i)) {
+            customTermChars.push(i);
+          }
+        }
+
+        for (let i = 252; i <= 254; i++) {
+          if (!customTermChars.includes(i)) {
+            customTermChars.push(i);
+          }
         }
       }
+
+      // Only update our terminators if we found valid ones
+      if (customTermChars.length > 0) {
+        // Always include Enter/Return as a terminator
+        if (!customTermChars.includes(13)) {
+          customTermChars.push(13);
+        }
+
+        this.terminatingChars = customTermChars;
+      }
+    } catch (e) {
+      machine.logger.error(`Error reading terminating characters table: ${e}`);
+      // Fall back to default terminators
+      this.terminatingChars = [13];
+    }
+  }
+
+  /**
+   * Checks if a character code is a valid terminating character
+   * According to the Z-Machine spec, only function key codes (129-154, 252-254)
+   * and the special value 255 are permitted as terminating characters
+   *
+   * @param code The character code to check
+   * @returns True if it's a valid terminating character
+   */
+  private isValidTerminatingCharacter(code: number): boolean {
+    // Enter/Return is always valid
+    if (code === 13) return true;
+
+    // Escape key is valid
+    if (code === 27) return true;
+
+    // Function keys (129-154)
+    if (code >= 129 && code <= 154) return true;
+
+    // Additional function keys (252-254)
+    if (code >= 252 && code <= 254) return true;
+
+    // Special value: any function key
+    if (code === 255) return true;
+
+    // Any other code is invalid as a terminator
+    return false;
+  }
+
+  /**
+   * Validates a text buffer to ensure it meets the minimum size requirements
+   * @param machine The Z-Machine instance
+   * @param textBuffer Address of the text buffer
+   * @returns True if the buffer is valid, false otherwise
+   */
+  protected validateTextBuffer(machine: ZMachine, textBuffer: number): boolean {
+    // Ensure the text buffer is at least 3 bytes long
+    try {
+      // Check if we can access the first 3 bytes of the buffer
+      machine.state.memory.getByte(textBuffer); // Max length byte
+      machine.state.memory.getByte(textBuffer + 1); // First data byte
+      machine.state.memory.getByte(textBuffer + 2); // Second data byte (or terminator)
+
+      // Additional version-specific validation
+      const version = machine.state.version;
+      const maxLength = machine.state.memory.getByte(textBuffer);
+
+      if (version <= 4) {
+        // V1-4: Check if we can access the full buffer size (+1 for terminator)
+        for (let i = 0; i <= maxLength; i++) {
+          machine.state.memory.getByte(textBuffer + 1 + i);
+        }
+      } else {
+        // V5+: Check if we can access the full buffer size (+1 for length byte)
+        for (let i = 0; i < maxLength; i++) {
+          machine.state.memory.getByte(textBuffer + 2 + i);
+        }
+      }
+
+      return true;
+    } catch (e) {
+      machine.logger.error(`Invalid text buffer at 0x${textBuffer.toString(16)}: ${e}`);
+      return false;
+    }
+  }
+
+  /**
+   * Validates a parse buffer to ensure it meets the minimum size requirements
+   * @param machine The Z-Machine instance
+   * @param parseBuffer Address of the parse buffer
+   * @returns True if the buffer is valid, false otherwise
+   */
+  protected validateParseBuffer(machine: ZMachine, parseBuffer: number): boolean {
+    // Ensure the parse buffer is at least 6 bytes long
+    try {
+      // Check if we can access the first 6 bytes of the buffer
+      machine.state.memory.getByte(parseBuffer); // Max tokens byte
+      machine.state.memory.getByte(parseBuffer + 1); // Actual tokens byte
+      machine.state.memory.getWord(parseBuffer + 2); // First token address
+      machine.state.memory.getByte(parseBuffer + 4); // First token length
+      machine.state.memory.getByte(parseBuffer + 5); // First token position
+
+      // Additional validation to ensure we can access all potential entries
+      const maxTokens = machine.state.memory.getByte(parseBuffer);
+      if (maxTokens > 0) {
+        // Ensure we can access the last potential entry
+        const lastEntryStart = parseBuffer + 2 + (maxTokens - 1) * 4;
+        machine.state.memory.getWord(lastEntryStart);
+        machine.state.memory.getByte(lastEntryStart + 2);
+        machine.state.memory.getByte(lastEntryStart + 3);
+      }
+
+      return true;
+    } catch (e) {
+      machine.logger.error(`Invalid parse buffer at 0x${parseBuffer.toString(16)}: ${e}`);
+      return false;
     }
   }
 }

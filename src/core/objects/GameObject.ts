@@ -1,6 +1,5 @@
 import { decodeZString } from '../../parsers/ZString';
 import { Address } from '../../types';
-import { MAX_ATTRIBUTES_V3, MAX_ATTRIBUTES_V4 } from '../../utils/constants';
 import { Logger } from '../../utils/log';
 import { Memory } from '../memory/Memory';
 
@@ -9,56 +8,35 @@ import { Memory } from '../memory/Memory';
  * and hierarchical relationships (parent, child, sibling)
  */
 export class GameObject {
-  /**
-   * Calculate the length of property data
-   * @param memory Memory access
-   * @param version Z-machine version
-   * @param propAddr Address of the property
-   * @returns Length of the property data in bytes
-   */
+  // Static method for property data length calculation
   static _propDataLen(memory: Memory, version: number, propAddr: Address): number {
-    let size = memory.getByte(propAddr);
+    const sizeByte = memory.getByte(propAddr);
 
     if (version <= 3) {
-      // Top 3 bits encode size - 1
-      size = (size >> 5) + 1;
+      // V1-3: size is in top 3 bits + 1
+      return ((sizeByte >> 5) & 0x7) + 1;
     } else {
-      if (!(size & 0x80)) {
-        // Top 2 bits encode size - 1
-        size = (size >> 6) + 1;
+      // V4+: depends on bit 7
+      if ((sizeByte & 0x80) === 0) {
+        // Top bit clear: size in top 2 bits + 1
+        return ((sizeByte >> 6) & 0x3) + 1;
       } else {
-        // Size byte is in the next byte
-        size = memory.getByte(propAddr + 1) & 0x3f;
-        // A size of 0 means 64 bytes
-        if (size === 0) {
-          size = 64;
-        }
+        // Top bit set: size in next byte
+        const size = memory.getByte(propAddr + 1) & 0x3f;
+        return size === 0 ? 64 : size;
       }
     }
-
-    return size;
   }
-  /**
-   * Convert a data pointer to its property entry address
-   * @param dataAddr Address of the property data
-   * @returns Address of the property entry
-   */
+
   static entryFromDataPtr(dataAddr: Address, memory: Memory, version: number): Address {
-    // This is a bit tricky because the data could be 1 or 2 bytes after the entry
-    // We look at the byte before - if version <= 3 or the high bit is clear, it's 1 byte before
-    if (version <= 3 || !(memory.getByte(dataAddr - 1) & 0x80)) {
+    if (version <= 3 || (memory.getByte(dataAddr - 1) & 0x80) === 0) {
       return dataAddr - 1;
     } else {
+      // V4+ with size byte format
       return dataAddr - 2;
     }
   }
-  /**
-   * Get the length of a property from its data address
-   * @param memory Memory access
-   * @param version Z-machine version
-   * @param dataAddr Address of the property data
-   * @returns Length of the property in bytes
-   */
+
   static getPropertyLength(memory: Memory, version: number, dataAddr: Address): number {
     if (dataAddr === 0) {
       return 0;
@@ -72,331 +50,218 @@ export class GameObject {
   private readonly logger: Logger;
   private readonly version: number;
   private readonly objTable: number;
-
-  /** Object number in the object table */
-  readonly objNum: number;
-
-  /** Address of the object in memory */
+  private readonly _objNum: number;
   private readonly objAddr: Address;
 
-  /**
-   * Creates a new GameObject instance
-   * @param memory Memory access
-   * @param version Z-machine version
-   * @param objTable Address of the object table
-   * @param objNum Object number
-   */
   constructor(memory: Memory, version: number, objTable: number, objNum: number, options?: { logger?: Logger }) {
     this.memory = memory;
     this.version = version;
     this.objTable = objTable;
-    this.objNum = objNum;
+    this._objNum = objNum;
     this.logger = options?.logger || new Logger('GameObject');
 
-    // Calculate the object's address based on version-specific object table structure
+    // Calculate object address based on version-specific object entry size
     if (this.version <= 3) {
-      // 31 property defaults * 2 bytes + (objNum - 1) * object entry size
+      // V1-3: 9-byte entries, 31 * 2 bytes for default properties
       this.objAddr = this.objTable + 31 * 2 + (objNum - 1) * 9;
     } else {
-      // 63 property defaults * 2 bytes + (objNum - 1) * object entry size
+      // V4+: 14-byte entries, 63 * 2 bytes for default properties
       this.objAddr = this.objTable + 63 * 2 + (objNum - 1) * 14;
     }
+
+    // Verify this is a valid object address
+    try {
+      // Access first byte of the object to verify it's valid
+      memory.getByte(this.objAddr);
+    } catch (error) {
+      throw new Error(
+        `Invalid object address for object ${objNum}: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
   }
 
-  /**
-   * Get the object's name as a string
-   * @returns The object's name
-   */
-  get name(): string {
-    return decodeZString(this.memory, this.memory.getZString(this.propertyTableAddr + 1), false);
+  public get objNum(): number {
+    return this._objNum;
   }
 
-  /**
-   * Get the object's parent object
-   * @returns The parent object or null if none
-   */
+  // Attribute Handling
+  public getMaxAttributes(): number {
+    return this.version <= 3 ? 32 : 48;
+  }
+
+  private validateAttributeNumber(attr: number): void {
+    const maxAttr = this.getMaxAttributes();
+    if (attr < 0 || attr >= maxAttr) {
+      throw new Error(`Attribute number out of range: ${attr} (max ${maxAttr - 1})`);
+    }
+  }
+
+  hasAttribute(attr: number): boolean {
+    this.validateAttributeNumber(attr);
+
+    // For V1-3: Attributes 0-31 are in 4 bytes
+    // For V4+: Attributes 0-47 are in 6 bytes
+    const byteIndex = Math.floor(attr / 8);
+    const bitPosition = 7 - (attr % 8); // Attribute 0 is highest bit
+    const bitMask = 1 << bitPosition;
+
+    const attributeByte = this.memory.getByte(this.objAddr + byteIndex);
+    return (attributeByte & bitMask) !== 0;
+  }
+
+  setAttribute(attr: number): void {
+    this.validateAttributeNumber(attr);
+
+    const byteIndex = Math.floor(attr / 8);
+    const bitPosition = 7 - (attr % 8);
+    const bitMask = 1 << bitPosition;
+
+    const currentByte = this.memory.getByte(this.objAddr + byteIndex);
+    this.memory.setByte(this.objAddr + byteIndex, currentByte | bitMask);
+    this.logger.debug(`Set attribute ${attr} on object ${this.objNum}`);
+  }
+
+  clearAttribute(attr: number): void {
+    this.validateAttributeNumber(attr);
+
+    const byteIndex = Math.floor(attr / 8);
+    const bitPosition = 7 - (attr % 8);
+    const bitMask = ~(1 << bitPosition);
+
+    const currentByte = this.memory.getByte(this.objAddr + byteIndex);
+    this.memory.setByte(this.objAddr + byteIndex, currentByte & bitMask);
+    this.logger.debug(`Cleared attribute ${attr} from object ${this.objNum}`);
+  }
+
+  // Relationship Handling
   get parent(): GameObject | null {
-    const parentObjNum =
-      this.version <= 3 ? this.memory.getByte(this.objAddr + 4) : this.memory.getWord(this.objAddr + 6);
+    try {
+      const parentObjNum =
+        this.version <= 3 ? this.memory.getByte(this.objAddr + 4) : this.memory.getWord(this.objAddr + 6);
 
-    // Return null for object 0, which means "no object"
-    return parentObjNum === 0 ? null : this.getObject(parentObjNum);
+      return parentObjNum === 0 ? null : this.getObject(parentObjNum);
+    } catch (error) {
+      this.logger.warn(
+        `Error accessing parent for object ${this.objNum}: ${error instanceof Error ? error.message : String(error)}`
+      );
+      return null;
+    }
   }
 
-  /**
-   * Set the object's parent
-   * @param po The parent object or null to remove parent
-   */
   set parent(po: GameObject | null) {
-    const pObjNum = po === null ? 0 : po.objNum;
+    const parentObjNum = po === null ? 0 : po.objNum;
+
     if (this.version <= 3) {
-      this.memory.setByte(this.objAddr + 4, pObjNum);
+      this.memory.setByte(this.objAddr + 4, parentObjNum);
     } else {
-      this.memory.setWord(this.objAddr + 6, pObjNum);
+      this.memory.setWord(this.objAddr + 6, parentObjNum);
     }
   }
 
-  /**
-   * Get the object's first child
-   * @returns The first child object or null if none
-   */
-  get child(): GameObject | null {
-    const childObjNum =
-      this.version <= 3 ? this.memory.getByte(this.objAddr + 6) : this.memory.getWord(this.objAddr + 10);
-
-    return childObjNum === 0 ? null : this.getObject(childObjNum);
-  }
-
-  /**
-   * Set the object's first child
-   * @param co The child object or null to remove child
-   */
-  set child(co: GameObject | null) {
-    const cObjNum = co === null ? 0 : co.objNum;
-    if (this.version <= 3) {
-      this.memory.setByte(this.objAddr + 6, cObjNum);
-    } else {
-      this.memory.setWord(this.objAddr + 10, cObjNum);
-    }
-  }
-
-  /**
-   * Get the object's sibling
-   * @returns The sibling object or null if none
-   */
   get sibling(): GameObject | null {
-    const siblingObjNum =
-      this.version <= 3 ? this.memory.getByte(this.objAddr + 5) : this.memory.getWord(this.objAddr + 8);
+    try {
+      const siblingObjNum =
+        this.version <= 3 ? this.memory.getByte(this.objAddr + 5) : this.memory.getWord(this.objAddr + 8);
 
-    return siblingObjNum === 0 ? null : this.getObject(siblingObjNum);
-  }
-
-  /**
-   * Set the object's sibling
-   * @param so The sibling object or null to remove sibling
-   */
-  set sibling(so: GameObject | null) {
-    const sObjNum = so === null ? 0 : so.objNum;
-    if (this.version <= 3) {
-      this.memory.setByte(this.objAddr + 5, sObjNum);
-    } else {
-      this.memory.setWord(this.objAddr + 8, sObjNum);
+      return siblingObjNum === 0 ? null : this.getObject(siblingObjNum);
+    } catch (error) {
+      this.logger.warn(
+        `Error accessing sibling for object ${this.objNum}: ${error instanceof Error ? error.message : String(error)}`
+      );
+      return null;
     }
   }
 
-  /**
-   * Get the address of the object's property table
-   * @returns The property table address
-   */
+  set sibling(so: GameObject | null) {
+    const siblingObjNum = so === null ? 0 : so.objNum;
+
+    if (this.version <= 3) {
+      this.memory.setByte(this.objAddr + 5, siblingObjNum);
+    } else {
+      this.memory.setWord(this.objAddr + 8, siblingObjNum);
+    }
+  }
+
+  get child(): GameObject | null {
+    try {
+      const childObjNum =
+        this.version <= 3 ? this.memory.getByte(this.objAddr + 6) : this.memory.getWord(this.objAddr + 10);
+
+      return childObjNum === 0 ? null : this.getObject(childObjNum);
+    } catch (error) {
+      this.logger.warn(
+        `Error accessing child for object ${this.objNum}: ${error instanceof Error ? error.message : String(error)}`
+      );
+      return null;
+    }
+  }
+
+  set child(co: GameObject | null) {
+    const childObjNum = co === null ? 0 : co.objNum;
+
+    if (this.version <= 3) {
+      this.memory.setByte(this.objAddr + 6, childObjNum);
+    } else {
+      this.memory.setWord(this.objAddr + 10, childObjNum);
+    }
+  }
+
+  // Property Handling
   get propertyTableAddr(): Address {
     return this.memory.getWord(this.objAddr + (this.version <= 3 ? 7 : 12));
   }
 
-  /**
-   * Return the maximum number of attributes for this object based on version
-   * @returns Maximum number of attributes
-   */
-  getMaxAttributes(): number {
-    return this.version <= 3 ? MAX_ATTRIBUTES_V3 : MAX_ATTRIBUTES_V4;
-  }
-
-  /**
-   * Check if the object has a specific attribute
-   * @param attr Attribute number
-   * @returns True if the attribute is set
-   */
-  hasAttribute(attr: number): boolean {
-    this.validateAttributeNumber(attr);
-
-    const byte_index = Math.floor(attr / 8);
-    const value = this.memory.getByte(this.objAddr + byte_index);
-    return (value & (0x80 >> (attr & 7))) !== 0;
-  }
-
-  /**
-   * Set an attribute on the object
-   * @param attr Attribute number
-   */
-  setAttribute(attr: number): void {
-    this.validateAttributeNumber(attr);
-
-    const byte_index = Math.floor(attr / 8);
-    let value = this.memory.getByte(this.objAddr + byte_index);
-    value |= 0x80 >> (attr & 7);
-    this.memory.setByte(this.objAddr + byte_index, value);
-
-    this.logger.debug(`Set attribute ${attr} on object ${this.objNum}`);
-  }
-
-  /**
-   * Clear an attribute from the object
-   * @param attr Attribute number
-   */
-  clearAttribute(attr: number): void {
-    this.validateAttributeNumber(attr);
-
-    const byte_index = Math.floor(attr / 8);
-    let value = this.memory.getByte(this.objAddr + byte_index);
-    value &= ~(0x80 >> (attr & 7));
-    this.memory.setByte(this.objAddr + byte_index, value);
-
-    this.logger.debug(`Cleared attribute ${attr} from object ${this.objNum}`);
-  }
-
-  /**
-   * Remove the object from its parent's child list
-   */
-  unlink(): void {
-    // Get our parent object, since we clear it below
-    const parent = this.parent;
-    if (!parent) {
-      // No parent, nothing to be done
-      return;
-    }
-
-    const sibling = this.sibling;
-
-    this.parent = null;
-    this.sibling = null;
-
-    // If we're the first child, it's easy
-    if (parent.child?.objNum === this.objNum) {
-      parent.child = sibling;
-      return;
-    }
-
-    // Otherwise loop through children looking for the child before us
-    for (let c = parent.child; c !== null; c = c.sibling) {
-      if (c.sibling && c.sibling.objNum === this.objNum) {
-        // Found the previous node. Skip ourselves and return.
-        c.sibling = sibling;
-        return;
-      }
-    }
-
-    // If we didn't find the previous child, something is definitely wrong
-    throw new Error(`Sibling list is in a bad state, couldn't find previous node for object ${this.objNum}`);
-  }
-
-  /**
-   * Get the address of the next property entry
-   * @param propAddr Address of the current property entry
-   * @returns Address of the next property entry
-   */
-  private _nextPropEntry(propAddr: Address): Address {
-    return propAddr + this._propEntrySize(propAddr);
-  }
-
-  /**
-   * Get the size of a property entry
-   * @param propAddr Address of the property entry
-   * @returns Size of the property entry in bytes
-   */
-  private _propEntrySize(propAddr: Address): number {
-    return (
-      GameObject._propDataLen(this.memory, this.version, propAddr) +
-      (this.version <= 3 || !(this.memory.getByte(propAddr) & 0x80) ? 1 : 2)
-    );
-  }
-
-  /**
-   * Get the property number from a property entry
-   * @param entryAddr Address of the property entry
-   * @returns The property number
-   */
-  private _propEntryNum(entryAddr: Address): number {
-    const mask = this.version <= 3 ? 0x1f : 0x3f;
-    const sizeByte = this.memory.getByte(entryAddr);
-    return sizeByte & mask;
-  }
-
-  /**
-   * Get the address of the property data
-   * @param propAddr Address of the property entry
-   * @returns Address of the property data
-   */
-  private _propDataPtr(propAddr: Address): Address {
-    if (this.version <= 3) {
-      return propAddr + 1;
-    } else {
-      const size = this.memory.getByte(propAddr);
-      if (!(size & 0x80)) {
-        return propAddr + 1;
-      } else {
-        return propAddr + 2;
-      }
-    }
-  }
-
-  /**
-   * Get the address of the first property entry
-   * @returns Address of the first property entry
-   */
-  private _firstPropEntry(): Address {
-    const addr = this.propertyTableAddr;
-    // Skip the name
-    const nameLen = this.memory.getByte(addr);
-    return addr + 1 + 2 * nameLen;
-  }
-
-  /**
-   * Find a property entry by property number
-   * @param prop Property number
-   * @returns Address of the property entry or 0 if not found
-   */
+  // Find property entry
   private _getPropEntry(prop: number): Address {
-    let entry = this._firstPropEntry();
+    const propTableAddr = this.propertyTableAddr;
 
-    // Properties are stored in descending order of property number
-    let propNum;
-    do {
-      propNum = this._propEntryNum(entry);
+    // Skip the object name
+    const nameLength = this.memory.getByte(propTableAddr);
+    let addr = propTableAddr + 1 + 2 * nameLength;
 
-      if (propNum === prop) {
-        return entry;
+    // Search for the property
+    while (true) {
+      const sizeByte = this.memory.getByte(addr);
+      if (sizeByte === 0) break; // End of property list
+
+      // Get property number - different for V5+
+      let propNum;
+      if (this.version <= 3) {
+        propNum = sizeByte & 0x1f; // V1-3: bits 0-4
+      } else {
+        // V4+: depends on bit 7
+        if ((sizeByte & 0x80) === 0) {
+          propNum = sizeByte & 0x3f; // V4+: bits 0-5 when bit 7 is clear
+        } else {
+          propNum = sizeByte & 0x3f; // V4+: bits 0-5 when bit 7 is set
+        }
       }
 
-      if (propNum < prop) {
-        // We've gone past where the property should be
-        break;
+      if (propNum === prop) return addr;
+      if (propNum < prop) break; // Properties are in descending order
+
+      // Skip to next property
+      const propLen = GameObject._propDataLen(this.memory, this.version, addr);
+
+      // The increment depends on version and size byte format
+      if (this.version <= 3) {
+        addr += propLen + 1; // V1-3: size byte + data
+      } else if ((sizeByte & 0x80) === 0) {
+        addr += propLen + 1; // V4+: simple format (bit 7 clear)
+      } else {
+        addr += propLen + 2; // V4+: long format (bit 7 set)
       }
-
-      entry = this._nextPropEntry(entry);
-    } while (propNum > 0);
-
-    return 0; // Not found
-  }
-
-  /**
-   * Get the default value for a property
-   * @param prop Property number
-   * @returns The default value for the property
-   */
-  private _getDefaultPropertyValue(prop: number): number {
-    // Default properties are stored in a table at the beginning of the object table
-    // Each default is 2 bytes
-    if (prop <= 0) {
-      throw new Error(`Invalid property number: ${prop}`);
     }
 
-    const maxProps = this.version <= 3 ? 31 : 63;
-    if (prop > maxProps) {
-      throw new Error(`Property number ${prop} out of range (max ${maxProps})`);
-    }
-
-    return this.memory.getWord(this.objTable + (prop - 1) * 2);
+    return 0; // Property not found
   }
 
-  /**
-   * Get a property value
-   * @param prop Property number
-   * @returns The property value
-   */
+  // Get property value
   getProperty(prop: number): number {
     const propAddr = this._getPropEntry(prop);
 
     if (propAddr === 0) {
-      // Property not found, return default value
+      // Return default property value
       return this._getDefaultPropertyValue(prop);
     }
 
@@ -409,17 +274,148 @@ export class GameObject {
       case 2:
         return this.memory.getWord(dataPtr);
       default:
-        // For longer properties, spec says to return the first 2 bytes as a word
-        this.logger.warn(`Reading ${propLen}-byte property ${prop} as a word (address ${dataPtr})`);
+        this.logger.warn(`Reading ${propLen}-byte property as word`);
         return this.memory.getWord(dataPtr);
     }
   }
 
-  /**
-   * Set a property value
-   * @param prop Property number
-   * @param value Value to set
-   */
+  // Retrieve property address
+  getPropertyAddress(prop: number): Address {
+    const propAddr = this._getPropEntry(prop);
+    return propAddr === 0 ? 0 : this._propDataPtr(propAddr);
+  }
+
+  // Get next property
+  getNextProperty(prop: number): number {
+    let entry;
+
+    if (prop === 0) {
+      // First property
+      entry = this._firstPropEntry();
+    } else {
+      // Find current property entry
+      entry = this._getPropEntry(prop);
+      if (entry === 0) {
+        throw new Error(`Property ${prop} not found in object ${this.objNum}`);
+      }
+
+      // Move to next entry
+      entry = this._nextPropEntry(entry);
+    }
+
+    // Return property number or 0 if no more properties
+    return entry === 0 ? 0 : this._propEntryNum(entry);
+  }
+
+  // Helper methods for property handling
+  private _firstPropEntry(): Address {
+    const addr = this.propertyTableAddr;
+    const nameLen = this.memory.getByte(addr);
+    return addr + 1 + 2 * nameLen;
+  }
+
+  private _nextPropEntry(propAddr: Address): Address {
+    const propLen = GameObject._propDataLen(this.memory, this.version, propAddr);
+    const entrySize = propLen + (this.version <= 3 ? 1 : 2);
+    return propAddr + entrySize;
+  }
+
+  private _propEntryNum(entry: Address): number {
+    const sizeByte = this.memory.getByte(entry);
+    return this.version <= 3 ? sizeByte & 0x1f : sizeByte & 0x3f;
+  }
+
+  private _propDataPtr(propAddr: Address): Address {
+    if (this.version <= 3) {
+      return propAddr + 1;
+    } else {
+      const sizeByte = this.memory.getByte(propAddr);
+      return sizeByte & 0x80 ? propAddr + 2 : propAddr + 1;
+    }
+  }
+
+  private _getDefaultPropertyValue(prop: number): number {
+    if (prop <= 0 || prop > (this.version <= 3 ? 31 : 63)) {
+      throw new Error(`Invalid property number: ${prop}`);
+    }
+
+    // Property defaults table starts at objTable
+    return this.memory.getWord(this.objTable + (prop - 1) * 2);
+  }
+
+  // Unlink object from its parent
+  unlink(): void {
+    // Get the parent object
+    const parent = this.parent;
+    if (!parent) {
+      return; // Nothing to do if no parent
+    }
+
+    // Get current position information
+    const parentObj = parent;
+    const sibling = this.sibling;
+
+    // Clear our own parent and sibling pointers
+    this.parent = null;
+    this.sibling = null;
+
+    // If we're the parent's direct child, update parent's child pointer
+    if (parentObj.child?.objNum === this.objNum) {
+      parentObj.child = sibling;
+      return;
+    }
+
+    // Otherwise we must be a sibling of one of the children
+    // Find the sibling that points to us and update its sibling pointer
+    let currentChild = parentObj.child;
+    while (currentChild) {
+      if (currentChild.sibling?.objNum === this.objNum) {
+        currentChild.sibling = sibling;
+        return;
+      }
+      currentChild = currentChild.sibling;
+    }
+  }
+
+  // Protected method to get object (to be implemented by factory)
+  protected getObject(objNum: number): GameObject | null {
+    throw new Error(`getObject() must be implemented by object provider [${objNum}]`);
+  }
+
+  get name(): string {
+    try {
+      const propTableAddr = this.propertyTableAddr;
+      if (propTableAddr === 0) {
+        return `[Invalid Object ${this.objNum}]`;
+      }
+
+      // Get the length of the name in Z-characters
+      const nameLength = this.memory.getByte(propTableAddr);
+
+      // If length is 0, return a placeholder
+      if (nameLength === 0) {
+        return `[Unnamed Object ${this.objNum}]`;
+      }
+
+      // Verify the name is within memory bounds before decoding
+      try {
+        // Each word contains 3 Z-characters, so we need to check all words
+        for (let i = 0; i < nameLength; i++) {
+          this.memory.getWord(propTableAddr + 1 + i * 2);
+        }
+
+        // Now decode the name if verification passed
+        return decodeZString(this.memory, this.memory.getZString(propTableAddr + 1), true);
+      } catch (error) {
+        this.logger.debug(`[Object ${this.objNum} - Name Error] - ${error}`);
+        return `[Object ${this.objNum} - Name Error]`;
+      }
+    } catch (error) {
+      this.logger.debug(`[Object ${this.objNum} - Property Table Error] - ${error}`);
+      return `[Object ${this.objNum} - Property Table Error]`;
+    }
+  }
+
   putProperty(prop: number, value: number): void {
     const propAddr = this._getPropEntry(prop);
 
@@ -438,62 +434,15 @@ export class GameObject {
         this.memory.setWord(dataPtr, value & 0xffff);
         break;
       default:
-        // For longer properties, spec says to set the first 2 bytes as a word
-        this.logger.warn(`Writing to ${propLen}-byte property ${prop} as a word (address ${dataPtr})`);
+        this.logger.warn(`Writing to ${propLen}-byte property ${prop} as a word`);
         this.memory.setWord(dataPtr, value & 0xffff);
     }
   }
 
-  /**
-   * Get the address of a property's data
-   * @param prop Property number
-   * @returns Address of the property data or 0 if not found
-   */
-  getPropertyAddress(prop: number): Address {
-    const propAddr = this._getPropEntry(prop);
-
-    if (propAddr === 0) {
-      return 0;
-    }
-
-    return this._propDataPtr(propAddr);
+  private hexString(v: number): string {
+    return v !== undefined ? '0x' + v.toString(16).padStart(4, '0') : '';
   }
 
-  /**
-   * Get the next property number after a specified property
-   * @param prop Property number, or 0 to get the first property
-   * @returns The next property number or 0 if none
-   */
-  getNextProperty(prop: number): number {
-    let propAddr;
-
-    if (prop === 0) {
-      // If prop is 0, get the first property
-      propAddr = this._firstPropEntry();
-    } else {
-      // Otherwise, get the specified property and then the next one
-      propAddr = this._getPropEntry(prop);
-
-      if (propAddr === 0) {
-        throw new Error(`Property ${prop} not found in object ${this.objNum}`);
-      }
-
-      propAddr = this._nextPropEntry(propAddr);
-    }
-
-    if (propAddr === 0) {
-      return 0;
-    }
-
-    // Get the property number
-    return this._propEntryNum(propAddr);
-  }
-
-  /**
-   * Debug method to dump property data
-   * @param entry Address of the property entry
-   * @returns String representation of the property data
-   */
   dumpPropData(entry: Address): string {
     const propDataPtr = this._propDataPtr(entry);
     const propDataLen = GameObject._propDataLen(this.memory, this.version, entry);
@@ -506,17 +455,12 @@ export class GameObject {
     return data.map((val) => this.hexString(val)).join(' ');
   }
 
-  /**
-   * Debug method to dump the object hierarchy to console
-   * @param indent Indentation level
-   */
   dump(indent = 0): void {
     const _indent = ' . '.repeat(indent);
 
     this.logger.debug(`${_indent}[${this.objNum}] "${this.name}"`);
     this.logger.debug(`${_indent}  Attributes:`);
 
-    // Dump attributes
     const maxAttrs = this.getMaxAttributes();
     const activeAttrs: number[] = [];
 
@@ -532,7 +476,6 @@ export class GameObject {
       this.logger.debug(`${_indent}    None`);
     }
 
-    // Dump properties
     this.logger.debug(`${_indent}  Properties:`);
 
     let entry = this._firstPropEntry();
@@ -554,35 +497,5 @@ export class GameObject {
     for (let c = this.child; c !== null; c = c.sibling) {
       c.dump(indent + 1);
     }
-  }
-
-  /**
-   * Helper method to get an object by number
-   * This must be overridden by the object provider
-   * @param objNum Object number
-   */
-  protected getObject(objNum: number): GameObject | null {
-    // This should be overridden by the provider to return the actual object
-    throw new Error(`getObject() must be implemented by a provider [${objNum}]`);
-  }
-
-  /**
-   * Validate that an attribute number is in range for the current version
-   * @param attr Attribute number to validate
-   */
-  private validateAttributeNumber(attr: number): void {
-    const maxAttr = this.version <= 3 ? MAX_ATTRIBUTES_V3 : MAX_ATTRIBUTES_V4;
-
-    if (attr < 0 || attr >= maxAttr) {
-      throw new Error(`Attribute number out of range: ${attr} (max ${maxAttr - 1})`);
-    }
-  }
-
-  /**
-   * Convert a number to hexadecimal string
-   * @param v Number to convert
-   */
-  private hexString(v: number): string {
-    return v !== undefined ? '0x' + v.toString(16).padStart(4, '0') : '';
   }
 }

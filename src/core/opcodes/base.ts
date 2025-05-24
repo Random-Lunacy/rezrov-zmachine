@@ -5,12 +5,17 @@
  * Each opcode has a mnemonic and an implementation function that takes a ZMachine instance and operands.
  */
 import { ZMachine } from '../../interpreter/ZMachine';
+import { OperandType } from '../../types';
 
 /**
  * Function signature for opcode implementations
  * Takes a ZMachine instance and variable number of operands
  */
-export type OpcodeFn = (machine: ZMachine, ...operands: Array<number>) => void | Promise<void>;
+export type OpcodeFn = (
+  machine: ZMachine,
+  _operandTypes: OperandType[],
+  ...operands: Array<number>
+) => void | Promise<void>;
 
 /**
  * Represents a Z-machine opcode with its mnemonic and implementation
