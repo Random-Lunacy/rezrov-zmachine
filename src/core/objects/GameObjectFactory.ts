@@ -77,7 +77,7 @@ export class GameObjectFactory {
     // Start address of the object entries
     const objectEntriesStart = this.objTable + propertyDefaultsSize;
 
-    this.logger.info(`Scanning for valid objects starting from 0x${objectEntriesStart.toString(16)}`);
+    this.logger.debug(`Scanning for valid objects starting from 0x${objectEntriesStart.toString(16)}`);
 
     // Store all property table addresses we find
     const propertyTableAddresses = new Set<number>();
@@ -121,8 +121,8 @@ export class GameObjectFactory {
         }
       }
 
-      this.logger.info(`Found ${propertyTableAddresses.size} property tables`);
-      this.logger.info(`Calculated maximum valid object: ${maxValidObjects}`);
+      this.logger.debug(`Found ${propertyTableAddresses.size} property tables`);
+      this.logger.debug(`Calculated maximum valid object: ${maxValidObjects}`);
 
       // Second pass: validate each object up to the calculated maximum
       for (let i = 1; i <= maxValidObjects; i++) {
@@ -143,7 +143,7 @@ export class GameObjectFactory {
         }
       }
 
-      this.logger.info(`Identified ${this.validObjectNumbers.size} valid objects in the story file`);
+      this.logger.debug(`Identified ${this.validObjectNumbers.size} valid objects in the story file`);
     } catch (error) {
       this.logger.error(`Error scanning object table: ${error instanceof Error ? error.message : String(error)}`);
     }

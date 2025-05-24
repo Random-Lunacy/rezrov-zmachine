@@ -37,8 +37,6 @@ function decodeZStringV1V2(memory: Memory, zStr: ZString, expandAbbreviations: b
   let currentAlphabet = 0; // Current alphabet (0=A0, 1=A1, 2=A2)
   let lockedAlphabet = 0; // Locked alphabet
   const result: string[] = [];
-  let unicodeMode = false;
-  let unicodeHigh = 0;
   let isTemporaryShift = false; // Track if the current character uses a temporary shift
 
   // Get alphabet table
@@ -87,17 +85,14 @@ function decodeZStringV1V2(memory: Memory, zStr: ZString, expandAbbreviations: b
       else currentAlphabet = 1; // A2 -> A1
       lockedAlphabet = currentAlphabet;
       isTemporaryShift = false;
-    } else if (unicodeMode) {
-      // Handle ZSCII escape sequence
-      const lowBits = zChar;
-      const unicodeChar = (unicodeHigh << 5) | lowBits;
-      result.push(String.fromCodePoint(unicodeChar));
-      unicodeMode = false;
     } else if (currentAlphabet === 2 && zChar === 6) {
       // ZSCII escape sequence - not fully implemented in V1-2 but handle as best we can
-      if (i + 1 < zStr.length) {
-        unicodeMode = true;
-        unicodeHigh = zStr[++i];
+      if (i + 2 < zStr.length) {
+        const topBits = zStr[++i];
+        const bottomBits = zStr[++i];
+        const zsciiCode = (topBits << 5) | bottomBits;
+        result.push(String.fromCharCode(zsciiCode));
+        currentAlphabet = 0; // Return to A0
       } else {
         result.push('?');
       }
@@ -190,7 +185,7 @@ function decodeZStringV3Plus(memory: Memory, zStr: ZString, expandAbbreviations:
   let alphabet = 0; // Current alphabet (0=A0, 1=A1, 2=A2)
   const result: string[] = [];
   let unicodeMode = false;
-  let unicodeHigh = 0;
+  const unicodeHigh = 0;
 
   // Get version-specific information
   const version = memory.getByte(HeaderLocation.Version);
@@ -228,7 +223,7 @@ function decodeZStringV3Plus(memory: Memory, zStr: ZString, expandAbbreviations:
           break;
       }
     } else if (unicodeMode) {
-      // Handle ZSCII escape sequence
+      // Handle Unicode sequence
       const lowBits = zChar;
       const unicodeChar = (unicodeHigh << 5) | lowBits;
 
@@ -240,15 +235,16 @@ function decodeZStringV3Plus(memory: Memory, zStr: ZString, expandAbbreviations:
 
       unicodeMode = false;
       alphabet = 0; // Always return to A0 after unicode in V3+
-    } else if (alphabet === 2 && zChar === 6 && version >= 5) {
-      // ZSCII escape sequence (V5+)
+    } else if (alphabet === 2 && zChar === 6) {
+      // Handle ZSCII escape sequence
       if (i + 2 < zStr.length) {
-        unicodeMode = true;
-        unicodeHigh = zStr[++i];
-        continue;
+        const topBits = zStr[++i];
+        const bottomBits = zStr[++i];
+        const zsciiCode = (topBits << 5) | bottomBits;
+        result.push(String.fromCharCode(zsciiCode));
+        alphabet = 0; // Return to A0
       } else {
         result.push('?');
-        break;
       }
     } else if (alphabet === 2 && zChar === 7) {
       // Newline

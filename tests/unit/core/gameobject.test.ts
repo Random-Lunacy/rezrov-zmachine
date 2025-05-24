@@ -113,10 +113,9 @@ describe('GameObject', () => {
       if (addr === 0x200 + 15) return 0x56;
 
       // Default property values
-      const defaultsTableStart = objTableAddr - 31 * 2;
-      if (addr >= defaultsTableStart && addr < objTableAddr) {
+      if (addr >= objTableAddr && addr < objTableAddr + 31 * 2) {
         // Calculate property number from address
-        const propNum = Math.floor((addr - defaultsTableStart) / 2) + 1;
+        const propNum = Math.floor((addr - objTableAddr) / 2) + 1;
         return 0x1000 + propNum;
       }
 

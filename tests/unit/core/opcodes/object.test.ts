@@ -615,7 +615,7 @@ describe('Object Opcodes', () => {
       objectOpcodes.print_obj.impl(machine, [], obj);
 
       // Assert
-      expect(machine.screen.print).toHaveBeenCalledWith(machine, [], mockObject.name);
+      expect(machine.screen.print).toHaveBeenCalledWith(machine, mockObject.name);
     });
 
     it('should log warning when object is null', () => {

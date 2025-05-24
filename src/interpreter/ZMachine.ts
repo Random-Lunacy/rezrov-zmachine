@@ -206,11 +206,6 @@ export class ZMachine {
    * Start executing the story file
    */
   execute(): void {
-    // Debug: Check G111 before any execution
-    const g111Address = this._memory.getWord(HeaderLocation.GlobalVariables) + 2 * (127 - 16);
-    const initialG111 = this._memory.getWord(g111Address);
-    this.logger.debug(`PRE-EXECUTION G111: Value at address ${g111Address}: ${initialG111}`);
-
     // Set the program counter to the initial PC from the header
     this._state.pc = this._memory.getWord(HeaderLocation.InitialPC);
 

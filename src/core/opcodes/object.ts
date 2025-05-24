@@ -38,8 +38,8 @@ function test_attr(machine: ZMachine, _operandTypes: OperandType[], obj: number,
     }`
   );
 
-  const obj1 = machine.state.getObject(1);
-  if (obj1 === null || attribute > obj1.getMaxAttributes() || attribute < 0) {
+  const maxAttributes = machine.state.version <= 3 ? 32 : 48;
+  if (attribute < 0 || attribute >= maxAttributes) {
     const pc = machine.executor.op_pc;
     machine.logger.error(`INVALID ATTRIBUTE: PC=${hex(pc)}, obj=${obj}, attr=${attribute}`);
 
@@ -59,7 +59,7 @@ function test_attr(machine: ZMachine, _operandTypes: OperandType[], obj: number,
     // Also show the instruction that was decoded
     machine.logger.error(`Current instruction: opcode at ${hex(pc)}, operands: obj=${obj}, attr=${attribute}`);
 
-    throw new Error(`Attribute number out of range: ${attribute} (max 31)`);
+    throw new Error(`Attribute number out of range: ${attribute} (max ${maxAttributes - 1})`);
   }
 
   const targetObj = machine.state.getObject(obj);

@@ -5,6 +5,7 @@ import { GameObjectFactory } from '../core/objects/GameObjectFactory';
 import { TextParser } from '../parsers/TextParser';
 import { Address, ZMachineState } from '../types';
 import { HeaderLocation } from '../utils/constants';
+import { hex } from '../utils/debug';
 import { Logger } from '../utils/log';
 
 /**
@@ -71,11 +72,6 @@ export class GameState {
     this.logger.debug(`Global variables address: 0x${this._globalVars.toString(16)}`);
     this.logger.debug(`Object table address: 0x${this._objectTable.toString(16)}`);
     this.logger.debug(`Dictionary address: 0x${this._dict.toString(16)}`);
-
-    // Debug: Check initial value of G111 in raw story file
-    const g111Address = this._globalVars + 2 * (127 - 16); // Address for G111
-    const initialG111Value = this._memory.getWord(g111Address);
-    this.logger.debug(`INITIAL G111: Raw value in story file at address ${g111Address}: ${initialG111Value}`);
   }
 
   /**
@@ -209,13 +205,6 @@ export class GameState {
       return peekTop ? this.peekStack() : this.popStack();
     }
 
-    if (variable === 127) {
-      const address = this._globalVars + 2 * (variable - 16);
-      this.logger.debug(`G111 debug: address calculation: ${this._globalVars} + ${2 * (variable - 16)} = ${address}`);
-      const value = this._memory.getWord(address);
-      this.logger.debug(`G111 debug: value at address ${address}: ${value}`);
-    }
-
     if (variable < 16) {
       // Local variable
       if (this._callstack.length === 0) {
@@ -249,12 +238,6 @@ export class GameState {
       return;
     }
 
-    if (variable === 127) {
-      const stackTrace = new Error().stack;
-      this.logger.debug(`G111 WRITE: Setting variable 127 (G111) from ${value} to 4 at PC ${this._pc.toString(16)}`);
-      this.logger.debug(`G111 WRITE STACK: ${stackTrace}`);
-    }
-
     if (variable < 16) {
       // Local variable
       if (this._callstack.length === 0) {
@@ -267,12 +250,12 @@ export class GameState {
       }
 
       frame.locals[variable - 1] = value;
-      this.logger.debug(`Stored ${value} (0x${value.toString(16)}) in local ${variable}`);
+      this.logger.debug(`Stored ${value} (0x${hex(value)}) in L${hex(variable)}`);
     } else {
       // Global variable
       const addr = this._globalVars + 2 * (variable - 16);
       this._memory.setWord(addr, value);
-      this.logger.debug(`Stored ${value} (0x${value.toString(16)}) in global ${variable}`);
+      this.logger.debug(`Stored ${value} (0x${hex(value)}) in G${hex(variable - 16)}`);
     }
   }
 
@@ -453,16 +436,20 @@ export class GameState {
    * Read a Z-string from memory at the current PC and advance PC
    */
   readZString(): Array<number> {
+    const startPC = this._pc;
     const zString = this._memory.getZString(this._pc);
 
-    // Calculate how many bytes the Z-string takes in memory
-    // Each Z-string word encodes 3 Z-characters
-    const wordCount = Math.ceil(zString.length / 3);
+    // Count actual words read by scanning until high bit is found
+    let wordCount = 0;
+    let addr = startPC;
+    while (true) {
+      const word = this._memory.getWord(addr);
+      wordCount++;
+      addr += 2;
+      if ((word & 0x8000) !== 0) break;
+    }
 
-    // Move PC past the Z-string
-    // The last word has its high bit set, so we know when to stop
     this._pc += wordCount * 2;
-
     return zString;
   }
 

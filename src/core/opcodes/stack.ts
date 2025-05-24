@@ -48,51 +48,44 @@ function pop(machine: ZMachine): void {
  */
 function pull(machine: ZMachine, operandTypes: OperandType[], variableRef: number, stackAddr?: number): void {
   const isIndirect = operandTypes[0] === OperandType.Variable;
+  const varDisplay = isIndirect ? `(${variableRef})` : `${variableRef}`;
 
-  machine.logger.debug(
-    `${machine.executor.op_pc.toString(16)} pull ${isIndirect ? '[' : '('}${variableRef}${isIndirect ? ']' : ')'}`
-  );
+  // Determine the target variable to store the pulled value
+  let targetVariable: number;
 
   if (isIndirect) {
-    // Indirect: variableRef points to a variable containing the target variable number
-    const targetVariable = machine.state.loadVariable(variableRef);
+    targetVariable = machine.state.loadVariable(variableRef);
 
     // Handle special stack pointer indirection case
     if (targetVariable === 0) {
-      // Logical impossibility: can't pull from stack and store result in stack pointer indirectly
-      // This would require reading the stack pointer to determine where to store the pulled value,
+      // This creates a logical impossibility as described in the documentation:
+      // We'd need to read the stack pointer to know where to store the value,
       // but pulling changes the stack pointer itself
       throw new Error('Illegal operation: indirect pull with stack pointer as target creates logical impossibility');
-    } else {
-      // Pull from stack and store in the target variable
-      if (stackAddr !== undefined) {
-        // V6+ user stack support
-        const value = machine.getUserStackManager().pullStack(stackAddr);
-        if (value === undefined) {
-          throw new Error(`User stack underflow at address ${stackAddr}`);
-        }
-        machine.state.storeVariable(targetVariable, value);
-      } else {
-        // Normal stack
-        const value = machine.state.popStack();
-        machine.state.storeVariable(targetVariable, value);
-      }
     }
   } else {
-    // Direct: variableRef is the target variable
-    if (stackAddr !== undefined) {
-      // V6+ user stack support
-      const value = machine.getUserStackManager().pullStack(stackAddr);
-      if (value === undefined) {
-        throw new Error(`User stack underflow at address ${stackAddr}`);
-      }
-      machine.state.storeVariable(variableRef, value);
-    } else {
-      // Normal stack
-      const value = machine.state.popStack();
-      machine.state.storeVariable(variableRef, value);
-    }
+    targetVariable = variableRef;
   }
+
+  // Pull value from appropriate stack (consolidated logic)
+  let value: number;
+
+  if (machine.state.version >= 6 && stackAddr !== undefined) {
+    // V6+ user stack support
+    const pulledValue = machine.getUserStackManager().pullStack(stackAddr);
+    if (pulledValue === undefined) {
+      throw new Error(`User stack underflow at address ${stackAddr}`);
+    }
+    value = pulledValue;
+  } else {
+    // Normal system stack
+    value = machine.state.popStack();
+  }
+
+  // Store the pulled value in the target variable
+  machine.state.storeVariable(targetVariable, value);
+
+  machine.logger.debug(`${machine.executor.op_pc.toString(16)} pull ${varDisplay} ${stackAddr || ''}`);
 }
 
 /**
@@ -104,11 +97,10 @@ function pull(machine: ZMachine, operandTypes: OperandType[], variableRef: numbe
  */
 function load(machine: ZMachine, operandTypes: OperandType[], variableRef: number): void {
   const isIndirect = operandTypes[0] === OperandType.Variable;
+  const varDisplay = isIndirect ? `(${variableRef})` : `${variableRef}`;
   const resultVar = machine.state.readByte();
 
-  machine.logger.debug(
-    `${machine.executor.op_pc.toString(16)} load ${isIndirect ? '[' : '('}${variableRef}${isIndirect ? ']' : ')'} -> (${resultVar})`
-  );
+  let value: number;
 
   if (isIndirect) {
     // Indirect: variableRef points to a variable containing the target variable number
@@ -121,17 +113,17 @@ function load(machine: ZMachine, operandTypes: OperandType[], variableRef: numbe
         throw new Error('Illegal operation: indirect load from stack pointer when stack is empty');
       }
       // Read from top of stack in place (no push/pop)
-      const value = machine.state.stack[machine.state.stack.length - 1];
-      machine.state.storeVariable(resultVar, value);
+      value = machine.state.stack[machine.state.stack.length - 1];
     } else {
-      const value = machine.state.loadVariable(targetVariable);
-      machine.state.storeVariable(resultVar, value);
+      value = machine.state.loadVariable(targetVariable);
     }
   } else {
     // Direct: variableRef is the target variable
-    const value = machine.state.loadVariable(variableRef);
-    machine.state.storeVariable(resultVar, value);
+    value = machine.state.loadVariable(variableRef);
   }
+
+  machine.state.storeVariable(resultVar, value);
+  machine.logger.debug(`${machine.executor.op_pc.toString(16)} load ${varDisplay} -> (${resultVar})`);
 }
 
 /**
@@ -142,30 +134,39 @@ function load(machine: ZMachine, operandTypes: OperandType[], variableRef: numbe
  * top of the stack in place (no push/pop). If the stack is empty, an error is thrown.
  */
 function store(machine: ZMachine, operandTypes: OperandType[], variableRef: number, value: number): void {
-  // For special opcodes, operand type Variable (2) means indirect
   const isIndirect = operandTypes[0] === OperandType.Variable;
+  const varDisplay = isIndirect ? `(${variableRef})` : `${variableRef}`;
 
-  machine.logger.debug(
-    `${machine.executor.op_pc.toString(16)} store ${isIndirect ? '[' : '('}${variableRef}${isIndirect ? ']' : ')'} ${value}`
-  );
+  let targetVariable: number;
 
   if (isIndirect) {
-    // Indirect: variableRef contains the target variable number
-    const targetVariable = machine.state.loadVariable(variableRef);
+    targetVariable = machine.state.loadVariable(variableRef);
 
+    // Handle special stack pointer indirection case
     if (targetVariable === 0) {
-      // Special stack pointer case
+      // Indirect reference to stack pointer: store to top value IN PLACE
       if (machine.state.stack.length === 0) {
         throw new Error('Illegal operation: indirect store to stack pointer when stack is empty');
       }
+      // Store to top of stack in place (no push/pop)
       machine.state.stack[machine.state.stack.length - 1] = value;
-    } else {
-      machine.state.storeVariable(targetVariable, value, false);
+
+      machine.logger.debug(`${machine.executor.op_pc.toString(16)} store ${varDisplay} ${value} (stack top in place)`);
+      return;
     }
   } else {
-    // Direct: variableRef is the target variable
-    machine.state.storeVariable(variableRef, value, true);
+    targetVariable = variableRef;
+
+    // Direct access to stack pointer: normal push semantics
+    if (targetVariable === 0) {
+      machine.state.pushStack(value);
+      machine.logger.debug(`${machine.executor.op_pc.toString(16)} store ${varDisplay} ${value} (pushed to stack)`);
+      return;
+    }
   }
+
+  machine.state.storeVariable(targetVariable, value);
+  machine.logger.debug(`${machine.executor.op_pc.toString(16)} store ${varDisplay} ${value}`);
 }
 
 /**
@@ -177,36 +178,39 @@ function store(machine: ZMachine, operandTypes: OperandType[], variableRef: numb
  */
 function inc(machine: ZMachine, operandTypes: OperandType[], variableRef: number): void {
   const isIndirect = operandTypes[0] === OperandType.Variable;
+  const varDisplay = isIndirect ? `(${variableRef})` : `${variableRef}`;
 
-  machine.logger.debug(
-    `${machine.executor.op_pc.toString(16)} inc ${isIndirect ? '[' : '('}${variableRef}${isIndirect ? ']' : ')'}`
-  );
+  let targetVariable: number;
+  let currentValue: number;
 
   if (isIndirect) {
-    // Indirect: variableRef points to a variable containing the target variable number
-    const targetVariable = machine.state.loadVariable(variableRef);
+    targetVariable = machine.state.loadVariable(variableRef);
 
     // Handle special stack pointer indirection case
     if (targetVariable === 0) {
-      // Indirect reference to stack pointer: increment top value in place
+      // Indirect reference to stack pointer: increment top value IN PLACE
       if (machine.state.stack.length === 0) {
-        throw new Error('Illegal operation: indirect inc on stack pointer when stack is empty');
+        throw new Error('Illegal operation: indirect increment of stack pointer when stack is empty');
       }
       // Increment top of stack in place (no push/pop)
-      machine.state.stack[machine.state.stack.length - 1] = toU16(
-        machine.state.stack[machine.state.stack.length - 1] + 1
+      currentValue = machine.state.stack[machine.state.stack.length - 1];
+      const newValue = toU16(toI16(currentValue) + 1);
+      machine.state.stack[machine.state.stack.length - 1] = newValue;
+
+      machine.logger.debug(
+        `${machine.executor.op_pc.toString(16)} inc ${varDisplay} ${currentValue} (stack top in place)`
       );
-    } else {
-      const currentValue = machine.state.loadVariable(targetVariable);
-      const newValue = toU16(currentValue + 1);
-      machine.state.storeVariable(targetVariable, newValue);
+      return;
     }
   } else {
-    // Direct: variableRef is the target variable
-    const currentValue = machine.state.loadVariable(variableRef);
-    const newValue = toU16(currentValue + 1);
-    machine.state.storeVariable(variableRef, newValue);
+    targetVariable = variableRef;
   }
+
+  currentValue = machine.state.loadVariable(targetVariable);
+  const newValue = toU16(toI16(currentValue) + 1);
+  machine.state.storeVariable(targetVariable, newValue);
+
+  machine.logger.debug(`${machine.executor.op_pc.toString(16)} inc ${varDisplay} ${currentValue}`);
 }
 
 /**
@@ -218,36 +222,39 @@ function inc(machine: ZMachine, operandTypes: OperandType[], variableRef: number
  */
 function dec(machine: ZMachine, operandTypes: OperandType[], variableRef: number): void {
   const isIndirect = operandTypes[0] === OperandType.Variable;
+  const varDisplay = isIndirect ? `(${variableRef})` : `${variableRef}`;
 
-  machine.logger.debug(
-    `${machine.executor.op_pc.toString(16)} dec ${isIndirect ? '[' : '('}${variableRef}${isIndirect ? ']' : ')'}`
-  );
+  let targetVariable: number;
+  let currentValue: number;
 
   if (isIndirect) {
-    // Indirect: variableRef points to a variable containing the target variable number
-    const targetVariable = machine.state.loadVariable(variableRef);
+    targetVariable = machine.state.loadVariable(variableRef);
 
     // Handle special stack pointer indirection case
     if (targetVariable === 0) {
-      // Indirect reference to stack pointer: decrement top value in place
+      // Indirect reference to stack pointer: decrement top value IN PLACE
       if (machine.state.stack.length === 0) {
-        throw new Error('Illegal operation: indirect dec on stack pointer when stack is empty');
+        throw new Error('Illegal operation: indirect decrement of stack pointer when stack is empty');
       }
       // Decrement top of stack in place (no push/pop)
-      machine.state.stack[machine.state.stack.length - 1] = toU16(
-        machine.state.stack[machine.state.stack.length - 1] - 1
+      currentValue = machine.state.stack[machine.state.stack.length - 1];
+      const newValue = toU16(toI16(currentValue) - 1);
+      machine.state.stack[machine.state.stack.length - 1] = newValue;
+
+      machine.logger.debug(
+        `${machine.executor.op_pc.toString(16)} dec ${varDisplay} ${currentValue} (stack top in place)`
       );
-    } else {
-      const currentValue = machine.state.loadVariable(targetVariable);
-      const newValue = toU16(currentValue - 1);
-      machine.state.storeVariable(targetVariable, newValue);
+      return;
     }
   } else {
-    // Direct: variableRef is the target variable
-    const currentValue = machine.state.loadVariable(variableRef);
-    const newValue = toU16(currentValue - 1);
-    machine.state.storeVariable(variableRef, newValue);
+    targetVariable = variableRef;
   }
+
+  currentValue = machine.state.loadVariable(targetVariable);
+  const newValue = toU16(toI16(currentValue) - 1);
+  machine.state.storeVariable(targetVariable, newValue);
+
+  machine.logger.debug(`${machine.executor.op_pc.toString(16)} dec ${varDisplay} ${currentValue}`);
 }
 
 /**
@@ -259,45 +266,50 @@ function dec(machine: ZMachine, operandTypes: OperandType[], variableRef: number
  * The result of the comparison is used to determine whether to branch.
  */
 function inc_chk(machine: ZMachine, operandTypes: OperandType[], variableRef: number, value: number): void {
-  const isIndirect = operandTypes[0] === OperandType.Variable;
   const [offset, branchOnFalse] = machine.state.readBranchOffset();
+  const isIndirect = operandTypes[0] === OperandType.Variable;
+  const varDisplay = isIndirect ? `(${variableRef})` : `${variableRef}`;
 
-  machine.logger.debug(
-    `${machine.executor.op_pc.toString(16)} inc_chk ${isIndirect ? '[' : '('}${variableRef}${isIndirect ? ']' : ')'} ${value} -> [${!branchOnFalse}] ${
-      machine.state.pc + offset - 2
-    }`
-  );
-
+  let targetVariable: number;
+  let currentValue: number;
   let newValue: number;
 
   if (isIndirect) {
-    // Indirect: variableRef points to a variable containing the target variable number
-    const targetVariable = machine.state.loadVariable(variableRef);
+    targetVariable = machine.state.loadVariable(variableRef);
 
     // Handle special stack pointer indirection case
     if (targetVariable === 0) {
-      // Indirect reference to stack pointer: increment top value in place
+      // Indirect reference to stack pointer: increment top value IN PLACE
       if (machine.state.stack.length === 0) {
-        throw new Error('Illegal operation: indirect inc_chk on stack pointer when stack is empty');
+        throw new Error('Illegal operation: indirect inc_chk of stack pointer when stack is empty');
       }
       // Increment top of stack in place (no push/pop)
-      const currentValue = machine.state.stack[machine.state.stack.length - 1];
-      newValue = toI16(currentValue) + 1;
-      machine.state.stack[machine.state.stack.length - 1] = toU16(newValue);
-    } else {
-      const currentValue = machine.state.loadVariable(targetVariable);
-      newValue = toI16(currentValue) + 1;
-      machine.state.storeVariable(targetVariable, toU16(newValue));
+      currentValue = machine.state.stack[machine.state.stack.length - 1];
+      newValue = toU16(toI16(currentValue) + 1);
+      machine.state.stack[machine.state.stack.length - 1] = newValue;
+
+      const condition = toI16(newValue) > toI16(value);
+      machine.state.doBranch(condition, branchOnFalse, offset);
+
+      machine.logger.debug(
+        `${machine.executor.op_pc.toString(16)} inc_chk ${varDisplay} ${currentValue} > ${value} = ${condition} (stack top in place)`
+      );
+      return;
     }
   } else {
-    // Direct: variableRef is the target variable
-    const currentValue = machine.state.loadVariable(variableRef);
-    newValue = toI16(currentValue) + 1;
-    machine.state.storeVariable(variableRef, toU16(newValue));
+    targetVariable = variableRef;
   }
 
-  machine.logger.debug(`     ${newValue} ?> ${value}`);
-  machine.state.doBranch(newValue > toI16(value), branchOnFalse, offset);
+  currentValue = machine.state.loadVariable(targetVariable);
+  newValue = toU16(toI16(currentValue) + 1);
+  machine.state.storeVariable(targetVariable, newValue);
+
+  const condition = toI16(newValue) > toI16(value);
+  machine.state.doBranch(condition, branchOnFalse, offset);
+
+  machine.logger.debug(
+    `${machine.executor.op_pc.toString(16)} inc_chk ${varDisplay} ${currentValue} > ${value} = ${condition}`
+  );
 }
 
 /**
@@ -309,45 +321,50 @@ function inc_chk(machine: ZMachine, operandTypes: OperandType[], variableRef: nu
  * The result of the comparison is used to determine whether to branch.
  */
 function dec_chk(machine: ZMachine, operandTypes: OperandType[], variableRef: number, value: number): void {
-  const isIndirect = operandTypes[0] === OperandType.Variable;
   const [offset, branchOnFalse] = machine.state.readBranchOffset();
+  const isIndirect = operandTypes[0] === OperandType.Variable;
+  const varDisplay = isIndirect ? `(${variableRef})` : `${variableRef}`;
 
-  machine.logger.debug(
-    `${machine.executor.op_pc.toString(16)} dec_chk ${isIndirect ? '[' : '('}${variableRef}${isIndirect ? ']' : ')'} ${value} -> [${!branchOnFalse}] ${
-      machine.state.pc + offset - 2
-    }`
-  );
-
+  let targetVariable: number;
+  let currentValue: number;
   let newValue: number;
 
   if (isIndirect) {
-    // Indirect: variableRef points to a variable containing the target variable number
-    const targetVariable = machine.state.loadVariable(variableRef);
+    targetVariable = machine.state.loadVariable(variableRef);
 
     // Handle special stack pointer indirection case
     if (targetVariable === 0) {
-      // Indirect reference to stack pointer: decrement top value in place
+      // Indirect reference to stack pointer: decrement top value IN PLACE
       if (machine.state.stack.length === 0) {
-        throw new Error('Illegal operation: indirect dec_chk on stack pointer when stack is empty');
+        throw new Error('Illegal operation: indirect dec_chk of stack pointer when stack is empty');
       }
       // Decrement top of stack in place (no push/pop)
-      const currentValue = machine.state.stack[machine.state.stack.length - 1];
-      newValue = toI16(currentValue) - 1;
-      machine.state.stack[machine.state.stack.length - 1] = toU16(newValue);
-    } else {
-      const currentValue = machine.state.loadVariable(targetVariable);
-      newValue = toI16(currentValue) - 1;
-      machine.state.storeVariable(targetVariable, toU16(newValue));
+      currentValue = machine.state.stack[machine.state.stack.length - 1];
+      newValue = toU16(toI16(currentValue) - 1);
+      machine.state.stack[machine.state.stack.length - 1] = newValue;
+
+      const condition = toI16(newValue) < toI16(value);
+      machine.state.doBranch(condition, branchOnFalse, offset);
+
+      machine.logger.debug(
+        `${machine.executor.op_pc.toString(16)} dec_chk ${varDisplay} ${currentValue} < ${value} = ${condition} (stack top in place)`
+      );
+      return;
     }
   } else {
-    // Direct: variableRef is the target variable
-    const currentValue = machine.state.loadVariable(variableRef);
-    newValue = toI16(currentValue) - 1;
-    machine.state.storeVariable(variableRef, toU16(newValue));
+    targetVariable = variableRef;
   }
 
-  machine.logger.debug(`     ${newValue} <? ${value}`);
-  machine.state.doBranch(newValue < toI16(value), branchOnFalse, offset);
+  currentValue = machine.state.loadVariable(targetVariable);
+  newValue = toU16(toI16(currentValue) - 1);
+  machine.state.storeVariable(targetVariable, newValue);
+
+  const condition = toI16(newValue) < toI16(value);
+  machine.state.doBranch(condition, branchOnFalse, offset);
+
+  machine.logger.debug(
+    `${machine.executor.op_pc.toString(16)} dec_chk ${varDisplay} ${currentValue} < ${value} = ${condition}`
+  );
 }
 
 /**

@@ -336,7 +336,6 @@ if (!file) {
 // Set up logger
 const logger = new Logger('Console');
 if (parsed.debug) {
-  Logger.setLogToFile(true, 'debug.log');
   Logger.setLevel(LogLevel.DEBUG);
 } else {
   Logger.setLevel(LogLevel.INFO);
@@ -345,14 +344,14 @@ if (parsed.debug) {
 try {
   // Load the story file
   const storyData = fs.readFileSync(file);
-  logger.info(`Loaded ${storyData.length} bytes from ${file}`);
+  logger.debug(`Loaded ${storyData.length} bytes from ${file}`);
 
   // Create the screen and input processor
   const screen = new StdioScreen();
   const inputProcessor = new StdioInputProcessor();
 
   // Create the Z-machine
-  const machine = new ZMachine(storyData, screen, inputProcessor, undefined, undefined, { logger });
+  const machine = new ZMachine(storyData, screen, inputProcessor, undefined, undefined);
 
   // Show debugging info if requested
   if (parsed.header) {

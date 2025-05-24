@@ -259,43 +259,62 @@ export class Memory {
    * Gets a Z-string according to version-specific rules
    */
   getZString(addr: Address): ZString {
-    if (addr >= this.size) {
-      throw new Error(`String address out of bounds: 0x${addr.toString(16)}`);
-    }
-
     const chars: Array<number> = [];
-    let wordCount = 0;
-    const MAX_WORDS = 1000; // Sanity limit on string length
-
     let currentAddr = addr;
-    const alphabet = 0; // Current alphabet (0=A0, 1=A1, 2=A2)
-    const unicodeMode = false; // Whether we're in the middle of a Unicode character sequence
-    const unicodeHigh = 0; // High 5 bits of Unicode character
 
-    while (wordCount < MAX_WORDS) {
-      try {
-        const word = this.getWord(currentAddr);
-        currentAddr += 2;
-        wordCount++;
+    while (true) {
+      const word = this.getWord(currentAddr);
+      currentAddr += 2;
 
-        const zChars = this.extractZChars(word);
-        this.processZChars(zChars, chars, { alphabet, unicodeMode, unicodeHigh });
+      // Just extract raw Z-characters, don't process them
+      const zChars = this.extractZChars(word);
+      chars.push(...zChars);
 
-        if ((word & 0x8000) !== 0) {
-          break;
-        }
-      } catch (e) {
-        this.logger.warn(`Z-string read terminated due to error: ${e}`);
+      if ((word & 0x8000) !== 0) {
         break;
       }
     }
 
-    if (wordCount >= MAX_WORDS) {
-      this.logger.warn(`Z-string read exceeded maximum length at address: 0x${addr.toString(16)}`);
-    }
-
     return chars;
   }
+  // getZString(addr: Address): ZString {
+  //   if (addr >= this.size) {
+  //     throw new Error(`String address out of bounds: 0x${addr.toString(16)}`);
+  //   }
+
+  //   const chars: Array<number> = [];
+  //   let wordCount = 0;
+  //   const MAX_WORDS = 1000; // Sanity limit on string length
+
+  //   let currentAddr = addr;
+  //   const alphabet = 0; // Current alphabet (0=A0, 1=A1, 2=A2)
+  //   const unicodeMode = false; // Whether we're in the middle of a Unicode character sequence
+  //   const unicodeHigh = 0; // High 5 bits of Unicode character
+
+  //   while (wordCount < MAX_WORDS) {
+  //     try {
+  //       const word = this.getWord(currentAddr);
+  //       currentAddr += 2;
+  //       wordCount++;
+
+  //       const zChars = this.extractZChars(word);
+  //       this.processZChars(zChars, chars, { alphabet, unicodeMode, unicodeHigh });
+
+  //       if ((word & 0x8000) !== 0) {
+  //         break;
+  //       }
+  //     } catch (e) {
+  //       this.logger.warn(`Z-string read terminated due to error: ${e}`);
+  //       break;
+  //     }
+  //   }
+
+  //   if (wordCount >= MAX_WORDS) {
+  //     this.logger.warn(`Z-string read exceeded maximum length at address: 0x${addr.toString(16)}`);
+  //   }
+
+  //   return chars;
+  // }
 
   /**
    * Extract Z-characters from a word
@@ -309,31 +328,31 @@ export class Memory {
   /**
    * Process Z-characters and update the character array
    */
-  private processZChars(
-    zChars: number[],
-    chars: number[],
-    state: { alphabet: number; unicodeMode: boolean; unicodeHigh: number }
-  ): void {
-    for (const zChar of zChars) {
-      if (state.unicodeMode) {
-        chars.push(6); // Add the special Unicode marker
-        chars.push(state.unicodeHigh);
-        chars.push(zChar);
-        state.unicodeMode = false;
-      } else if (state.alphabet === 2 && zChar === 6 && this._version >= 5) {
-        state.unicodeMode = true;
-        state.unicodeHigh = zChar;
-        break;
-      } else if (zChar <= 5) {
-        chars.push(zChar);
-        if (zChar === 4) state.alphabet = 1;
-        else if (zChar === 5) state.alphabet = 2;
-      } else {
-        chars.push(zChar);
-        if (state.alphabet > 0) state.alphabet = 0;
-      }
-    }
-  }
+  // private processZChars(
+  //   zChars: number[],
+  //   chars: number[],
+  //   state: { alphabet: number; unicodeMode: boolean; unicodeHigh: number }
+  // ): void {
+  //   for (const zChar of zChars) {
+  //     if (state.unicodeMode) {
+  //       chars.push(6); // Add the special Unicode marker
+  //       chars.push(state.unicodeHigh);
+  //       chars.push(zChar);
+  //       state.unicodeMode = false;
+  //     } else if (state.alphabet === 2 && zChar === 6 && this._version >= 5) {
+  //       state.unicodeMode = true;
+  //       state.unicodeHigh = zChar;
+  //       break;
+  //     } else if (zChar <= 5) {
+  //       chars.push(zChar);
+  //       if (zChar === 4) state.alphabet = 1;
+  //       else if (zChar === 5) state.alphabet = 2;
+  //     } else {
+  //       chars.push(zChar);
+  //       if (state.alphabet > 0) state.alphabet = 0;
+  //     }
+  //   }
+  // }
 
   /**
    * Read a length-prefixed Z-string from memory

@@ -170,13 +170,6 @@ export class Executor {
       const typesByte = state.readByte();
       operandTypes = this.decodeOperandTypes(typesByte);
       opcodeNumber = opcode & 0x1f;
-
-      if (state.pc - 1 === 0x4f8e) {
-        // -1 because pc advanced after reading typesByte
-        this.logger.debug(`DEBUG 4F8E: opcode=0x${opcode.toString(16)}, typesByte=0x${typesByte.toString(16)}`);
-        this.logger.debug(`DEBUG 4F8E: decoded operandTypes=${JSON.stringify(operandTypes)}`);
-        this.logger.debug(`DEBUG 4F8E: form=${form}, reallyVariable=${reallyVariable}`);
-      }
     } else if ((opcode & 0x80) === 0x80) {
       // Then Short form
       form = InstructionForm.Short;
@@ -192,9 +185,6 @@ export class Executor {
       operandTypes.push((opcode & 0x20) === 0x20 ? OperandType.Variable : OperandType.Small);
       opcodeNumber = opcode & 0x1f;
     }
-
-    this.logger.debug(`DECODE DEBUG: opcode=0x${hex(opcode)}, operandTypes=${JSON.stringify(operandTypes)}`);
-
     return { form, reallyVariable, opcodeNumber, operandTypes };
   }
 
@@ -223,8 +213,6 @@ export class Executor {
    * @returns An array of operand values
    */
   public readOperands(operandTypes: Array<OperandType>, state: ZMachine['state']): Array<number> {
-    this.logger.debug(`OPERAND DEBUG: types=${JSON.stringify(operandTypes)}, reading operands...`);
-
     const operands: Array<number> = [];
     for (const opType of operandTypes) {
       switch (opType) {
@@ -243,7 +231,6 @@ export class Executor {
           throw new Error(`Unknown operand type: ${opType}`);
       }
     }
-    this.logger.debug(`OPERAND DEBUG: operand values: ${JSON.stringify(operands)}`);
     return operands;
   }
 

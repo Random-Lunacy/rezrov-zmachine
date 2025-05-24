@@ -339,9 +339,8 @@ export class GameObject {
       throw new Error(`Invalid property number: ${prop}`);
     }
 
-    // The property defaults table starts at objTable - (maxProps * 2)
-    const maxProps = this.version <= 3 ? 31 : 63;
-    return this.memory.getWord(this.objTable - maxProps * 2 + (prop - 1) * 2);
+    // Property defaults table starts at objTable
+    return this.memory.getWord(this.objTable + (prop - 1) * 2);
   }
 
   // Unlink object from its parent
