@@ -336,6 +336,7 @@ if (!file) {
 // Set up logger
 const logger = new Logger('Console');
 if (parsed.debug) {
+  Logger.setLogToFile(true, 'debug.log');
   Logger.setLevel(LogLevel.DEBUG);
 } else {
   Logger.setLevel(LogLevel.INFO);

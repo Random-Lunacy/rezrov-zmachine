@@ -32,7 +32,7 @@ describe('Call Opcodes', () => {
       mockZMachine.state.readByte = vi.fn().mockReturnValueOnce(resultVar);
 
       // Execute
-      callOpcodes.call_1s.impl(mockZMachine as unknown as ZMachine, routine);
+      callOpcodes.call_1s.impl(mockZMachine as unknown as ZMachine, [], routine);
 
       // Verify
       expect(mockZMachine.state.readByte).toHaveBeenCalled();
@@ -47,7 +47,7 @@ describe('Call Opcodes', () => {
       mockZMachine.state.readByte = vi.fn().mockReturnValueOnce(resultVar);
 
       // Execute
-      callOpcodes.call_1s.impl(mockZMachine as unknown as ZMachine, routine);
+      callOpcodes.call_1s.impl(mockZMachine as unknown as ZMachine, [], routine);
 
       // Verify
       expect(mockZMachine.state.storeVariable).toHaveBeenCalledWith(resultVar, 0);
@@ -65,7 +65,7 @@ describe('Call Opcodes', () => {
 
       // This will cause validateAndUnpackRoutine to return -1, which should trigger the error in call_1s
       expect(() => {
-        callOpcodes.call_1s.impl(mockZMachine as unknown as ZMachine, routine);
+        callOpcodes.call_1s.impl(mockZMachine as unknown as ZMachine, [], routine);
       }).toThrow(/Invalid routine address or header/);
 
       // Verify validation methods were called
@@ -81,7 +81,7 @@ describe('Call Opcodes', () => {
       mockZMachine.memory.isHighMemory.mockReturnValueOnce(false);
 
       expect(() => {
-        callOpcodes.call_1s.impl(mockZMachine as unknown as ZMachine, routine);
+        callOpcodes.call_1s.impl(mockZMachine as unknown as ZMachine, [], routine);
       }).toThrow(/Invalid routine address or header/);
 
       // Verify validation methods were called
@@ -97,7 +97,7 @@ describe('Call Opcodes', () => {
       mockZMachine.memory.checkPackedAddressAlignment.mockReturnValueOnce(false);
 
       expect(() => {
-        callOpcodes.call_1s.impl(mockZMachine as unknown as ZMachine, routine);
+        callOpcodes.call_1s.impl(mockZMachine as unknown as ZMachine, [], routine);
       }).toThrow(/Invalid routine address or header/);
 
       // Verify validation methods were called
@@ -113,7 +113,7 @@ describe('Call Opcodes', () => {
       const unpackedAddr = routine * 2; // 0x2468
 
       // Execute
-      callOpcodes.call_1n.impl(mockZMachine as unknown as ZMachine, routine);
+      callOpcodes.call_1n.impl(mockZMachine as unknown as ZMachine, [], routine);
 
       // Verify
       expect(mockZMachine.memory.unpackRoutineAddress).toHaveBeenCalledWith(routine);
@@ -125,7 +125,7 @@ describe('Call Opcodes', () => {
       const routine = 0;
 
       // Execute
-      callOpcodes.call_1n.impl(mockZMachine as unknown as ZMachine, routine);
+      callOpcodes.call_1n.impl(mockZMachine as unknown as ZMachine, [], routine);
 
       // Verify
       expect(mockZMachine.state.callRoutine).not.toHaveBeenCalled();
@@ -143,7 +143,7 @@ describe('Call Opcodes', () => {
       mockZMachine.state.readByte.mockReturnValueOnce(resultVar);
 
       // Execute
-      callOpcodes.call_2s.impl(mockZMachine as unknown as ZMachine, routine, arg1);
+      callOpcodes.call_2s.impl(mockZMachine as unknown as ZMachine, [], routine, arg1);
 
       // Verify
       expect(mockZMachine.state.readByte).toHaveBeenCalled();
@@ -160,7 +160,7 @@ describe('Call Opcodes', () => {
       const unpackedAddr = routine * 2; // 0x2468
 
       // Execute
-      callOpcodes.call_2n.impl(mockZMachine as unknown as ZMachine, routine, arg1);
+      callOpcodes.call_2n.impl(mockZMachine as unknown as ZMachine, [], routine, arg1);
 
       // Verify
       expect(mockZMachine.memory.unpackRoutineAddress).toHaveBeenCalledWith(routine);
@@ -179,7 +179,7 @@ describe('Call Opcodes', () => {
       mockZMachine.state.readByte.mockReturnValueOnce(resultVar);
 
       // Execute
-      callOpcodes.call_vs.impl(mockZMachine as unknown as ZMachine, routine, ...args);
+      callOpcodes.call_vs.impl(mockZMachine as unknown as ZMachine, [], routine, ...args);
 
       // Verify
       expect(mockZMachine.state.readByte).toHaveBeenCalled();
@@ -195,7 +195,7 @@ describe('Call Opcodes', () => {
       mockZMachine.state.readByte.mockReturnValueOnce(resultVar);
 
       // Execute
-      callOpcodes.call_vs.impl(mockZMachine as unknown as ZMachine, routine, ...args);
+      callOpcodes.call_vs.impl(mockZMachine as unknown as ZMachine, [], routine, ...args);
 
       // Verify
       expect(mockZMachine.state.storeVariable).toHaveBeenCalledWith(resultVar, 0);
@@ -214,7 +214,7 @@ describe('Call Opcodes', () => {
       mockZMachine.state.readByte.mockReturnValueOnce(resultVar);
 
       // Execute
-      callOpcodes.call_vs2.impl(mockZMachine as unknown as ZMachine, routine, ...args);
+      callOpcodes.call_vs2.impl(mockZMachine as unknown as ZMachine, [], routine, ...args);
 
       // Verify
       expect(mockZMachine.state.readByte).toHaveBeenCalled();
@@ -231,7 +231,7 @@ describe('Call Opcodes', () => {
       const unpackedAddr = routine * 2; // 0x2468
 
       // Execute
-      callOpcodes.call_vn.impl(mockZMachine as unknown as ZMachine, routine, ...args);
+      callOpcodes.call_vn.impl(mockZMachine as unknown as ZMachine, [], routine, ...args);
 
       // Verify
       expect(mockZMachine.memory.unpackRoutineAddress).toHaveBeenCalledWith(routine);
@@ -247,7 +247,7 @@ describe('Call Opcodes', () => {
       const unpackedAddr = routine * 2; // 0x2468
 
       // Execute
-      callOpcodes.call_vn2.impl(mockZMachine as unknown as ZMachine, routine, ...args);
+      callOpcodes.call_vn2.impl(mockZMachine as unknown as ZMachine, [], routine, ...args);
 
       // Verify
       expect(mockZMachine.memory.unpackRoutineAddress).toHaveBeenCalledWith(routine);
@@ -268,7 +268,7 @@ describe('Call Opcodes', () => {
       });
 
       // Execute
-      callOpcodes.Catch.impl(mockZMachine as unknown as ZMachine);
+      callOpcodes.Catch.impl(mockZMachine as unknown as ZMachine, []);
 
       // Verify - should store length - 1 (2)
       expect(mockZMachine.state.storeVariable).toHaveBeenCalledWith(resultVar, 2);
@@ -292,7 +292,7 @@ describe('Call Opcodes', () => {
       });
 
       // Execute
-      callOpcodes.Throw.impl(mockZMachine as unknown as ZMachine, returnVal, frameNum);
+      callOpcodes.Throw.impl(mockZMachine as unknown as ZMachine, [], returnVal, frameNum);
 
       // Verify
       expect(mockSplice).toHaveBeenCalledWith(frameNum + 1);
@@ -310,7 +310,7 @@ describe('Call Opcodes', () => {
       });
 
       // Execute & Verify
-      expect(() => callOpcodes.Throw.impl(mockZMachine as unknown as ZMachine, returnVal, frameNum)).toThrow(
+      expect(() => callOpcodes.Throw.impl(mockZMachine as unknown as ZMachine, [], returnVal, frameNum)).toThrow(
         /Invalid frame number/
       );
     });
@@ -329,7 +329,7 @@ describe('Call Opcodes', () => {
       });
 
       // Execute & Verify
-      expect(() => callOpcodes.call_1s.impl(mockZMachine as unknown as ZMachine, routine)).toThrow(
+      expect(() => callOpcodes.call_1s.impl(mockZMachine as unknown as ZMachine, [], routine)).toThrow(
         /Invalid routine address/
       );
       expect(mockZMachine.logger.error).toHaveBeenCalled();

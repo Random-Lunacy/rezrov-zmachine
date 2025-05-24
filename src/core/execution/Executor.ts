@@ -117,23 +117,23 @@ export class Executor {
     const op_pc = state.pc;
     const opcode = state.readByte();
 
-    this.logger.debug(`${hex(op_pc)}: opcode byte = ${hex(opcode)}`);
-
     const { form, reallyVariable, opcodeNumber, operandTypes } = this.decodeInstruction(opcode, state);
     const operands = this.readOperands(operandTypes, state);
     const op = this.resolveOpcode(form, reallyVariable, opcodeNumber, operands.length, op_pc, opcode);
 
-    this.logger.debug(`Executing op = ${op.mnemonic} with operands [${operands.map((o) => hex(o)).join(', ')}]`);
+    this.logger.debug(
+      `Executing op = ${op.mnemonic} at PC ${hex(op_pc)} with operandTypes [${operandTypes}] and operands [${operands.map((o) => hex(o)).join(', ')}]`
+    );
 
     try {
-      const result = op.impl(this.zMachine, ...operands);
+      const result = op.impl(this.zMachine, operandTypes, ...operands);
 
       if (result instanceof Promise) {
         await result;
       }
     } catch (e) {
       this.logger.error(`Error executing opcode ${op.mnemonic}: ${e}`);
-      throw e; // Re-throw to allow caller to handle
+      throw e;
     }
   }
 
@@ -170,6 +170,13 @@ export class Executor {
       const typesByte = state.readByte();
       operandTypes = this.decodeOperandTypes(typesByte);
       opcodeNumber = opcode & 0x1f;
+
+      if (state.pc - 1 === 0x4f8e) {
+        // -1 because pc advanced after reading typesByte
+        this.logger.debug(`DEBUG 4F8E: opcode=0x${opcode.toString(16)}, typesByte=0x${typesByte.toString(16)}`);
+        this.logger.debug(`DEBUG 4F8E: decoded operandTypes=${JSON.stringify(operandTypes)}`);
+        this.logger.debug(`DEBUG 4F8E: form=${form}, reallyVariable=${reallyVariable}`);
+      }
     } else if ((opcode & 0x80) === 0x80) {
       // Then Short form
       form = InstructionForm.Short;
@@ -185,6 +192,9 @@ export class Executor {
       operandTypes.push((opcode & 0x20) === 0x20 ? OperandType.Variable : OperandType.Small);
       opcodeNumber = opcode & 0x1f;
     }
+
+    this.logger.debug(`DECODE DEBUG: opcode=0x${hex(opcode)}, operandTypes=${JSON.stringify(operandTypes)}`);
+
     return { form, reallyVariable, opcodeNumber, operandTypes };
   }
 
@@ -213,6 +223,8 @@ export class Executor {
    * @returns An array of operand values
    */
   public readOperands(operandTypes: Array<OperandType>, state: ZMachine['state']): Array<number> {
+    this.logger.debug(`OPERAND DEBUG: types=${JSON.stringify(operandTypes)}, reading operands...`);
+
     const operands: Array<number> = [];
     for (const opType of operandTypes) {
       switch (opType) {
@@ -231,6 +243,7 @@ export class Executor {
           throw new Error(`Unknown operand type: ${opType}`);
       }
     }
+    this.logger.debug(`OPERAND DEBUG: operand values: ${JSON.stringify(operands)}`);
     return operands;
   }
 
@@ -256,10 +269,16 @@ export class Executor {
 
     try {
       if (form === InstructionForm.Extended) {
+        // Extended opcodes (0xBE prefix in v5+)
         op = this.opExt[opcodeNumber];
-      } else if (reallyVariable) {
+      } else if (form === InstructionForm.Variable && reallyVariable) {
+        // True variable-length opcodes (VAR form)
         op = this.opV[opcodeNumber];
+      } else if (form === InstructionForm.Variable && !reallyVariable) {
+        // 2OP instructions in variable form (can have 2-4 operands)
+        op = this.op2[opcodeNumber];
       } else {
+        // Fixed-length opcodes (Short/Long form)
         switch (operandCount) {
           case 0:
             op = this.op0[opcodeNumber];
@@ -271,7 +290,8 @@ export class Executor {
             op = this.op2[opcodeNumber];
             break;
           default:
-            throw new Error(`Unhandled number of operands: ${operandCount}`);
+            this.logger.debug(`Unhandled number of operands: ${operandCount} for non-variable opcode`);
+            throw new Error(`Unhandled number of operands: ${operandCount} for non-variable opcode`);
         }
       }
 
@@ -288,7 +308,6 @@ export class Executor {
       );
       throw e;
     }
-
     return op;
   }
 

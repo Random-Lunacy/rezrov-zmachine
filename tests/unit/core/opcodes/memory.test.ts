@@ -49,7 +49,7 @@ describe('Memory Opcodes', () => {
       const size = 10;
 
       // Act
-      memoryOpcodes.copy_table.impl(machine, sourceAddr, destAddr, size);
+      memoryOpcodes.copy_table.impl(machine, [], sourceAddr, destAddr, size);
 
       // Assert
       expect(mockMachine.memory.copyBlock).toHaveBeenCalledWith(sourceAddr, destAddr, size);
@@ -63,7 +63,7 @@ describe('Memory Opcodes', () => {
       const size = -5;
 
       // Act
-      memoryOpcodes.copy_table.impl(machine, sourceAddr, destAddr, size);
+      memoryOpcodes.copy_table.impl(machine, [], sourceAddr, destAddr, size);
 
       // Assert
       expect(mockMachine.memory.copyBlock).not.toHaveBeenCalled();
@@ -81,7 +81,7 @@ describe('Memory Opcodes', () => {
       const size = 0;
 
       // Act
-      memoryOpcodes.copy_table.impl(machine, sourceAddr, destAddr, size);
+      memoryOpcodes.copy_table.impl(machine, [], sourceAddr, destAddr, size);
 
       // Assert
       expect(mockMachine.memory.copyBlock).not.toHaveBeenCalled();
@@ -96,7 +96,7 @@ describe('Memory Opcodes', () => {
       const size = 10;
 
       // Act
-      memoryOpcodes.copy_table.impl(machine, sourceAddr, destAddr, size);
+      memoryOpcodes.copy_table.impl(machine, [], sourceAddr, destAddr, size);
 
       // Assert
       expect(mockMachine.memory.copyBlock).not.toHaveBeenCalled();
@@ -110,7 +110,7 @@ describe('Memory Opcodes', () => {
       const size = 10; // Would go past end of memory
 
       // Act & Assert
-      expect(() => memoryOpcodes.copy_table.impl(machine, sourceAddr, destAddr, size)).toThrow(
+      expect(() => memoryOpcodes.copy_table.impl(machine, [], sourceAddr, destAddr, size)).toThrow(
         'Invalid copy_table source range'
       );
     });
@@ -135,7 +135,7 @@ describe('Memory Opcodes', () => {
         .mockReturnValueOnce(0x9abc); // Third element
 
       // Act
-      memoryOpcodes.scan_table.impl(machine, value, table, length, form);
+      memoryOpcodes.scan_table.impl(machine, [], value, table, length, form);
 
       // Assert
       expect(mockMachine.state.readByte).toHaveBeenCalled(); // Read result variable
@@ -165,7 +165,7 @@ describe('Memory Opcodes', () => {
         .mockReturnValueOnce(value); // Third element - match
 
       // Act
-      memoryOpcodes.scan_table.impl(machine, value, table, length, form);
+      memoryOpcodes.scan_table.impl(machine, [], value, table, length, form);
 
       // Assert
       expect(mockMachine.memory.getByte).toHaveBeenCalledTimes(3);
@@ -190,7 +190,7 @@ describe('Memory Opcodes', () => {
       mockMachine.memory.getWord.mockReturnValueOnce(0x5678).mockReturnValueOnce(0xabcd).mockReturnValueOnce(0x9abc);
 
       // Act
-      memoryOpcodes.scan_table.impl(machine, value, table, length, form);
+      memoryOpcodes.scan_table.impl(machine, [], value, table, length, form);
 
       // Assert
       expect(mockMachine.memory.getWord).toHaveBeenCalledTimes(3); // Check all elements
@@ -213,7 +213,7 @@ describe('Memory Opcodes', () => {
       mockMachine.memory.getWord.mockReturnValueOnce(0x5678).mockReturnValueOnce(0xabcd).mockReturnValueOnce(value);
 
       // Act
-      memoryOpcodes.scan_table.impl(machine, value, table, length, form);
+      memoryOpcodes.scan_table.impl(machine, [], value, table, length, form);
 
       // Assert
       expect(mockMachine.memory.getWord).toHaveBeenCalledTimes(3);
@@ -236,7 +236,7 @@ describe('Memory Opcodes', () => {
       mockMachine.memory.getWord.mockReturnValue(value);
 
       // Act
-      memoryOpcodes.loadw.impl(machine, array, wordIndex);
+      memoryOpcodes.loadw.impl(machine, [], array, wordIndex);
 
       // Assert
       expect(mockMachine.state.readByte).toHaveBeenCalled();
@@ -256,7 +256,7 @@ describe('Memory Opcodes', () => {
       mockMachine.memory.getWord.mockReturnValue(value);
 
       // Act
-      memoryOpcodes.loadw.impl(machine, array, wordIndex);
+      memoryOpcodes.loadw.impl(machine, [], array, wordIndex);
 
       // Assert
       expect(mockMachine.memory.getWord).toHaveBeenCalledWith(address);
@@ -276,7 +276,7 @@ describe('Memory Opcodes', () => {
       mockMachine.memory.getByte.mockReturnValue(value);
 
       // Act
-      memoryOpcodes.loadb.impl(machine, array, byteIndex);
+      memoryOpcodes.loadb.impl(machine, [], array, byteIndex);
 
       // Assert
       expect(mockMachine.state.readByte).toHaveBeenCalled();
@@ -296,7 +296,7 @@ describe('Memory Opcodes', () => {
       mockMachine.memory.getByte.mockReturnValue(value);
 
       // Act
-      memoryOpcodes.loadb.impl(machine, array, byteIndex);
+      memoryOpcodes.loadb.impl(machine, [], array, byteIndex);
 
       // Assert
       expect(mockMachine.memory.getByte).toHaveBeenCalledWith(address);
@@ -313,7 +313,7 @@ describe('Memory Opcodes', () => {
       const address = array + 2 * wordIndex; // 0x3004
 
       // Act
-      memoryOpcodes.storew.impl(machine, array, wordIndex, value);
+      memoryOpcodes.storew.impl(machine, [], array, wordIndex, value);
 
       // Assert
       expect(mockMachine.memory.setWord).toHaveBeenCalledWith(address, value);
@@ -328,7 +328,7 @@ describe('Memory Opcodes', () => {
       const address = (array + 2 * wordIndex) & 0xffff; // Should wrap around to 0x0002
 
       // Act
-      memoryOpcodes.storew.impl(machine, array, wordIndex, value);
+      memoryOpcodes.storew.impl(machine, [], array, wordIndex, value);
 
       // Assert
       expect(mockMachine.memory.setWord).toHaveBeenCalledWith(address, value);
@@ -344,7 +344,7 @@ describe('Memory Opcodes', () => {
       const address = array + byteIndex; // 0x3007
 
       // Act
-      memoryOpcodes.storeb.impl(machine, array, byteIndex, value);
+      memoryOpcodes.storeb.impl(machine, [], array, byteIndex, value);
 
       // Assert
       expect(mockMachine.memory.setByte).toHaveBeenCalledWith(address, value);
@@ -359,7 +359,7 @@ describe('Memory Opcodes', () => {
       const address = array + byteIndex; // 0x3005
 
       // Act
-      memoryOpcodes.storeb.impl(machine, array, byteIndex, value);
+      memoryOpcodes.storeb.impl(machine, [], array, byteIndex, value);
 
       // Assert
       expect(mockMachine.memory.setByte).toHaveBeenCalledWith(address, 0xff); // Only lowest 8 bits stored
@@ -373,7 +373,7 @@ describe('Memory Opcodes', () => {
       const address = (array + byteIndex) & 0xffff; // Should wrap around to 0x0002
 
       // Act
-      memoryOpcodes.storeb.impl(machine, array, byteIndex, value);
+      memoryOpcodes.storeb.impl(machine, [], array, byteIndex, value);
 
       // Assert
       expect(mockMachine.memory.setByte).toHaveBeenCalledWith(address, value);

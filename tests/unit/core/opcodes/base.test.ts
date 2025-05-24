@@ -27,11 +27,11 @@ describe('Opcode Base', () => {
       const testOpcode = opcode('test_opcode', mockImpl);
 
       // Execute the opcode
-      testOpcode.impl(mockMachine, 1, 2, 3);
+      testOpcode.impl(mockMachine, [], 1, 2, 3);
 
       // Verify that the implementation was called with the correct arguments
       expect(mockImpl).toHaveBeenCalledTimes(1);
-      expect(mockImpl).toHaveBeenCalledWith(mockMachine, 1, 2, 3);
+      expect(mockImpl).toHaveBeenCalledWith(mockMachine, [], 1, 2, 3);
     });
   });
 
@@ -48,14 +48,14 @@ describe('Opcode Base', () => {
       expect(notImplemented).toHaveProperty('impl');
 
       // Verify that it throws an error when executed
-      expect(() => notImplemented.impl(mockMachine)).toThrow('Unimplemented opcode: not_implemented');
+      expect(() => notImplemented.impl(mockMachine, [])).toThrow('Unimplemented opcode: not_implemented');
     });
   });
 
   describe('Opcode type', () => {
     it('should allow correct opcode objects', () => {
       // Define a function matching OpcodeFn signature
-      const validImplementation = (machine: ZMachine, ...args: number[]): void => {
+      const validImplementation = (machine: ZMachine, [], ...args: number[]): void => {
         // Implementation details not important for type testing
       };
 
@@ -76,7 +76,7 @@ describe('Opcode Base', () => {
       const mockMachine = { state: { pc: 0x1000 } } as unknown as ZMachine;
 
       // Create an async implementation
-      const asyncImpl = async (machine: ZMachine, ...args: number[]): Promise<void> => {
+      const asyncImpl = async (machine: ZMachine, [], ...args: number[]): Promise<void> => {
         return new Promise((resolve) => {
           setTimeout(() => {
             resolve();
@@ -88,7 +88,7 @@ describe('Opcode Base', () => {
       const asyncOpcode = opcode('async_op', asyncImpl);
 
       // Execute the opcode and await its completion
-      await expect(asyncOpcode.impl(mockMachine, 1, 2)).resolves.toBeUndefined();
+      await expect(asyncOpcode.impl(mockMachine, [], 1, 2)).resolves.toBeUndefined();
     });
   });
 });

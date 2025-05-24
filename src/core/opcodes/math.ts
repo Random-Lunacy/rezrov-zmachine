@@ -16,6 +16,7 @@
  * - `log_shift`: Binary logical shift (does not preserve sign on right shift)
  */
 import { ZMachine } from '../../interpreter/ZMachine';
+import { OperandType } from '../../types';
 import { initRandom, randomInt } from '../../utils/random';
 import { toI16, toU16 } from '../memory/cast16';
 import { opcode } from './base';
@@ -23,7 +24,7 @@ import { opcode } from './base';
 /**
  * Signed 16-bit addition. Adds the values of a and b and stores the result.
  */
-function add(machine: ZMachine, a: number, b: number): void {
+function add(machine: ZMachine, _operandTypes: OperandType[], a: number, b: number): void {
   machine.logger.debug(`add ${a} ${b}`);
   machine.state.storeVariable(machine.state.readByte(), toU16(toI16(a) + toI16(b)));
 }
@@ -31,7 +32,7 @@ function add(machine: ZMachine, a: number, b: number): void {
 /**
  * Performs a bitwise AND operation on the values of a and b and stores the result.
  */
-function and(machine: ZMachine, a: number, b: number): void {
+function and(machine: ZMachine, _operandTypes: OperandType[], a: number, b: number): void {
   machine.logger.debug(`and ${a} ${b}`);
   machine.state.storeVariable(machine.state.readByte(), a & b);
 }
@@ -39,7 +40,7 @@ function and(machine: ZMachine, a: number, b: number): void {
 /**
  * Divides the first number by the second.
  */
-function div(machine: ZMachine, a: number, b: number): void {
+function div(machine: ZMachine, _operandTypes: OperandType[], a: number, b: number): void {
   if (b === 0) {
     throw new Error('Division by zero');
   }
@@ -50,7 +51,7 @@ function div(machine: ZMachine, a: number, b: number): void {
 /**
  * Calculates the remainder when dividing the first number by the second.
  */
-function mod(machine: ZMachine, a: number, b: number): void {
+function mod(machine: ZMachine, _operandTypes: OperandType[], a: number, b: number): void {
   if (b === 0) {
     throw new Error('Modulo by zero');
   }
@@ -61,7 +62,7 @@ function mod(machine: ZMachine, a: number, b: number): void {
 /**
  * Multiplies two numbers.
  */
-function mul(machine: ZMachine, a: number, b: number): void {
+function mul(machine: ZMachine, _operandTypes: OperandType[], a: number, b: number): void {
   machine.logger.debug(`mul ${a} ${b}`);
   machine.state.storeVariable(machine.state.readByte(), toU16(toI16(a) * toI16(b)));
 }
@@ -69,7 +70,7 @@ function mul(machine: ZMachine, a: number, b: number): void {
 /**
  * Performs bitwise NOT operation.
  */
-function not(machine: ZMachine, value: number): void {
+function not(machine: ZMachine, _operandTypes: OperandType[], value: number): void {
   machine.logger.debug(`not ${value}`);
   machine.state.storeVariable(machine.state.readByte(), value ^ 0xffff);
 }
@@ -77,7 +78,7 @@ function not(machine: ZMachine, value: number): void {
 /**
  * Performs bitwise OR operation.
  */
-function or(machine: ZMachine, a: number, b: number): void {
+function or(machine: ZMachine, _operandTypes: OperandType[], a: number, b: number): void {
   machine.logger.debug(`or ${a} ${b}`);
   machine.state.storeVariable(machine.state.readByte(), a | b);
 }
@@ -85,7 +86,7 @@ function or(machine: ZMachine, a: number, b: number): void {
 /**
  * Subtracts the second number from the first.
  */
-function sub(machine: ZMachine, a: number, b: number): void {
+function sub(machine: ZMachine, _operandTypes: OperandType[], a: number, b: number): void {
   machine.logger.debug(`sub ${a} ${b}`);
   machine.state.storeVariable(machine.state.readByte(), toU16(toI16(a) - toI16(b)));
 }
@@ -93,7 +94,7 @@ function sub(machine: ZMachine, a: number, b: number): void {
 /**
  * Generate a random number
  */
-function random(machine: ZMachine, range: number): void {
+function random(machine: ZMachine, _operandTypes: OperandType[], range: number): void {
   const resultVar = machine.state.readByte();
 
   machine.logger.debug(`random ${range}`);
@@ -112,7 +113,7 @@ function random(machine: ZMachine, range: number): void {
 /**
  * Binary left arithmetic shift (preserves sign)
  */
-function art_shift(machine: ZMachine, value: number, places: number): void {
+function art_shift(machine: ZMachine, _operandTypes: OperandType[], value: number, places: number): void {
   const resultVar = machine.state.readByte();
   const signedPlaces = toI16(places);
 
@@ -134,7 +135,7 @@ function art_shift(machine: ZMachine, value: number, places: number): void {
 /**
  * Binary logical shift (does not preserve sign on right shift)
  */
-function log_shift(machine: ZMachine, value: number, places: number): void {
+function log_shift(machine: ZMachine, _operandTypes: OperandType[], value: number, places: number): void {
   const resultVar = machine.state.readByte();
   const signedPlaces = toI16(places);
 

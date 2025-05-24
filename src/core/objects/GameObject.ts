@@ -406,7 +406,7 @@ export class GameObject {
         }
 
         // Now decode the name if verification passed
-        return decodeZString(this.memory, this.memory.getZString(propTableAddr + 1), false);
+        return decodeZString(this.memory, this.memory.getZString(propTableAddr + 1), true);
       } catch (error) {
         this.logger.debug(`[Object ${this.objNum} - Name Error] - ${error}`);
         return `[Object ${this.objNum} - Name Error]`;

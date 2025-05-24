@@ -53,7 +53,7 @@ describe('Stack Opcodes', () => {
       const value = 0x1234;
 
       // Act
-      stackOpcodes.push.impl(machine, value);
+      stackOpcodes.push.impl(machine, [], value);
 
       // Assert
       expect(mockMachine.state.pushStack).toHaveBeenCalledWith(value);
@@ -64,7 +64,7 @@ describe('Stack Opcodes', () => {
   describe('pop', () => {
     it('should pop a value from the stack', () => {
       // Act
-      stackOpcodes.pop.impl(machine);
+      stackOpcodes.pop.impl(machine, []);
 
       // Assert
       expect(mockMachine.state.popStack).toHaveBeenCalled();
@@ -79,7 +79,7 @@ describe('Stack Opcodes', () => {
       const stackValue = 99;
 
       // Act
-      stackOpcodes.pull.impl(machine, variable);
+      stackOpcodes.pull.impl(machine, [], variable);
 
       // Assert
       expect(mockMachine.state.popStack).toHaveBeenCalled();
@@ -95,7 +95,7 @@ describe('Stack Opcodes', () => {
       mockMachine.state.version = 6;
 
       // Act
-      stackOpcodes.pull.impl(machine, variable, stackAddr);
+      stackOpcodes.pull.impl(machine, [], variable, stackAddr);
 
       // Assert
       expect(mockMachine.getUserStackManager).toHaveBeenCalled();
@@ -111,7 +111,7 @@ describe('Stack Opcodes', () => {
       mockMachine.state.version = 5;
 
       // Act
-      stackOpcodes.pull.impl(machine, variable, stackAddr);
+      stackOpcodes.pull.impl(machine, [], variable, stackAddr);
 
       // Assert
       expect(mockMachine.getUserStackManager).not.toHaveBeenCalled();
@@ -127,7 +127,7 @@ describe('Stack Opcodes', () => {
       mockUserStackManager.pullStack.mockReturnValue(undefined);
 
       // Act
-      stackOpcodes.pull.impl(machine, variable, stackAddr);
+      stackOpcodes.pull.impl(machine, [], variable, stackAddr);
 
       // Assert
       expect(mockUserStackManager.pullStack).toHaveBeenCalledWith(stackAddr);
@@ -143,7 +143,7 @@ describe('Stack Opcodes', () => {
       const resultVar = 42;
 
       // Act
-      stackOpcodes.load.impl(machine, variable);
+      stackOpcodes.load.impl(machine, [], variable);
 
       // Assert
       expect(mockMachine.state.readByte).toHaveBeenCalled();
@@ -160,7 +160,7 @@ describe('Stack Opcodes', () => {
       const value = 0x1234;
 
       // Act
-      stackOpcodes.store.impl(machine, variable, value);
+      stackOpcodes.store.impl(machine, [], variable, value);
 
       // Assert
       expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(variable, value, true);
@@ -176,7 +176,7 @@ describe('Stack Opcodes', () => {
       const expectedNewValue = toU16(toI16(currentValue) + 1);
 
       // Act
-      stackOpcodes.inc.impl(machine, variable);
+      stackOpcodes.inc.impl(machine, [], variable);
 
       // Assert
       expect(mockMachine.state.loadVariable).toHaveBeenCalledWith(variable, true);
@@ -191,7 +191,7 @@ describe('Stack Opcodes', () => {
       mockMachine.state.loadVariable = vi.fn().mockReturnValue(currentValue);
 
       // Act
-      stackOpcodes.inc.impl(machine, variable);
+      stackOpcodes.inc.impl(machine, [], variable);
 
       // Assert
       // Should wrap around to -32768
@@ -209,7 +209,7 @@ describe('Stack Opcodes', () => {
       const expectedNewValue = toU16(toI16(currentValue) - 1);
 
       // Act
-      stackOpcodes.dec.impl(machine, variable);
+      stackOpcodes.dec.impl(machine, [], variable);
 
       // Assert
       expect(mockMachine.state.loadVariable).toHaveBeenCalledWith(variable, true);
@@ -224,7 +224,7 @@ describe('Stack Opcodes', () => {
       mockMachine.state.loadVariable = vi.fn().mockReturnValue(currentValue);
 
       // Act
-      stackOpcodes.dec.impl(machine, variable);
+      stackOpcodes.dec.impl(machine, [], variable);
 
       // Assert
       // Should wrap around to 32767
@@ -243,7 +243,7 @@ describe('Stack Opcodes', () => {
       mockMachine.state.loadVariable = vi.fn().mockReturnValue(currentValue);
 
       // Act
-      stackOpcodes.inc_chk.impl(machine, variable, testValue);
+      stackOpcodes.inc_chk.impl(machine, [], variable, testValue);
 
       // Assert
       expect(mockMachine.state.readBranchOffset).toHaveBeenCalled();
@@ -262,7 +262,7 @@ describe('Stack Opcodes', () => {
       mockMachine.state.loadVariable = vi.fn().mockReturnValue(currentValue);
 
       // Act
-      stackOpcodes.inc_chk.impl(machine, variable, testValue);
+      stackOpcodes.inc_chk.impl(machine, [], variable, testValue);
 
       // Assert
       const newValue = toI16(currentValue) + 1;
@@ -278,7 +278,7 @@ describe('Stack Opcodes', () => {
       mockMachine.state.loadVariable = vi.fn().mockReturnValue(currentValue);
 
       // Act
-      stackOpcodes.inc_chk.impl(machine, variable, testValue);
+      stackOpcodes.inc_chk.impl(machine, [], variable, testValue);
 
       // Assert
       const newValue = toI16(currentValue) + 1;
@@ -297,7 +297,7 @@ describe('Stack Opcodes', () => {
       mockMachine.state.loadVariable = vi.fn().mockReturnValue(currentValue);
 
       // Act
-      stackOpcodes.dec_chk.impl(machine, variable, testValue);
+      stackOpcodes.dec_chk.impl(machine, [], variable, testValue);
 
       // Assert
       expect(mockMachine.state.readBranchOffset).toHaveBeenCalled();
@@ -316,7 +316,7 @@ describe('Stack Opcodes', () => {
       mockMachine.state.loadVariable = vi.fn().mockReturnValue(currentValue);
 
       // Act
-      stackOpcodes.dec_chk.impl(machine, variable, testValue);
+      stackOpcodes.dec_chk.impl(machine, [], variable, testValue);
 
       // Assert
       const newValue = toI16(currentValue) - 1;
@@ -332,7 +332,7 @@ describe('Stack Opcodes', () => {
       mockMachine.state.loadVariable = vi.fn().mockReturnValue(currentValue);
 
       // Act
-      stackOpcodes.dec_chk.impl(machine, variable, testValue);
+      stackOpcodes.dec_chk.impl(machine, [], variable, testValue);
 
       // Assert
       const newValue = toI16(currentValue) - 1;
@@ -349,7 +349,7 @@ describe('Stack Opcodes', () => {
       mockMachine.state.version = 6;
 
       // Act
-      stackOpcodes.pop_stack.impl(machine, items);
+      stackOpcodes.pop_stack.impl(machine, [], items);
 
       // Assert
       expect(mockMachine.state.popStack).toHaveBeenCalledTimes(3);
@@ -363,7 +363,7 @@ describe('Stack Opcodes', () => {
       mockMachine.state.version = 6;
 
       // Act
-      stackOpcodes.pop_stack.impl(machine, items, stackAddr);
+      stackOpcodes.pop_stack.impl(machine, [], items, stackAddr);
 
       // Assert
       expect(mockMachine.getUserStackManager).toHaveBeenCalled();
@@ -377,7 +377,7 @@ describe('Stack Opcodes', () => {
       mockMachine.state.version = 5;
 
       // Act
-      stackOpcodes.pop_stack.impl(machine, items);
+      stackOpcodes.pop_stack.impl(machine, [], items);
 
       // Assert
       expect(mockMachine.logger.warn).toHaveBeenCalledWith('pop_stack opcode only available in Version 6');
@@ -395,7 +395,7 @@ describe('Stack Opcodes', () => {
       mockUserStackManager.pushStack.mockReturnValue(true);
 
       // Act
-      stackOpcodes.push_stack.impl(machine, value, stackAddr);
+      stackOpcodes.push_stack.impl(machine, [], value, stackAddr);
 
       // Assert
       expect(mockMachine.state.readBranchOffset).toHaveBeenCalled();
@@ -413,7 +413,7 @@ describe('Stack Opcodes', () => {
       mockUserStackManager.pushStack.mockReturnValue(false);
 
       // Act
-      stackOpcodes.push_stack.impl(machine, value, stackAddr);
+      stackOpcodes.push_stack.impl(machine, [], value, stackAddr);
 
       // Assert
       expect(mockUserStackManager.pushStack).toHaveBeenCalledWith(stackAddr, value);
@@ -427,7 +427,7 @@ describe('Stack Opcodes', () => {
       mockMachine.state.version = 5;
 
       // Act
-      stackOpcodes.push_stack.impl(machine, value, stackAddr);
+      stackOpcodes.push_stack.impl(machine, [], value, stackAddr);
 
       // Assert
       expect(mockMachine.logger.warn).toHaveBeenCalledWith('push_stack opcode only available in Version 6');

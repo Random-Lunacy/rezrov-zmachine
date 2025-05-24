@@ -15,6 +15,7 @@
     "**/target": true
   },
   "cSpell.words": [
+    "aread",
     "cmem",
     "colour",
     "ebozz",
@@ -23,9 +24,12 @@
     "Infocom",
     "loadb",
     "loadw",
+    "opext",
     "paddr",
     "Planetfall",
     "rezrov",
+    "rfalse",
+    "rtrue",
     "sread",
     "stks",
     "storeb",

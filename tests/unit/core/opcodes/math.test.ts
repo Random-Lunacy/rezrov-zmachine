@@ -41,7 +41,7 @@ describe('Math Opcodes', () => {
       const expected = toU16(toI16(a) + toI16(b)); // 30
 
       // Act
-      mathOpcodes.add.impl(machine, a, b);
+      mathOpcodes.add.impl(machine, [], a, b);
 
       // Assert
       expect(mockMachine.state.readByte).toHaveBeenCalled();
@@ -56,7 +56,7 @@ describe('Math Opcodes', () => {
       const expected = toU16(toI16(a) + toI16(b)); // Should wrap to -32767
 
       // Act
-      mathOpcodes.add.impl(machine, a, b);
+      mathOpcodes.add.impl(machine, [], a, b);
 
       // Assert
       expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(42, expected);
@@ -70,7 +70,7 @@ describe('Math Opcodes', () => {
       const expected = toU16(toI16(a) + toI16(b)); // -15
 
       // Act
-      mathOpcodes.add.impl(machine, a, b);
+      mathOpcodes.add.impl(machine, [], a, b);
 
       // Assert
       expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(42, expected);
@@ -86,7 +86,7 @@ describe('Math Opcodes', () => {
       const expected = a & b; // 0b1000 (8)
 
       // Act
-      mathOpcodes.and.impl(machine, a, b);
+      mathOpcodes.and.impl(machine, [], a, b);
 
       // Assert
       expect(mockMachine.state.readByte).toHaveBeenCalled();
@@ -101,7 +101,7 @@ describe('Math Opcodes', () => {
       const expected = a & b; // 0000 0000 0000 0000
 
       // Act
-      mathOpcodes.and.impl(machine, a, b);
+      mathOpcodes.and.impl(machine, [], a, b);
 
       // Assert
       expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(42, expected);
@@ -117,7 +117,7 @@ describe('Math Opcodes', () => {
       const expected = toU16(Math.floor(toI16(a) / toI16(b))); // 5
 
       // Act
-      mathOpcodes.div.impl(machine, a, b);
+      mathOpcodes.div.impl(machine, [], a, b);
 
       // Assert
       expect(mockMachine.state.readByte).toHaveBeenCalled();
@@ -132,7 +132,7 @@ describe('Math Opcodes', () => {
       const expected = toU16(Math.floor(toI16(a) / toI16(b))); // 5
 
       // Act
-      mathOpcodes.div.impl(machine, a, b);
+      mathOpcodes.div.impl(machine, [], a, b);
 
       // Assert
       expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(42, expected);
@@ -146,7 +146,7 @@ describe('Math Opcodes', () => {
       const expected = toU16(Math.floor(toI16(a) / toI16(b))); // -5
 
       // Act
-      mathOpcodes.div.impl(machine, a, b);
+      mathOpcodes.div.impl(machine, [], a, b);
 
       // Assert
       expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(42, expected);
@@ -160,7 +160,7 @@ describe('Math Opcodes', () => {
       const expected = toU16(Math.floor(toI16(a) / toI16(b))); // -5
 
       // Act
-      mathOpcodes.div.impl(machine, a, b);
+      mathOpcodes.div.impl(machine, [], a, b);
 
       // Assert
       expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(42, expected);
@@ -173,7 +173,7 @@ describe('Math Opcodes', () => {
       const b = 0;
 
       // Act & Assert
-      expect(() => mathOpcodes.div.impl(machine, a, b)).toThrow('Division by zero');
+      expect(() => mathOpcodes.div.impl(machine, [], a, b)).toThrow('Division by zero');
     });
   });
 
@@ -185,7 +185,7 @@ describe('Math Opcodes', () => {
       const expected = toU16(toI16(a) % toI16(b)); // 3
 
       // Act
-      mathOpcodes.mod.impl(machine, a, b);
+      mathOpcodes.mod.impl(machine, [], a, b);
 
       // Assert
       expect(mockMachine.state.readByte).toHaveBeenCalled();
@@ -200,7 +200,7 @@ describe('Math Opcodes', () => {
       const expected = toU16(toI16(a) % toI16(b)); // -3
 
       // Act
-      mathOpcodes.mod.impl(machine, a, b);
+      mathOpcodes.mod.impl(machine, [], a, b);
 
       // Assert
       expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(42, expected);
@@ -214,7 +214,7 @@ describe('Math Opcodes', () => {
       const expected = toU16(toI16(a) % toI16(b)); // 3
 
       // Act
-      mathOpcodes.mod.impl(machine, a, b);
+      mathOpcodes.mod.impl(machine, [], a, b);
 
       // Assert
       expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(42, expected);
@@ -227,7 +227,7 @@ describe('Math Opcodes', () => {
       const b = 0;
 
       // Act & Assert
-      expect(() => mathOpcodes.mod.impl(machine, a, b)).toThrow('Modulo by zero');
+      expect(() => mathOpcodes.mod.impl(machine, [], a, b)).toThrow('Modulo by zero');
     });
   });
 
@@ -239,7 +239,7 @@ describe('Math Opcodes', () => {
       const expected = toU16(toI16(a) * toI16(b)); // 42
 
       // Act
-      mathOpcodes.mul.impl(machine, a, b);
+      mathOpcodes.mul.impl(machine, [], a, b);
 
       // Assert
       expect(mockMachine.state.readByte).toHaveBeenCalled();
@@ -254,7 +254,7 @@ describe('Math Opcodes', () => {
       const expected = toU16(toI16(a) * toI16(b)); // -42
 
       // Act
-      mathOpcodes.mul.impl(machine, a, b);
+      mathOpcodes.mul.impl(machine, [], a, b);
 
       // Assert
       expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(42, expected);
@@ -268,7 +268,7 @@ describe('Math Opcodes', () => {
       const expected = toU16(toI16(a) * toI16(b)); // 1000000 doesn't fit in 16 bits
 
       // Act
-      mathOpcodes.mul.impl(machine, a, b);
+      mathOpcodes.mul.impl(machine, [], a, b);
 
       // Assert
       expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(42, expected);
@@ -285,7 +285,7 @@ describe('Math Opcodes', () => {
       const expected = value ^ 0xffff; // 0101 0101 0101 0101
 
       // Act
-      mathOpcodes.not.impl(machine, value);
+      mathOpcodes.not.impl(machine, [], value);
 
       // Assert
       expect(mockMachine.state.readByte).toHaveBeenCalled();
@@ -299,7 +299,7 @@ describe('Math Opcodes', () => {
       const expected = 0xffff; // All bits set
 
       // Act
-      mathOpcodes.not.impl(machine, value);
+      mathOpcodes.not.impl(machine, [], value);
 
       // Assert
       expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(42, expected);
@@ -311,7 +311,7 @@ describe('Math Opcodes', () => {
       const expected = 0; // All bits cleared
 
       // Act
-      mathOpcodes.not.impl(machine, value);
+      mathOpcodes.not.impl(machine, [], value);
 
       // Assert
       expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(42, expected);
@@ -326,7 +326,7 @@ describe('Math Opcodes', () => {
       const expected = a | b; // 0b1110 (14)
 
       // Act
-      mathOpcodes.or.impl(machine, a, b);
+      mathOpcodes.or.impl(machine, [], a, b);
 
       // Assert
       expect(mockMachine.state.readByte).toHaveBeenCalled();
@@ -341,7 +341,7 @@ describe('Math Opcodes', () => {
       const expected = a | b; // 1111 1111 1111 1111
 
       // Act
-      mathOpcodes.or.impl(machine, a, b);
+      mathOpcodes.or.impl(machine, [], a, b);
 
       // Assert
       expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(42, expected);
@@ -357,7 +357,7 @@ describe('Math Opcodes', () => {
       const expected = toU16(toI16(a) - toI16(b)); // 20
 
       // Act
-      mathOpcodes.sub.impl(machine, a, b);
+      mathOpcodes.sub.impl(machine, [], a, b);
 
       // Assert
       expect(mockMachine.state.readByte).toHaveBeenCalled();
@@ -372,7 +372,7 @@ describe('Math Opcodes', () => {
       const expected = toU16(toI16(a) - toI16(b)); // -10
 
       // Act
-      mathOpcodes.sub.impl(machine, a, b);
+      mathOpcodes.sub.impl(machine, [], a, b);
 
       // Assert
       expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(42, expected);
@@ -386,7 +386,7 @@ describe('Math Opcodes', () => {
       const expected = toU16(toI16(a) - toI16(b)); // Should wrap to 32767
 
       // Act
-      mathOpcodes.sub.impl(machine, a, b);
+      mathOpcodes.sub.impl(machine, [], a, b);
 
       // Assert
       expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(42, expected);
@@ -402,7 +402,7 @@ describe('Math Opcodes', () => {
       vi.mocked(randomUtils.randomInt).mockReturnValue(randomValue);
 
       // Act
-      mathOpcodes.random.impl(machine, range);
+      mathOpcodes.random.impl(machine, [], range);
 
       // Assert
       expect(mockMachine.state.readByte).toHaveBeenCalled();
@@ -416,7 +416,7 @@ describe('Math Opcodes', () => {
       const range = -5;
 
       // Act
-      mathOpcodes.random.impl(machine, range);
+      mathOpcodes.random.impl(machine, [], range);
 
       // Assert
       expect(randomUtils.initRandom).toHaveBeenCalledWith(range.toString());
@@ -429,7 +429,7 @@ describe('Math Opcodes', () => {
       const range = 0;
 
       // Act
-      mathOpcodes.random.impl(machine, range);
+      mathOpcodes.random.impl(machine, [], range);
 
       // Assert
       expect(randomUtils.initRandom).toHaveBeenCalledWith(range.toString());
@@ -445,7 +445,7 @@ describe('Math Opcodes', () => {
       const expected = (value << places) & 0xffff; // 0b010100 (20)
 
       // Act
-      mathOpcodes.art_shift.impl(machine, value, places);
+      mathOpcodes.art_shift.impl(machine, [], value, places);
 
       // Assert
       expect(mockMachine.state.readByte).toHaveBeenCalled();
@@ -460,7 +460,7 @@ describe('Math Opcodes', () => {
       const expected = toU16(toI16(value) >> 1); // 0b0101 (5)
 
       // Act
-      mathOpcodes.art_shift.impl(machine, value, places);
+      mathOpcodes.art_shift.impl(machine, [], value, places);
 
       // Assert
       expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(42, expected);
@@ -474,7 +474,7 @@ describe('Math Opcodes', () => {
       const expected = toU16(toI16(value) >> 4);
 
       // Act
-      mathOpcodes.art_shift.impl(machine, value, places);
+      mathOpcodes.art_shift.impl(machine, [], value, places);
 
       // Assert
       expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(42, expected);
@@ -491,7 +491,7 @@ describe('Math Opcodes', () => {
       const expected = (value << places) & 0xffff; // 0b010100 (20)
 
       // Act
-      mathOpcodes.log_shift.impl(machine, value, places);
+      mathOpcodes.log_shift.impl(machine, [], value, places);
 
       // Assert
       expect(mockMachine.state.readByte).toHaveBeenCalled();
@@ -506,7 +506,7 @@ describe('Math Opcodes', () => {
       const expected = (value >>> 1) & 0xffff; // 0b0101 (5)
 
       // Act
-      mathOpcodes.log_shift.impl(machine, value, places);
+      mathOpcodes.log_shift.impl(machine, [], value, places);
 
       // Assert
       expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(42, expected);
@@ -520,7 +520,7 @@ describe('Math Opcodes', () => {
       const expected = (value >>> 4) & 0xffff;
 
       // Act
-      mathOpcodes.log_shift.impl(machine, value, places);
+      mathOpcodes.log_shift.impl(machine, [], value, places);
 
       // Assert
       expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(42, expected);

@@ -102,7 +102,7 @@ describe('Object Opcodes', () => {
       (mockObject.hasAttribute as any).mockReturnValue(true);
 
       // Act
-      objectOpcodes.test_attr.impl(machine, obj, attribute);
+      objectOpcodes.test_attr.impl(machine, [], obj, attribute);
 
       // Assert
       expect(mockMachine.state.readBranchOffset).toHaveBeenCalled();
@@ -117,7 +117,7 @@ describe('Object Opcodes', () => {
       (mockObject.hasAttribute as any).mockReturnValue(false);
 
       // Act
-      objectOpcodes.test_attr.impl(machine, obj, attribute);
+      objectOpcodes.test_attr.impl(machine, [], obj, attribute);
 
       // Assert
       expect(mockObject.hasAttribute).toHaveBeenCalledWith(attribute);
@@ -130,7 +130,7 @@ describe('Object Opcodes', () => {
       const attribute = 3;
 
       // Act
-      objectOpcodes.test_attr.impl(machine, obj, attribute);
+      objectOpcodes.test_attr.impl(machine, [], obj, attribute);
 
       // Assert
       expect(mockMachine.logger.error).toHaveBeenCalledWith('Object null in test_attr');
@@ -145,7 +145,7 @@ describe('Object Opcodes', () => {
       const attribute = 3;
 
       // Act
-      objectOpcodes.set_attr.impl(machine, obj, attribute);
+      objectOpcodes.set_attr.impl(machine, [], obj, attribute);
 
       // Assert
       expect(mockObject.setAttribute).toHaveBeenCalledWith(attribute);
@@ -157,7 +157,7 @@ describe('Object Opcodes', () => {
       const attribute = 3;
 
       // Act
-      objectOpcodes.set_attr.impl(machine, obj, attribute);
+      objectOpcodes.set_attr.impl(machine, [], obj, attribute);
 
       // Assert
       expect(mockMachine.logger.error).toHaveBeenCalledWith('Object null in set_attr');
@@ -172,7 +172,7 @@ describe('Object Opcodes', () => {
       const attribute = 3;
 
       // Act
-      objectOpcodes.clear_attr.impl(machine, obj, attribute);
+      objectOpcodes.clear_attr.impl(machine, [], obj, attribute);
 
       // Assert
       expect(mockObject.clearAttribute).toHaveBeenCalledWith(attribute);
@@ -184,7 +184,7 @@ describe('Object Opcodes', () => {
       const attribute = 3;
 
       // Act
-      objectOpcodes.clear_attr.impl(machine, obj, attribute);
+      objectOpcodes.clear_attr.impl(machine, [], obj, attribute);
 
       // Assert
       expect(mockMachine.logger.error).toHaveBeenCalledWith('Object null in clear_attr');
@@ -200,7 +200,7 @@ describe('Object Opcodes', () => {
       mockObject.parent = mockParentObject as GameObject;
 
       // Act
-      objectOpcodes.jin.impl(machine, obj1, obj2);
+      objectOpcodes.jin.impl(machine, [], obj1, obj2);
 
       // Assert
       expect(mockMachine.state.readBranchOffset).toHaveBeenCalled();
@@ -214,7 +214,7 @@ describe('Object Opcodes', () => {
       mockObject.parent = mockParentObject as GameObject;
 
       // Act
-      objectOpcodes.jin.impl(machine, obj1, obj2);
+      objectOpcodes.jin.impl(machine, [], obj1, obj2);
 
       // Assert
       expect(mockMachine.state.doBranch).toHaveBeenCalledWith(false, false, 10);
@@ -227,7 +227,7 @@ describe('Object Opcodes', () => {
       mockObject.parent = null;
 
       // Act
-      objectOpcodes.jin.impl(machine, obj1, obj2);
+      objectOpcodes.jin.impl(machine, [], obj1, obj2);
 
       // Assert
       expect(mockMachine.state.doBranch).toHaveBeenCalledWith(false, false, 10);
@@ -239,7 +239,7 @@ describe('Object Opcodes', () => {
       const obj2 = 3;
 
       // Act
-      objectOpcodes.jin.impl(machine, obj1, obj2);
+      objectOpcodes.jin.impl(machine, [], obj1, obj2);
 
       // Assert
       expect(mockMachine.logger.error).toHaveBeenCalledWith('Child object is null in jin');
@@ -260,7 +260,7 @@ describe('Object Opcodes', () => {
       mockParentObject.child = null;
 
       // Act
-      objectOpcodes.insert_obj.impl(machine, obj, destination);
+      objectOpcodes.insert_obj.impl(machine, [], obj, destination);
 
       // Assert
       // Check if object is unlinked from its current parent
@@ -281,7 +281,7 @@ describe('Object Opcodes', () => {
       mockParentObject.child = mockChildObject as GameObject;
 
       // Act
-      objectOpcodes.insert_obj.impl(machine, obj, destination);
+      objectOpcodes.insert_obj.impl(machine, [], obj, destination);
 
       // Assert
       // Check if object is properly inserted at the head of the child list
@@ -296,7 +296,7 @@ describe('Object Opcodes', () => {
       const destination = 3;
 
       // Act
-      objectOpcodes.insert_obj.impl(machine, obj, destination);
+      objectOpcodes.insert_obj.impl(machine, [], obj, destination);
 
       // Assert
       expect(mockMachine.logger.error).toHaveBeenCalledWith('Object null in insert_obj');
@@ -308,7 +308,7 @@ describe('Object Opcodes', () => {
       const destination = 99; // Non-existent object
 
       // Act
-      objectOpcodes.insert_obj.impl(machine, obj, destination);
+      objectOpcodes.insert_obj.impl(machine, [], obj, destination);
 
       // Assert
       expect(mockMachine.logger.error).toHaveBeenCalledWith('Destination object null in insert_obj');
@@ -324,7 +324,7 @@ describe('Object Opcodes', () => {
       (mockObject.getProperty as any).mockReturnValue(propValue);
 
       // Act
-      objectOpcodes.get_prop.impl(machine, obj, property);
+      objectOpcodes.get_prop.impl(machine, [], obj, property);
 
       // Assert
       expect(mockMachine.state.readByte).toHaveBeenCalled();
@@ -338,7 +338,7 @@ describe('Object Opcodes', () => {
       const property = 3;
 
       // Act
-      objectOpcodes.get_prop.impl(machine, obj, property);
+      objectOpcodes.get_prop.impl(machine, [], obj, property);
 
       // Assert
       expect(mockMachine.logger.warn).toHaveBeenCalledWith('get_prop called on null object');
@@ -355,7 +355,7 @@ describe('Object Opcodes', () => {
       (mockObject.getPropertyAddress as any).mockReturnValue(propAddr);
 
       // Act
-      objectOpcodes.get_prop_addr.impl(machine, obj, property);
+      objectOpcodes.get_prop_addr.impl(machine, [], obj, property);
 
       // Assert
       expect(mockMachine.state.readByte).toHaveBeenCalled();
@@ -369,7 +369,7 @@ describe('Object Opcodes', () => {
       const property = 3;
 
       // Act
-      objectOpcodes.get_prop_addr.impl(machine, obj, property);
+      objectOpcodes.get_prop_addr.impl(machine, [], obj, property);
 
       // Assert
       expect(mockMachine.logger.warn).toHaveBeenCalledWith('get_prop_addr called on null object');
@@ -386,7 +386,7 @@ describe('Object Opcodes', () => {
       (mockObject.getNextProperty as any).mockReturnValue(nextProp);
 
       // Act
-      objectOpcodes.get_next_prop.impl(machine, obj, property);
+      objectOpcodes.get_next_prop.impl(machine, [], obj, property);
 
       // Assert
       expect(mockMachine.state.readByte).toHaveBeenCalled();
@@ -400,7 +400,7 @@ describe('Object Opcodes', () => {
       const property = 3;
 
       // Act
-      objectOpcodes.get_next_prop.impl(machine, obj, property);
+      objectOpcodes.get_next_prop.impl(machine, [], obj, property);
 
       // Assert
       expect(mockMachine.logger.warn).toHaveBeenCalledWith('get_next_prop called on null object');
@@ -415,7 +415,7 @@ describe('Object Opcodes', () => {
       mockObject.sibling = mockSiblingObject as GameObject;
 
       // Act
-      objectOpcodes.get_sibling.impl(machine, obj);
+      objectOpcodes.get_sibling.impl(machine, [], obj);
 
       // Assert
       expect(mockMachine.state.readByte).toHaveBeenCalled();
@@ -430,7 +430,7 @@ describe('Object Opcodes', () => {
       mockObject.sibling = null;
 
       // Act
-      objectOpcodes.get_sibling.impl(machine, obj);
+      objectOpcodes.get_sibling.impl(machine, [], obj);
 
       // Assert
       expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(42, 0);
@@ -442,7 +442,7 @@ describe('Object Opcodes', () => {
       const obj = 99; // Non-existent object
 
       // Act
-      objectOpcodes.get_sibling.impl(machine, obj);
+      objectOpcodes.get_sibling.impl(machine, [], obj);
 
       // Assert
       expect(mockMachine.logger.warn).toHaveBeenCalledWith('object is 0 in get_sibling');
@@ -458,7 +458,7 @@ describe('Object Opcodes', () => {
       mockObject.child = mockChildObject as GameObject;
 
       // Act
-      objectOpcodes.get_child.impl(machine, obj);
+      objectOpcodes.get_child.impl(machine, [], obj);
 
       // Assert
       expect(mockMachine.state.readByte).toHaveBeenCalled();
@@ -473,7 +473,7 @@ describe('Object Opcodes', () => {
       mockObject.child = null;
 
       // Act
-      objectOpcodes.get_child.impl(machine, obj);
+      objectOpcodes.get_child.impl(machine, [], obj);
 
       // Assert
       expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(42, 0);
@@ -485,7 +485,7 @@ describe('Object Opcodes', () => {
       const obj = 99; // Non-existent object
 
       // Act
-      objectOpcodes.get_child.impl(machine, obj);
+      objectOpcodes.get_child.impl(machine, [], obj);
 
       // Assert
       expect(mockMachine.logger.warn).toHaveBeenCalledWith('object is 0 in get_child');
@@ -501,7 +501,7 @@ describe('Object Opcodes', () => {
       mockObject.parent = mockParentObject as GameObject;
 
       // Act
-      objectOpcodes.get_parent.impl(machine, obj);
+      objectOpcodes.get_parent.impl(machine, [], obj);
 
       // Assert
       expect(mockMachine.state.readByte).toHaveBeenCalled();
@@ -514,7 +514,7 @@ describe('Object Opcodes', () => {
       mockObject.parent = null;
 
       // Act
-      objectOpcodes.get_parent.impl(machine, obj);
+      objectOpcodes.get_parent.impl(machine, [], obj);
 
       // Assert
       expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(42, 0);
@@ -525,7 +525,7 @@ describe('Object Opcodes', () => {
       const obj = 99; // Non-existent object
 
       // Act
-      objectOpcodes.get_parent.impl(machine, obj);
+      objectOpcodes.get_parent.impl(machine, [], obj);
 
       // Assert
       expect(mockMachine.logger.error).toHaveBeenCalledWith('object null in get_parent');
@@ -539,7 +539,7 @@ describe('Object Opcodes', () => {
       const obj = 5;
 
       // Act
-      objectOpcodes.remove_obj.impl(machine, obj);
+      objectOpcodes.remove_obj.impl(machine, [], obj);
 
       // Assert
       expect(mockObject.unlink).toHaveBeenCalled();
@@ -550,7 +550,7 @@ describe('Object Opcodes', () => {
       const obj = 99; // Non-existent object
 
       // Act
-      objectOpcodes.remove_obj.impl(machine, obj);
+      objectOpcodes.remove_obj.impl(machine, [], obj);
 
       // Assert
       expect(mockMachine.logger.error).toHaveBeenCalledWith('object null in remove_obj');
@@ -565,7 +565,7 @@ describe('Object Opcodes', () => {
       const value = 0x1234;
 
       // Act
-      objectOpcodes.put_prop.impl(machine, obj, property, value);
+      objectOpcodes.put_prop.impl(machine, [], obj, property, value);
 
       // Assert
       expect(mockObject.putProperty).toHaveBeenCalledWith(property, value);
@@ -578,7 +578,7 @@ describe('Object Opcodes', () => {
       const value = 0x1234;
 
       // Act
-      objectOpcodes.put_prop.impl(machine, obj, property, value);
+      objectOpcodes.put_prop.impl(machine, [], obj, property, value);
 
       // Assert
       expect(mockMachine.logger.warn).toHaveBeenCalledWith('put_prop called on null object');
@@ -592,7 +592,7 @@ describe('Object Opcodes', () => {
       const length = 2;
 
       // Act
-      objectOpcodes.get_prop_len.impl(machine, propDataAddr);
+      objectOpcodes.get_prop_len.impl(machine, [], propDataAddr);
 
       // Assert
       expect(mockMachine.state.readByte).toHaveBeenCalled();
@@ -612,10 +612,10 @@ describe('Object Opcodes', () => {
       // No need to set name here as it's already set in the mockObject
 
       // Act
-      objectOpcodes.print_obj.impl(machine, obj);
+      objectOpcodes.print_obj.impl(machine, [], obj);
 
       // Assert
-      expect(machine.screen.print).toHaveBeenCalledWith(machine, mockObject.name);
+      expect(machine.screen.print).toHaveBeenCalledWith(machine, [], mockObject.name);
     });
 
     it('should log warning when object is null', () => {
@@ -623,7 +623,7 @@ describe('Object Opcodes', () => {
       const obj = 99; // Non-existent object
 
       // Act
-      objectOpcodes.print_obj.impl(machine, obj);
+      objectOpcodes.print_obj.impl(machine, [], obj);
 
       // Assert
       expect(mockMachine.logger.warn).toHaveBeenCalledWith(`print_obj: object ${obj} not found`);

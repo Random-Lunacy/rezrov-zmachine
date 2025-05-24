@@ -68,9 +68,14 @@ export class GameState {
     }
 
     this.logger.debug(`Z-machine version: ${this._version}`);
-    this.logger.debug(`Global variables: 0x${this._globalVars.toString(16)}`);
-    this.logger.debug(`Object table: 0x${this._objectTable.toString(16)}`);
-    this.logger.debug(`Dictionary: 0x${this._dict.toString(16)}`);
+    this.logger.debug(`Global variables address: 0x${this._globalVars.toString(16)}`);
+    this.logger.debug(`Object table address: 0x${this._objectTable.toString(16)}`);
+    this.logger.debug(`Dictionary address: 0x${this._dict.toString(16)}`);
+
+    // Debug: Check initial value of G111 in raw story file
+    const g111Address = this._globalVars + 2 * (127 - 16); // Address for G111
+    const initialG111Value = this._memory.getWord(g111Address);
+    this.logger.debug(`INITIAL G111: Raw value in story file at address ${g111Address}: ${initialG111Value}`);
   }
 
   /**
@@ -204,6 +209,13 @@ export class GameState {
       return peekTop ? this.peekStack() : this.popStack();
     }
 
+    if (variable === 127) {
+      const address = this._globalVars + 2 * (variable - 16);
+      this.logger.debug(`G111 debug: address calculation: ${this._globalVars} + ${2 * (variable - 16)} = ${address}`);
+      const value = this._memory.getWord(address);
+      this.logger.debug(`G111 debug: value at address ${address}: ${value}`);
+    }
+
     if (variable < 16) {
       // Local variable
       if (this._callstack.length === 0) {
@@ -235,6 +247,12 @@ export class GameState {
       }
       this.pushStack(value);
       return;
+    }
+
+    if (variable === 127) {
+      const stackTrace = new Error().stack;
+      this.logger.debug(`G111 WRITE: Setting variable 127 (G111) from ${value} to 4 at PC ${this._pc.toString(16)}`);
+      this.logger.debug(`G111 WRITE STACK: ${stackTrace}`);
     }
 
     if (variable < 16) {
@@ -271,11 +289,6 @@ export class GameState {
         this.storeVariable(returnVar, 0);
       }
       return;
-    }
-
-    // Validate routine address is in high memory and properly aligned
-    if (!this.memory.isHighMemory(routineAddress) || !this.memory.checkPackedAddressAlignment(routineAddress, true)) {
-      throw new Error(`Invalid routine address: 0x${routineAddress.toString(16)}`);
     }
 
     // Read the number of locals

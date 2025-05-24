@@ -91,14 +91,21 @@ export class Memory {
   }
 
   /**
+   * Check if an address is valid for a routine
+   */
+  isValidRoutineAddress(addr: Address): boolean {
+    return !this.isDynamicMemory(addr) && addr < this.size;
+  }
+
+  /**
    * Validates the routine header against Z-machine requirements
    */
   public validateRoutineHeader(addr: number): boolean {
     const rules: ValidationRule[] = [
       {
-        description: 'Routine address in high memory',
-        condition: () => this.isHighMemory(addr),
-        errorMessage: 'Routine header must be in high memory',
+        description: 'Routine address above dynamic memory',
+        condition: () => !this.isDynamicMemory(addr),
+        errorMessage: 'Routine header must be above dynamic memory',
       },
       {
         description: 'Aligned routine address',
@@ -254,10 +261,6 @@ export class Memory {
   getZString(addr: Address): ZString {
     if (addr >= this.size) {
       throw new Error(`String address out of bounds: 0x${addr.toString(16)}`);
-    }
-
-    if (this.isHighMemory(addr) && !this.checkPackedAddressAlignment(addr, false)) {
-      throw new Error(`Misaligned string address in high memory: 0x${addr.toString(16)}`);
     }
 
     const chars: Array<number> = [];
@@ -508,13 +511,17 @@ export class Memory {
     try {
       byteAddr = this.packedToByteAddress(packedAddr, isRoutine);
     } catch (e) {
-      // If conversion fails, the address is invalid
       this.logger.warn(`Invalid packed address: ${packedAddr} (${e})`);
       return false;
     }
 
-    // Check that the address points to high memory
-    return this.isHighMemory(byteAddr);
+    // For routines, check they're above dynamic memory
+    if (isRoutine) {
+      return !this.isDynamicMemory(byteAddr);
+    }
+
+    // For strings, they can be anywhere in addressable memory
+    return byteAddr >= 0 && byteAddr < this.size;
   }
 
   /**
@@ -759,13 +766,13 @@ export class Memory {
         errorMessage: `Dynamic memory size is less than minimum (64 bytes): ${this.getWord(HeaderLocation.StaticMemBase)}`,
       },
       {
-        description: 'High memory does not overlap dynamic memory',
+        description: 'High memory does not overlap static memory',
         condition: () => {
-          const dynamicEnd = this.getWord(HeaderLocation.StaticMemBase);
+          const staticEnd = this.getWord(HeaderLocation.StaticMemBase);
           const highStart = this.getWord(HeaderLocation.HighMemBase);
-          return highStart >= dynamicEnd || this._version < 3;
+          return highStart >= staticEnd;
         },
-        errorMessage: `High memory start (${this.getWord(HeaderLocation.HighMemBase)}) overlaps with dynamic memory end (${this.getWord(HeaderLocation.StaticMemBase)})`,
+        errorMessage: `High memory start (${this.getWord(HeaderLocation.HighMemBase)}) must be >= static memory end (${this.getWord(HeaderLocation.StaticMemBase)})`,
       },
       {
         description: 'Dynamic memory within addressable range',

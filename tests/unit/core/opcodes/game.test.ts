@@ -24,7 +24,7 @@ describe('Game Opcodes', () => {
       const storeVariableSpy = vi.spyOn(mockZMachine.state, 'storeVariable');
 
       // Call the opcode
-      await gameOpcodes.save_undo.impl(mockZMachine as unknown as ZMachine);
+      await gameOpcodes.save_undo.impl(mockZMachine as unknown as ZMachine, []);
 
       // Verify that saveUndo was called
       expect(mockZMachine.saveUndo).toHaveBeenCalled();
@@ -38,7 +38,7 @@ describe('Game Opcodes', () => {
       vi.spyOn(mockZMachine, 'saveUndo').mockReturnValue(false);
       const storeVariableSpy = vi.spyOn(mockZMachine.state, 'storeVariable');
 
-      await gameOpcodes.save_undo.impl(mockZMachine as unknown as ZMachine);
+      await gameOpcodes.save_undo.impl(mockZMachine as unknown as ZMachine, []);
 
       expect(storeVariableSpy).toHaveBeenCalledWith(5, 0);
     });
@@ -51,7 +51,7 @@ describe('Game Opcodes', () => {
       const storeVariableSpy = vi.spyOn(mockZMachine.state, 'storeVariable');
       const loggerErrorSpy = vi.spyOn(mockZMachine.logger, 'error');
 
-      await gameOpcodes.save_undo.impl(mockZMachine as unknown as ZMachine);
+      await gameOpcodes.save_undo.impl(mockZMachine as unknown as ZMachine, []);
 
       expect(loggerErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Failed to save undo state'));
       expect(storeVariableSpy).toHaveBeenCalledWith(5, 0);
@@ -64,7 +64,7 @@ describe('Game Opcodes', () => {
       vi.spyOn(mockZMachine, 'restoreUndo').mockReturnValue(true);
       const storeVariableSpy = vi.spyOn(mockZMachine.state, 'storeVariable');
 
-      await gameOpcodes.restore_undo.impl(mockZMachine as unknown as ZMachine);
+      await gameOpcodes.restore_undo.impl(mockZMachine as unknown as ZMachine, []);
 
       expect(mockZMachine.restoreUndo).toHaveBeenCalled();
       // Should store 2 on successful restore (per Z-Machine spec)
@@ -76,7 +76,7 @@ describe('Game Opcodes', () => {
       vi.spyOn(mockZMachine, 'restoreUndo').mockReturnValue(false);
       const storeVariableSpy = vi.spyOn(mockZMachine.state, 'storeVariable');
 
-      await gameOpcodes.restore_undo.impl(mockZMachine as unknown as ZMachine);
+      await gameOpcodes.restore_undo.impl(mockZMachine as unknown as ZMachine, []);
 
       expect(storeVariableSpy).toHaveBeenCalledWith(5, 0);
     });
@@ -89,7 +89,7 @@ describe('Game Opcodes', () => {
       const storeVariableSpy = vi.spyOn(mockZMachine.state, 'storeVariable');
       const loggerErrorSpy = vi.spyOn(mockZMachine.logger, 'error');
 
-      await gameOpcodes.restore_undo.impl(mockZMachine as unknown as ZMachine);
+      await gameOpcodes.restore_undo.impl(mockZMachine as unknown as ZMachine, []);
 
       expect(loggerErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Failed to restore undo state'));
       expect(storeVariableSpy).toHaveBeenCalledWith(5, 0);
@@ -100,7 +100,7 @@ describe('Game Opcodes', () => {
     it('should call the machine restart method', () => {
       const restartSpy = vi.spyOn(mockZMachine, 'restart').mockImplementation(() => {});
 
-      gameOpcodes.restart.impl(mockZMachine as unknown as ZMachine);
+      gameOpcodes.restart.impl(mockZMachine as unknown as ZMachine, []);
 
       expect(restartSpy).toHaveBeenCalled();
     });
@@ -114,7 +114,7 @@ describe('Game Opcodes', () => {
       // Spy on doBranch to check if it's called correctly
       const doBranchSpy = vi.spyOn(mockZMachine.state, 'doBranch');
 
-      gameOpcodes.verify.impl(mockZMachine as unknown as ZMachine);
+      gameOpcodes.verify.impl(mockZMachine as unknown as ZMachine, []);
 
       // Verify that doBranch was called with the expected parameters
       // If verification succeeds, it should pass true, branchOnFalse=false, offset=10
@@ -131,7 +131,7 @@ describe('Game Opcodes', () => {
 
       const loggerErrorSpy = vi.spyOn(mockZMachine.logger, 'error');
 
-      expect(() => gameOpcodes.verify.impl(mockZMachine as unknown as ZMachine)).toThrow();
+      expect(() => gameOpcodes.verify.impl(mockZMachine as unknown as ZMachine, [])).toThrow();
 
       expect(loggerErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Error verifying checksum'));
     });
@@ -142,7 +142,7 @@ describe('Game Opcodes', () => {
       vi.spyOn(mockZMachine.state, 'readBranchOffset').mockReturnValue([10, false]);
       const doBranchSpy = vi.spyOn(mockZMachine.state, 'doBranch');
 
-      gameOpcodes.piracy.impl(mockZMachine as unknown as ZMachine);
+      gameOpcodes.piracy.impl(mockZMachine as unknown as ZMachine, []);
 
       // Piracy check should always indicate the game is genuine
       expect(doBranchSpy).toHaveBeenCalledWith(true, false, 10);
@@ -161,7 +161,7 @@ describe('Game Opcodes', () => {
         vi.spyOn(mockZMachine, 'saveToTable').mockResolvedValue(true);
         const storeVariableSpy = vi.spyOn(mockZMachine.state, 'storeVariable');
 
-        await gameOpcodes.save.impl(mockZMachine as unknown as ZMachine, 100, 200, 0);
+        await gameOpcodes.save.impl(mockZMachine as unknown as ZMachine, [], 100, 200, 0);
 
         expect(mockZMachine.saveToTable).toHaveBeenCalledWith(100, 200, 0, true);
         expect(storeVariableSpy).toHaveBeenCalledWith(5, 1);
@@ -172,7 +172,7 @@ describe('Game Opcodes', () => {
         vi.spyOn(mockZMachine, 'saveToTable').mockResolvedValue(false);
         const storeVariableSpy = vi.spyOn(mockZMachine.state, 'storeVariable');
 
-        await gameOpcodes.save.impl(mockZMachine as unknown as ZMachine, 100, 200, 0);
+        await gameOpcodes.save.impl(mockZMachine as unknown as ZMachine, [], 100, 200, 0);
 
         expect(storeVariableSpy).toHaveBeenCalledWith(5, 0);
       });
@@ -183,7 +183,7 @@ describe('Game Opcodes', () => {
         const storeVariableSpy = vi.spyOn(mockZMachine.state, 'storeVariable');
         const loggerErrorSpy = vi.spyOn(mockZMachine.logger, 'error');
 
-        await gameOpcodes.save.impl(mockZMachine as unknown as ZMachine, 100, 200, 0);
+        await gameOpcodes.save.impl(mockZMachine as unknown as ZMachine, [], 100, 200, 0);
 
         expect(loggerErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Failed to save'));
         expect(storeVariableSpy).toHaveBeenCalledWith(5, 0);
@@ -194,14 +194,14 @@ describe('Game Opcodes', () => {
         const saveToTableSpy = vi.spyOn(mockZMachine, 'saveToTable').mockResolvedValue(true);
 
         // Test with prompt = 0 (don't prompt)
-        await gameOpcodes.save.impl(mockZMachine as unknown as ZMachine, 100, 200, 0, 0);
+        await gameOpcodes.save.impl(mockZMachine as unknown as ZMachine, [], 100, 200, 0, 0);
         expect(saveToTableSpy).toHaveBeenCalledWith(100, 200, 0, false);
 
         // Reset spy
         saveToTableSpy.mockClear();
 
         // Test with prompt = 1 (do prompt)
-        await gameOpcodes.save.impl(mockZMachine as unknown as ZMachine, 100, 200, 0, 1);
+        await gameOpcodes.save.impl(mockZMachine as unknown as ZMachine, [], 100, 200, 0, 1);
         expect(saveToTableSpy).toHaveBeenCalledWith(100, 200, 0, true);
       });
     });
@@ -217,7 +217,7 @@ describe('Game Opcodes', () => {
         vi.spyOn(mockZMachine, 'saveGame').mockResolvedValue(true);
         const doBranchSpy = vi.spyOn(mockZMachine.state, 'doBranch');
 
-        await gameOpcodes.save.impl(mockZMachine as unknown as ZMachine, 0, 0);
+        await gameOpcodes.save.impl(mockZMachine as unknown as ZMachine, [], 0, 0);
 
         expect(mockZMachine.saveGame).toHaveBeenCalled();
         expect(doBranchSpy).toHaveBeenCalledWith(true, false, 10);
@@ -228,7 +228,7 @@ describe('Game Opcodes', () => {
         vi.spyOn(mockZMachine, 'saveGame').mockResolvedValue(false);
         const doBranchSpy = vi.spyOn(mockZMachine.state, 'doBranch');
 
-        await gameOpcodes.save.impl(mockZMachine as unknown as ZMachine, 0, 0);
+        await gameOpcodes.save.impl(mockZMachine as unknown as ZMachine, [], 0, 0);
 
         expect(doBranchSpy).toHaveBeenCalledWith(false, false, 10);
       });
@@ -239,7 +239,7 @@ describe('Game Opcodes', () => {
         const doBranchSpy = vi.spyOn(mockZMachine.state, 'doBranch');
         const loggerErrorSpy = vi.spyOn(mockZMachine.logger, 'error');
 
-        await gameOpcodes.save.impl(mockZMachine as unknown as ZMachine, 0, 0);
+        await gameOpcodes.save.impl(mockZMachine as unknown as ZMachine, [], 0, 0);
 
         expect(loggerErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Failed to save game'));
         expect(doBranchSpy).toHaveBeenCalledWith(false, false, 10);
@@ -259,7 +259,7 @@ describe('Game Opcodes', () => {
         vi.spyOn(mockZMachine, 'restoreFromTable').mockResolvedValue(true);
         const storeVariableSpy = vi.spyOn(mockZMachine.state, 'storeVariable');
 
-        await gameOpcodes.restore.impl(mockZMachine as unknown as ZMachine, 100, 200, 0);
+        await gameOpcodes.restore.impl(mockZMachine as unknown as ZMachine, [], 100, 200, 0);
 
         expect(mockZMachine.restoreFromTable).toHaveBeenCalledWith(100, 200, 0, true);
         // Should store 2 on successful restore
@@ -271,7 +271,7 @@ describe('Game Opcodes', () => {
         vi.spyOn(mockZMachine, 'restoreFromTable').mockResolvedValue(false);
         const storeVariableSpy = vi.spyOn(mockZMachine.state, 'storeVariable');
 
-        await gameOpcodes.restore.impl(mockZMachine as unknown as ZMachine, 100, 200, 0);
+        await gameOpcodes.restore.impl(mockZMachine as unknown as ZMachine, [], 100, 200, 0);
 
         expect(storeVariableSpy).toHaveBeenCalledWith(5, 0);
       });
@@ -282,7 +282,7 @@ describe('Game Opcodes', () => {
         const storeVariableSpy = vi.spyOn(mockZMachine.state, 'storeVariable');
         const loggerErrorSpy = vi.spyOn(mockZMachine.logger, 'error');
 
-        await gameOpcodes.restore.impl(mockZMachine as unknown as ZMachine, 100, 200, 0);
+        await gameOpcodes.restore.impl(mockZMachine as unknown as ZMachine, [], 100, 200, 0);
 
         expect(loggerErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Failed to restore'));
         expect(storeVariableSpy).toHaveBeenCalledWith(5, 0);
@@ -293,14 +293,14 @@ describe('Game Opcodes', () => {
         const restoreFromTableSpy = vi.spyOn(mockZMachine, 'restoreFromTable').mockResolvedValue(true);
 
         // Test with prompt = 0 (don't prompt)
-        await gameOpcodes.restore.impl(mockZMachine as unknown as ZMachine, 100, 200, 0, 0);
+        await gameOpcodes.restore.impl(mockZMachine as unknown as ZMachine, [], 100, 200, 0, 0);
         expect(restoreFromTableSpy).toHaveBeenCalledWith(100, 200, 0, false);
 
         // Reset spy
         restoreFromTableSpy.mockClear();
 
         // Test with prompt = 1 (do prompt)
-        await gameOpcodes.restore.impl(mockZMachine as unknown as ZMachine, 100, 200, 0, 1);
+        await gameOpcodes.restore.impl(mockZMachine as unknown as ZMachine, [], 100, 200, 0, 1);
         expect(restoreFromTableSpy).toHaveBeenCalledWith(100, 200, 0, true);
       });
     });
@@ -316,7 +316,7 @@ describe('Game Opcodes', () => {
         vi.spyOn(mockZMachine, 'restoreGame').mockResolvedValue(true);
         const doBranchSpy = vi.spyOn(mockZMachine.state, 'doBranch');
 
-        await gameOpcodes.restore.impl(mockZMachine as unknown as ZMachine, 0, 0);
+        await gameOpcodes.restore.impl(mockZMachine as unknown as ZMachine, [], 0, 0);
 
         expect(mockZMachine.restoreGame).toHaveBeenCalled();
         expect(doBranchSpy).toHaveBeenCalledWith(true, false, 10);
@@ -327,7 +327,7 @@ describe('Game Opcodes', () => {
         vi.spyOn(mockZMachine, 'restoreGame').mockResolvedValue(false);
         const doBranchSpy = vi.spyOn(mockZMachine.state, 'doBranch');
 
-        await gameOpcodes.restore.impl(mockZMachine as unknown as ZMachine, 0, 0);
+        await gameOpcodes.restore.impl(mockZMachine as unknown as ZMachine, [], 0, 0);
 
         expect(doBranchSpy).toHaveBeenCalledWith(false, false, 10);
       });
@@ -338,7 +338,7 @@ describe('Game Opcodes', () => {
         const doBranchSpy = vi.spyOn(mockZMachine.state, 'doBranch');
         const loggerErrorSpy = vi.spyOn(mockZMachine.logger, 'error');
 
-        await gameOpcodes.restore.impl(mockZMachine as unknown as ZMachine, 0, 0);
+        await gameOpcodes.restore.impl(mockZMachine as unknown as ZMachine, [], 0, 0);
 
         expect(loggerErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Failed to restore game'));
         expect(doBranchSpy).toHaveBeenCalledWith(false, false, 10);
@@ -350,7 +350,7 @@ describe('Game Opcodes', () => {
     it('should call the machine quit method', () => {
       const quitSpy = vi.spyOn(mockZMachine, 'quit').mockImplementation(() => {});
 
-      gameOpcodes.quit.impl(mockZMachine as unknown as ZMachine);
+      gameOpcodes.quit.impl(mockZMachine as unknown as ZMachine, []);
 
       expect(quitSpy).toHaveBeenCalled();
     });
@@ -360,7 +360,7 @@ describe('Game Opcodes', () => {
     it('should call the update status bar method', () => {
       const updateStatusBarSpy = vi.spyOn(mockZMachine.state, 'updateStatusBar').mockImplementation(() => {});
 
-      gameOpcodes.show_status.impl(mockZMachine as unknown as ZMachine);
+      gameOpcodes.show_status.impl(mockZMachine as unknown as ZMachine, []);
 
       expect(updateStatusBarSpy).toHaveBeenCalled();
     });
