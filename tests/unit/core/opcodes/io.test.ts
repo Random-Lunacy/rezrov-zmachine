@@ -46,7 +46,7 @@ describe('I/O Opcodes', () => {
       ioOpcodes.split_window.impl(machine, [], lines);
 
       // Assert
-      expect(machine.screen.splitWindow).toHaveBeenCalledWith(machine, [], lines);
+      expect(machine.screen.splitWindow).toHaveBeenCalledWith(machine, lines);
       expect(machine.logger.debug).toHaveBeenCalledWith('1234 split_window 5');
     });
   });
@@ -60,7 +60,7 @@ describe('I/O Opcodes', () => {
       ioOpcodes.set_window.impl(machine, [], windowId);
 
       // Assert
-      expect(machine.screen.setOutputWindow).toHaveBeenCalledWith(machine, [], windowId);
+      expect(machine.screen.setOutputWindow).toHaveBeenCalledWith(machine, windowId);
       expect(machine.logger.debug).toHaveBeenCalledWith('1234 set_window 1');
     });
   });
@@ -74,7 +74,7 @@ describe('I/O Opcodes', () => {
       ioOpcodes.erase_window.impl(machine, [], windowId);
 
       // Assert
-      expect(machine.screen.clearWindow).toHaveBeenCalledWith(machine, [], windowId);
+      expect(machine.screen.clearWindow).toHaveBeenCalledWith(machine, windowId);
       expect(machine.logger.debug).toHaveBeenCalledWith('1234 erase_window 1');
     });
   });
@@ -88,7 +88,7 @@ describe('I/O Opcodes', () => {
       ioOpcodes.erase_line.impl(machine, [], value);
 
       // Assert
-      expect(machine.screen.clearLine).toHaveBeenCalledWith(machine, [], value);
+      expect(machine.screen.clearLine).toHaveBeenCalledWith(machine, value);
       expect(machine.logger.debug).toHaveBeenCalledWith('1234 erase_line 1');
     });
   });
@@ -103,7 +103,7 @@ describe('I/O Opcodes', () => {
       ioOpcodes.set_cursor.impl(machine, [], line, column);
 
       // Assert
-      expect(machine.screen.setCursorPosition).toHaveBeenCalledWith(machine, [], line, column, 0);
+      expect(machine.screen.setCursorPosition).toHaveBeenCalledWith(machine, line, column, 0);
       expect(machine.logger.debug).toHaveBeenCalledWith('1234 set_cursor 3 5');
     });
 
@@ -115,7 +115,7 @@ describe('I/O Opcodes', () => {
       ioOpcodes.set_cursor.impl(machine, [], -1, 0);
 
       // Assert
-      expect(machine.screen.hideCursor).toHaveBeenCalledWith(machine, [], 0);
+      expect(machine.screen.hideCursor).toHaveBeenCalledWith(machine, 0);
       expect(machine.screen.setCursorPosition).not.toHaveBeenCalled();
     });
 
@@ -127,7 +127,7 @@ describe('I/O Opcodes', () => {
       ioOpcodes.set_cursor.impl(machine, [], -2, 0);
 
       // Assert
-      expect(machine.screen.showCursor).toHaveBeenCalledWith(machine, [], 0);
+      expect(machine.screen.showCursor).toHaveBeenCalledWith(machine, 0);
       expect(machine.screen.setCursorPosition).not.toHaveBeenCalled();
     });
 
@@ -143,8 +143,8 @@ describe('I/O Opcodes', () => {
       ioOpcodes.set_cursor.impl(machine, [], line, column, customWindow);
 
       // Assert
-      expect(machine.screen.getOutputWindow).toHaveBeenCalledWith(machine, []);
-      expect(machine.screen.setCursorPosition).toHaveBeenCalledWith(machine, [], line, column, 1);
+      expect(machine.screen.getOutputWindow).toHaveBeenCalledWith(machine);
+      expect(machine.screen.setCursorPosition).toHaveBeenCalledWith(machine, line, column, 1);
     });
   });
 
@@ -170,7 +170,7 @@ describe('I/O Opcodes', () => {
       ioOpcodes.set_text_style.impl(machine, [], style);
 
       // Assert
-      expect(machine.screen.setTextStyle).toHaveBeenCalledWith(machine, [], style);
+      expect(machine.screen.setTextStyle).toHaveBeenCalledWith(machine, style);
       expect(machine.logger.debug).toHaveBeenCalledWith('1234 set_text_style 2');
     });
 
@@ -182,7 +182,7 @@ describe('I/O Opcodes', () => {
       ioOpcodes.set_text_style.impl(machine, [], style);
 
       // Assert
-      expect(machine.screen.setTextStyle).toHaveBeenCalledWith(machine, [], style);
+      expect(machine.screen.setTextStyle).toHaveBeenCalledWith(machine, style);
     });
 
     it('should handle style 0 to clear all styles', () => {
@@ -193,7 +193,7 @@ describe('I/O Opcodes', () => {
       ioOpcodes.set_text_style.impl(machine, [], style);
 
       // Assert
-      expect(machine.screen.setTextStyle).toHaveBeenCalledWith(machine, [], style);
+      expect(machine.screen.setTextStyle).toHaveBeenCalledWith(machine, style);
     });
   });
 
@@ -206,7 +206,7 @@ describe('I/O Opcodes', () => {
       ioOpcodes.buffer_mode.impl(machine, [], mode);
 
       // Assert
-      expect(machine.screen.setBufferMode).toHaveBeenCalledWith(machine, [], mode);
+      expect(machine.screen.setBufferMode).toHaveBeenCalledWith(machine, mode);
       expect(machine.logger.debug).toHaveBeenCalledWith('1234 buffer_mode 1');
     });
   });
@@ -222,7 +222,7 @@ describe('I/O Opcodes', () => {
       ioOpcodes.output_stream.impl(machine, [], streamNum, table, width);
 
       // Assert
-      expect(machine.screen.enableOutputStream).toHaveBeenCalledWith(machine, [], streamNum, table, width);
+      expect(machine.screen.enableOutputStream).toHaveBeenCalledWith(machine, streamNum, table, width);
       expect(machine.logger.debug).toHaveBeenCalledWith('1234 output_stream 3 4096 80');
     });
 
@@ -236,7 +236,7 @@ describe('I/O Opcodes', () => {
       ioOpcodes.output_stream.impl(machine, [], streamNum, table, width);
 
       // Assert
-      expect(machine.screen.disableOutputStream).toHaveBeenCalledWith(machine, [], 3, table, width);
+      expect(machine.screen.disableOutputStream).toHaveBeenCalledWith(machine, 3, table, width);
       expect(machine.logger.debug).toHaveBeenCalledWith('1234 output_stream -3 4096 80');
     });
 
@@ -263,7 +263,7 @@ describe('I/O Opcodes', () => {
       ioOpcodes.input_stream.impl(machine, [], streamNum);
 
       // Assert
-      expect(machine.screen.selectInputStream).toHaveBeenCalledWith(machine, [], streamNum);
+      expect(machine.screen.selectInputStream).toHaveBeenCalledWith(machine, streamNum);
       expect(machine.logger.debug).toHaveBeenCalledWith('1234 input_stream 1');
     });
   });
@@ -416,7 +416,7 @@ describe('I/O Opcodes', () => {
 
       // Assert
       expect(mockMachine.state.readByte).toHaveBeenCalled();
-      expect(machine.screen.getWindowProperty).toHaveBeenCalledWith(machine, [], window, property);
+      expect(machine.screen.getWindowProperty).toHaveBeenCalledWith(machine, window, property);
       expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(resultVar, propertyValue);
     });
 
@@ -435,7 +435,7 @@ describe('I/O Opcodes', () => {
       ioOpcodes.get_wind_prop.impl(machine, [], window, property);
 
       // Assert
-      expect(machine.screen.getWindowTrueForeground).toHaveBeenCalledWith(machine, [], window);
+      expect(machine.screen.getWindowTrueForeground).toHaveBeenCalledWith(machine, window);
       expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(resultVar, colorValue);
     });
 
@@ -454,7 +454,7 @@ describe('I/O Opcodes', () => {
       ioOpcodes.get_wind_prop.impl(machine, [], window, property);
 
       // Assert
-      expect(machine.screen.getWindowTrueBackground).toHaveBeenCalledWith(machine, [], window);
+      expect(machine.screen.getWindowTrueBackground).toHaveBeenCalledWith(machine, window);
       expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(resultVar, colorValue);
     });
 
@@ -493,8 +493,8 @@ describe('I/O Opcodes', () => {
 
       // Assert
       expect(mockMachine.state.readByte).toHaveBeenCalled();
-      expect(machine.screen.getCurrentFont).toHaveBeenCalledWith(machine, []);
-      expect(machine.screen.setFont).toHaveBeenCalledWith(machine, [], font);
+      expect(machine.screen.getCurrentFont).toHaveBeenCalledWith(machine);
+      expect(machine.screen.setFont).toHaveBeenCalledWith(machine, font);
       expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(resultVar, prevFont);
     });
 
@@ -510,7 +510,7 @@ describe('I/O Opcodes', () => {
       ioOpcodes.set_font.impl(machine, [], font);
 
       // Assert
-      expect(machine.screen.setFont).toHaveBeenCalledWith(machine, [], font);
+      expect(machine.screen.setFont).toHaveBeenCalledWith(machine, font);
       expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(resultVar, 0);
     });
 
@@ -530,8 +530,8 @@ describe('I/O Opcodes', () => {
       ioOpcodes.set_font.impl(machine, [], font, window);
 
       // Assert
-      expect(machine.screen.getFontForWindow).toHaveBeenCalledWith(machine, [], window);
-      expect(machine.screen.setFontForWindow).toHaveBeenCalledWith(machine, [], font, window);
+      expect(machine.screen.getFontForWindow).toHaveBeenCalledWith(machine, window);
+      expect(machine.screen.setFontForWindow).toHaveBeenCalledWith(machine, font, window);
       expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(resultVar, prevFont);
     });
 
@@ -552,8 +552,8 @@ describe('I/O Opcodes', () => {
 
       // Assert
       expect(machine.logger.warn).toHaveBeenCalledWith('Window parameter to set_font only valid in V6');
-      expect(machine.screen.getCurrentFont).toHaveBeenCalledWith(machine, []);
-      expect(machine.screen.setFont).toHaveBeenCalledWith(machine, [], font);
+      expect(machine.screen.getCurrentFont).toHaveBeenCalledWith(machine);
+      expect(machine.screen.setFont).toHaveBeenCalledWith(machine, font);
       expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(resultVar, prevFont);
     });
   });
@@ -573,8 +573,8 @@ describe('I/O Opcodes', () => {
 
       // Assert
       expect(mockMachine.state.readByte).toHaveBeenCalled();
-      expect(machine.screen.getBufferMode).toHaveBeenCalledWith(machine, []);
-      expect(machine.screen.setBufferMode).toHaveBeenCalledWith(machine, [], mode);
+      expect(machine.screen.getBufferMode).toHaveBeenCalledWith(machine);
+      expect(machine.screen.setBufferMode).toHaveBeenCalledWith(machine, mode);
       expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(resultVar, prevMode);
     });
 
@@ -591,7 +591,7 @@ describe('I/O Opcodes', () => {
       ioOpcodes.buffer_screen.impl(machine, [], mode);
 
       // Assert
-      expect(machine.screen.updateDisplay).toHaveBeenCalledWith(machine, []);
+      expect(machine.screen.updateDisplay).toHaveBeenCalledWith(machine);
       expect(machine.screen.setBufferMode).not.toHaveBeenCalled();
       expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(resultVar, prevMode);
     });
@@ -624,7 +624,7 @@ describe('I/O Opcodes', () => {
       ioOpcodes.set_colour.impl(machine, [], foreground, background);
 
       // Assert
-      expect(machine.screen.setTextColors).toHaveBeenCalledWith(machine, [], 0, foreground, background);
+      expect(machine.screen.setTextColors).toHaveBeenCalledWith(machine, 0, foreground, background);
       expect(machine.logger.debug).toHaveBeenCalledWith('1234 set_colour 3 2 0');
     });
 
@@ -640,7 +640,7 @@ describe('I/O Opcodes', () => {
 
       // Assert
       expect(machine.logger.debug).toHaveBeenCalledWith(`set_colour: ignoring in version < 5`);
-      expect(machine.screen.setTextColors).toHaveBeenCalledWith(machine, [], 0, foreground, background);
+      expect(machine.screen.setTextColors).toHaveBeenCalledWith(machine, 0, foreground, background);
     });
 
     it('should respect window parameter in Version 5+', () => {
@@ -654,7 +654,7 @@ describe('I/O Opcodes', () => {
       ioOpcodes.set_colour.impl(machine, [], foreground, background, window);
 
       // Assert
-      expect(machine.screen.setTextColors).toHaveBeenCalledWith(machine, [], window, foreground, background);
+      expect(machine.screen.setTextColors).toHaveBeenCalledWith(machine, window, foreground, background);
     });
 
     it('should handle transparency in Version 6', () => {
@@ -679,7 +679,7 @@ describe('I/O Opcodes', () => {
       ioOpcodes.set_colour.impl(machine, [], foreground, background, window);
 
       // Assert
-      expect(machine.screen.setTextColors).toHaveBeenCalledWith(machine, [], window, foreground, background);
+      expect(machine.screen.setTextColors).toHaveBeenCalledWith(machine, window, foreground, background);
     });
 
     it('should not allow transparent foreground in Version 6', () => {
@@ -694,7 +694,7 @@ describe('I/O Opcodes', () => {
 
       // Assert
       expect(machine.logger.warn).toHaveBeenCalledWith('Transparent foreground not allowed, using default instead');
-      expect(machine.screen.setTextColors).toHaveBeenCalledWith(machine, [], window, 1, background); // Using default color (1)
+      expect(machine.screen.setTextColors).toHaveBeenCalledWith(machine, window, 1, background); // Using default color (1)
     });
   });
 
@@ -725,7 +725,7 @@ describe('I/O Opcodes', () => {
 
       // Assert
       expect(machine.logger.warn).toHaveBeenCalledWith('Window parameter to set_true_colour only valid in V6');
-      expect(machine.screen.setTextColors).toHaveBeenCalledWith(machine, [], 0, expect.any(Number), expect.any(Number));
+      expect(machine.screen.setTextColors).toHaveBeenCalledWith(machine, 0, expect.any(Number), expect.any(Number));
     });
 
     it('should respect window parameter in Version 6', () => {

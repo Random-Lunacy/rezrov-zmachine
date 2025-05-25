@@ -50,7 +50,7 @@ describe('String Opcodes', () => {
       // Assert
       expect(mockMachine.memory.getZString).toHaveBeenCalledWith(stringAddr);
       expect(ZString.decodeZString).toHaveBeenCalledWith(mockMachine.memory, [65, 66, 67], true);
-      expect(machine.screen.print).toHaveBeenCalledWith(machine, [], decodedString);
+      expect(machine.screen.print).toHaveBeenCalledWith(machine, decodedString);
       expect(mockMachine.logger.debug).toHaveBeenCalledWith(`print_addr ${stringAddr.toString(16)}`);
     });
   });
@@ -71,7 +71,7 @@ describe('String Opcodes', () => {
       expect(mockMachine.state.memory.unpackStringAddress).toHaveBeenCalledWith(packedAddr);
       expect(mockMachine.memory.getZString).toHaveBeenCalledWith(unpackedAddr);
       expect(ZString.decodeZString).toHaveBeenCalledWith(mockMachine.memory, [65, 66, 67], true);
-      expect(machine.screen.print).toHaveBeenCalledWith(machine, [], decodedString);
+      expect(machine.screen.print).toHaveBeenCalledWith(machine, decodedString);
       expect(mockMachine.logger.debug).toHaveBeenCalledWith(`print_paddr ${packedAddr} -> ${unpackedAddr}`);
     });
   });
@@ -82,7 +82,7 @@ describe('String Opcodes', () => {
       stringOpcodes.new_line.impl(machine, []);
 
       // Assert
-      expect(machine.screen.print).toHaveBeenCalledWith(machine, [], '\n');
+      expect(machine.screen.print).toHaveBeenCalledWith(machine, '\n');
       expect(mockMachine.logger.debug).toHaveBeenCalledWith('new_line');
     });
   });
@@ -100,7 +100,7 @@ describe('String Opcodes', () => {
       // Assert
       expect(mockMachine.state.readZString).toHaveBeenCalled();
       expect(ZString.decodeZString).toHaveBeenCalledWith(mockMachine.memory, zstring, true);
-      expect(machine.screen.print).toHaveBeenCalledWith(machine, [], decodedString);
+      expect(machine.screen.print).toHaveBeenCalledWith(machine, decodedString);
       expect(mockMachine.logger.debug).toHaveBeenCalledWith(`print ${zstring}`);
     });
   });
@@ -118,7 +118,7 @@ describe('String Opcodes', () => {
       // Assert
       expect(mockMachine.state.readZString).toHaveBeenCalled();
       expect(ZString.decodeZString).toHaveBeenCalledWith(mockMachine.memory, zstring, true);
-      expect(machine.screen.print).toHaveBeenCalledWith(machine, [], decodedString);
+      expect(machine.screen.print).toHaveBeenCalledWith(machine, decodedString);
       expect(mockMachine.state.returnFromRoutine).toHaveBeenCalledWith(1);
       expect(mockMachine.logger.debug).toHaveBeenCalledWith(`5000 print_ret`);
     });
@@ -133,7 +133,7 @@ describe('String Opcodes', () => {
       stringOpcodes.print_char.impl(machine, [], charCode);
 
       // Assert
-      expect(machine.screen.print).toHaveBeenCalledWith(machine, [], 'A');
+      expect(machine.screen.print).toHaveBeenCalledWith(machine, 'A');
       expect(mockMachine.logger.debug).toHaveBeenCalledWith(`print_char(${charCode})`);
     });
 
@@ -145,7 +145,7 @@ describe('String Opcodes', () => {
       stringOpcodes.print_char.impl(machine, [], ...charCodes);
 
       // Assert
-      expect(machine.screen.print).toHaveBeenCalledWith(machine, [], 'ABC');
+      expect(machine.screen.print).toHaveBeenCalledWith(machine, 'ABC');
       expect(mockMachine.logger.debug).toHaveBeenCalledWith(`print_char(${charCodes})`);
     });
   });
@@ -159,7 +159,7 @@ describe('String Opcodes', () => {
       stringOpcodes.print_num.impl(machine, [], value);
 
       // Assert
-      expect(machine.screen.print).toHaveBeenCalledWith(machine, [], '42');
+      expect(machine.screen.print).toHaveBeenCalledWith(machine, '42');
       expect(mockMachine.logger.debug).toHaveBeenCalledWith(`print_num ${value} -> 42`);
     });
 
@@ -171,7 +171,7 @@ describe('String Opcodes', () => {
       stringOpcodes.print_num.impl(machine, [], value);
 
       // Assert
-      expect(machine.screen.print).toHaveBeenCalledWith(machine, [], '-42');
+      expect(machine.screen.print).toHaveBeenCalledWith(machine, '-42');
       expect(mockMachine.logger.debug).toHaveBeenCalledWith(`print_num ${value} -> -42`);
     });
 
@@ -183,7 +183,7 @@ describe('String Opcodes', () => {
       stringOpcodes.print_num.impl(machine, [], value);
 
       // Assert
-      expect(machine.screen.print).toHaveBeenCalledWith(machine, [], '0');
+      expect(machine.screen.print).toHaveBeenCalledWith(machine, '0');
       expect(mockMachine.logger.debug).toHaveBeenCalledWith(`print_num ${value} -> 0`);
     });
   });
@@ -207,7 +207,7 @@ describe('String Opcodes', () => {
       expect(mockMachine.memory.getByte).toHaveBeenCalledWith(address);
       expect(mockMachine.memory.getByte).toHaveBeenCalledWith(address + 1);
       expect(mockMachine.memory.getByte).toHaveBeenCalledWith(address + 2);
-      expect(machine.screen.print).toHaveBeenCalledWith(machine, [], 'ABC\n');
+      expect(machine.screen.print).toHaveBeenCalledWith(machine, 'ABC\n');
     });
 
     it('should print a table with multiple rows', () => {
@@ -231,8 +231,8 @@ describe('String Opcodes', () => {
       expect(mockMachine.memory.getByte).toHaveBeenCalledWith(address + 1);
       expect(mockMachine.memory.getByte).toHaveBeenCalledWith(address + 2);
       expect(mockMachine.memory.getByte).toHaveBeenCalledWith(address + 3);
-      expect(machine.screen.print).toHaveBeenCalledWith(machine, [], 'AB\n');
-      expect(machine.screen.print).toHaveBeenCalledWith(machine, [], 'CD\n');
+      expect(machine.screen.print).toHaveBeenCalledWith(machine, 'AB\n');
+      expect(machine.screen.print).toHaveBeenCalledWith(machine, 'CD\n');
     });
 
     it('should handle skip parameter between rows', () => {
@@ -258,8 +258,8 @@ describe('String Opcodes', () => {
       expect(mockMachine.memory.getByte).toHaveBeenCalledWith(address + 1);
       expect(mockMachine.memory.getByte).toHaveBeenCalledWith(address + 3);
       expect(mockMachine.memory.getByte).toHaveBeenCalledWith(address + 4);
-      expect(machine.screen.print).toHaveBeenCalledWith(machine, [], 'AB\n');
-      expect(machine.screen.print).toHaveBeenCalledWith(machine, [], 'CD\n');
+      expect(machine.screen.print).toHaveBeenCalledWith(machine, 'AB\n');
+      expect(machine.screen.print).toHaveBeenCalledWith(machine, 'CD\n');
     });
   });
 
@@ -304,7 +304,7 @@ describe('String Opcodes', () => {
       stringOpcodes.print_unicode.impl(machine, [], charCode);
 
       // Assert
-      expect(machine.screen.print).toHaveBeenCalledWith(machine, [], 'A');
+      expect(machine.screen.print).toHaveBeenCalledWith(machine, 'A');
       expect(mockMachine.logger.debug).toHaveBeenCalledWith(`print_unicode ${charCode}`);
     });
 
@@ -316,7 +316,7 @@ describe('String Opcodes', () => {
       stringOpcodes.print_unicode.impl(machine, [], charCode);
 
       // Assert
-      expect(machine.screen.print).toHaveBeenCalledWith(machine, [], 'α');
+      expect(machine.screen.print).toHaveBeenCalledWith(machine, 'α');
       expect(mockMachine.logger.debug).toHaveBeenCalledWith(`print_unicode ${charCode}`);
     });
   });

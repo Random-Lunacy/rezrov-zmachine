@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Executor } from '../../../src/core/execution/Executor';
 import { SuspendState } from '../../../src/core/execution/SuspendState';
 import { ZMachine } from '../../../src/interpreter/ZMachine';
+import { OperandType } from '../../../src/types';
 import { InputMode } from '../../../src/ui/input/InputInterface';
 import { MockZMachine } from '../../mocks';
 
@@ -165,9 +166,14 @@ describe('Executor', () => {
         // Execute the instruction
         executor.executeInstruction();
 
-        // Verify correct execution
+        // Verify correct execution - focus on operands reaching the opcode
         expect(mockZMachine.state.readByte).toHaveBeenCalledTimes(3);
-        expect(mockSubOpcode.impl).toHaveBeenCalledWith(mockZMachine, 5, 3);
+        expect(mockSubOpcode.impl).toHaveBeenCalledWith(
+          mockZMachine,
+          expect.any(Array), // operandTypes array - don't care about exact content
+          5,
+          3
+        );
         expect(mockZMachine.logger.debug).toHaveBeenCalledWith(expect.stringContaining('Executing op = sub'));
       });
 
@@ -193,9 +199,13 @@ describe('Executor', () => {
         // Execute the instruction
         executor.executeInstruction();
 
-        // Verify correct execution
+        // Verify correct execution - focus on operands reaching the opcode
         expect(mockZMachine.state.readByte).toHaveBeenCalledTimes(2);
-        expect(mockJzOpcode.impl).toHaveBeenCalledWith(mockZMachine, 42);
+        expect(mockJzOpcode.impl).toHaveBeenCalledWith(
+          mockZMachine,
+          expect.any(Array), // operandTypes array - don't care about exact content
+          42
+        );
         expect(mockZMachine.logger.debug).toHaveBeenCalledWith(expect.stringContaining('Executing op = jz'));
       });
 
@@ -228,10 +238,17 @@ describe('Executor', () => {
         // Execute the instruction
         executor.executeInstruction();
 
-        // Verify correct execution
+        // Verify correct execution - focus on operands reaching the opcode
         expect(mockZMachine.state.readByte).toHaveBeenCalledTimes(2);
         expect(mockZMachine.state.readWord).toHaveBeenCalledTimes(4);
-        expect(mockCallVsOpcode.impl).toHaveBeenCalledWith(mockZMachine, 0x1234, 0x5678, 0x0000, 0x0000);
+        expect(mockCallVsOpcode.impl).toHaveBeenCalledWith(
+          mockZMachine,
+          expect.any(Array), // operandTypes array - don't care about exact content
+          0x1234,
+          0x5678,
+          0x0000,
+          0x0000
+        );
         expect(mockZMachine.logger.debug).toHaveBeenCalledWith(expect.stringContaining('Executing op = call_vs'));
       });
 
@@ -266,9 +283,16 @@ describe('Executor', () => {
         // Execute the instruction
         executor.executeInstruction();
 
-        // Verify correct execution
+        // Verify correct execution - focus on operands reaching the opcode
         expect(mockZMachine.state.readByte).toHaveBeenCalledTimes(4);
-        expect(mockSetFontOpcode.impl).toHaveBeenCalledWith(mockZMachine, 0, 3, 0, 0);
+        expect(mockSetFontOpcode.impl).toHaveBeenCalledWith(
+          mockZMachine,
+          expect.any(Array), // operandTypes array - don't care about exact content
+          0,
+          3,
+          0,
+          0
+        );
         expect(mockZMachine.logger.debug).toHaveBeenCalledWith(expect.stringContaining('Executing op = set_font'));
       });
 
@@ -295,8 +319,13 @@ describe('Executor', () => {
         // Execute and await the async operation
         await executor.executeInstruction();
 
-        // Verify the async implementation was called
-        expect(asyncOpcode.impl).toHaveBeenCalledWith(mockZMachine, 5, 3);
+        // Verify the async implementation was called with correct operands
+        expect(asyncOpcode.impl).toHaveBeenCalledWith(
+          mockZMachine,
+          expect.any(Array), // operandTypes array - don't care about exact content
+          5,
+          3
+        );
       });
 
       it('should handle missing opcode implementations', async () => {
@@ -319,14 +348,14 @@ describe('Executor', () => {
         const v3Impl = vi.fn();
         const v5Impl = vi.fn();
 
-        // Setup a version-specific opcode
+        // Setup a version-specific opcode with updated signature
         const versionSpecificOpcode = {
           mnemonic: 'version_specific',
-          impl: (machine: ZMachine, ...args: number[]): void => {
+          impl: (machine: ZMachine, operandTypes: OperandType[], ...args: number[]): void => {
             if (machine.state.version <= 4) {
-              v3Impl(machine, ...args);
+              v3Impl(machine, operandTypes, ...args);
             } else {
-              v5Impl(machine, ...args);
+              v5Impl(machine, operandTypes, ...args);
             }
           },
         };
@@ -344,8 +373,12 @@ describe('Executor', () => {
         // Execute the instruction
         executor.executeInstruction();
 
-        // Verify correct version-specific execution
-        expect(v3Impl).toHaveBeenCalledWith(mockZMachine, 42);
+        // Verify correct version-specific execution - focus on operands
+        expect(v3Impl).toHaveBeenCalledWith(
+          mockZMachine,
+          expect.any(Array), // operandTypes array - don't care about exact content
+          42
+        );
         expect(v5Impl).not.toHaveBeenCalled();
       });
 
@@ -357,14 +390,14 @@ describe('Executor', () => {
         const v3Impl = vi.fn();
         const v5Impl = vi.fn();
 
-        // Setup a version-specific opcode
+        // Setup a version-specific opcode with updated signature
         const versionSpecificOpcode = {
           mnemonic: 'version_specific',
-          impl: (machine: ZMachine, ...args: number[]): void => {
+          impl: (machine: ZMachine, operandTypes: OperandType[], ...args: number[]): void => {
             if (machine.state.version <= 4) {
-              v3Impl(machine, ...args);
+              v3Impl(machine, operandTypes, ...args);
             } else {
-              v5Impl(machine, ...args);
+              v5Impl(machine, operandTypes, ...args);
             }
           },
         };
@@ -382,9 +415,13 @@ describe('Executor', () => {
         // Execute the instruction
         executor.executeInstruction();
 
-        // Verify correct version-specific execution
+        // Verify correct version-specific execution - focus on operands
         expect(v3Impl).not.toHaveBeenCalled();
-        expect(v5Impl).toHaveBeenCalledWith(mockZMachine, 42);
+        expect(v5Impl).toHaveBeenCalledWith(
+          mockZMachine,
+          expect.any(Array), // operandTypes array - don't care about exact content
+          42
+        );
       });
     });
 
@@ -487,37 +524,18 @@ describe('Executor', () => {
         // Execute the instruction
         executor.executeInstruction();
 
-        // Verify the correct operands were read and passed
-        expect(operandTypeTestOpcode.impl).toHaveBeenCalledWith(mockZMachine, 5, 3, 0x1234);
+        // Verify the correct operands were read and passed - focus on operand values
+        expect(operandTypeTestOpcode.impl).toHaveBeenCalledWith(
+          mockZMachine,
+          expect.any(Array), // operandTypes array - don't care about exact content
+          5,
+          3,
+          0x1234
+        );
       });
     });
 
     describe('error handling', () => {
-      // it('should handle and log errors during opcode execution', () => {
-      //   // Setup an opcode that throws an error
-      //   const errorOpcode = {
-      //     mnemonic: 'error_opcode',
-      //     impl: vi.fn().mockImplementation(() => {
-      //       throw new Error('Opcode execution error');
-      //     }),
-      //   };
-
-      //   // Setup a simple instruction
-      //   mockZMachine.state.readByte.mockReturnValueOnce(0x90); // Short form opcode
-      //   mockZMachine.state.readByte.mockReturnValueOnce(42); // Single operand
-
-      //   // Set up the opcode table
-      //   Object.defineProperty(executor, 'op1', {
-      //     value: Array(16).fill(null),
-      //   });
-      //   executor.op1[0] = errorOpcode;
-
-      //   // Execute the instruction should propagate the error
-      //   expect(() => executor.executeInstruction()).toThrow('Opcode execution error');
-
-      //   // Error should be logged
-      //   expect(mockZMachine.logger.error).toHaveBeenCalled();
-      // });
       it('should handle and log errors during opcode execution', async () => {
         const errorOpcode = {
           mnemonic: 'error_opcode',

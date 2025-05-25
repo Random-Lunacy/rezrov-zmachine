@@ -259,62 +259,87 @@ export class Memory {
    * Gets a Z-string according to version-specific rules
    */
   getZString(addr: Address): ZString {
+    // Initial address validation
+    if (addr < 0 || addr >= this.size) {
+      throw new Error(`String address out of bounds: 0x${addr.toString(16)}`);
+    }
+
+    // Get version-specific maximum file size for absolute bounds checking
+    const maxFileSize = getMaxFileSize(this._version as ZMachineVersion);
+
     const chars: Array<number> = [];
     let currentAddr = addr;
+    let wordCount = 0;
+    const MAX_WORDS = 1000; // Safety limit on string length
 
-    while (true) {
-      const word = this.getWord(currentAddr);
-      currentAddr += 2;
+    this.logger.debug(`Reading Z-string from address 0x${addr.toString(16)}`);
 
-      // Just extract raw Z-characters, don't process them
-      const zChars = this.extractZChars(word);
-      chars.push(...zChars);
+    while (wordCount < MAX_WORDS) {
+      // Absolute bounds check: never read past story file end
+      if (currentAddr >= maxFileSize || currentAddr + 1 >= maxFileSize) {
+        this.logger.warn(`Z-string read reached file size limit at address: 0x${currentAddr.toString(16)}`);
+        break;
+      }
 
-      if ((word & 0x8000) !== 0) {
+      // Memory bounds check: never read past allocated memory
+      if (currentAddr + 1 >= this.size) {
+        this.logger.warn(`Z-string read reached memory end at address: 0x${currentAddr.toString(16)}`);
+        break;
+      }
+
+      // Memory region validation
+      if (!this.isValidStringAddress(currentAddr)) {
+        this.logger.warn(`Z-string read from invalid memory region at address: 0x${currentAddr.toString(16)}`);
+        break;
+      }
+
+      try {
+        const word = this.getWord(currentAddr);
+        currentAddr += 2;
+        wordCount++;
+
+        const zChars = this.extractZChars(word);
+        chars.push(...zChars);
+
+        // Check for termination bit
+        if ((word & 0x8000) !== 0) {
+          this.logger.debug(`Z-string terminated normally after ${wordCount} words`);
+          break;
+        }
+      } catch (e) {
+        this.logger.warn(`Z-string read terminated due to error: ${e}`);
         break;
       }
     }
 
+    if (wordCount >= MAX_WORDS) {
+      this.logger.warn(`Z-string read exceeded maximum length (${MAX_WORDS} words) at address: 0x${addr.toString(16)}`);
+    }
+
     return chars;
   }
-  // getZString(addr: Address): ZString {
-  //   if (addr >= this.size) {
-  //     throw new Error(`String address out of bounds: 0x${addr.toString(16)}`);
-  //   }
 
-  //   const chars: Array<number> = [];
-  //   let wordCount = 0;
-  //   const MAX_WORDS = 1000; // Sanity limit on string length
+  /**
+   * Validates if an address is in a valid memory region for string reading
+   */
+  private isValidStringAddress(addr: Address): boolean {
+    // Dynamic memory region (writable) - valid for strings
+    if (addr < this._dynamicMemoryEnd) {
+      return true;
+    }
 
-  //   let currentAddr = addr;
-  //   const alphabet = 0; // Current alphabet (0=A0, 1=A1, 2=A2)
-  //   const unicodeMode = false; // Whether we're in the middle of a Unicode character sequence
-  //   const unicodeHigh = 0; // High 5 bits of Unicode character
+    // Static memory region (read-only) - valid for strings
+    if (addr >= this._dynamicMemoryEnd && addr < this._highMemoryStart) {
+      return true;
+    }
 
-  //   while (wordCount < MAX_WORDS) {
-  //     try {
-  //       const word = this.getWord(currentAddr);
-  //       currentAddr += 2;
-  //       wordCount++;
+    // High memory region (execute-only) - valid for packed string addresses
+    if (addr >= this._highMemoryStart) {
+      return true;
+    }
 
-  //       const zChars = this.extractZChars(word);
-  //       this.processZChars(zChars, chars, { alphabet, unicodeMode, unicodeHigh });
-
-  //       if ((word & 0x8000) !== 0) {
-  //         break;
-  //       }
-  //     } catch (e) {
-  //       this.logger.warn(`Z-string read terminated due to error: ${e}`);
-  //       break;
-  //     }
-  //   }
-
-  //   if (wordCount >= MAX_WORDS) {
-  //     this.logger.warn(`Z-string read exceeded maximum length at address: 0x${addr.toString(16)}`);
-  //   }
-
-  //   return chars;
-  // }
+    return false;
+  }
 
   /**
    * Extract Z-characters from a word

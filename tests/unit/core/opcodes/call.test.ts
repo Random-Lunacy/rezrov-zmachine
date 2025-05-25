@@ -11,10 +11,11 @@ describe('Call Opcodes', () => {
     Logger.setLevel(LogLevel.DEBUG);
     mockZMachine = createMockZMachine();
 
+    // Mock all the validation methods that validateAndUnpackRoutine calls
     mockZMachine.memory.unpackRoutineAddress = vi.fn().mockImplementation((addr) => addr * 2);
-    mockZMachine.memory.validateRoutineHeader = vi.fn().mockReturnValue(true);
-    mockZMachine.memory.isHighMemory = vi.fn().mockReturnValue(true);
+    mockZMachine.memory.isValidRoutineAddress = vi.fn().mockReturnValue(true); // ← Fix this
     mockZMachine.memory.checkPackedAddressAlignment = vi.fn().mockReturnValue(true);
+    mockZMachine.state.memory.validateRoutineHeader = vi.fn().mockReturnValue(true); // ← Fix this
     mockZMachine.state.readByte = vi.fn().mockReturnValueOnce(0x42);
 
     // Mock logger methods to capture logs
@@ -59,7 +60,6 @@ describe('Call Opcodes', () => {
 
       // Mock the key methods to simulate an invalid routine
       mockZMachine.memory.unpackRoutineAddress = vi.fn().mockReturnValue(0x5678);
-      mockZMachine.memory.isHighMemory = vi.fn().mockReturnValue(true); // Pass high memory check
       mockZMachine.memory.checkPackedAddressAlignment = vi.fn().mockReturnValue(true); // Pass alignment check
       mockZMachine.state.memory.validateRoutineHeader = vi.fn().mockReturnValue(false); // Fail header validation
 
@@ -73,20 +73,18 @@ describe('Call Opcodes', () => {
       expect(mockZMachine.state.memory.validateRoutineHeader).toHaveBeenCalled();
     });
 
-    it('should throw error when routine address is not in high memory', () => {
+    it('should throw error when routine address is not in valid memory', () => {
       const routine = 0x1234;
-      const unpackedAddress = routine * 2;
 
-      // Mock high memory check to fail
-      mockZMachine.memory.isHighMemory.mockReturnValueOnce(false);
+      // Mock validation to fail at the isValidRoutineAddress check
+      mockZMachine.memory.isValidRoutineAddress.mockReturnValueOnce(false); // ← Updated
 
       expect(() => {
         callOpcodes.call_1s.impl(mockZMachine as unknown as ZMachine, [], routine);
       }).toThrow(/Invalid routine address or header/);
 
-      // Verify validation methods were called
       expect(mockZMachine.memory.unpackRoutineAddress).toHaveBeenCalledWith(routine);
-      expect(mockZMachine.memory.isHighMemory).toHaveBeenCalledWith(unpackedAddress);
+      expect(mockZMachine.memory.isValidRoutineAddress).toHaveBeenCalled(); // ← Updated
     });
 
     it('should throw error when routine address is not properly aligned', () => {

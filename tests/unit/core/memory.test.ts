@@ -56,13 +56,13 @@ describe('Memory', () => {
       );
     });
 
-    it('should throw an error when high memory overlaps dynamic memory', () => {
+    it('should throw an error when high memory overlaps static memory', () => {
       mockBuffer[HeaderLocation.Version] = 3;
       mockBuffer.writeUInt16BE(0x0400, HeaderLocation.StaticMemBase);
       mockBuffer.writeUInt16BE(0x0300, HeaderLocation.HighMemBase);
 
       expect(() => new Memory(mockBuffer, { logger: mockLogger })).toThrow(
-        'High memory start (768) overlaps with dynamic memory end (1024)'
+        'High memory start (768) must be >= static memory end (1024)'
       );
     });
 
@@ -219,38 +219,63 @@ describe('Memory', () => {
     });
   });
 
-  describe('Z-String Operations', () => {
+  describe('Z-String Operations with Safety Checks', () => {
     let memory: Memory;
 
     beforeEach(() => {
       memory = new Memory(mockBuffer, { logger: mockLogger });
-
-      // Setup a sample Z-string in high memory
-      // This is a simplified Z-string: "Hello" with end bit set
+      // Setup sample Z-string data
       memory.setMemoryForTesting(0x800, Buffer.from([0x48, 0xe5, 0x9c, 0xa5, 0x90, 0xa4, 0x11, 0x42]), true);
     });
 
-    it('should read Z-strings correctly', () => {
+    it('should read normal Z-strings correctly', () => {
       const zstr = memory.getZString(0x800);
-
-      // This test depends on the actual Z-string encoding implementation
-      // We're just checking that something was read and the function did not throw
       expect(zstr).toBeInstanceOf(Array);
       expect(zstr.length).toBeGreaterThan(0);
     });
 
-    it('should handle malformed Z-strings safely', () => {
-      // Create a Z-string that never terminates (no high bit set)
-      memory.setMemoryForTesting(0x900, Buffer.from([0x00, 0x00, 0x00, 0x00]), true);
+    it('should handle malformed Z-strings with word count safety limit', () => {
+      // Create malformed Z-string in static memory region (valid region, no termination)
+      const malformedData = Buffer.alloc(2000, 0);
+      memory.setMemoryForTesting(0x500, malformedData, true);
 
-      const zstr = memory.getZString(0x900);
+      const zstr = memory.getZString(0x500);
 
-      // Should not hang and should return something
       expect(zstr).toBeInstanceOf(Array);
+      expect(zstr.length).toBeLessThanOrEqual(3000); // MAX_WORDS * 3 chars/word
+      expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('exceeded maximum length'));
     });
 
-    it('should throw error for invalid Z-string addresses', () => {
+    it('should handle Z-strings that reach memory bounds safely', () => {
+      // Place malformed string near end of memory
+      const nearEndAddress = 0xfff0;
+      memory.setMemoryForTesting(nearEndAddress, Buffer.from([0x00, 0x00]), true);
+
+      const zstr = memory.getZString(nearEndAddress);
+
+      expect(zstr).toBeInstanceOf(Array);
+      expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('reached memory end'));
+    });
+
+    it('should validate memory regions correctly', () => {
+      // Test reading from each valid memory region
+
+      // Dynamic memory (< dynamicMemoryEnd)
+      const dynamicAddr = 0x100;
+      expect(() => memory.getZString(dynamicAddr)).not.toThrow();
+
+      // Static memory (dynamicMemoryEnd <= addr < highMemoryStart)
+      const staticAddr = 0x500;
+      expect(() => memory.getZString(staticAddr)).not.toThrow();
+
+      // High memory (>= highMemoryStart)
+      const highAddr = 0x900;
+      expect(() => memory.getZString(highAddr)).not.toThrow();
+    });
+
+    it('should throw error for completely out-of-bounds addresses', () => {
       expect(() => memory.getZString(0x10000)).toThrow(/String address out of bounds/);
+      expect(() => memory.getZString(-1)).toThrow(/String address out of bounds/);
     });
   });
 

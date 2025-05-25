@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { toI16, toU16 } from '../../../../src/core/memory/cast16';
 import { stackOpcodes } from '../../../../src/core/opcodes/stack';
 import { ZMachine } from '../../../../src/interpreter/ZMachine';
+import { OperandType } from '../../../../src/types';
 import { createMockZMachine } from '../../../mocks';
 
 describe('Stack Opcodes', () => {
@@ -436,6 +437,214 @@ describe('Stack Opcodes', () => {
       // Assert
       expect(mockMachine.logger.warn).toHaveBeenCalledWith('push_stack opcode only available in Version 6');
       expect(mockUserStackManager.pushStack).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Indirect variable references', () => {
+    beforeEach(() => {
+      // Setup a variable that contains a target variable number
+      mockMachine.state.loadVariable = vi.fn().mockImplementation((varNum) => {
+        if (varNum === 5) return 10; // Variable 5 contains 10 (target variable)
+        if (varNum === 6) return 0; // Variable 6 contains 0 (stack pointer)
+        if (varNum === 10) return 42; // Variable 10 contains value 42
+        return 0;
+      });
+    });
+
+    describe('load indirect', () => {
+      it('should load from indirect variable reference', () => {
+        // Variable 5 contains 10, variable 10 contains 42
+        stackOpcodes.load.impl(machine, [OperandType.Variable], 5);
+
+        // Should load variable 5 to get target (10), then load from variable 10
+        expect(mockMachine.state.loadVariable).toHaveBeenCalledWith(5); // Get target
+        expect(mockMachine.state.loadVariable).toHaveBeenCalledWith(10); // Load value
+        expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(42, 42); // Store result
+        expect(mockMachine.logger.debug).toHaveBeenCalledWith('1234 load (5) -> (42)');
+      });
+
+      it('should handle indirect reference to stack pointer', () => {
+        // Variable 6 contains 0 (stack pointer), stack has [99, 88]
+        mockMachine.state.stack = [99, 88];
+
+        stackOpcodes.load.impl(machine, [OperandType.Variable], 6);
+
+        // Should load variable 6 to get target (0)
+        expect(mockMachine.state.loadVariable).toHaveBeenCalledWith(6);
+        // Should NOT call loadVariable again - directly accesses stack
+        expect(mockMachine.state.loadVariable).toHaveBeenCalledTimes(1);
+
+        // Should store the top stack value (88) in result variable (42)
+        expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(42, 88);
+        expect(mockMachine.logger.debug).toHaveBeenCalledWith('1234 load (6) -> (42)');
+
+        // Stack should remain unchanged (no pop occurred)
+        expect(mockMachine.state.stack).toEqual([99, 88]);
+      });
+
+      it('should throw error for indirect stack pointer when stack empty', () => {
+        mockMachine.state.stack = [];
+
+        expect(() => {
+          stackOpcodes.load.impl(machine, [OperandType.Variable], 6);
+        }).toThrow('Illegal operation: indirect load from stack pointer when stack is empty');
+      });
+    });
+
+    describe('store indirect', () => {
+      it('should store to indirect variable reference', () => {
+        // Variable 5 contains 10, store 123 to variable 10
+        stackOpcodes.store.impl(machine, [OperandType.Variable], 5, 123);
+
+        expect(mockMachine.state.loadVariable).toHaveBeenCalledWith(5); // Get target (10)
+        expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(10, 123);
+        expect(mockMachine.logger.debug).toHaveBeenCalledWith('1234 store (5) 123');
+      });
+
+      it('should handle indirect store to stack pointer', () => {
+        // Variable 6 contains 0 (stack pointer), stack has [99, 88]
+        mockMachine.state.stack = [99, 88];
+
+        stackOpcodes.store.impl(machine, [OperandType.Variable], 6, 77);
+
+        expect(mockMachine.state.loadVariable).toHaveBeenCalledWith(6); // Get target (0)
+        // Should modify top of stack in place
+        expect(mockMachine.state.stack).toEqual([99, 77]);
+        expect(mockMachine.logger.debug).toHaveBeenCalledWith('1234 store (6) 77 (stack top in place)');
+      });
+
+      it('should throw error for indirect stack pointer store when stack empty', () => {
+        mockMachine.state.stack = [];
+
+        expect(() => {
+          stackOpcodes.store.impl(machine, [OperandType.Variable], 6, 123);
+        }).toThrow('Illegal operation: indirect store to stack pointer when stack is empty');
+      });
+    });
+
+    describe('pull indirect', () => {
+      it('should throw error for indirect pull with stack pointer as target', () => {
+        // Variable 6 contains 0 (stack pointer) - logical impossibility
+        expect(() => {
+          stackOpcodes.pull.impl(machine, [OperandType.Variable], 6);
+        }).toThrow('Illegal operation: indirect pull with stack pointer as target creates logical impossibility');
+      });
+
+      it('should pull to indirect variable reference', () => {
+        // Variable 5 contains 10, pull stack value to variable 10
+        stackOpcodes.pull.impl(machine, [OperandType.Variable], 5);
+
+        expect(mockMachine.state.loadVariable).toHaveBeenCalledWith(5); // Get target (10)
+        expect(mockMachine.state.popStack).toHaveBeenCalled();
+        expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(10, 99);
+        expect(mockMachine.logger.debug).toHaveBeenCalledWith('1234 pull (5) ');
+      });
+    });
+
+    describe('inc indirect', () => {
+      it('should increment indirect variable reference', () => {
+        // Variable 5 contains 10, variable 10 contains 42
+        stackOpcodes.inc.impl(machine, [OperandType.Variable], 5);
+
+        expect(mockMachine.state.loadVariable).toHaveBeenCalledWith(5); // Get target (10)
+        expect(mockMachine.state.loadVariable).toHaveBeenCalledWith(10); // Get current value (42)
+        expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(10, toU16(43)); // Store incremented
+        expect(mockMachine.logger.debug).toHaveBeenCalledWith('1234 inc (5) 42');
+      });
+
+      it('should handle indirect increment of stack pointer', () => {
+        // Variable 6 contains 0 (stack pointer), stack has [99, 88]
+        mockMachine.state.stack = [99, 88];
+
+        stackOpcodes.inc.impl(machine, [OperandType.Variable], 6);
+
+        expect(mockMachine.state.loadVariable).toHaveBeenCalledWith(6); // Get target (0)
+        // Should increment top of stack in place
+        expect(mockMachine.state.stack).toEqual([99, 89]);
+        expect(mockMachine.logger.debug).toHaveBeenCalledWith('1234 inc (6) 88 (stack top in place)');
+      });
+
+      it('should throw error for indirect stack pointer increment when stack empty', () => {
+        mockMachine.state.stack = [];
+
+        expect(() => {
+          stackOpcodes.inc.impl(machine, [OperandType.Variable], 6);
+        }).toThrow('Illegal operation: indirect increment of stack pointer when stack is empty');
+      });
+    });
+
+    describe('dec indirect', () => {
+      it('should decrement indirect variable reference', () => {
+        // Variable 5 contains 10, variable 10 contains 42
+        stackOpcodes.dec.impl(machine, [OperandType.Variable], 5);
+
+        expect(mockMachine.state.loadVariable).toHaveBeenCalledWith(5); // Get target (10)
+        expect(mockMachine.state.loadVariable).toHaveBeenCalledWith(10); // Get current value (42)
+        expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(10, toU16(41)); // Store decremented
+        expect(mockMachine.logger.debug).toHaveBeenCalledWith('1234 dec (5) 42');
+      });
+
+      it('should handle indirect decrement of stack pointer', () => {
+        // Variable 6 contains 0 (stack pointer), stack has [99, 88]
+        mockMachine.state.stack = [99, 88];
+
+        stackOpcodes.dec.impl(machine, [OperandType.Variable], 6);
+
+        expect(mockMachine.state.loadVariable).toHaveBeenCalledWith(6); // Get target (0)
+        // Should decrement top of stack in place
+        expect(mockMachine.state.stack).toEqual([99, 87]);
+        expect(mockMachine.logger.debug).toHaveBeenCalledWith('1234 dec (6) 88 (stack top in place)');
+      });
+    });
+
+    describe('inc_chk indirect', () => {
+      it('should increment and check indirect variable reference', () => {
+        // Variable 5 contains 10, variable 10 contains 5, check > 3
+        stackOpcodes.inc_chk.impl(machine, [OperandType.Variable], 5, 3);
+
+        expect(mockMachine.state.loadVariable).toHaveBeenCalledWith(5); // Get target (10)
+        expect(mockMachine.state.loadVariable).toHaveBeenCalledWith(10); // Get current value (42)
+        expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(10, toU16(43)); // Store incremented
+        expect(mockMachine.state.doBranch).toHaveBeenCalledWith(true, false, 10); // 43 > 3 = true
+      });
+
+      it('should handle indirect inc_chk of stack pointer', () => {
+        // Variable 6 contains 0 (stack pointer), stack has [99, 5], check > 3
+        mockMachine.state.stack = [99, 5];
+
+        stackOpcodes.inc_chk.impl(machine, [OperandType.Variable], 6, 3);
+
+        expect(mockMachine.state.loadVariable).toHaveBeenCalledWith(6); // Get target (0)
+        // Should increment top of stack in place: 5 -> 6
+        expect(mockMachine.state.stack).toEqual([99, 6]);
+        expect(mockMachine.state.doBranch).toHaveBeenCalledWith(true, false, 10); // 6 > 3 = true
+        expect(mockMachine.logger.debug).toHaveBeenCalledWith('1234 inc_chk (6) 5 > 3 = true (stack top in place)');
+      });
+    });
+
+    describe('dec_chk indirect', () => {
+      it('should decrement and check indirect variable reference', () => {
+        // Variable 5 contains 10, variable 10 contains 5, check < 3
+        stackOpcodes.dec_chk.impl(machine, [OperandType.Variable], 5, 3);
+
+        expect(mockMachine.state.loadVariable).toHaveBeenCalledWith(5); // Get target (10)
+        expect(mockMachine.state.loadVariable).toHaveBeenCalledWith(10); // Get current value (42)
+        expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(10, toU16(41)); // Store decremented
+        expect(mockMachine.state.doBranch).toHaveBeenCalledWith(false, false, 10); // 41 < 3 = false
+      });
+
+      it('should handle indirect dec_chk of stack pointer', () => {
+        // Variable 6 contains 0 (stack pointer), stack has [99, 5], check < 7
+        mockMachine.state.stack = [99, 5];
+
+        stackOpcodes.dec_chk.impl(machine, [OperandType.Variable], 6, 7);
+
+        expect(mockMachine.state.loadVariable).toHaveBeenCalledWith(6); // Get target (0)
+        // Should decrement top of stack in place: 5 -> 4
+        expect(mockMachine.state.stack).toEqual([99, 4]);
+        expect(mockMachine.state.doBranch).toHaveBeenCalledWith(true, false, 10); // 4 < 7 = true
+        expect(mockMachine.logger.debug).toHaveBeenCalledWith('1234 dec_chk (6) 5 < 7 = true (stack top in place)');
+      });
     });
   });
 });
