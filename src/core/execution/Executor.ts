@@ -127,11 +127,15 @@ export class Executor {
 
     try {
       const result = op.impl(this.zMachine, operandTypes, ...operands);
-
       if (result instanceof Promise) {
         await result;
       }
     } catch (e) {
+      if (e instanceof SuspendState) {
+        // Don't log SuspendState as an error - it's normal flow
+        this.logger.debug(`Execution suspended for input: ${e.message}`);
+        throw e;
+      }
       this.logger.error(`Error executing opcode ${op.mnemonic}: ${e}`);
       throw e;
     }

@@ -277,25 +277,28 @@ class StdioInputProcessor extends BaseInputProcessor {
   protected doStartTextInput(machine: ZMachine, state: InputState): void {
     this.logger.debug('Starting text input');
 
-    // Load custom terminating characters if available
     this.loadTerminatingCharacters(machine);
 
-    // Set up timed input if needed
     if (state.time && state.time > 0 && state.routine) {
       this.handleTimedInput(machine, state);
     }
 
-    // Show a prompt
-    process.stdout.write('> ');
-
-    // Get input asynchronously to avoid blocking
-    this.getInputAsync(machine, state);
+    // Don't print a prompt - Z-Machine already did
+    try {
+      const input = readline.question('');
+      const termChar = this.processTerminatingCharacters(input, this.terminatingChars);
+      this.onInputComplete(machine, input, termChar);
+    } catch (error) {
+      this.logger.error(`Error getting input: ${error}`);
+      this.onInputComplete(machine, '', 13); // Empty input with Enter terminator
+    }
   }
 
   protected doStartCharInput(machine: ZMachine, state: InputState): void {
     this.logger.debug('Starting char input');
 
-    // Set up timed input if needed
+    this.loadTerminatingCharacters(machine);
+
     if (state.time && state.time > 0 && state.routine) {
       this.handleTimedInput(machine, state);
     }
@@ -305,19 +308,7 @@ class StdioInputProcessor extends BaseInputProcessor {
       this.onKeyPress(machine, key);
     } catch (error) {
       this.logger.error(`Error getting key press: ${error}`);
-      machine.executor.resume();
-    }
-  }
-
-  private getInputAsync(machine: ZMachine, state: InputState): void {
-    // This is a simple implementation using readline-sync
-    // In a real app, you might use readline or other async input methods
-    try {
-      const input = readline.question('');
-      this.onInputComplete(machine, input);
-    } catch (error) {
-      this.logger.error(`Error getting input: ${error}`);
-      machine.executor.resume();
+      this.onKeyPress(machine, '\0'); // Null character on error
     }
   }
 
