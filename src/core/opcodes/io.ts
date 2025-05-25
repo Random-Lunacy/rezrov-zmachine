@@ -34,6 +34,7 @@
  */
 import { SuspendState } from '../../core/execution/SuspendState';
 import { ZMachine } from '../../interpreter/ZMachine';
+import { OperandType } from '../../types';
 import { HeaderLocation } from '../../utils/constants';
 import { toI16 } from '../memory/cast16';
 import { opcode } from './base';
@@ -41,7 +42,7 @@ import { opcode } from './base';
 /**
  * Split the screen into two windows
  */
-function split_window(machine: ZMachine, lines: number): void {
+function split_window(machine: ZMachine, _operandTypes: OperandType[], lines: number): void {
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} split_window ${lines}`);
   machine.screen.splitWindow(machine, lines);
 }
@@ -49,7 +50,7 @@ function split_window(machine: ZMachine, lines: number): void {
 /**
  * Set the active output window
  */
-function set_window(machine: ZMachine, window: number): void {
+function set_window(machine: ZMachine, _operandTypes: OperandType[], window: number): void {
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} set_window ${window}`);
   machine.screen.setOutputWindow(machine, window);
 }
@@ -57,7 +58,7 @@ function set_window(machine: ZMachine, window: number): void {
 /**
  * Clear a window
  */
-function erase_window(machine: ZMachine, window: number): void {
+function erase_window(machine: ZMachine, _operandTypes: OperandType[], window: number): void {
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} erase_window ${window}`);
   machine.screen.clearWindow(machine, window);
 }
@@ -65,7 +66,7 @@ function erase_window(machine: ZMachine, window: number): void {
 /**
  * Clear the current line
  */
-function erase_line(machine: ZMachine, value: number): void {
+function erase_line(machine: ZMachine, _operandTypes: OperandType[], value: number): void {
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} erase_line ${value}`);
   machine.screen.clearLine(machine, value);
 }
@@ -73,7 +74,13 @@ function erase_line(machine: ZMachine, value: number): void {
 /**
  * Set the cursor position
  */
-function set_cursor(machine: ZMachine, line: number, column: number, window: number = 0): void {
+function set_cursor(
+  machine: ZMachine,
+  _operandTypes: OperandType[],
+  line: number,
+  column: number,
+  window: number = 0
+): void {
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} set_cursor ${line} ${column}`);
 
   if (machine.state.version >= 6) {
@@ -97,7 +104,7 @@ function set_cursor(machine: ZMachine, line: number, column: number, window: num
 /**
  * Get the current cursor position
  */
-function get_cursor(machine: ZMachine, array: number): void {
+function get_cursor(machine: ZMachine, _operandTypes: OperandType[], array: number): void {
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} get_cursor ${array}`);
   machine.logger.warn(`get_cursor ${array} -- not implemented`);
 }
@@ -105,7 +112,7 @@ function get_cursor(machine: ZMachine, array: number): void {
 /**
  * Set the text style
  */
-function set_text_style(machine: ZMachine, style: number): void {
+function set_text_style(machine: ZMachine, _operandTypes: OperandType[], style: number): void {
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} set_text_style ${style}`);
 
   // Style values:
@@ -128,7 +135,7 @@ function set_text_style(machine: ZMachine, style: number): void {
 /**
  * Set buffer mode (buffered or unbuffered output)
  */
-function buffer_mode(machine: ZMachine, flag: number): void {
+function buffer_mode(machine: ZMachine, _operandTypes: OperandType[], flag: number): void {
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} buffer_mode ${flag}`);
   machine.screen.setBufferMode(machine, flag);
 }
@@ -136,7 +143,13 @@ function buffer_mode(machine: ZMachine, flag: number): void {
 /**
  * Enable or disable an output stream
  */
-function output_stream(machine: ZMachine, streamNum: number, table: number = 0, width: number = 0): void {
+function output_stream(
+  machine: ZMachine,
+  _operandTypes: OperandType[],
+  streamNum: number,
+  table: number = 0,
+  width: number = 0
+): void {
   const streamNumber = toI16(streamNum);
 
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} output_stream ${streamNum} ${table} ${width}`);
@@ -155,7 +168,7 @@ function output_stream(machine: ZMachine, streamNum: number, table: number = 0, 
 /**
  * Select an input stream
  */
-function input_stream(machine: ZMachine, streamNum: number): void {
+function input_stream(machine: ZMachine, _operandTypes: OperandType[], streamNum: number): void {
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} input_stream ${streamNum}`);
   machine.screen.selectInputStream(machine, toI16(streamNum));
 }
@@ -167,6 +180,7 @@ function input_stream(machine: ZMachine, streamNum: number): void {
  */
 function sread(
   machine: ZMachine,
+  _operandTypes: OperandType[],
   textBuffer: number,
   parseBuffer: number,
   time: number = 0,
@@ -200,6 +214,7 @@ function sread(
  */
 function sound_effect(
   machine: ZMachine,
+  _operandTypes: OperandType[],
   number: number,
   effect: number = 0,
   volume: number = 0,
@@ -212,7 +227,13 @@ function sound_effect(
 /**
  * Read a single character from the user
  */
-function read_char(machine: ZMachine, device: number = 0, time: number = 0, routine: number = 0): void {
+function read_char(
+  machine: ZMachine,
+  _operandTypes: OperandType[],
+  device: number = 0,
+  time: number = 0,
+  routine: number = 0
+): void {
   const resultVar = machine.state.readByte();
 
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} read_char ${device} ${time} ${routine}`);
@@ -226,7 +247,7 @@ function read_char(machine: ZMachine, device: number = 0, time: number = 0, rout
   });
 }
 
-function get_wind_prop(machine: ZMachine, window: number, property: number): void {
+function get_wind_prop(machine: ZMachine, _operandTypes: OperandType[], window: number, property: number): void {
   const resultVar = machine.state.readByte();
 
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} get_wind_prop ${window} ${property} -> (${resultVar})`);
@@ -263,7 +284,7 @@ function get_wind_prop(machine: ZMachine, window: number, property: number): voi
 /**
  * Set the font for text output
  */
-function set_font(machine: ZMachine, font: number, window: number = -3): void {
+function set_font(machine: ZMachine, _operandTypes: OperandType[], font: number, window: number = -3): void {
   const resultVar = machine.state.readByte();
 
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} set_font ${font} ${window}`);
@@ -313,7 +334,7 @@ function set_font(machine: ZMachine, font: number, window: number = -3): void {
 /**
  * Buffer screen operation
  */
-function buffer_screen(machine: ZMachine, mode: number): void {
+function buffer_screen(machine: ZMachine, _operandTypes: OperandType[], mode: number): void {
   const resultVar = machine.state.readByte();
 
   // Get current buffer mode to return as the result
@@ -338,7 +359,13 @@ function buffer_screen(machine: ZMachine, mode: number): void {
 /**
  * Set text colors
  */
-function set_colour(machine: ZMachine, foreground: number, background: number, window: number = 0): void {
+function set_colour(
+  machine: ZMachine,
+  _operandTypes: OperandType[],
+  foreground: number,
+  background: number,
+  window: number = 0
+): void {
   if (machine.state.version < 5) {
     machine.logger.debug(`set_colour: ignoring in version < 5`);
     window = 0;
@@ -402,6 +429,7 @@ function ensureValidForeground(machine: ZMachine, foreground: number): number {
 
 function set_true_colour(
   machine: ZMachine,
+  _operandTypes: OperandType[],
   foreground: number,
   background: number,
   window: number = -3 // Default to current window (magic value -3)
@@ -495,55 +523,61 @@ function storeWindowTrueColors(machine: ZMachine, window: number, foreground: nu
   machine.logger.debug(`Window ${window} true colors set to: fg=${foreground}, bg=${background}`);
 }
 
-function set_margins(machine: ZMachine, left: number, right: number): void {
+function set_margins(machine: ZMachine, _operandTypes: OperandType[], left: number, right: number): void {
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} set_margins ${left} ${right}`);
   machine.logger.warn(`set_margins ${left} ${right} -- not implemented`);
   throw new Error(`Unimplemented opcode: set_margins`);
 }
 
-function move_window(machine: ZMachine, window: number, x: number, y: number): void {
+function move_window(machine: ZMachine, _operandTypes: OperandType[], window: number, x: number, y: number): void {
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} move_window ${window} ${x} ${y}`);
   machine.logger.warn(`move_window ${window} ${x} ${y} -- not implemented`);
   throw new Error(`Unimplemented opcode: move_window`);
 }
 
-function window_size(machine: ZMachine, window: number, width: number, height: number): void {
+function window_size(
+  machine: ZMachine,
+  _operandTypes: OperandType[],
+  window: number,
+  width: number,
+  height: number
+): void {
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} window_size ${window} ${width} ${height}`);
   machine.logger.warn(`window_size ${window} ${width} ${height} -- not implemented`);
   throw new Error(`Unimplemented opcode: window_size`);
 }
 
-function window_style(machine: ZMachine, window: number, style: number): void {
+function window_style(machine: ZMachine, _operandTypes: OperandType[], window: number, style: number): void {
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} window_style ${window} ${style}`);
   machine.logger.warn(`window_style ${window} ${style} -- not implemented`);
   throw new Error(`Unimplemented opcode: window_style`);
 }
 
-function read_mouse(machine: ZMachine, window: number): void {
+function read_mouse(machine: ZMachine, _operandTypes: OperandType[], window: number): void {
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} read_mouse ${window}`);
   machine.logger.warn(`read_mouse ${window} -- not implemented`);
   throw new Error(`Unimplemented opcode: read_mouse`);
 }
 
-function mouse_window(machine: ZMachine, window: number): void {
+function mouse_window(machine: ZMachine, _operandTypes: OperandType[], window: number): void {
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} mouse_window ${window}`);
   machine.logger.warn(`mouse_window ${window} -- not implemented`);
   throw new Error(`Unimplemented opcode: mouse_window`);
 }
 
-function make_menu(machine: ZMachine, menu: number): void {
+function make_menu(machine: ZMachine, _operandTypes: OperandType[], menu: number): void {
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} make_menu ${menu}`);
   machine.logger.warn(`make_menu ${menu} -- not implemented`);
   throw new Error(`Unimplemented opcode: make_menu`);
 }
 
-function scroll_window(machine: ZMachine, window: number, lines: number): void {
+function scroll_window(machine: ZMachine, _operandTypes: OperandType[], window: number, lines: number): void {
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} scroll_window ${window} ${lines}`);
   machine.logger.warn(`scroll_window ${window} ${lines} -- not implemented`);
   throw new Error(`Unimplemented opcode: scroll_window`);
 }
 
-function put_wind_prop(machine: ZMachine, window: number, property: number): void {
+function put_wind_prop(machine: ZMachine, _operandTypes: OperandType[], window: number, property: number): void {
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} put_wind_prop ${window} ${property}`);
   machine.logger.warn(`put_wind_prop ${window} ${property} -- not implemented`);
   throw new Error(`Unimplemented opcode: put_wind_prop`);

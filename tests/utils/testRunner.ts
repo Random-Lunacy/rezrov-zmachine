@@ -2,10 +2,13 @@ import { readFileSync } from 'fs';
 import { ZMachine } from '../../src/interpreter/ZMachine';
 import { InputMode } from '../../src/ui/input/InputInterface';
 import { Logger, LogLevel } from '../../src/utils/log';
-import { TestInputProcessor } from '../mocks/TestInputProcessor';
-import { TestScreen } from '../mocks/TestScreen';
-import { TestStorage } from '../mocks/TestStorage';
+import { TestInputProcessor } from './TestInputProcessor';
+import { TestScreen } from './TestScreen';
+import { TestStorage } from './TestStorage';
 
+/**
+ * Helper to run a Story file for use in integration tests
+ */
 export async function runZStory(storyPath: string, expectedOutputs?: string[], timeout = 5000): Promise<string> {
   const logger = new Logger('runZStory');
   Logger.setLevel(LogLevel.DEBUG);

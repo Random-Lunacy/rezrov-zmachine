@@ -117,19 +117,23 @@ export class Executor {
     const op_pc = state.pc;
     const opcode = state.readByte();
 
-    this.logger.debug(`${hex(op_pc)}: opcode byte = ${hex(opcode)}`);
-
     const { form, reallyVariable, opcodeNumber, operandTypes } = this.decodeInstruction(opcode, state);
     const operands = this.readOperands(operandTypes, state);
     const op = this.resolveOpcode(form, reallyVariable, opcodeNumber, operands.length, op_pc, opcode);
 
-    this.logger.debug(`Executing op = ${op.mnemonic} with operands [${operands.map((o) => hex(o)).join(', ')}]`);
+    this.logger.debug(
+      `Executing op = ${op.mnemonic} at PC ${hex(op_pc)} with operandTypes [${operandTypes}] and operands [${operands.map((o) => hex(o)).join(', ')}]`
+    );
 
-    const result = op.impl(this.zMachine, ...operands);
+    try {
+      const result = op.impl(this.zMachine, operandTypes, ...operands);
 
-    // If the opcode returns a Promise, await it
-    if (result instanceof Promise) {
-      await result;
+      if (result instanceof Promise) {
+        await result;
+      }
+    } catch (e) {
+      this.logger.error(`Error executing opcode ${op.mnemonic}: ${e}`);
+      throw e;
     }
   }
 
@@ -139,7 +143,7 @@ export class Executor {
    * @param state The current state of the Z-machine
    * @returns An object containing the instruction form, operand types, and opcode number
    */
-  private decodeInstruction(
+  public decodeInstruction(
     opcode: number,
     state: ZMachine['state']
   ): {
@@ -153,31 +157,34 @@ export class Executor {
     let form: InstructionForm;
     let opcodeNumber: number;
 
-    if ((opcode & 0xc0) === 0xc0) {
+    if (opcode === 0xbe && state.version >= 5) {
+      // Check for Extended opcode first
+      form = InstructionForm.Extended;
+      opcodeNumber = state.readByte();
+      const typesByte = state.readByte();
+      operandTypes = this.decodeOperandTypes(typesByte);
+    } else if ((opcode & 0xc0) === 0xc0) {
+      // Then Variable form
       form = InstructionForm.Variable;
       reallyVariable = (opcode & 0x20) !== 0;
       const typesByte = state.readByte();
       operandTypes = this.decodeOperandTypes(typesByte);
       opcodeNumber = opcode & 0x1f;
     } else if ((opcode & 0x80) === 0x80) {
+      // Then Short form
       form = InstructionForm.Short;
       const opType = (opcode & 0x30) >> 4;
       if (opType !== OperandType.Omitted) {
         operandTypes = [opType];
       }
       opcodeNumber = opcode & 0x0f;
-    } else if (opcode === 190 && state.version >= 5) {
-      form = InstructionForm.Extended;
-      opcodeNumber = state.readByte();
-      const typesByte = state.readByte();
-      operandTypes = this.decodeOperandTypes(typesByte);
     } else {
+      // Finally Long form
       form = InstructionForm.Long;
       operandTypes.push((opcode & 0x40) === 0x40 ? OperandType.Variable : OperandType.Small);
       operandTypes.push((opcode & 0x20) === 0x20 ? OperandType.Variable : OperandType.Small);
       opcodeNumber = opcode & 0x1f;
     }
-
     return { form, reallyVariable, opcodeNumber, operandTypes };
   }
 
@@ -186,7 +193,7 @@ export class Executor {
    * @param typesByte The byte representing operand types
    * @returns An array of operand types
    */
-  private decodeOperandTypes(typesByte: number): Array<OperandType> {
+  public decodeOperandTypes(typesByte: number): Array<OperandType> {
     const operandTypes: Array<OperandType> = [];
     for (let i = 0; i < 4; i++) {
       const opType = (typesByte >> ((3 - i) * 2)) & 0x03;
@@ -205,7 +212,7 @@ export class Executor {
    * @param state The current state of the Z-machine
    * @returns An array of operand values
    */
-  private readOperands(operandTypes: Array<OperandType>, state: ZMachine['state']): Array<number> {
+  public readOperands(operandTypes: Array<OperandType>, state: ZMachine['state']): Array<number> {
     const operands: Array<number> = [];
     for (const opType of operandTypes) {
       switch (opType) {
@@ -237,7 +244,7 @@ export class Executor {
    * @param opcode The opcode byte
    * @returns The resolved opcode implementation
    */
-  private resolveOpcode(
+  public resolveOpcode(
     form: InstructionForm,
     reallyVariable: boolean,
     opcodeNumber: number,
@@ -249,10 +256,16 @@ export class Executor {
 
     try {
       if (form === InstructionForm.Extended) {
+        // Extended opcodes (0xBE prefix in v5+)
         op = this.opExt[opcodeNumber];
-      } else if (reallyVariable) {
+      } else if (form === InstructionForm.Variable && reallyVariable) {
+        // True variable-length opcodes (VAR form)
         op = this.opV[opcodeNumber];
+      } else if (form === InstructionForm.Variable && !reallyVariable) {
+        // 2OP instructions in variable form (can have 2-4 operands)
+        op = this.op2[opcodeNumber];
       } else {
+        // Fixed-length opcodes (Short/Long form)
         switch (operandCount) {
           case 0:
             op = this.op0[opcodeNumber];
@@ -264,7 +277,8 @@ export class Executor {
             op = this.op2[opcodeNumber];
             break;
           default:
-            throw new Error(`Unhandled number of operands: ${operandCount}`);
+            this.logger.debug(`Unhandled number of operands: ${operandCount} for non-variable opcode`);
+            throw new Error(`Unhandled number of operands: ${operandCount} for non-variable opcode`);
         }
       }
 
@@ -281,7 +295,6 @@ export class Executor {
       );
       throw e;
     }
-
     return op;
   }
 

@@ -22,19 +22,45 @@
  * - `print_obj`: Prints the name of an object.
  */
 import { ZMachine } from '../../interpreter/ZMachine';
+import { OperandType } from '../../types';
+import { hex } from '../../utils/debug';
 import { GameObject } from '../objects/GameObject';
 import { opcode } from './base';
 
 /**
  * Tests if an object has a specific attribute set.
  */
-function test_attr(machine: ZMachine, obj: number, attribute: number): void {
+function test_attr(machine: ZMachine, _operandTypes: OperandType[], obj: number, attribute: number): void {
   const [offset, branchOnFalse] = machine.state.readBranchOffset();
   machine.logger.debug(
     `${machine.executor.op_pc.toString(16)} test_attr ${obj} ${attribute} -> [${!branchOnFalse}] ${
       machine.state.pc + offset - 2
     }`
   );
+
+  const maxAttributes = machine.state.version <= 3 ? 32 : 48;
+  if (attribute < 0 || attribute >= maxAttributes) {
+    const pc = machine.executor.op_pc;
+    machine.logger.error(`INVALID ATTRIBUTE: PC=${hex(pc)}, obj=${obj}, attr=${attribute}`);
+
+    // Dump 16 bytes before and after the PC
+    const startAddr = Math.max(0, pc - 16);
+    const endAddr = Math.min(machine.memory.size - 1, pc + 16);
+    const bytes = [];
+
+    for (let addr = startAddr; addr <= endAddr; addr++) {
+      const byte = machine.memory.getByte(addr);
+      const marker = addr === pc ? `[${hex(byte)}]` : hex(byte);
+      bytes.push(marker);
+    }
+
+    machine.logger.error(`Memory context: ${bytes.join(' ')}`);
+
+    // Also show the instruction that was decoded
+    machine.logger.error(`Current instruction: opcode at ${hex(pc)}, operands: obj=${obj}, attr=${attribute}`);
+
+    throw new Error(`Attribute number out of range: ${attribute} (max ${maxAttributes - 1})`);
+  }
 
   const targetObj = machine.state.getObject(obj);
   if (targetObj === null) {
@@ -48,7 +74,7 @@ function test_attr(machine: ZMachine, obj: number, attribute: number): void {
 /**
  * Sets an attribute for an object.
  */
-function set_attr(machine: ZMachine, obj: number, attribute: number): void {
+function set_attr(machine: ZMachine, _operandTypes: OperandType[], obj: number, attribute: number): void {
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} set_attr ${obj} ${attribute}`);
 
   const targetObj = machine.state.getObject(obj);
@@ -62,7 +88,7 @@ function set_attr(machine: ZMachine, obj: number, attribute: number): void {
 /**
  * Clears an attribute for an object.
  */
-function clear_attr(machine: ZMachine, obj: number, attribute: number): void {
+function clear_attr(machine: ZMachine, _operandTypes: OperandType[], obj: number, attribute: number): void {
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} clear_attr ${obj} ${attribute}`);
 
   const targetObj = machine.state.getObject(obj);
@@ -76,7 +102,7 @@ function clear_attr(machine: ZMachine, obj: number, attribute: number): void {
 /**
  * Tests if one object is inside another object.
  */
-function jin(machine: ZMachine, obj1: number, obj2: number): void {
+function jin(machine: ZMachine, _operandTypes: OperandType[], obj1: number, obj2: number): void {
   const [offset, branchOnFalse] = machine.state.readBranchOffset();
   machine.logger.debug(
     `${machine.executor.op_pc.toString(16)} jin ${obj1} ${obj2} -> [${!branchOnFalse}] ${machine.state.pc + offset - 2}`
@@ -95,7 +121,7 @@ function jin(machine: ZMachine, obj1: number, obj2: number): void {
 /**
  * Inserts an object into another object.
  */
-function insert_obj(machine: ZMachine, obj: number, destination: number): void {
+function insert_obj(machine: ZMachine, _operandTypes: OperandType[], obj: number, destination: number): void {
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} insert_obj ${obj} ${destination}`);
 
   const targetObj = machine.state.getObject(obj);
@@ -124,7 +150,7 @@ function insert_obj(machine: ZMachine, obj: number, destination: number): void {
 /**
  * Gets a property from an object.
  */
-function get_prop(machine: ZMachine, obj: number, property: number): void {
+function get_prop(machine: ZMachine, _operandTypes: OperandType[], obj: number, property: number): void {
   const resultVar = machine.state.readByte();
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} get_prop ${obj} ${property} -> (${resultVar})`);
 
@@ -141,7 +167,7 @@ function get_prop(machine: ZMachine, obj: number, property: number): void {
 /**
  * Gets the address of a property in an object.
  */
-function get_prop_addr(machine: ZMachine, obj: number, property: number): void {
+function get_prop_addr(machine: ZMachine, _operandTypes: OperandType[], obj: number, property: number): void {
   const resultVar = machine.state.readByte();
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} get_prop_addr ${obj} ${property} -> (${resultVar})`);
 
@@ -158,7 +184,7 @@ function get_prop_addr(machine: ZMachine, obj: number, property: number): void {
 /**
  * Gets the next property number in an object.
  */
-function get_next_prop(machine: ZMachine, obj: number, property: number): void {
+function get_next_prop(machine: ZMachine, _operandTypes: OperandType[], obj: number, property: number): void {
   const resultVar = machine.state.readByte();
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} get_next_prop ${obj} ${property} -> (${resultVar})`);
 
@@ -175,7 +201,7 @@ function get_next_prop(machine: ZMachine, obj: number, property: number): void {
 /**
  * Gets the sibling of an object.
  */
-function get_sibling(machine: ZMachine, obj: number): void {
+function get_sibling(machine: ZMachine, _operandTypes: OperandType[], obj: number): void {
   const resultVar = machine.state.readByte();
   const [offset, branchOnFalse] = machine.state.readBranchOffset();
   machine.logger.debug(
@@ -199,7 +225,7 @@ function get_sibling(machine: ZMachine, obj: number): void {
 /**
  * Gets the child of an object.
  */
-function get_child(machine: ZMachine, obj: number): void {
+function get_child(machine: ZMachine, _operandTypes: OperandType[], obj: number): void {
   const resultVar = machine.state.readByte();
   const [offset, branchOnFalse] = machine.state.readBranchOffset();
   machine.logger.debug(
@@ -222,7 +248,7 @@ function get_child(machine: ZMachine, obj: number): void {
 /**
  * Gets the parent of an object.
  */
-function get_parent(machine: ZMachine, obj: number): void {
+function get_parent(machine: ZMachine, _operandTypes: OperandType[], obj: number): void {
   const resultVar = machine.state.readByte();
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} get_parent ${obj} -> (${resultVar})`);
 
@@ -240,7 +266,7 @@ function get_parent(machine: ZMachine, obj: number): void {
 /**
  * Removes an object from its parent.
  */
-function remove_obj(machine: ZMachine, obj: number): void {
+function remove_obj(machine: ZMachine, _operandTypes: OperandType[], obj: number): void {
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} remove_obj ${obj}`);
 
   const targetObj = machine.state.getObject(obj);
@@ -255,7 +281,7 @@ function remove_obj(machine: ZMachine, obj: number): void {
 /**
  * Sets a property value for an object.
  */
-function put_prop(machine: ZMachine, obj: number, property: number, value: number): void {
+function put_prop(machine: ZMachine, _operandTypes: OperandType[], obj: number, property: number, value: number): void {
   machine.logger.debug(`put_prop ${obj} ${property} ${value}`);
 
   const targetObj = machine.state.getObject(obj);
@@ -270,7 +296,7 @@ function put_prop(machine: ZMachine, obj: number, property: number, value: numbe
 /**
  * Gets the length of a property.
  */
-function get_prop_len(machine: ZMachine, propDataAddr: number): void {
+function get_prop_len(machine: ZMachine, _operandTypes: OperandType[], propDataAddr: number): void {
   const resultVar = machine.state.readByte();
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} get_prop_len ${propDataAddr} -> (${resultVar})`);
 
@@ -281,7 +307,7 @@ function get_prop_len(machine: ZMachine, propDataAddr: number): void {
 /**
  * Prints the name of an object.
  */
-function print_obj(machine: ZMachine, obj: number): void {
+function print_obj(machine: ZMachine, _operandTypes: OperandType[], obj: number): void {
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} print_obj ${obj}`);
 
   const targetObj = machine.state.getObject(obj);

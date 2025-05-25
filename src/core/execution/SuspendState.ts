@@ -4,18 +4,26 @@ import { InputMode, InputState } from '../../ui/input/InputInterface';
  * Exception thrown when execution needs to be suspended for user input
  */
 export class SuspendState extends Error {
-  constructor(
-    private readonly _state: {
-      keyPress: boolean;
-      resultVar: number;
-      textBuffer?: number;
-      parseBuffer?: number;
-      time?: number;
-      routine?: number;
-    }
-  ) {
+  private readonly _state: {
+    keyPress: boolean;
+    resultVar: number;
+    textBuffer?: number;
+    parseBuffer?: number;
+    time?: number;
+    routine?: number;
+  };
+
+  constructor(state: {
+    keyPress: boolean;
+    resultVar: number;
+    textBuffer?: number;
+    parseBuffer?: number;
+    time?: number;
+    routine?: number;
+  }) {
     super('Execution suspended waiting for user input');
     Object.setPrototypeOf(this, SuspendState.prototype);
+    this._state = { ...state };
   }
 
   get state(): {
@@ -26,7 +34,7 @@ export class SuspendState extends Error {
     time?: number;
     routine?: number;
   } {
-    return this._state;
+    return { ...this._state };
   }
 
   toInputState(): InputState {

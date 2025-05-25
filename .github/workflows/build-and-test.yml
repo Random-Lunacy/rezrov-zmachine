@@ -25,7 +25,5 @@ jobs:
         run: npm ci
       - name: Build
         run: npm run build
-      - name: Run unit tests
-        run: npm run test:unit
-      - name: Run integration tests
-        run: npm run test:integration
+      - name: Run tests with coverage
+        run: npm run test:coverage
