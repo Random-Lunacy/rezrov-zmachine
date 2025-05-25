@@ -351,63 +351,6 @@ export class Memory {
   }
 
   /**
-   * Process Z-characters and update the character array
-   */
-  // private processZChars(
-  //   zChars: number[],
-  //   chars: number[],
-  //   state: { alphabet: number; unicodeMode: boolean; unicodeHigh: number }
-  // ): void {
-  //   for (const zChar of zChars) {
-  //     if (state.unicodeMode) {
-  //       chars.push(6); // Add the special Unicode marker
-  //       chars.push(state.unicodeHigh);
-  //       chars.push(zChar);
-  //       state.unicodeMode = false;
-  //     } else if (state.alphabet === 2 && zChar === 6 && this._version >= 5) {
-  //       state.unicodeMode = true;
-  //       state.unicodeHigh = zChar;
-  //       break;
-  //     } else if (zChar <= 5) {
-  //       chars.push(zChar);
-  //       if (zChar === 4) state.alphabet = 1;
-  //       else if (zChar === 5) state.alphabet = 2;
-  //     } else {
-  //       chars.push(zChar);
-  //       if (state.alphabet > 0) state.alphabet = 0;
-  //     }
-  //   }
-  // }
-
-  /**
-   * Read a length-prefixed Z-string from memory
-   */
-  getLenZString(addr: Address): ZString {
-    let len = this.getByte(addr);
-    addr++;
-    const chars: Array<number> = [];
-
-    while (len-- > 0 && chars.length < 3000) {
-      try {
-        const word = this.getWord(addr);
-        chars.push((word >> 10) & 0x1f, (word >> 5) & 0x1f, (word >> 0) & 0x1f);
-
-        if ((word & 0x8000) !== 0) {
-          this.logger.warn('High bit found in length string; terminating early.');
-          break;
-        }
-
-        addr += 2;
-      } catch (e) {
-        this.logger.warn(`Length-prefixed Z-string read terminated due to error: ${e}`);
-        break;
-      }
-    }
-
-    return chars;
-  }
-
-  /**
    * Copy a block of memory
    */
   copyBlock(sourceAddr: Address, destAddr: Address, length: number): void {
@@ -538,34 +481,6 @@ export class Memory {
     }
 
     return lines.join('\n');
-  }
-
-  /**
-   * Validates if a packed address is correctly formed and points to a valid location
-   * based on Z-machine version
-   */
-  validatePackedAddress(packedAddr: number, isRoutine: boolean = true): boolean {
-    // Check address is non-negative
-    if (packedAddr < 0) {
-      return false;
-    }
-
-    // Calculate the actual byte address
-    let byteAddr: number;
-    try {
-      byteAddr = this.packedToByteAddress(packedAddr, isRoutine);
-    } catch (e) {
-      this.logger.warn(`Invalid packed address: ${packedAddr} (${e})`);
-      return false;
-    }
-
-    // For routines, check they're above dynamic memory
-    if (isRoutine) {
-      return !this.isDynamicMemory(byteAddr);
-    }
-
-    // For strings, they can be anywhere in addressable memory
-    return byteAddr >= 0 && byteAddr < this.size;
   }
 
   /**
