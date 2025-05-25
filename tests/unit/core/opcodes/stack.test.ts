@@ -119,19 +119,23 @@ describe('Stack Opcodes', () => {
       expect(mockMachine.state.popStack).toHaveBeenCalled();
     });
 
-    it('should handle undefined value from user stack pull', () => {
+    it('should throw error when user stack is empty', () => {
       // Arrange
       const variable = 3;
       const stackAddr = 0x2000;
       mockMachine.state.version = 6;
       mockUserStackManager.pullStack.mockReturnValue(undefined);
 
-      // Act
-      stackOpcodes.pull.impl(machine, [], variable, stackAddr);
+      // Act & Assert
+      expect(() => {
+        stackOpcodes.pull.impl(machine, [], variable, stackAddr);
+      }).toThrow('User stack underflow at address 8192');
 
-      // Assert
+      // Verify the user stack manager was called
       expect(mockUserStackManager.pullStack).toHaveBeenCalledWith(stackAddr);
-      expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(variable, 0); // Default value when undefined
+
+      // Verify storeVariable was NOT called since we threw an error
+      expect(mockMachine.state.storeVariable).not.toHaveBeenCalled();
     });
   });
 
@@ -147,8 +151,8 @@ describe('Stack Opcodes', () => {
 
       // Assert
       expect(mockMachine.state.readByte).toHaveBeenCalled();
-      expect(mockMachine.state.loadVariable).toHaveBeenCalledWith(variable, true);
-      expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(resultVar, value, true);
+      expect(mockMachine.state.loadVariable).toHaveBeenCalledWith(variable);
+      expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(resultVar, value);
       expect(mockMachine.logger.debug).toHaveBeenCalledWith(`1234 load ${variable} -> (${resultVar})`);
     });
   });
@@ -163,8 +167,8 @@ describe('Stack Opcodes', () => {
       stackOpcodes.store.impl(machine, [], variable, value);
 
       // Assert
-      expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(variable, value, true);
-      expect(mockMachine.logger.debug).toHaveBeenCalledWith(`1234 store (${variable}) ${value}`);
+      expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(variable, value);
+      expect(mockMachine.logger.debug).toHaveBeenCalledWith(`1234 store ${variable} ${value}`);
     });
   });
 
@@ -179,9 +183,9 @@ describe('Stack Opcodes', () => {
       stackOpcodes.inc.impl(machine, [], variable);
 
       // Assert
-      expect(mockMachine.state.loadVariable).toHaveBeenCalledWith(variable, true);
-      expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(variable, expectedNewValue, true);
-      expect(mockMachine.logger.debug).toHaveBeenCalledWith(`1234 inc (${variable}) ${currentValue}`);
+      expect(mockMachine.state.loadVariable).toHaveBeenCalledWith(variable);
+      expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(variable, expectedNewValue);
+      expect(mockMachine.logger.debug).toHaveBeenCalledWith(`1234 inc ${variable} ${currentValue}`);
     });
 
     it('should handle signed 16-bit overflow', () => {
@@ -196,7 +200,7 @@ describe('Stack Opcodes', () => {
       // Assert
       // Should wrap around to -32768
       const expectedNewValue = toU16(toI16(currentValue) + 1);
-      expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(variable, expectedNewValue, true);
+      expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(variable, expectedNewValue);
       expect(toI16(expectedNewValue)).toBe(-32768);
     });
   });
@@ -212,9 +216,9 @@ describe('Stack Opcodes', () => {
       stackOpcodes.dec.impl(machine, [], variable);
 
       // Assert
-      expect(mockMachine.state.loadVariable).toHaveBeenCalledWith(variable, true);
-      expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(variable, expectedNewValue, true);
-      expect(mockMachine.logger.debug).toHaveBeenCalledWith(`1234 dec (${variable}) ${currentValue}`);
+      expect(mockMachine.state.loadVariable).toHaveBeenCalledWith(variable);
+      expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(variable, expectedNewValue);
+      expect(mockMachine.logger.debug).toHaveBeenCalledWith(`1234 dec ${variable} ${currentValue}`);
     });
 
     it('should handle signed 16-bit underflow', () => {
@@ -229,7 +233,7 @@ describe('Stack Opcodes', () => {
       // Assert
       // Should wrap around to 32767
       const expectedNewValue = toU16(toI16(currentValue) - 1);
-      expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(variable, expectedNewValue, true);
+      expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(variable, expectedNewValue);
       expect(toI16(expectedNewValue)).toBe(32767);
     });
   });
@@ -247,10 +251,10 @@ describe('Stack Opcodes', () => {
 
       // Assert
       expect(mockMachine.state.readBranchOffset).toHaveBeenCalled();
-      expect(mockMachine.state.loadVariable).toHaveBeenCalledWith(variable, true);
+      expect(mockMachine.state.loadVariable).toHaveBeenCalledWith(variable);
 
       const newValue = toI16(currentValue) + 1;
-      expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(variable, toU16(newValue), true);
+      expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(variable, toU16(newValue));
       expect(mockMachine.state.doBranch).toHaveBeenCalledWith(true, false, 10);
     });
 
@@ -266,7 +270,7 @@ describe('Stack Opcodes', () => {
 
       // Assert
       const newValue = toI16(currentValue) + 1;
-      expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(variable, toU16(newValue), true);
+      expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(variable, toU16(newValue));
       expect(mockMachine.state.doBranch).toHaveBeenCalledWith(false, false, 10);
     });
 
@@ -282,7 +286,7 @@ describe('Stack Opcodes', () => {
 
       // Assert
       const newValue = toI16(currentValue) + 1;
-      expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(variable, toU16(newValue), true);
+      expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(variable, toU16(newValue));
       // -6 is not greater than -5, so should not branch
       expect(mockMachine.state.doBranch).toHaveBeenCalledWith(false, false, 10);
     });
@@ -301,10 +305,10 @@ describe('Stack Opcodes', () => {
 
       // Assert
       expect(mockMachine.state.readBranchOffset).toHaveBeenCalled();
-      expect(mockMachine.state.loadVariable).toHaveBeenCalledWith(variable, true);
+      expect(mockMachine.state.loadVariable).toHaveBeenCalledWith(variable);
 
       const newValue = toI16(currentValue) - 1;
-      expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(variable, toU16(newValue), true);
+      expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(variable, toU16(newValue));
       expect(mockMachine.state.doBranch).toHaveBeenCalledWith(true, false, 10);
     });
 
@@ -320,7 +324,7 @@ describe('Stack Opcodes', () => {
 
       // Assert
       const newValue = toI16(currentValue) - 1;
-      expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(variable, toU16(newValue), true);
+      expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(variable, toU16(newValue));
       expect(mockMachine.state.doBranch).toHaveBeenCalledWith(false, false, 10);
     });
 
@@ -336,7 +340,7 @@ describe('Stack Opcodes', () => {
 
       // Assert
       const newValue = toI16(currentValue) - 1;
-      expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(variable, toU16(newValue), true);
+      expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(variable, toU16(newValue));
       // -5 is not less than -5, so should not branch
       expect(mockMachine.state.doBranch).toHaveBeenCalledWith(false, false, 10);
     });
