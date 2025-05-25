@@ -1,5 +1,5 @@
 {
-  "name": "zmachine-blessed-console-example",
+  "name": "rezrov-zmachine-blessed-console-example",
   "version": "1.0.0",
   "description": "Z-Machine console example using blessed for proper terminal UI",
   "main": "index.ts",
