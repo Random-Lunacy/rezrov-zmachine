@@ -236,38 +236,44 @@ if (box && key) {
 }
 ```
 
+## Tools
+
+The [`tools`](tools/) folder contains debugging tools that leverage the `rezrov-zmachine` code to parse data out of
+story files.
+
 ## Examples
 
-The `examples` directory contains a few examples of how to use `rezrov-zmachine` in a project.
+The [`examples`](examples/) directory contains complete Z-Machine interpreter implementations that demonstrate how to use `rezrov-zmachine` to create interactive fiction players with different user interfaces.
 
-- `GameObjectExample.ts` - Explore the game object tree
-- `console/index.ts` - A simple console-based client implementation
+### Available Examples
 
-Before running the examples you must build the project with `npm run build`.
+- **[Console](examples/console/)** - Basic command-line interpreter using standard I/O
 
-### Running `GameObjectExample`
+  - Simple text-based interface
+  - Good starting point for understanding the library
+  - Minimal dependencies (chalk, readline-sync)
 
-With the `minimal.z3` test fixture
+- **[Blessed Console](examples/blessedConsole/)** - Enhanced terminal UI with proper split-window support
+  - Status bar and scrollable main text area
+  - Advanced input handling and visual presentation
+  - Full Z-Machine display feature implementation
 
-```bash
-npx tsx examples/GameObjectExample.ts
-```
+## Development Tools
 
-With a specific story file
+The [`tools`](tools/) directory contains debugging and analysis utilities that parse and extract information from Z-Machine story files. These tools are useful for game developers, researchers, and library maintainers.
 
-```bash
-npx tsx examples/GameObjectExample.ts path/to/story.z3
-```
+### Available Tools
 
-### Running the `console` example
+- **GameObjectExample** - Analyzes object hierarchy and properties
 
-```bash
-npx tsx examples/console/index.ts path/to/story.z3
-```
+  - Displays complete object tree structure
+  - Finds objects with specific attributes or properties
+  - Useful for understanding game world organization
 
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
+- **StringDumpExample** - Extracts all text content from story files
+  - Object names, dictionary words, and game text
+  - Confidence ratings for discovered strings
+  - Comprehensive text analysis with memory locations
 
 ## License
 
