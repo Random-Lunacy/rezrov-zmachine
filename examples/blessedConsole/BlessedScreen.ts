@@ -4,13 +4,19 @@ import { BaseScreen, BufferMode, Capabilities, Color, ScreenSize, TextStyle, ZMa
 
 export class BlessedScreen extends BaseScreen {
   private screen: blessed.Widgets.Screen;
-  private statusWindow: blessed.Widgets.Box; // Window 1 - status bar
-  private mainWindow: blessed.Widgets.Box; // Window 0 - main text
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private statusWindow: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private mainWindow: any;
   private currentWindow: number = 0;
   private textStyle: number = TextStyle.Roman;
   private bufferMode: number = BufferMode.Buffered;
   private colors: Record<number, { foreground: number; background: number }>;
   private cursorPosition: { line: number; column: number } = { line: 1, column: 1 };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private confirmDialog: any | null = null;
+  private isShowingConfirmDialog: boolean = false;
+  private onDialogDismissed: (() => void) | null = null;
 
   constructor() {
     super('BlessedScreen', { logger: undefined });
@@ -27,7 +33,7 @@ export class BlessedScreen extends BaseScreen {
         artificial: true,
         shape: 'line',
         blink: true,
-        color: null, // Use default terminal color
+        color: 'default',
       },
     });
 
@@ -65,11 +71,81 @@ export class BlessedScreen extends BaseScreen {
     this.screen.append(this.mainWindow);
 
     // Handle exit keys
-    this.screen.key(['escape', 'C-c'], () => {
-      this.quit();
+    this.screen.key(['C-c'], () => {
+      this.handleCtrlC();
     });
 
     this.screen.render();
+  }
+
+  setDialogDismissCallback(callback: () => void): void {
+    this.onDialogDismissed = callback;
+  }
+
+  private handleCtrlC(): void {
+    if (this.isShowingConfirmDialog) {
+      // Second Ctrl+C - exit immediately
+      this.quit();
+      return;
+    }
+
+    // First Ctrl+C - show confirmation dialog
+    this.showConfirmDialog();
+  }
+
+  private showConfirmDialog(): void {
+    this.isShowingConfirmDialog = true;
+
+    this.confirmDialog = blessed.box({
+      parent: this.screen,
+      top: 'center',
+      left: 'center',
+      width: 50,
+      height: 7,
+      label: ' Confirm Exit ',
+      content: '{center}Really quit the game?{/center}\n\n{center}[Y]es / [N]o / Ctrl+C to force quit{/center}',
+      tags: true,
+      keys: true,
+      border: {
+        type: 'line',
+      },
+      style: {
+        fg: 'white',
+        bg: 'red',
+        border: {
+          fg: 'yellow',
+          bg: 'red',
+        },
+      },
+    });
+
+    // Handle responses
+    this.confirmDialog.key(['y', 'Y', 'enter'], () => {
+      this.quit();
+    });
+
+    this.confirmDialog.key(['n', 'N', 'escape'], () => {
+      this.hideConfirmDialog();
+    });
+
+    this.screen.append(this.confirmDialog);
+    this.confirmDialog.focus();
+    this.screen.render();
+  }
+
+  private hideConfirmDialog(): void {
+    if (this.confirmDialog) {
+      this.screen.remove(this.confirmDialog);
+      this.confirmDialog = null;
+      this.isShowingConfirmDialog = false;
+
+      // Call the callback to refocus input
+      if (this.onDialogDismissed) {
+        this.onDialogDismissed();
+      }
+
+      this.screen.render();
+    }
   }
 
   getCapabilities(): Capabilities {
@@ -97,6 +173,11 @@ export class BlessedScreen extends BaseScreen {
   print(machine: ZMachine, str: string): void {
     const targetWindow = this.currentWindow === 0 ? this.mainWindow : this.statusWindow;
 
+    // Skip common input prompts - we have a dedicated input box
+    if (this.shouldSkipPrompt(str)) {
+      return;
+    }
+
     // Apply text styling and colors
     const styledText = this.applyStylesAndColors(str);
 
@@ -111,6 +192,22 @@ export class BlessedScreen extends BaseScreen {
     }
 
     this.screen.render();
+  }
+
+  private shouldSkipPrompt(str: string): boolean {
+    // Trim whitespace and check for common prompts
+    const trimmed = str.trim();
+
+    // Common Z-Machine prompts
+    if (trimmed === '>') return true;
+    if (trimmed === '> ') return true;
+    if (trimmed === '\n>') return true;
+    if (trimmed === '\n> ') return true;
+
+    // Handle prompts that might have leading/trailing whitespace or newlines
+    if (/^\s*>\s*$/.test(str)) return true;
+
+    return false;
   }
 
   private applyStylesAndColors(str: string): string {

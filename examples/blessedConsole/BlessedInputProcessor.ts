@@ -4,16 +4,20 @@ import { BaseInputProcessor, InputState, Logger, ZMachine } from '../../dist/ind
 export class BlessedInputProcessor extends BaseInputProcessor {
   private logger: Logger;
   private screen: blessed.Widgets.Screen;
-  private inputBox: blessed.Widgets.Textbox | null = null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private inputBox: any | null = null; // Changed from blessed.Widgets.Box
 
-  constructor(screen: blessed.Widgets.Screen, options?: { logger?: Logger }) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  constructor(screen: any, options?: { logger?: Logger }) {
+    // Changed parameter type
     super();
     this.logger = options?.logger || new Logger('BlessedInputProcessor');
     this.screen = screen;
-    this.loadTerminatingCharacters = this.loadTerminatingCharacters.bind(this);
   }
 
-  private createInputBox(): blessed.Widgets.Textbox {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private createInputBox(): any {
+    // Changed return type
     if (this.inputBox) {
       this.screen.remove(this.inputBox);
     }
@@ -24,6 +28,8 @@ export class BlessedInputProcessor extends BaseInputProcessor {
       width: '100%',
       height: 3,
       inputOnFocus: true,
+      keys: true,
+      mouse: true,
       border: {
         type: 'line',
       },
@@ -32,12 +38,13 @@ export class BlessedInputProcessor extends BaseInputProcessor {
         bg: 'black',
         border: {
           fg: '#f0f0f0',
+          bg: 'black',
         },
       },
-      label: ' Input ',
     });
 
     this.screen.append(this.inputBox);
+    this.screen.render();
     return this.inputBox;
   }
 
@@ -51,23 +58,48 @@ export class BlessedInputProcessor extends BaseInputProcessor {
     }
 
     const inputBox = this.createInputBox();
-    inputBox.focus();
 
-    inputBox.readInput((err, value) => {
-      if (err) {
-        this.logger.error(`Input error: ${err}`);
-        this.onInputComplete(machine, '', 13);
-        return;
+    // Register callback to refocus input box when dialogs close
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if ((this.screen as any).setDialogDismissCallback) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (this.screen as any).setDialogDismissCallback(() => {
+        if (this.inputBox) {
+          this.inputBox.focus();
+        }
+      });
+    }
+
+    // Handle keypress to intercept escape before blessed processes it
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handleKeypress = (ch: string, key: any) => {
+      if (key?.name === 'escape') {
+        // Prevent default escape behavior and keep focus
+        inputBox.focus();
+        return false; // Prevent further processing
       }
+      // Let other keys be handled normally
+    };
+
+    inputBox.on('keypress', handleKeypress);
+
+    // Use the submit event for normal input
+    inputBox.on('submit', (value: string) => {
+      // Clean up handlers
+      inputBox.removeListener('keypress', handleKeypress);
 
       const input = value || '';
       const termChar = this.processTerminatingCharacters(input, this.terminatingChars);
       this.onInputComplete(machine, input, termChar);
 
-      // Remove input box after use
+      // Clean up
       this.screen.remove(inputBox);
+      this.inputBox = null;
       this.screen.render();
     });
+
+    inputBox.focus();
+    this.screen.render();
   }
 
   protected doStartCharInput(machine: ZMachine, state: InputState): void {
@@ -80,6 +112,13 @@ export class BlessedInputProcessor extends BaseInputProcessor {
     // Handle special keys that should be ignored
     const handleKey = (ch: string, key: blessed.Widgets.Events.IKeyEventArg) => {
       this.screen.removeListener('keypress', handleKey);
+
+      // Ignore escape - don't handle it at all
+      if (key?.name === 'escape') {
+        // Restart character input, ignoring escape
+        this.doStartCharInput(machine, state);
+        return;
+      }
 
       // Ignore extended keys (arrows, function keys, etc.)
       if (
@@ -98,12 +137,6 @@ export class BlessedInputProcessor extends BaseInputProcessor {
       ) {
         // Restart character input, ignoring this key
         this.doStartCharInput(machine, state);
-        return;
-      }
-
-      // Handle special cases
-      if (key && key.name === 'enter') {
-        this.onKeyPress(machine, '\r');
         return;
       }
 
