@@ -170,7 +170,7 @@ function quit(machine: ZMachine, _operandTypes: OperandType[]): void {
  */
 function show_status(machine: ZMachine, _operandTypes: OperandType[]): void {
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} show_status`);
-  machine.state.updateStatusBar();
+  machine.updateStatusBar();
 }
 
 /**

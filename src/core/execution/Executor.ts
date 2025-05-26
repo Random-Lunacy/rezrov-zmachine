@@ -92,7 +92,7 @@ export class Executor {
 
             // Update status bar for V1-3
             if (this.zMachine.state.version <= 3) {
-              this.zMachine.state.updateStatusBar();
+              this.zMachine.updateStatusBar();
             }
 
             // Start input based on mode

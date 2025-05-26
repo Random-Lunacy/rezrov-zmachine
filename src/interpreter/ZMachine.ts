@@ -223,6 +223,38 @@ export class ZMachine {
   }
 
   /**
+   * Update the status bar (for versions <= 3)
+   * This method retrieves the current location, values, and flags,
+   */
+  updateStatusBar(): void {
+    if (this.state.version > 3) return;
+
+    const locationObj = this.state.loadVariable(16);
+    let locationName: string | null = null;
+
+    if (locationObj !== 0) {
+      const obj = this.state.getObject(locationObj);
+      if (!obj) {
+        throw new Error(`Invalid location object ${locationObj} in global variable 16`);
+      }
+
+      try {
+        locationName = obj.name || '';
+      } catch (error) {
+        this.logger.error(`Error getting name for location object ${locationObj}: ${error}`);
+        locationName = '';
+      }
+    }
+
+    const value1 = this.state.loadVariable(17);
+    const value2 = this.state.loadVariable(18);
+    const flags1 = this.state.memory.getByte(HeaderLocation.Flags1);
+    const isTimeMode = (flags1 & 0x02) !== 0;
+
+    this.screen.updateStatusBar(locationName, value1, value2, isTimeMode);
+  }
+
+  /**
    * Save the current game state to storage
    */
   // Save the current state

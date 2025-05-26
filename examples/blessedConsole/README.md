@@ -62,6 +62,74 @@ npm start adventure.z5 --debug
 npm start mystery.z8 --dump
 ```
 
+## Project Structure
+
+```
+examples/blessedConsole/
+├── index.ts                    # Main application and Z-Machine integration
+├── BlessedScreen.ts           # Screen implementation using blessed
+├── BlessedInputProcessor.ts   # Input processor using blessed
+├── utils.ts                   # Utilities (argument parsing, helpers)
+├── package.json
+└── README.md
+```
+
+## Implementation Guide
+
+This example demonstrates advanced terminal UI implementation using the blessed library:
+
+### 1. Screen Implementation (`BlessedScreen.ts`)
+
+The `BlessedScreen` class extends `BaseScreen` and provides sophisticated terminal UI:
+
+- **Split Window Support**: True split-window implementation with separate blessed boxes
+- **Advanced Styling**: Rich text formatting using blessed tags
+- **Color Management**: Complete Z-Machine color palette support
+- **Dynamic Layout**: Responsive window sizing and management
+- **Cursor Control**: Precise cursor positioning and visibility control
+
+**Key features:**
+
+- **Status Window**: Fixed-height status bar at the top
+- **Main Window**: Scrollable main text area with automatic scrolling
+- **Style Application**: Real-time text styling with bold, italic, reverse video
+- **Color Mapping**: Z-Machine colors to blessed color names
+- **Window Management**: Split/unsplit operations and window clearing
+
+### 2. Input Processor (`BlessedInputProcessor.ts`)
+
+The `BlessedInputProcessor` class extends `BaseInputProcessor` with blessed-specific input handling:
+
+- **Visual Input Box**: Dedicated textbox widget with borders and labels
+- **Advanced Key Handling**: Intelligent filtering of special keys
+- **Event Management**: Proper cleanup of input handlers
+- **Enhanced Prompting**: Custom input boxes for file operations
+
+**Key features:**
+
+- **Text Input**: Full-featured textbox with editing capabilities
+- **Character Input**: Single keypress detection with special key filtering
+- **Visual Feedback**: Input box appears at bottom with clear labeling
+- **Error Handling**: Graceful handling of input errors and cleanup
+
+### 3. Integration (`index.ts`)
+
+The main file demonstrates the integration pattern:
+
+```typescript
+// Create the screen implementation
+const screen = new BlessedScreen();
+
+// Create input processor with access to blessed screen
+const inputProcessor = new BlessedInputProcessor(screen.getBlessedScreen());
+
+// Create Z-Machine with implementations
+const machine = new ZMachine(storyData, screen, inputProcessor);
+
+// Start the interpreter
+machine.execute();
+```
+
 ## Controls
 
 - **Text Input**: Type in the input box at the bottom
@@ -74,10 +142,11 @@ npm start mystery.z8 --dump
 ### Display Features
 
 - **Split Windows**: Proper status window (top) and main text (bottom)
-- **Text Styling**: Bold, italic, reverse video
+- **Text Styling**: Bold, italic, reverse video using blessed tags
 - **Colors**: Full color palette support with background/foreground
 - **Cursor Control**: Precise cursor positioning
 - **Window Management**: Clear windows, cursor visibility control
+- **Dynamic Sizing**: Responsive to terminal resize
 
 ### Input Features
 
@@ -85,34 +154,12 @@ npm start mystery.z8 --dump
 - **Character Input**: Single keypress detection
 - **Terminating Characters**: Function keys and special character support
 - **Timed Input**: Support for timed input operations
+- **Visual Feedback**: Clear input prompts and error handling
 
 ### File Operations
 
-- **Save/Restore**: Interactive filename prompting
+- **Save/Restore**: Interactive filename prompting with labeled input boxes
 - **Multiple Streams**: Output stream management
-
-## Implementation Details
-
-### Screen Implementation (`BlessedScreen`)
-
-- **Window Management**: Separate blessed boxes for status and main windows
-- **Dynamic Sizing**: Responsive to terminal resize
-- **Style Application**: Real-time text styling using blessed tags
-- **Color Mapping**: Z-Machine color codes to blessed color names
-- **Scrolling**: Automatic scrolling in main text area
-
-### Input Implementation (`BlessedInputProcessor`)
-
-- **Input Box**: Dedicated input widget with border and label
-- **Key Filtering**: Intelligent handling of special keys
-- **Event Management**: Proper cleanup of input handlers
-- **Filename Prompts**: Custom input boxes for file operations
-
-### Key Files
-
-- `index.ts`: Main application with blessed UI setup
-- Screen and input classes integrated with ZMachine
-- Command-line argument parsing with nopt
 
 ## UI Layout
 
@@ -137,24 +184,24 @@ npm start mystery.z8 --dump
 
 ### Window Management
 
-- Automatic split-window handling
-- Proper window clearing and management
-- Cursor positioning within windows
-- Window property queries
+- **Automatic Split**: Dynamic window splitting based on Z-Machine requests
+- **Proper Clearing**: Individual window clearing and management
+- **Cursor Positioning**: Accurate cursor positioning within windows
+- **Window Properties**: Complete window property queries
 
 ### Text Rendering
 
-- Real-time style application
-- Color inheritance and overrides
-- Efficient screen updates
-- Proper text wrapping
+- **Real-time Styling**: Immediate style application using blessed tags
+- **Color Inheritance**: Proper color handling with inheritance and overrides
+- **Efficient Updates**: Optimized screen rendering
+- **Proper Wrapping**: Automatic text wrapping and scrolling
 
 ### Input Handling
 
-- Context-sensitive input modes
-- Special key detection and filtering
-- Terminating character processing
-- Cleanup after input completion
+- **Context-sensitive**: Different input modes for text vs character input
+- **Key Filtering**: Intelligent handling of special keys and navigation
+- **Terminating Characters**: Complete terminating character processing
+- **Resource Cleanup**: Proper cleanup of input handlers and widgets
 
 ## Troubleshooting
 
@@ -200,23 +247,46 @@ TERM=xterm-256color npm start story.z3
 - Scrolling performance is optimized for readability
 - Memory usage scales with story file size
 
+## Extending This Example
+
+This blessed console example provides an excellent foundation for advanced Z-Machine interpreters:
+
+### Using as a Template
+
+1. **Copy the components**: Use `BlessedScreen.ts` and `BlessedInputProcessor.ts` as starting points
+2. **Customize the UI**: Modify blessed widget properties for different visual styles
+3. **Add features**: Extend with additional UI elements (menus, dialogs, etc.)
+4. **Enhance capabilities**: Add graphics support, sound, or other advanced features
+
+### Possible Enhancements
+
+- **Graphics Support**: Add picture display capabilities using blessed-image
+- **Sound Integration**: Implement sound effect support
+- **Enhanced Save Management**: Rich save/load UI with file browsers
+- **Configuration UI**: Settings dialogs and preference management
+- **Themes**: Customizable color schemes and visual styles
+- **Multiple Panes**: Additional UI panes for maps, inventory, etc.
+
 ## Comparison with Basic Console
 
-| Feature       | Basic Console   | Blessed Console   |
-| ------------- | --------------- | ----------------- |
-| Split Windows | Limited         | Full Support      |
-| Input Method  | readline-sync   | blessed textbox   |
-| Scrolling     | Terminal native | Controlled        |
-| Styling       | chalk only      | Full blessed tags |
-| UI Polish     | Basic           | Enhanced          |
-| Performance   | Good            | Optimized         |
+| Feature         | Basic Console   | Blessed Console   |
+| --------------- | --------------- | ----------------- |
+| Split Windows   | Limited         | Full Support      |
+| Input Method    | readline-sync   | blessed textbox   |
+| Scrolling       | Terminal native | Controlled        |
+| Styling         | chalk only      | Full blessed tags |
+| UI Polish       | Basic           | Enhanced          |
+| Performance     | Good            | Optimized         |
+| Layout Control  | None            | Complete          |
+| Visual Feedback | Minimal         | Rich              |
 
 ## Next Steps
 
-This example provides a solid foundation for building more advanced Z-Machine interpreters. Consider extending it with:
+This example demonstrates how to create sophisticated terminal-based Z-Machine interpreters. The modular structure makes it easy to:
 
-- **Graphics Support**: Add picture display capabilities
-- **Sound Integration**: Implement sound effect support
-- **Save Management**: Enhanced save/load UI
-- **Configuration**: User preferences and settings
-- **Themes**: Customizable color schemes and fonts
+- **Understand each component**: Clear separation of concerns
+- **Customize implementations**: Easy to modify individual pieces
+- **Add new features**: Extensible architecture for enhancements
+- **Build variations**: Use as foundation for different UI approaches
+
+The blessed implementation shows the full potential of terminal-based interactive fiction players while maintaining the clear component architecture that makes the code easy to understand and extend.

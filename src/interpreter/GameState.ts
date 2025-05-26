@@ -520,11 +520,4 @@ export class GameState {
 
     this._textParser.tokenizeLine(textBuffer, parseBuffer, dict || this._dict, flag);
   }
-
-  /**
-   * Update the status bar (for versions <= 3)
-   */
-  updateStatusBar(): void {
-    // This will be implemented in the ZMachine class
-  }
 }

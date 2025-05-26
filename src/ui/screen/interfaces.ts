@@ -100,7 +100,7 @@ export interface Screen {
   disableOutputStream(machine: ZMachine, streamId: number, table: number, width: number): void;
   selectInputStream(machine: ZMachine, streamId: number): void;
   getSize(): ScreenSize;
-  updateStatusBar(lhs: string, rhs: string): void;
+  updateStatusBar(locationName: string | null, value1: number, value2: number, isTimeMode: boolean): void;
   getBufferMode(machine: ZMachine): number;
   updateDisplay(machine: ZMachine): void;
   getCurrentFont(machine: ZMachine): number;

@@ -61,6 +61,69 @@ npm start zork1.z3 --header --noExec
 npm start zork1.z3 --dump
 ```
 
+## Project Structure
+
+```text
+examples/console/
+├── index.ts                # Main application and Z-Machine integration
+├── StdioScreen.ts          # Screen implementation for terminal output
+├── StdioInputProcessor.ts  # Input processor for terminal input
+├── utils.ts                # Utilities (argument parsing, helpers)
+├── package.json
+└── README.md
+```
+
+## Implementation Guide
+
+This example demonstrates the key components you need to implement when using the rezrov-zmachine library:
+
+### 1. Screen Implementation (`StdioScreen.ts`)
+
+The `StdioScreen` class extends `BaseScreen` and handles all display output:
+
+- **Text rendering**: Converts Z-Machine output to terminal text
+- **Styling**: Applies colors, bold, italic, and reverse video using chalk
+- **Window management**: Basic support for output windows and status bar
+- **Terminal control**: Cursor positioning, clearing, and display updates
+
+**Key methods to implement:**
+
+- `print()`: Output text to the terminal
+- `getCapabilities()`: Declare what features your screen supports
+- `setTextStyle()` / `setTextColors()`: Handle text formatting
+- `updateStatusBar()`: Display status information
+
+### 2. Input Processor (`StdioInputProcessor.ts`)
+
+The `StdioInputProcessor` class extends `BaseInputProcessor` and handles user input:
+
+- **Text input**: Line-based input using readline-sync
+- **Character input**: Single keypress detection
+- **File operations**: Prompting for save/restore filenames
+- **Error handling**: Graceful handling of input errors
+
+**Key methods to implement:**
+
+- `doStartTextInput()`: Handle line input from user
+- `doStartCharInput()`: Handle single character input
+- `promptForFilename()`: Get filenames for save/restore operations
+
+### 3. Integration (`index.ts`)
+
+The main file shows how to wire everything together:
+
+```typescript
+// Create implementations
+const screen = new StdioScreen();
+const inputProcessor = new StdioInputProcessor();
+
+// Create Z-Machine with your implementations
+const machine = new ZMachine(storyData, screen, inputProcessor);
+
+// Start the interpreter
+machine.execute();
+```
+
 ## Supported Z-Machine Features
 
 - **Text Display**: Standard text formatting and colors
@@ -73,34 +136,11 @@ npm start zork1.z3 --dump
 - **Character Input**: Press any key when prompted
 - **Exit**: Use Ctrl+C to quit at any time
 
-## Implementation Details
-
-This example demonstrates:
-
-### Screen Implementation (`StdioScreen`)
-
-- Extends `BaseScreen` from rezrov-zmachine
-- Uses chalk for color and styling
-- Implements basic status bar display
-- Handles window switching (limited split-window support)
-
-### Input Implementation (`StdioInputProcessor`)
-
-- Extends `BaseInputProcessor` from rezrov-zmachine
-- Uses readline-sync for synchronous input
-- Handles both text and character input modes
-- Supports filename prompting for save/load operations
-
-### Key Files
-
-- `index.ts`: Main application and command-line parsing
-- Uses nopt for argument parsing
-- Integrates screen and input with ZMachine class
-
 ## Limitations
 
 - **No Split Windows**: Limited split-window support compared to blessed version
 - **Basic UI**: Minimal visual enhancements
+- **Status Bar**: Simple status bar implementation
 
 ## Troubleshooting
 
@@ -120,6 +160,24 @@ If colors aren't showing, your terminal may not support them. Try setting the `F
 FORCE_COLOR=1 npm start story.z3
 ```
 
+## Extending This Example
+
+This console example provides a solid foundation for building your own Z-Machine interpreter:
+
+### Using as a Template
+
+1. **Copy the files**: Use `StdioScreen.ts` and `StdioInputProcessor.ts` as starting points
+2. **Modify the implementations**: Adapt the screen and input handling for your platform
+3. **Update capabilities**: Modify `getCapabilities()` to match your platform's features
+4. **Test with stories**: Run various Z-Machine games to ensure compatibility
+
+### Possible Enhancements
+
+- **Better split-window support**: Implement proper window management
+- **Enhanced input**: Add command history, tab completion
+- **Configuration**: Support for user preferences and settings
+- **Graphics**: Add basic image display capabilities (for newer Z-Machine versions)
+
 ## Next Steps
 
 For a more advanced terminal UI, see the `blessedConsole` example which provides:
@@ -128,3 +186,5 @@ For a more advanced terminal UI, see the `blessedConsole` example which provides
 - Enhanced input handling
 - Improved visual presentation
 - Scrollable text areas
+
+The blessed example demonstrates how to extend these same base classes for more sophisticated terminal applications.
