@@ -295,7 +295,6 @@ describe('I/O Opcodes', () => {
       }
 
       expect(mockMachine.state.readByte).toHaveBeenCalled();
-      expect(mockMachine.state.updateStatusBar).toHaveBeenCalled();
     });
 
     it('should not read result variable for V4 and earlier', () => {
@@ -309,7 +308,6 @@ describe('I/O Opcodes', () => {
       expect(() => ioOpcodes.sread.impl(machine, [], textBuffer, parseBuffer)).toThrow(SuspendState);
 
       expect(mockMachine.state.readByte).not.toHaveBeenCalled();
-      expect(mockMachine.state.updateStatusBar).toHaveBeenCalled();
     });
 
     it('should include time and routine in suspend state when provided', () => {

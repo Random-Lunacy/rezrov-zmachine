@@ -222,7 +222,7 @@ describe('Executor', () => {
       await executor.executeLoop();
 
       // Verify status bar was updated for V1-3
-      expect(mockZMachine.state.updateStatusBar).toHaveBeenCalled();
+      expect(mockZMachine.updateStatusBar).toHaveBeenCalled();
     });
 
     it('should not update status bar for V4+', async () => {
@@ -249,7 +249,7 @@ describe('Executor', () => {
       await executor.executeLoop();
 
       // Verify status bar was NOT updated for V4+
-      expect(mockZMachine.state.updateStatusBar).not.toHaveBeenCalled();
+      expect(mockZMachine.updateStatusBar).not.toHaveBeenCalled();
     });
 
     it('should handle input setup errors gracefully', async () => {

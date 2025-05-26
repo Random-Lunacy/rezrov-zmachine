@@ -31,6 +31,7 @@ export class MockZMachine {
   restoreUndo = vi.fn().mockReturnValue(true);
   restart = vi.fn();
   quit = vi.fn();
+  updateStatusBar = vi.fn();
   getUserStackManager = vi.fn().mockReturnValue({});
   storage = {};
 
