@@ -512,9 +512,52 @@ describe('GameState', () => {
       expect(gameState.pc).toBe(108); // 100 + 10 - 2
     });
 
-    it('should throw on out-of-bounds branch', () => {
+    it('should handle negative branch offsets', () => {
+      gameState.pc = 1000;
+
+      // Test a large positive value that becomes negative when signed
+      // 65450 (0xFFAA) becomes -86 when treated as signed 16-bit
+      gameState.doBranch(true, false, 65450);
+      expect(gameState.pc).toBe(912); // 1000 + (-86) - 2 = 912
+    });
+
+    it('should handle positive branch offsets correctly', () => {
       gameState.pc = 100;
-      expect(() => gameState.doBranch(true, false, 100000)).toThrow();
+
+      // Test a normal positive offset (less than 32767)
+      gameState.doBranch(true, false, 50);
+      expect(gameState.pc).toBe(148); // 100 + 50 - 2 = 148
+    });
+
+    it('should throw on out-of-bounds negative branch', () => {
+      gameState.pc = 50;
+
+      // Create a large negative offset that would go below 0
+      // 65400 becomes -136 when signed, so 50 + (-136) - 2 = -88 (out of bounds)
+      expect(() => gameState.doBranch(true, false, 65400)).toThrow('Branch out of bounds: -88');
+    });
+
+    it('should throw on out-of-bounds positive branch', () => {
+      // Set PC close to memory end to make a positive branch go out of bounds
+      const memorySize = gameState.memory.size;
+      gameState.pc = memorySize - 10;
+
+      // Use a positive offset that stays under 32767 but exceeds memory bounds
+      // PC + offset - 2 should exceed memory size
+      const offset = 100; // (memorySize - 10) + 100 - 2 = memorySize + 88 (out of bounds)
+      expect(() => gameState.doBranch(true, false, offset)).toThrow();
+    });
+
+    it('should not branch when condition does not match', () => {
+      gameState.pc = 100;
+
+      // Should not branch when condition is false and branchOnFalse is false
+      gameState.doBranch(false, false, 50);
+      expect(gameState.pc).toBe(100); // PC unchanged
+
+      // Should not branch when condition is true and branchOnFalse is true
+      gameState.doBranch(true, true, 50);
+      expect(gameState.pc).toBe(100); // PC unchanged
     });
   });
 

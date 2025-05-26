@@ -1,0 +1,21 @@
+{
+  "name": "rezrov-zmachine-console-example",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Basic Z-Machine console example using stdio",
+  "main": "index.ts",
+  "scripts": {
+    "start": "tsx index.ts",
+    "dev": "tsx watch index.ts"
+  },
+  "dependencies": {
+    "chalk": "^4.1.2",
+    "nopt": "^7.2.0",
+    "readline-sync": "^1.4.10"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "@types/readline-sync": "^1.4.4",
+    "tsx": "^3.12.0"
+  }
+}

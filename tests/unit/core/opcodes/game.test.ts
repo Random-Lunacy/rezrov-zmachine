@@ -358,7 +358,7 @@ describe('Game Opcodes', () => {
 
   describe('show_status', () => {
     it('should call the update status bar method', () => {
-      const updateStatusBarSpy = vi.spyOn(mockZMachine.state, 'updateStatusBar').mockImplementation(() => {});
+      const updateStatusBarSpy = vi.spyOn(mockZMachine, 'updateStatusBar').mockImplementation(() => {});
 
       gameOpcodes.show_status.impl(mockZMachine as unknown as ZMachine, []);
 

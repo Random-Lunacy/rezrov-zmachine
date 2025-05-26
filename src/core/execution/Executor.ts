@@ -65,38 +65,57 @@ export class Executor {
   async executeLoop(): Promise<void> {
     try {
       while (!this._quit && !this._suspended) {
+        this.logger.debug(`Loop iteration: quit=${this._quit}, suspended=${this._suspended}`);
         this._op_pc = this.zMachine.state.pc;
-        this.executeInstruction();
+        await this.executeInstruction();
       }
-
+      if (this._suspended) {
+        this.logger.debug('ExecuteLoop exited due to suspension');
+      }
       if (this._quit) {
         this.logger.info('Program execution terminated');
         this.zMachine.screen.quit();
       }
     } catch (e) {
       if (e instanceof SuspendState) {
-        // New input handling
+        this.logger.debug('Caught SuspendState, setting up suspension...');
         this._suspended = true;
-        this._suspendedInputState = { ...e.state, mode: InputMode.TEXT }; // Ensure 'mode' is set
+        this._suspendedInputState = e.toInputState();
+
+        this.logger.debug(`Suspended state: ${JSON.stringify(this._suspended)}`);
 
         setImmediate(() => {
+          this.logger.debug('Starting input setup in setImmediate...');
           try {
             const inputState = e.toInputState();
+            this.logger.debug(`Input state: ${JSON.stringify(inputState)}`);
 
             // Update status bar for V1-3
             if (this.zMachine.state.version <= 3) {
-              this.zMachine.state.updateStatusBar();
+              this.zMachine.updateStatusBar();
             }
 
             // Start input based on mode
             if (inputState.mode === InputMode.CHAR || inputState.mode === InputMode.TIMED_CHAR) {
+              this.logger.debug('Starting character input...');
               this.zMachine.inputProcessor.startCharInput(this.zMachine, inputState);
             } else {
+              this.logger.debug('Starting text input...');
               this.zMachine.inputProcessor.startTextInput(this.zMachine, inputState);
             }
-          } catch (inputError) {
-            this.logger.error(`Error during input handling: ${inputError}`);
-            this.resume();
+            this.logger.debug('Input setup completed successfully');
+          } catch (inputError: unknown) {
+            const errorMessage = inputError instanceof Error ? inputError.message : String(inputError);
+            const errorStack = inputError instanceof Error ? inputError.stack : 'No stack trace available';
+
+            this.logger.error(`Error during input handling: ${errorMessage}`);
+            this.logger.error(`Input error stack: ${errorStack}`);
+            // Resume execution to avoid deadlock
+            this.resume().catch((resumeError) => {
+              this.logger.error(`Error during emergency resume: ${resumeError}`);
+              // At this point, we're in a bad state - quit
+              this._quit = true;
+            });
           }
         });
       } else {
@@ -127,11 +146,15 @@ export class Executor {
 
     try {
       const result = op.impl(this.zMachine, operandTypes, ...operands);
-
       if (result instanceof Promise) {
         await result;
       }
     } catch (e) {
+      if (e instanceof SuspendState) {
+        // Don't log SuspendState as an error - it's normal flow
+        this.logger.debug(`Execution suspended for input: ${e.message}`);
+        throw e;
+      }
       this.logger.error(`Error executing opcode ${op.mnemonic}: ${e}`);
       throw e;
     }

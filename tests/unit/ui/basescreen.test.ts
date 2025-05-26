@@ -299,9 +299,11 @@ describe('BaseScreen', () => {
 
   describe('miscellaneous methods', () => {
     it('should log debug message for updateStatusBar', () => {
-      screen.updateStatusBar('Left', 'Right');
+      screen.updateStatusBar('Location', 10, 20, false);
 
-      expect(mockLogger.debug).toHaveBeenCalledWith('not implemented: TestScreen updateStatusBar lhs=Left rhs=Right');
+      expect(mockLogger.debug).toHaveBeenCalledWith(
+        'not implemented: TestScreen updateStatusBar locationName=Location value1=10 value2=20 isTimeMode=false'
+      );
     });
 
     it('should log debug message for updateDisplay', () => {

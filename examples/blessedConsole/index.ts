@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import { dumpDictionary, dumpHeader, dumpObjectTable, Logger, LogLevel, ZMachine } from '../../dist/index.js';
-import { StdioInputProcessor } from './StdioInputProcessor.js';
-import { StdioScreen } from './StdioScreen.js';
+import { BlessedInputProcessor } from './BlessedInputProcessor.js';
+import { BlessedScreen } from './BlessedScreen.js';
 import { parseArguments } from './utils.js';
 
 const parsed = parseArguments();
@@ -27,8 +27,8 @@ try {
   logger.debug(`Loaded ${storyData.length} bytes from ${file}`);
 
   // Create the screen and input processor
-  const screen = new StdioScreen();
-  const inputProcessor = new StdioInputProcessor();
+  const screen = new BlessedScreen();
+  const inputProcessor = new BlessedInputProcessor(screen.getBlessedScreen());
 
   // Create the Z-machine
   const machine = new ZMachine(storyData, screen, inputProcessor, undefined, undefined);
@@ -48,8 +48,6 @@ try {
 
   // Run the machine unless the --noExec flag is set
   if (!parsed.noExec) {
-    machine.screen.clearWindow(machine, -1); // Clear the screen
-    machine.screen.print(machine, '\n\n');
     machine.execute();
   }
 } catch (error) {

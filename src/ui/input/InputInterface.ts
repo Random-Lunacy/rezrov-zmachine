@@ -226,7 +226,9 @@ export abstract class BaseInputProcessor implements InputProcessor {
     }
 
     this.cancelInput(machine);
-    machine.executor.resume();
+    machine.executor.resume().catch((error) => {
+      machine.logger.error(`Error resuming execution after input: ${error}`);
+    });
   }
 
   /**
@@ -242,7 +244,9 @@ export abstract class BaseInputProcessor implements InputProcessor {
     machine.state.storeVariable(state.resultVar, keyCode);
 
     this.cancelInput(machine);
-    machine.executor.resume();
+    machine.executor.resume().catch((error) => {
+      machine.logger.error(`Error resuming execution after key press: ${error}`);
+    });
   }
 
   /**
@@ -254,7 +258,9 @@ export abstract class BaseInputProcessor implements InputProcessor {
     if (state.routine) {
       const routineAddr = machine.state.memory.unpackRoutineAddress(state.routine);
       machine.state.callRoutine(routineAddr, null);
-      machine.executor.resume();
+      machine.executor.resume().catch((error) => {
+        machine.logger.error(`Error resuming execution after input timeout: ${error}`);
+      });
     }
   }
 

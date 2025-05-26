@@ -136,8 +136,8 @@ export class GameObject {
   // Relationship Handling
   get parent(): GameObject | null {
     try {
-      const parentObjNum =
-        this.version <= 3 ? this.memory.getByte(this.objAddr + 4) : this.memory.getWord(this.objAddr + 6);
+      const readAddr = this.version <= 3 ? this.objAddr + 4 : this.objAddr + 6;
+      const parentObjNum = this.version <= 3 ? this.memory.getByte(readAddr) : this.memory.getWord(readAddr);
 
       return parentObjNum === 0 ? null : this.getObject(parentObjNum);
     } catch (error) {
@@ -160,8 +160,8 @@ export class GameObject {
 
   get sibling(): GameObject | null {
     try {
-      const siblingObjNum =
-        this.version <= 3 ? this.memory.getByte(this.objAddr + 5) : this.memory.getWord(this.objAddr + 8);
+      const readAddr = this.version <= 3 ? this.objAddr + 5 : this.objAddr + 8;
+      const siblingObjNum = this.version <= 3 ? this.memory.getByte(readAddr) : this.memory.getWord(readAddr);
 
       return siblingObjNum === 0 ? null : this.getObject(siblingObjNum);
     } catch (error) {
@@ -184,8 +184,8 @@ export class GameObject {
 
   get child(): GameObject | null {
     try {
-      const childObjNum =
-        this.version <= 3 ? this.memory.getByte(this.objAddr + 6) : this.memory.getWord(this.objAddr + 10);
+      const readAddr = this.version <= 3 ? this.objAddr + 6 : this.objAddr + 10;
+      const childObjNum = this.version <= 3 ? this.memory.getByte(readAddr) : this.memory.getWord(readAddr);
 
       return childObjNum === 0 ? null : this.getObject(childObjNum);
     } catch (error) {

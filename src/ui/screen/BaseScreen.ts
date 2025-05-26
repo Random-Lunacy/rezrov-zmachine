@@ -134,8 +134,10 @@ export class BaseScreen implements Screen {
     this.logger.error(`not implemented: ${this.id} selectInputStream streamId=${streamId}`);
   }
 
-  updateStatusBar(lhs: string, rhs: string): void {
-    this.logger.debug(`not implemented: ${this.id} updateStatusBar lhs=${lhs} rhs=${rhs}`);
+  updateStatusBar(locationName: string | null, value1: number, value2: number, isTimeMode: boolean): void {
+    this.logger.debug(
+      `not implemented: ${this.id} updateStatusBar locationName=${locationName} value1=${value1} value2=${value2} isTimeMode=${isTimeMode}`
+    );
   }
 
   getBufferMode(machine: ZMachine): number {

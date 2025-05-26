@@ -461,18 +461,17 @@ export class GameState {
    */
   readBranchOffset(): [number, boolean] {
     const branchData = this.readByte();
-    let off1 = branchData & 0x3f;
+    const off1 = branchData & 0x3f;
     let offset: number;
 
     if ((branchData & 0x40) === 0x40) {
-      // 1 byte offset
       offset = off1;
     } else {
-      // 2 byte offset - propagate sign bit
-      if ((off1 & 0x20) !== 0) {
-        off1 |= 0xc0;
+      const off2 = this.readByte();
+      offset = (off1 << 8) | off2;
+      if (offset & 0x2000) {
+        offset |= 0xc000;
       }
-      offset = (off1 << 8) | this.readByte();
     }
 
     // Branch conditions: 0 in bit 7 means "branch on true"
@@ -486,9 +485,6 @@ export class GameState {
    * @param offset Branch offset
    */
   doBranch(cond: boolean, branchOnFalse: boolean, offset: number): void {
-    this.logger.debug(`Branch condition: ${cond}, invert: ${!branchOnFalse}, offset: ${offset}`);
-
-    // Branch if (condition is true and !branchOnFalse) or (condition is false and branchOnFalse)
     if ((cond && !branchOnFalse) || (!cond && branchOnFalse)) {
       if (offset === 0) {
         this.logger.debug('Returning false from branch');
@@ -497,7 +493,10 @@ export class GameState {
         this.logger.debug('Returning true from branch');
         this.returnFromRoutine(1);
       } else {
-        this.pc = this.pc + offset - 2;
+        // Convert to signed 16-bit value
+        const signedOffset = offset > 32767 ? offset - 65536 : offset;
+        const targetPC = this.pc + signedOffset - 2;
+        this.pc = targetPC;
         if (this.pc < 0 || this.pc > this.memory.size) {
           throw new Error(`Branch out of bounds: ${this.pc}`);
         }
@@ -520,12 +519,5 @@ export class GameState {
     }
 
     this._textParser.tokenizeLine(textBuffer, parseBuffer, dict || this._dict, flag);
-  }
-
-  /**
-   * Update the status bar (for versions <= 3)
-   */
-  updateStatusBar(): void {
-    // This will be implemented in the ZMachine class
   }
 }

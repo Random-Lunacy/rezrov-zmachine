@@ -36,7 +36,6 @@ export class MockGameState {
   callRoutine = vi.fn();
   returnFromRoutine = vi.fn();
   tokenizeLine = vi.fn();
-  updateStatusBar = vi.fn();
   getObject = vi.fn().mockReturnValue(null as unknown as GameObject | null);
   getRootObjects = vi.fn().mockReturnValue([]);
 }

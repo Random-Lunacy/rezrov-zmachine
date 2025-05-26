@@ -195,9 +195,6 @@ function sread(
 
   machine.logger.debug(`sread/aread: text=${textBuffer}, parse=${parseBuffer}, time=${time}, routine=${routine}`);
 
-  // Update status bar if needed
-  machine.state.updateStatusBar();
-
   // Suspend for text input
   throw new SuspendState({
     keyPress: false,
