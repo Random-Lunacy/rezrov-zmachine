@@ -17,6 +17,7 @@ export class BlessedScreen extends BaseScreen {
   private confirmDialog: any | null = null;
   private isShowingConfirmDialog: boolean = false;
   private onDialogDismissed: (() => void) | null = null;
+  private onDialogOpened: (() => void) | null = null;
 
   constructor() {
     super('BlessedScreen', { logger: undefined });
@@ -70,9 +71,10 @@ export class BlessedScreen extends BaseScreen {
     this.screen.append(this.statusWindow);
     this.screen.append(this.mainWindow);
 
-    // Handle exit keys
-    this.screen.key(['C-c'], () => {
+    // Handle exit on Ctrl+C
+    this.screen.program.key(['C-c'], () => {
       this.handleCtrlC();
+      return false; // Prevent further processing
     });
 
     this.screen.render();
@@ -80,6 +82,10 @@ export class BlessedScreen extends BaseScreen {
 
   setDialogDismissCallback(callback: () => void): void {
     this.onDialogDismissed = callback;
+  }
+
+  setDialogOpenedCallback(callback: () => void): void {
+    this.onDialogOpened = callback;
   }
 
   private handleCtrlC(): void {
@@ -95,6 +101,10 @@ export class BlessedScreen extends BaseScreen {
 
   private showConfirmDialog(): void {
     this.isShowingConfirmDialog = true;
+
+    if (this.onDialogOpened) {
+      this.onDialogOpened();
+    }
 
     this.confirmDialog = blessed.box({
       parent: this.screen,

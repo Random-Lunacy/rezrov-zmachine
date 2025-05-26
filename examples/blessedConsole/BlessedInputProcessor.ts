@@ -6,6 +6,8 @@ export class BlessedInputProcessor extends BaseInputProcessor {
   private screen: blessed.Widgets.Screen;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private inputBox: any | null = null; // Changed from blessed.Widgets.Box
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private currentKeypressHandler: ((ch: string, key: any) => void) | null = null;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(screen: any, options?: { logger?: Logger }) {
@@ -59,34 +61,55 @@ export class BlessedInputProcessor extends BaseInputProcessor {
 
     const inputBox = this.createInputBox();
 
-    // Register callback to refocus input box when dialogs close
+    // Register callbacks for dialog events
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if ((this.screen as any).setDialogDismissCallback) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (this.screen as any).setDialogDismissCallback(() => {
+        this.enableInputHandlers();
         if (this.inputBox) {
           this.inputBox.focus();
         }
       });
     }
 
-    // Handle keypress to intercept escape before blessed processes it
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const handleKeypress = (ch: string, key: any) => {
+    if ((this.screen as any).setDialogOpenedCallback) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (this.screen as any).setDialogOpenedCallback(() => {
+        this.disableInputHandlers();
+      });
+    }
+
+    // Create the keypress handler
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    this.currentKeypressHandler = (ch: string, key: any) => {
       if (key?.name === 'escape') {
-        // Prevent default escape behavior and keep focus
         inputBox.focus();
-        return false; // Prevent further processing
+        return false;
       }
-      // Let other keys be handled normally
+      // Note: Ctrl+C is now handled at screen level, not here
     };
 
-    inputBox.on('keypress', handleKeypress);
+    // Enable handlers initially
+    this.enableInputHandlers();
 
     // Use the submit event for normal input
     inputBox.on('submit', (value: string) => {
       // Clean up handlers
-      inputBox.removeListener('keypress', handleKeypress);
+      this.disableInputHandlers();
+
+      // Clear the callbacks when input is done
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if ((this.screen as any).setDialogDismissCallback) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (this.screen as any).setDialogDismissCallback(null);
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if ((this.screen as any).setDialogOpenedCallback) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (this.screen as any).setDialogOpenedCallback(null);
+      }
 
       const input = value || '';
       const termChar = this.processTerminatingCharacters(input, this.terminatingChars);
@@ -95,11 +118,25 @@ export class BlessedInputProcessor extends BaseInputProcessor {
       // Clean up
       this.screen.remove(inputBox);
       this.inputBox = null;
+      this.currentKeypressHandler = null;
       this.screen.render();
     });
 
     inputBox.focus();
     this.screen.render();
+  }
+
+  // Add these methods
+  private enableInputHandlers(): void {
+    if (this.inputBox && this.currentKeypressHandler) {
+      this.inputBox.on('keypress', this.currentKeypressHandler);
+    }
+  }
+
+  private disableInputHandlers(): void {
+    if (this.inputBox && this.currentKeypressHandler) {
+      this.inputBox.removeListener('keypress', this.currentKeypressHandler);
+    }
   }
 
   protected doStartCharInput(machine: ZMachine, state: InputState): void {
