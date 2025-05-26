@@ -13,11 +13,6 @@ export class BlessedScreen extends BaseScreen {
   private bufferMode: number = BufferMode.Buffered;
   private colors: Record<number, { foreground: number; background: number }>;
   private cursorPosition: { line: number; column: number } = { line: 1, column: 1 };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private confirmDialog: any | null = null;
-  private isShowingConfirmDialog: boolean = false;
-  private onDialogDismissed: (() => void) | null = null;
-  private onDialogOpened: (() => void) | null = null;
 
   constructor() {
     super('BlessedScreen', { logger: undefined });
@@ -73,89 +68,11 @@ export class BlessedScreen extends BaseScreen {
 
     // Handle exit on Ctrl+C
     this.screen.program.key(['C-c'], () => {
-      this.handleCtrlC();
+      this.quit();
       return false; // Prevent further processing
     });
 
     this.screen.render();
-  }
-
-  setDialogDismissCallback(callback: () => void): void {
-    this.onDialogDismissed = callback;
-  }
-
-  setDialogOpenedCallback(callback: () => void): void {
-    this.onDialogOpened = callback;
-  }
-
-  private handleCtrlC(): void {
-    if (this.isShowingConfirmDialog) {
-      // Second Ctrl+C - exit immediately
-      this.quit();
-      return;
-    }
-
-    // First Ctrl+C - show confirmation dialog
-    this.showConfirmDialog();
-  }
-
-  private showConfirmDialog(): void {
-    this.isShowingConfirmDialog = true;
-
-    if (this.onDialogOpened) {
-      this.onDialogOpened();
-    }
-
-    this.confirmDialog = blessed.box({
-      parent: this.screen,
-      top: 'center',
-      left: 'center',
-      width: 50,
-      height: 7,
-      label: ' Confirm Exit ',
-      content: '{center}Really quit the game?{/center}\n\n{center}[Y]es / [N]o / Ctrl+C to force quit{/center}',
-      tags: true,
-      keys: true,
-      border: {
-        type: 'line',
-      },
-      style: {
-        fg: 'white',
-        bg: 'red',
-        border: {
-          fg: 'yellow',
-          bg: 'red',
-        },
-      },
-    });
-
-    // Handle responses
-    this.confirmDialog.key(['y', 'Y', 'enter'], () => {
-      this.quit();
-    });
-
-    this.confirmDialog.key(['n', 'N', 'escape'], () => {
-      this.hideConfirmDialog();
-    });
-
-    this.screen.append(this.confirmDialog);
-    this.confirmDialog.focus();
-    this.screen.render();
-  }
-
-  private hideConfirmDialog(): void {
-    if (this.confirmDialog) {
-      this.screen.remove(this.confirmDialog);
-      this.confirmDialog = null;
-      this.isShowingConfirmDialog = false;
-
-      // Call the callback to refocus input
-      if (this.onDialogDismissed) {
-        this.onDialogDismissed();
-      }
-
-      this.screen.render();
-    }
   }
 
   getCapabilities(): Capabilities {
