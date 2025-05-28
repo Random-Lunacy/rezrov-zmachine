@@ -12,3 +12,31 @@ updates:
     commit-message:
       prefix: 'chore'
       include: 'scope'
+
+  - package-ecosystem: 'npm'
+    directory: '/examples/console'
+    schedule:
+      interval: 'monthly'
+    open-pull-requests-limit: 10
+    versioning-strategy: auto
+    labels:
+      - 'dependencies'
+      - 'npm'
+      - 'examples'
+    commit-message:
+      prefix: 'chore'
+      include: 'scope'
+
+  - package-ecosystem: 'npm'
+    directory: '/examples/blessedConsole'
+    schedule:
+      interval: 'monthly'
+    open-pull-requests-limit: 10
+    versioning-strategy: auto
+    labels:
+      - 'dependencies'
+      - 'npm'
+      - 'examples'
+    commit-message:
+      prefix: 'chore'
+      include: 'scope'

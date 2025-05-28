@@ -1,4 +1,4 @@
-import { MAX_OBJECTS_V3, MAX_OBJECTS_V4 } from '../../utils/constants';
+import { MAX_OBJECTS_V3, MAX_OBJECTS_V4, MAX_PROPERTIES_V3, MAX_PROPERTIES_V4 } from '../../utils/constants';
 import { Logger } from '../../utils/log';
 import { Memory } from '../memory/Memory';
 import { GameObject } from './GameObject';
@@ -72,7 +72,7 @@ export class GameObjectFactory {
    */
   private identifyValidObjects(): void {
     const entrySize = this.version <= 3 ? 9 : 14;
-    const propertyDefaultsSize = this.version <= 3 ? 31 * 2 : 63 * 2;
+    const propertyDefaultsSize = this.version <= 3 ? MAX_PROPERTIES_V3 * 2 : MAX_PROPERTIES_V4 * 2;
 
     // Start address of the object entries
     const objectEntriesStart = this.objTable + propertyDefaultsSize;
@@ -207,7 +207,7 @@ export class GameObjectFactory {
       const propStart = propTableAddr + 1 + nameLength * 2;
       const firstPropByte = this.memory.getByte(propStart);
 
-      // Either a valid property number (1-31/63) or a terminator (0)
+      // Either a valid property number (1 to MAX_PROPERTIES_V3/MAX_PROPERTIES_V4) or a terminator (0)
       if (firstPropByte !== 0 && (firstPropByte & 0x1f) === 0) {
         return false;
       }
