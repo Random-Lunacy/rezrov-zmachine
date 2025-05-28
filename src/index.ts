@@ -50,7 +50,7 @@ export type { StorageProvider } from './storage/providers/StorageProvider';
 export { Storage } from './storage/Storage';
 
 // Constants and utilities
-export { Flags1, Flags2, HeaderLocation, Interpreter, KnownGlobals, ZVersion } from './utils/constants';
+export { Flags1, Flags2, HeaderLocation, Interpreter, KnownGlobals } from './utils/constants';
 export { dumpDictionary, dumpHeader, dumpObjectTable, dumpParseBuffer, dumpState, hex } from './utils/debug';
 export { LogLevel, Logger } from './utils/log';
 export { initRandom, random, randomInt, randomIntFrom0, randomSeed } from './utils/random';

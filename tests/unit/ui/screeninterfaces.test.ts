@@ -1,38 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { BufferMode, Capabilities, Color, TextStyle, colorToString } from '../../../src/ui/screen/interfaces';
+import { Color } from '../../../src/types';
+import { Capabilities, colorToString } from '../../../src/ui/screen/interfaces';
 
 describe('Screen Interfaces', () => {
   afterEach(() => {
     vi.resetAllMocks();
-  });
-
-  describe('Enums', () => {
-    it('should define TextStyle enum with correct values', () => {
-      expect(TextStyle.Roman).toBe(0);
-      expect(TextStyle.ReverseVideo).toBe(1);
-      expect(TextStyle.Bold).toBe(2);
-      expect(TextStyle.Italic).toBe(4);
-      expect(TextStyle.FixedPitch).toBe(8);
-    });
-
-    it('should define Color enum with correct values', () => {
-      expect(Color.Current).toBe(0);
-      expect(Color.Default).toBe(1);
-      expect(Color.Black).toBe(2);
-      expect(Color.Red).toBe(3);
-      expect(Color.Green).toBe(4);
-      expect(Color.Yellow).toBe(5);
-      expect(Color.Blue).toBe(6);
-      expect(Color.Magenta).toBe(7);
-      expect(Color.Cyan).toBe(8);
-      expect(Color.White).toBe(9);
-      expect(Color.Gray).toBe(10);
-    });
-
-    it('should define BufferMode enum with correct values', () => {
-      expect(BufferMode.NotBuffered).toBe(0);
-      expect(BufferMode.Buffered).toBe(1);
-    });
   });
 
   describe('colorToString', () => {
@@ -124,47 +96,6 @@ describe('Screen Interfaces', () => {
       expect(capabilities.hasPictures).toBe(false);
       expect(capabilities.hasSound).toBe(false);
       expect(capabilities.hasTimedKeyboardInput).toBe(false);
-    });
-  });
-
-  describe('Z-Machine Spec Compliance', () => {
-    // Tests to verify the interfaces comply with Z-Machine 1.1 specification
-
-    it('should define TextStyle values according to the Z-Machine spec', () => {
-      // According to Z-Machine spec, text styles are bit flags:
-      // 0 (none) = normal Roman text
-      // 1 = reverse video
-      // 2 = bold
-      // 4 = italic
-      // 8 = fixed pitch
-
-      expect(TextStyle.Roman).toBe(0);
-      expect(TextStyle.ReverseVideo).toBe(1);
-      expect(TextStyle.Bold).toBe(2);
-      expect(TextStyle.Italic).toBe(4);
-      expect(TextStyle.FixedPitch).toBe(8);
-
-      // Verify style combinations work as expected (using bitwise OR)
-      const boldItalic = TextStyle.Bold | TextStyle.Italic;
-      expect(boldItalic).toBe(6);
-
-      const allStyles = TextStyle.ReverseVideo | TextStyle.Bold | TextStyle.Italic | TextStyle.FixedPitch;
-      expect(allStyles).toBe(15);
-    });
-
-    it('should define Color values according to the Z-Machine spec', () => {
-      // The Z-Machine spec defines standard colors with these values
-      expect(Color.Current).toBe(0);
-      expect(Color.Default).toBe(1);
-      expect(Color.Black).toBe(2);
-      expect(Color.Red).toBe(3);
-      expect(Color.Green).toBe(4);
-      expect(Color.Yellow).toBe(5);
-      expect(Color.Blue).toBe(6);
-      expect(Color.Magenta).toBe(7);
-      expect(Color.Cyan).toBe(8);
-      expect(Color.White).toBe(9);
-      expect(Color.Gray).toBe(10); // Gray is a non-standard addition
     });
   });
 });
