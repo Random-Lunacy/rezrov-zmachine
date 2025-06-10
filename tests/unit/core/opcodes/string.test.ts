@@ -106,7 +106,7 @@ describe('String Opcodes', () => {
   });
 
   describe('print_ret', () => {
-    it('should print the embedded string and return 1', () => {
+    it('should print the embedded string with a new_line character and return 1', () => {
       // Arrange
       const zstring = [65, 66, 67]; // ABC
       const decodedString = 'Test String';
@@ -119,6 +119,7 @@ describe('String Opcodes', () => {
       expect(mockMachine.state.readZString).toHaveBeenCalled();
       expect(ZString.decodeZString).toHaveBeenCalledWith(mockMachine.memory, zstring, true);
       expect(machine.screen.print).toHaveBeenCalledWith(machine, decodedString);
+      expect(machine.screen.print).toHaveBeenCalledWith(machine, '\n');
       expect(mockMachine.state.returnFromRoutine).toHaveBeenCalledWith(1);
       expect(mockMachine.logger.debug).toHaveBeenCalledWith(`5000 print_ret`);
     });

@@ -58,7 +58,7 @@ function print(machine: ZMachine): void {
 }
 
 /**
- * Print a string and return 1
+ * Print a string, followed by new_line, then return 1 (true)
  */
 function print_ret(machine: ZMachine): void {
   machine.logger.debug(`${machine.state.pc.toString(16)} print_ret`);
@@ -66,6 +66,7 @@ function print_ret(machine: ZMachine): void {
   // Read and print the embedded Z-string
   const zstring = machine.state.readZString();
   machine.screen.print(machine, decodeZString(machine.memory, zstring, true));
+  machine.screen.print(machine, '\n');
 
   // Return from the routine with value 1
   machine.state.returnFromRoutine(1);

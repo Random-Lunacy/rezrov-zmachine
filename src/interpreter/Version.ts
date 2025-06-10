@@ -1,3 +1,12 @@
+import {
+  MAX_ATTRIBUTES_V3,
+  MAX_ATTRIBUTES_V4,
+  MAX_OBJECTS_V3,
+  MAX_OBJECTS_V4,
+  MAX_PROPERTIES_V3,
+  MAX_PROPERTIES_V4,
+} from '../utils/constants';
+
 /**
  * Enum representing the different Z-machine versions
  */
@@ -40,11 +49,11 @@ export function getVersionCapabilities(version: ZMachineVersion): VersionCapabil
     case ZMachineVersion.V2:
     case ZMachineVersion.V3:
       return {
-        maxObjects: 255,
-        attributeCount: 32,
-        propertyDefaultsTableSize: 31,
+        maxObjects: MAX_OBJECTS_V3,
+        attributeCount: MAX_ATTRIBUTES_V3,
+        propertyDefaultsTableSize: MAX_PROPERTIES_V3,
         objectEntrySize: 9,
-        objectEntryOffset: 62, // 31 property defaults * 2 bytes each
+        objectEntryOffset: MAX_PROPERTIES_V3 * 2,
         extendedOpcodes: false,
         variableLengthObjects: false,
         unicodeSupport: false,
@@ -55,11 +64,11 @@ export function getVersionCapabilities(version: ZMachineVersion): VersionCapabil
     case ZMachineVersion.V4:
     case ZMachineVersion.V5:
       return {
-        maxObjects: 65535,
-        attributeCount: 48,
-        propertyDefaultsTableSize: 63,
+        maxObjects: MAX_OBJECTS_V4,
+        attributeCount: MAX_ATTRIBUTES_V4,
+        propertyDefaultsTableSize: MAX_PROPERTIES_V4,
         objectEntrySize: 14,
-        objectEntryOffset: 126, // 63 property defaults * 2 bytes each
+        objectEntryOffset: MAX_PROPERTIES_V4 * 2,
         extendedOpcodes: true,
         variableLengthObjects: true,
         unicodeSupport: false,
@@ -70,11 +79,11 @@ export function getVersionCapabilities(version: ZMachineVersion): VersionCapabil
     case ZMachineVersion.V6:
     case ZMachineVersion.V7:
       return {
-        maxObjects: 65535,
-        attributeCount: 48,
-        propertyDefaultsTableSize: 63,
+        maxObjects: MAX_OBJECTS_V4, // Same as V4-V5
+        attributeCount: MAX_ATTRIBUTES_V4, // Same as V4-V5
+        propertyDefaultsTableSize: MAX_PROPERTIES_V4, // Same as V4-V5
         objectEntrySize: 14,
-        objectEntryOffset: 126, // 63 property defaults * 2 bytes each
+        objectEntryOffset: MAX_PROPERTIES_V4 * 2,
         extendedOpcodes: true,
         variableLengthObjects: true,
         unicodeSupport: version === ZMachineVersion.V7,
@@ -84,11 +93,11 @@ export function getVersionCapabilities(version: ZMachineVersion): VersionCapabil
       };
     case ZMachineVersion.V8:
       return {
-        maxObjects: 65535,
-        attributeCount: 48,
-        propertyDefaultsTableSize: 63,
+        maxObjects: MAX_OBJECTS_V4, // Same as V4-V5
+        attributeCount: MAX_ATTRIBUTES_V4, // Same as V4-V5
+        propertyDefaultsTableSize: MAX_PROPERTIES_V4, // Same as V4-V5
         objectEntrySize: 14,
-        objectEntryOffset: 126, // 63 property defaults * 2 bytes each
+        objectEntryOffset: MAX_PROPERTIES_V4 * 2,
         extendedOpcodes: true,
         variableLengthObjects: true,
         unicodeSupport: true,
