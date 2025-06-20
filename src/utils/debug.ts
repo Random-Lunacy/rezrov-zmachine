@@ -5,7 +5,7 @@ import { GameObject } from '../core/objects/GameObject';
 import { ZMachine } from '../interpreter/ZMachine';
 import { decodeZString } from '../parsers/ZString';
 import { Address, ZSCII } from '../types';
-import { HeaderLocation, KnownGlobals } from './constants';
+import { HeaderLocation, KnownGlobals, MAX_OBJECTS_V3, MAX_OBJECTS_V4 } from './constants';
 
 /**
  * Convert a number to hexadecimal string representation
@@ -58,7 +58,7 @@ export function dumpObjectTable(machine: ZMachine): void {
   const rootObjects: Array<GameObject> = [];
 
   // Find all objects without parents
-  for (let i = 1; i < (state.version <= 3 ? 256 : 65536); i++) {
+  for (let i = 1; i < (state.version <= 3 ? MAX_OBJECTS_V3 : MAX_OBJECTS_V4); i++) {
     const obj = state.getObject(i);
     if (obj === null) {
       continue;
