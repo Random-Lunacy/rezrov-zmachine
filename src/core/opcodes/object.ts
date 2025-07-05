@@ -23,6 +23,7 @@
  */
 import { ZMachine } from '../../interpreter/ZMachine';
 import { OperandType } from '../../types';
+import { MAX_ATTRIBUTES_V3, MAX_ATTRIBUTES_V4 } from '../../utils/constants';
 import { hex } from '../../utils/debug';
 import { GameObject } from '../objects/GameObject';
 import { opcode } from './base';
@@ -38,7 +39,7 @@ function test_attr(machine: ZMachine, _operandTypes: OperandType[], obj: number,
     }`
   );
 
-  const maxAttributes = machine.state.version <= 3 ? 32 : 48;
+  const maxAttributes = machine.state.version <= 3 ? MAX_ATTRIBUTES_V3 : MAX_ATTRIBUTES_V4;
   if (attribute < 0 || attribute >= maxAttributes) {
     const pc = machine.executor.op_pc;
     machine.logger.error(`INVALID ATTRIBUTE: PC=${hex(pc)}, obj=${obj}, attr=${attribute}`);

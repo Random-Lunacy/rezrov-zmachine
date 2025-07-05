@@ -1,5 +1,6 @@
 import { decodeZString } from '../../parsers/ZString';
 import { Address } from '../../types';
+import { MAX_ATTRIBUTES_V3, MAX_ATTRIBUTES_V4, MAX_PROPERTIES_V3, MAX_PROPERTIES_V4 } from '../../utils/constants';
 import { Logger } from '../../utils/log';
 import { Memory } from '../memory/Memory';
 
@@ -62,11 +63,11 @@ export class GameObject {
 
     // Calculate object address based on version-specific object entry size
     if (this.version <= 3) {
-      // V1-3: 9-byte entries, 31 * 2 bytes for default properties
-      this.objAddr = this.objTable + 31 * 2 + (objNum - 1) * 9;
+      // V1-3: 9-byte entries, MAX_PROPERTIES_V3 * 2 bytes for default properties
+      this.objAddr = this.objTable + MAX_PROPERTIES_V3 * 2 + (objNum - 1) * 9;
     } else {
-      // V4+: 14-byte entries, 63 * 2 bytes for default properties
-      this.objAddr = this.objTable + 63 * 2 + (objNum - 1) * 14;
+      // V4+: 14-byte entries, MAX_PROPERTIES_V4 * 2 bytes for default properties
+      this.objAddr = this.objTable + MAX_PROPERTIES_V4 * 2 + (objNum - 1) * 14;
     }
 
     // Verify this is a valid object address
@@ -86,7 +87,7 @@ export class GameObject {
 
   // Attribute Handling
   public getMaxAttributes(): number {
-    return this.version <= 3 ? 32 : 48;
+    return this.version <= 3 ? MAX_ATTRIBUTES_V3 : MAX_ATTRIBUTES_V4;
   }
 
   private validateAttributeNumber(attr: number): void {
@@ -335,7 +336,7 @@ export class GameObject {
   }
 
   private _getDefaultPropertyValue(prop: number): number {
-    if (prop <= 0 || prop > (this.version <= 3 ? 31 : 63)) {
+    if (prop <= 0 || prop > (this.version <= 3 ? MAX_PROPERTIES_V3 : MAX_PROPERTIES_V4)) {
       throw new Error(`Invalid property number: ${prop}`);
     }
 

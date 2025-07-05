@@ -57,20 +57,6 @@ export enum KnownGlobals {
 }
 
 /**
- * Z-machine version numbers
- */
-export enum ZVersion {
-  V1 = 1,
-  V2 = 2,
-  V3 = 3,
-  V4 = 4,
-  V5 = 5,
-  V6 = 6,
-  V7 = 7,
-  V8 = 8,
-}
-
-/**
  * Flags in Header.Flags1
  */
 export enum Flags1 {
@@ -104,16 +90,6 @@ export enum Flags2 {
   UseSound = 0x20, // Bit 5: Use sound effects
   UseMenu = 0x40, // Bit 6: Use menus (V6)
   // Bits 7-15 undefined or reserved
-}
-
-/**
- * Types of chunks in snapshot files
- */
-export enum SnapshotChunkType {
-  Memory = 1,
-  Stack = 2,
-  Callstack = 3,
-  Registers = 4,
 }
 
 /**
