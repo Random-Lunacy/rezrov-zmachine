@@ -6,7 +6,8 @@ An enhanced terminal-based Z-Machine interpreter using the blessed library for s
 
 - **Split Windows**: Proper status bar and main text area separation
 - **Enhanced UI**: Scrollable text and visual borders
-- **Advanced Input**: Better keyboard handling and input management
+- **Inline Input**: Authentic Infocom-style input that appears inline with story text
+- **Blinking Cursor**: Visual feedback showing current input position
 - **Terminal Optimization**: Efficient screen updates and cursor management
 - **Full Z-Machine Support**: Complete implementation of Z-Machine display features
 
@@ -100,16 +101,17 @@ The `BlessedScreen` class extends `BaseScreen` and provides sophisticated termin
 
 The `BlessedInputProcessor` class extends `BaseInputProcessor` with blessed-specific input handling:
 
-- **Visual Input Box**: Dedicated textbox widget with borders and labels
-- **Advanced Key Handling**: Intelligent filtering of special keys
-- **Event Management**: Proper cleanup of input handlers
+- **Inline Input**: Infocom-style input that appears directly in the story text
+- **Blinking Cursor**: Visual feedback with a blinking block cursor (█) showing input position
+- **Advanced Key Handling**: Intelligent filtering of special keys and navigation
+- **Event Management**: Proper cleanup of input handlers and cursor timers
 - **Enhanced Prompting**: Custom input boxes for file operations
 
 **Key features:**
 
-- **Text Input**: Full-featured textbox with editing capabilities
+- **Text Input**: Full inline text input with real-time display updates
 - **Character Input**: Single keypress detection with special key filtering
-- **Visual Feedback**: Input box appears at bottom with clear labeling
+- **Visual Feedback**: Blinking cursor and immediate character echo
 - **Error Handling**: Graceful handling of input errors and cleanup
 
 ### 3. Integration (`index.ts`)
@@ -132,10 +134,12 @@ machine.execute();
 
 ## Controls
 
-- **Text Input**: Type in the input box at the bottom
+- **Text Input**: Type directly inline with the story text (no separate input box)
 - **Character Input**: Press any key when prompted
 - **Exit**: Press Escape or Ctrl+C to quit
-- **Navigation**: Input box automatically focuses when needed
+- **Backspace**: Use backspace to edit your input
+- **Enter**: Submit your input
+- **Escape**: Clear input and restart
 
 ## Supported Z-Machine Features
 
@@ -150,11 +154,12 @@ machine.execute();
 
 ### Input Features
 
-- **Line Input**: Full text input with editing capabilities
+- **Line Input**: Full inline text input with real-time editing capabilities
 - **Character Input**: Single keypress detection
 - **Terminating Characters**: Function keys and special character support
 - **Timed Input**: Support for timed input operations
-- **Visual Feedback**: Clear input prompts and error handling
+- **Visual Feedback**: Blinking cursor and immediate character echo
+- **Authentic Prompts**: ">" prompts appear naturally inline with story text
 
 ### File Operations
 
@@ -172,13 +177,18 @@ machine.execute();
 │ - Scrollable                            │
 │ - Supports all text styles              │
 │ - Full color support                    │
+│ - Inline input with blinking cursor    │
 │                                         │
-├─────────────────────────────────────────┤
-│ ┌─ Input ─────────────────────────────┐ │
-│ │ [Text input box appears here]       │ │
-│ └─────────────────────────────────────┘ │
+│ You are standing in an open field west │
+│ of a white house, with a boarded front │
+│ door. There is a small mailbox here.   │
+│                                         │
+│ > look mailbox█                         │
+│                                         │
 └─────────────────────────────────────────┘
 ```
+
+**Note**: Input appears inline with the story text, just like the original Infocom interpreters. The blinking cursor (█) shows where you're typing.
 
 ## Advanced Features
 
@@ -201,7 +211,9 @@ machine.execute();
 - **Context-sensitive**: Different input modes for text vs character input
 - **Key Filtering**: Intelligent handling of special keys and navigation
 - **Terminating Characters**: Complete terminating character processing
-- **Resource Cleanup**: Proper cleanup of input handlers and widgets
+- **Resource Cleanup**: Proper cleanup of input handlers and cursor timers
+- **Inline Experience**: Authentic Infocom-style input that flows with story text
+- **Visual Feedback**: Blinking cursor provides clear input position indication
 
 ## Troubleshooting
 
@@ -225,8 +237,9 @@ TERM=xterm-256color npm start story.z3
 **Input Not Working**: If input doesn't respond:
 
 - Ensure your terminal supports interactive input
-- Try clicking in the input area
+- Try typing directly in the terminal (no need to click)
 - Check that no other processes are using stdin
+- The blinking cursor should appear when the game is waiting for input
 
 **Colors Not Displaying**: For terminals with limited color support:
 
@@ -272,13 +285,14 @@ This blessed console example provides an excellent foundation for advanced Z-Mac
 | Feature         | Basic Console   | Blessed Console   |
 | --------------- | --------------- | ----------------- |
 | Split Windows   | Limited         | Full Support      |
-| Input Method    | readline-sync   | blessed textbox   |
+| Input Method    | readline-sync   | Inline input      |
 | Scrolling       | Terminal native | Controlled        |
 | Styling         | chalk only      | Full blessed tags |
 | UI Polish       | Basic           | Enhanced          |
 | Performance     | Good            | Optimized         |
 | Layout Control  | None            | Complete          |
-| Visual Feedback | Minimal         | Rich              |
+| Visual Feedback | Minimal         | Blinking cursor   |
+| Authentic UX    | No              | Infocom-style     |
 
 ## Next Steps
 

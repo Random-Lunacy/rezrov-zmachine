@@ -21,14 +21,24 @@ if (parsed.debug) {
   Logger.setLevel(LogLevel.INFO);
 }
 
+// Create the screen and input processor
+const screen = new BlessedScreen();
+const inputProcessor = new BlessedInputProcessor(screen.getBlessedScreen());
+
+// Set up cleanup on process exit
+process.on('exit', () => {
+  inputProcessor.cleanup();
+});
+
+process.on('SIGINT', () => {
+  inputProcessor.cleanup();
+  process.exit(0);
+});
+
 try {
   // Load the story file
   const storyData = fs.readFileSync(file);
   logger.debug(`Loaded ${storyData.length} bytes from ${file}`);
-
-  // Create the screen and input processor
-  const screen = new BlessedScreen();
-  const inputProcessor = new BlessedInputProcessor(screen.getBlessedScreen());
 
   // Create the Z-machine
   const machine = new ZMachine(storyData, screen, inputProcessor, undefined, undefined);
@@ -52,5 +62,7 @@ try {
   }
 } catch (error) {
   logger.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
+  // Clean up input processor before exiting
+  inputProcessor.cleanup();
   process.exit(1);
 }
