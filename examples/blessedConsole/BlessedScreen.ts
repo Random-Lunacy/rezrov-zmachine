@@ -100,11 +100,6 @@ export class BlessedScreen extends BaseScreen {
   print(machine: ZMachine, str: string): void {
     const targetWindow = this.currentWindow === 0 ? this.mainWindow : this.statusWindow;
 
-    // Skip common input prompts - we have a dedicated input box
-    if (this.shouldSkipPrompt(str)) {
-      return;
-    }
-
     // Apply text styling and colors
     const styledText = this.applyStylesAndColors(str);
 
@@ -119,22 +114,6 @@ export class BlessedScreen extends BaseScreen {
     }
 
     this.screen.render();
-  }
-
-  private shouldSkipPrompt(str: string): boolean {
-    // Trim whitespace and check for common prompts
-    const trimmed = str.trim();
-
-    // Common Z-Machine prompts
-    if (trimmed === '>') return true;
-    if (trimmed === '> ') return true;
-    if (trimmed === '\n>') return true;
-    if (trimmed === '\n> ') return true;
-
-    // Handle prompts that might have leading/trailing whitespace or newlines
-    if (/^\s*>\s*$/.test(str)) return true;
-
-    return false;
   }
 
   private applyStylesAndColors(str: string): string {
@@ -382,12 +361,28 @@ export class BlessedScreen extends BaseScreen {
   }
 
   quit(): void {
+    // Restore terminal cursor state before destroying
+    this.screen.cursor.shape = 'line';
+    this.screen.cursor.blink = true;
+    this.screen.cursor.artificial = false;
+
+    // Destroy the blessed screen
     this.screen.destroy();
+
+    // Restore terminal to normal mode
+    process.stdout.write('\x1b[?25h'); // Show cursor
+    process.stdout.write('\x1b[0m');    // Reset colors
+    process.stdout.write('\x1b[2J');    // Clear screen
+
     process.exit(0);
   }
 
   // Expose the blessed screen for use by input processor
   getBlessedScreen(): blessed.Widgets.Screen {
     return this.screen;
+  }
+
+  getMainWindow(): any {
+    return this.mainWindow;
   }
 }
