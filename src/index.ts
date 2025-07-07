@@ -29,6 +29,7 @@ export { ResourceStatus, ResourceType } from './ui/multimedia/MultimediaHandler'
 export type { MultimediaHandler } from './ui/multimedia/MultimediaHandler';
 export { BaseScreen } from './ui/screen/BaseScreen';
 export type { Capabilities, Screen, ScreenSize } from './ui/screen/interfaces';
+export { WindowProperty, WindowType } from './ui/screen/interfaces';
 
 // Parsing components
 export { AlphabetTableManager } from './parsers/AlphabetTable';
