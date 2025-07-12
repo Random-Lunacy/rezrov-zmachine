@@ -9,13 +9,13 @@
   },
   "dependencies": {
     "blessed": "^0.1.81",
-    "chalk": "^4.1.2",
-    "nopt": "^7.2.0"
+    "chalk": "^5.4.1",
+    "nopt": "^8.1.0"
   },
   "devDependencies": {
     "@types/blessed": "^0.1.25",
-    "@types/node": "^18.0.0",
-    "tsx": "^3.12.0",
+    "@types/node": "^24.0.13",
+    "tsx": "^4.20.3",
     "typescript": "^5.0.0"
   }
 }
