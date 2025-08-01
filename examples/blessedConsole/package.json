@@ -16,6 +16,6 @@
     "@types/blessed": "^0.1.25",
     "@types/node": "^24.0.13",
     "tsx": "^4.20.3",
-    "typescript": "^5.0.0"
+    "typescript": "^5.9.2"
   }
 }
