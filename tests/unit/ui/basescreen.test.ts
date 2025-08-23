@@ -24,6 +24,9 @@ describe('BaseScreen', () => {
 
     // Create an instance of BaseScreen with the mock logger
     screen = new BaseScreen('TestScreen', { logger: mockLogger });
+
+    // Override the screen property to use our BaseScreen instance
+    machine.screen = screen;
   });
 
   afterEach(() => {
@@ -79,12 +82,56 @@ describe('BaseScreen', () => {
   });
 
   describe('getWindowProperty', () => {
-    it('should return 0 and log debug message', () => {
-      const result = screen.getWindowProperty(machine as any, 1, 2);
+    it('should return appropriate values for implemented properties', () => {
+      // Test LineCount property for upper window
+      const lineCountResult = screen.getWindowProperty(machine as any, 1, 0);
+      expect(lineCountResult).toBe(0); // upperWindowHeight is 0 initially
 
-      expect(result).toBe(0);
+      // Test CursorLine property
+      const cursorLineResult = screen.getWindowProperty(machine as any, 1, 1);
+      expect(cursorLineResult).toBe(1); // cursorPosition.line is 1 initially
+
+      // Test CursorColumn property
+      const cursorColumnResult = screen.getWindowProperty(machine as any, 1, 2);
+      expect(cursorColumnResult).toBe(1); // cursorPosition.column is 1 initially
+
+      // Test LeftMargin property
+      const leftMarginResult = screen.getWindowProperty(machine as any, 1, 3);
+      expect(leftMarginResult).toBe(1); // Default left margin
+
+      // Test RightMargin property
+      const rightMarginResult = screen.getWindowProperty(machine as any, 1, 4);
+      expect(rightMarginResult).toBe(80); // getSize().cols
+
+      // Test Font property
+      const fontResult = screen.getWindowProperty(machine as any, 1, 5);
+      expect(fontResult).toBe(1); // Default font
+
+      // Test TextStyle property
+      const textStyleResult = screen.getWindowProperty(machine as any, 1, 6);
+      expect(textStyleResult).toBe(0); // currentStyles is 0 initially
+
+      // Test ColorData property
+      const colorDataResult = screen.getWindowProperty(machine as any, 1, 7);
+      expect(colorDataResult).toBe(257); // Default colors packed: (1 << 8) | 1 = 257
+
+      // Test Width property
+      const widthResult = screen.getWindowProperty(machine as any, 1, 8);
+      expect(widthResult).toBe(80); // getSize().cols
+
+      // Test Height property for upper window (window 1)
+      const heightResult = screen.getWindowProperty(machine as any, 1, 9);
+      expect(heightResult).toBe(0); // upperWindowHeight is 0 initially
+
+      // Test Height property for lower window (window 0)
+      const lowerHeightResult = screen.getWindowProperty(machine as any, 0, 9);
+      expect(lowerHeightResult).toBe(25); // getSize().rows - upperWindowHeight = 25 - 0
+
+      // Test unknown property
+      const unknownResult = screen.getWindowProperty(machine as any, 1, 99);
+      expect(unknownResult).toBe(0);
       expect(mockLogger.debug).toHaveBeenCalledWith(
-        'not implemented: TestScreen getWindowProperty window=1 property=2'
+        'not implemented: TestScreen getWindowProperty window=1 property=99'
       );
     });
   });
@@ -114,44 +161,43 @@ describe('BaseScreen', () => {
   });
 
   describe('window control methods', () => {
-    it('should log debug message for splitWindow', () => {
+    it('should implement splitWindow with version-aware behavior', () => {
       screen.splitWindow(machine as any, 5);
 
-      expect(mockLogger.debug).toHaveBeenCalledWith('not implemented: TestScreen splitWindow lines=5');
+      expect(mockLogger.debug).toHaveBeenCalledWith('TestScreen splitWindow lines=5 (version 3)');
     });
 
-    it('should log debug message for setOutputWindow', () => {
+    it('should implement setOutputWindow with version-aware behavior', () => {
       screen.setOutputWindow(machine as any, 1);
 
-      expect(mockLogger.debug).toHaveBeenCalledWith('not implemented: TestScreen setOutputWindow windowId=1');
+      expect(mockLogger.debug).toHaveBeenCalledWith('TestScreen setOutputWindow windowId=1 (version 3)');
     });
 
-    it('should return 0 and log debug message for getOutputWindow', () => {
+    it('should return current output window', () => {
       const result = screen.getOutputWindow(machine as any);
 
-      expect(result).toBe(0);
-      expect(mockLogger.debug).toHaveBeenCalledWith('not implemented: TestScreen getOutputWindow');
+      expect(result).toBe(0); // Default is WindowType.Lower (0)
     });
 
-    it('should log debug message for clearWindow', () => {
+    it('should implement clearWindow with version-aware behavior', () => {
       screen.clearWindow(machine as any, 1);
 
-      expect(mockLogger.debug).toHaveBeenCalledWith('not implemented: TestScreen clearWindow windowId=1');
+      expect(mockLogger.debug).toHaveBeenCalledWith('TestScreen clearWindow windowId=1 (version 3)');
     });
 
-    it('should log debug message for clearLine', () => {
+    it('should warn when clearLine is not supported in version 3', () => {
       screen.clearLine(machine as any, 1);
 
-      expect(mockLogger.debug).toHaveBeenCalledWith('not implemented: TestScreen clearLine value=1');
+      expect(mockLogger.warn).toHaveBeenCalledWith('TestScreen clearLine not supported in version 3');
     });
   });
 
   describe('cursor control methods', () => {
-    it('should log debug message for setCursorPosition', () => {
+    it('should implement setCursorPosition with version-aware behavior', () => {
       screen.setCursorPosition(machine as any, 10, 20, 1);
 
       expect(mockLogger.debug).toHaveBeenCalledWith(
-        'not implemented: TestScreen setCursorPosition line=10 column=20 windowId=1'
+        'TestScreen setCursorPosition line=10 column=20 windowId=1 (version 3)'
       );
     });
 
@@ -169,31 +215,28 @@ describe('BaseScreen', () => {
   });
 
   describe('text formatting methods', () => {
-    it('should log debug message for setBufferMode', () => {
+    it('should implement setBufferMode', () => {
       screen.setBufferMode(machine as any, BufferMode.Buffered);
 
-      expect(mockLogger.debug).toHaveBeenCalledWith('not implemented: TestScreen setBufferMode mode=1');
+      expect(mockLogger.debug).toHaveBeenCalledWith('TestScreen setBufferMode mode=1');
     });
 
-    it('should log debug message for setTextStyle', () => {
+    it('should warn when setTextStyle is not supported in version 3', () => {
       screen.setTextStyle(machine as any, TextStyle.Bold);
 
-      expect(mockLogger.debug).toHaveBeenCalledWith('not implemented: TestScreen setTextStyle style=2');
+      expect(mockLogger.warn).toHaveBeenCalledWith('TestScreen setTextStyle not supported in version 3');
     });
 
-    it('should log debug message for setTextColors', () => {
+    it('should warn when setTextColors is not supported in version 3', () => {
       screen.setTextColors(machine as any, 1, Color.Red, Color.Blue);
 
-      expect(mockLogger.debug).toHaveBeenCalledWith(
-        'not implemented: TestScreen setTextColors window=1 foreground=3 background=6'
-      );
+      expect(mockLogger.warn).toHaveBeenCalledWith('TestScreen setTextColors not supported in version 3');
     });
 
-    it('should return 0 and log debug message for getBufferMode', () => {
+    it('should return current buffer mode', () => {
       const result = screen.getBufferMode(machine as any);
 
-      expect(result).toBe(0);
-      expect(mockLogger.debug).toHaveBeenCalledWith('TestScreen getBufferMode');
+      expect(result).toBe(1); // Default is BufferMode.Buffered (1)
     });
   });
 
@@ -222,78 +265,70 @@ describe('BaseScreen', () => {
   });
 
   describe('font methods', () => {
-    it('should return 1 and log debug message for getCurrentFont', () => {
+    it('should return current font for output window', () => {
       const result = screen.getCurrentFont(machine as any);
 
-      expect(result).toBe(1);
-      expect(mockLogger.debug).toHaveBeenCalledWith('TestScreen getCurrentFont');
+      expect(result).toBe(1); // Default font for output window
     });
 
-    it('should return true for supported fonts and log debug message for setFont', () => {
+    it('should implement setFont with version-aware behavior', () => {
       // Font 1 (normal font) should be supported
       expect(screen.setFont(machine as any, 1)).toBe(true);
-      expect(mockLogger.debug).toHaveBeenCalledWith('TestScreen setFont 1');
 
       // Font 2 (picture font) should not be supported
       expect(screen.setFont(machine as any, 2)).toBe(false);
-      expect(mockLogger.debug).toHaveBeenCalledWith('TestScreen setFont 2');
 
       // Font 3 (character graphics font) should be supported
       expect(screen.setFont(machine as any, 3)).toBe(true);
-      expect(mockLogger.debug).toHaveBeenCalledWith('TestScreen setFont 3');
 
       // Font 4 (fixed pitch font) should be supported
       expect(screen.setFont(machine as any, 4)).toBe(true);
-      expect(mockLogger.debug).toHaveBeenCalledWith('TestScreen setFont 4');
 
       // Other fonts should not be supported
       expect(screen.setFont(machine as any, 5)).toBe(false);
-      expect(mockLogger.debug).toHaveBeenCalledWith('TestScreen setFont 5');
+
+      // Verify that the logger was called for each operation
+      expect(mockLogger.debug).toHaveBeenCalledTimes(4);
     });
 
-    it('should return 1 and log debug message for getFontForWindow', () => {
+    it('should return font for specific window', () => {
       const result = screen.getFontForWindow(machine as any, 1);
 
-      expect(result).toBe(1);
-      expect(mockLogger.debug).toHaveBeenCalledWith('TestScreen getFontForWindow 1');
+      expect(result).toBe(1); // Default font for window
     });
 
-    it('should behave like setFont for setFontForWindow', () => {
+    it('should implement setFontForWindow with version-aware behavior', () => {
       // Font 1 (normal font) should be supported
       expect(screen.setFontForWindow(machine as any, 1, 0)).toBe(true);
-      expect(mockLogger.debug).toHaveBeenCalledWith('TestScreen setFontForWindow 1 0');
 
       // Font 2 (picture font) should not be supported
       expect(screen.setFontForWindow(machine as any, 2, 0)).toBe(false);
-      expect(mockLogger.debug).toHaveBeenCalledWith('TestScreen setFontForWindow 2 0');
 
       // Font 3 (character graphics font) should be supported
       expect(screen.setFontForWindow(machine as any, 3, 0)).toBe(true);
-      expect(mockLogger.debug).toHaveBeenCalledWith('TestScreen setFontForWindow 3 0');
 
       // Font 4 (fixed pitch font) should be supported
       expect(screen.setFontForWindow(machine as any, 4, 0)).toBe(true);
-      expect(mockLogger.debug).toHaveBeenCalledWith('TestScreen setFontForWindow 4 0');
 
       // Other fonts should not be supported
       expect(screen.setFontForWindow(machine as any, 5, 0)).toBe(false);
-      expect(mockLogger.debug).toHaveBeenCalledWith('TestScreen setFontForWindow 5 0');
+
+      // Verify that the logger was called for each operation
+      expect(mockLogger.debug).toHaveBeenCalledTimes(4);
     });
   });
 
   describe('color methods', () => {
-    it('should return -1 and log debug message for getWindowTrueForeground', () => {
+    it('should return actual foreground color for window', () => {
       const result = screen.getWindowTrueForeground(machine as any, 1);
 
-      expect(result).toBe(-1);
-      expect(mockLogger.debug).toHaveBeenCalledWith('TestScreen getWindowTrueForeground 1');
+      expect(result).toBe(1); // Default foreground color (Color.Default = 1)
     });
 
-    it('should return -1 and log debug message for getWindowTrueBackground', () => {
+    it('should return actual background color for window', () => {
       const result = screen.getWindowTrueBackground(machine as any, 1);
 
-      expect(result).toBe(-1);
-      expect(mockLogger.debug).toHaveBeenCalledWith('TestScreen getWindowTrueBackground 1');
+      expect(result).toBe(1); // Default background color (Color.Default = 1)
     });
   });
 
