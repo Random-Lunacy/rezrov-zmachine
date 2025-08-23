@@ -8,19 +8,10 @@ export class BlessedScreen extends BaseScreen {
   private statusWindow: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private mainWindow: any;
-  private currentWindow: number = 0;
   private textStyle: number = TextStyle.Roman;
-  private bufferMode: number = BufferMode.Buffered;
-  private colors: Record<number, { foreground: number; background: number }>;
-  private cursorPosition: { line: number; column: number } = { line: 1, column: 1 };
 
   constructor() {
     super('BlessedScreen', { logger: undefined });
-
-    this.colors = {
-      0: { foreground: Color.Default, background: Color.Default },
-      1: { foreground: Color.Default, background: Color.Default },
-    };
 
     this.screen = blessed.screen({
       smartCSR: true,
@@ -98,12 +89,12 @@ export class BlessedScreen extends BaseScreen {
   }
 
   print(machine: ZMachine, str: string): void {
-    const targetWindow = this.currentWindow === 0 ? this.mainWindow : this.statusWindow;
+    const targetWindow = this.outputWindowId === 0 ? this.mainWindow : this.statusWindow;
 
     // Apply text styling and colors
     const styledText = this.applyStylesAndColors(str);
 
-    if (this.currentWindow === 0) {
+    if (this.outputWindowId === 0) {
       // Main window - append and scroll
       const currentContent = targetWindow.getContent();
       targetWindow.setContent(currentContent + styledText);
@@ -120,18 +111,18 @@ export class BlessedScreen extends BaseScreen {
     let result = str;
 
     // Apply text styles using blessed tags
-    if (this.textStyle & TextStyle.Bold) {
+    if (this.currentStyles & TextStyle.Bold) {
       result = `{bold}${result}{/bold}`;
     }
-    if (this.textStyle & TextStyle.Italic) {
+    if (this.currentStyles & TextStyle.Italic) {
       result = `{italic}${result}{/italic}`;
     }
-    if (this.textStyle & TextStyle.ReverseVideo) {
+    if (this.currentStyles & TextStyle.ReverseVideo) {
       result = `{inverse}${result}{/inverse}`;
     }
 
     // Apply colors
-    const windowColors = this.colors[this.currentWindow];
+    const windowColors = this.windowColors.get(this.outputWindowId);
     if (windowColors) {
       const fgColor = this.mapZMachineColor(windowColors.foreground);
       const bgColor = this.mapZMachineColor(windowColors.background);
@@ -176,38 +167,18 @@ export class BlessedScreen extends BaseScreen {
     }
   }
 
-  setOutputWindow(machine: ZMachine, windowId: number): void {
-    this.currentWindow = windowId;
-  }
-
-  getOutputWindow(machine: ZMachine): number {
-    return this.currentWindow;
-  }
-
-  setBufferMode(machine: ZMachine, mode: number): void {
-    this.bufferMode = mode;
-  }
-
-  getBufferMode(machine: ZMachine): number {
-    return this.bufferMode;
-  }
-
+  // Override setTextStyle to update our local textStyle for styling
   setTextStyle(machine: ZMachine, style: number): void {
-    this.textStyle = style;
+    super.setTextStyle(machine, style);
+    this.textStyle = style; // Keep local copy for styling
   }
 
-  setTextColors(machine: ZMachine, windowId: number, foreground: number, background: number): void {
-    const newColors = { foreground, background };
-    if (newColors.foreground === Color.Current) {
-      newColors.foreground = this.colors[windowId]?.foreground || Color.Default;
-    }
-    if (newColors.background === Color.Current) {
-      newColors.background = this.colors[windowId]?.background || Color.Default;
-    }
-    this.colors[windowId] = newColors;
+  // Override setTextColors to ensure our styling works
+  setTextColors(machine: ZMachine, window: number, foreground: number, background: number): void {
+    super.setTextColors(machine, window, foreground, background);
 
     // Apply colors to the window immediately
-    const targetWindow = windowId === 0 ? this.mainWindow : this.statusWindow;
+    const targetWindow = window === 0 ? this.mainWindow : this.statusWindow;
     const fgColor = this.mapZMachineColor(foreground);
     const bgColor = this.mapZMachineColor(background);
 
@@ -218,7 +189,10 @@ export class BlessedScreen extends BaseScreen {
     }
   }
 
+  // Override splitWindow to use BaseScreen's v5 logic and update blessed windows
   splitWindow(machine: ZMachine, lines: number): void {
+    super.splitWindow(machine, lines);
+
     if (lines === 0) {
       // Unsplit - status window invisible
       this.statusWindow.height = 0;
@@ -233,7 +207,10 @@ export class BlessedScreen extends BaseScreen {
     this.screen.render();
   }
 
+  // Override clearWindow to use BaseScreen's v5 logic and update blessed windows
   clearWindow(machine: ZMachine, windowId: number): void {
+    super.clearWindow(machine, windowId);
+
     if (windowId === 0 || windowId === -1) {
       this.mainWindow.setContent('');
     }
@@ -243,8 +220,11 @@ export class BlessedScreen extends BaseScreen {
     this.screen.render();
   }
 
+  // Override clearLine to use BaseScreen's v5 logic
   clearLine(machine: ZMachine, value: number): void {
-    const targetWindow = this.currentWindow === 0 ? this.mainWindow : this.statusWindow;
+    super.clearLine(machine, value);
+
+    const targetWindow = this.outputWindowId === 0 ? this.mainWindow : this.statusWindow;
     // Clear current line - simplified implementation
     const content = targetWindow.getContent();
     const lines = content.split('\n');
@@ -255,8 +235,9 @@ export class BlessedScreen extends BaseScreen {
     }
   }
 
+  // Override setCursorPosition to use BaseScreen's v5 logic
   setCursorPosition(machine: ZMachine, line: number, column: number, windowId: number): void {
-    this.cursorPosition = { line, column };
+    super.setCursorPosition(machine, line, column, windowId);
     // blessed handles cursor positioning internally for most cases
     this.logger.debug(`setCursorPosition: ${line}, ${column}, window: ${windowId}`);
   }
@@ -306,34 +287,42 @@ export class BlessedScreen extends BaseScreen {
   }
 
   updateDisplay(machine: ZMachine): void {
+    super.updateDisplay(machine);
     this.screen.render();
   }
 
   getCurrentFont(machine: ZMachine): number {
-    return 1; // Default font
+    return super.getCurrentFont(machine);
   }
 
   setFont(machine: ZMachine, font: number): boolean {
-    return font === 1; // Only support default font
+    return super.setFont(machine, font);
   }
 
   getFontForWindow(machine: ZMachine, window: number): number {
-    return 1;
+    return super.getFontForWindow(machine, window);
   }
 
   setFontForWindow(machine: ZMachine, font: number, window: number): boolean {
-    return font === 1;
+    return super.setFontForWindow(machine, font, window);
   }
 
   getWindowTrueForeground(machine: ZMachine, window: number): number {
-    return -1; // Not supported
+    return super.getWindowTrueForeground(machine, window);
   }
 
   getWindowTrueBackground(machine: ZMachine, window: number): number {
-    return -1; // Not supported
+    return super.getWindowTrueBackground(machine, window);
   }
 
   getWindowProperty(machine: ZMachine, window: number, property: number): number {
+    // Use BaseScreen's implementation for most properties
+    const baseValue = super.getWindowProperty(machine, window, property);
+    if (baseValue !== 0) {
+      return baseValue;
+    }
+
+    // Fall back to blessed-specific implementations for some properties
     switch (property) {
       case 0: // Y cursor position
         return this.cursorPosition.line;
