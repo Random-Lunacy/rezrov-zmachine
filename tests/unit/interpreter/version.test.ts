@@ -374,16 +374,16 @@ describe('Byte to packed address conversion', () => {
 
 describe('Maximum file size', () => {
   it('should return correct maximum file size for all versions', () => {
-    // V1-V3: 128KB
+    // V1-V2: 128KB
     expect(getMaxFileSize(ZMachineVersion.V1)).toBe(128 * 1024);
     expect(getMaxFileSize(ZMachineVersion.V2)).toBe(128 * 1024);
-    expect(getMaxFileSize(ZMachineVersion.V3)).toBe(128 * 1024);
 
-    // V4-V5: 256KB
+    // V3-V4: 256KB
+    expect(getMaxFileSize(ZMachineVersion.V3)).toBe(256 * 1024);
     expect(getMaxFileSize(ZMachineVersion.V4)).toBe(256 * 1024);
-    expect(getMaxFileSize(ZMachineVersion.V5)).toBe(256 * 1024);
 
-    // V6-V8: 512KB
+    // V5-V8: 512KB
+    expect(getMaxFileSize(ZMachineVersion.V5)).toBe(512 * 1024);
     expect(getMaxFileSize(ZMachineVersion.V6)).toBe(512 * 1024);
     expect(getMaxFileSize(ZMachineVersion.V7)).toBe(512 * 1024);
     expect(getMaxFileSize(ZMachineVersion.V8)).toBe(512 * 1024);

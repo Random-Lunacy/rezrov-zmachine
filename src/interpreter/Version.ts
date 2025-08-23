@@ -262,8 +262,8 @@ export function byteToPackedAddress(
  * @returns Maximum file size in bytes
  */
 export function getMaxFileSize(version: ZMachineVersion): number {
-  if (version <= ZMachineVersion.V3) return 128 * 1024;
-  if (version <= ZMachineVersion.V5) return 256 * 1024;
+  if (version <= ZMachineVersion.V2) return 128 * 1024;
+  if (version <= ZMachineVersion.V4) return 256 * 1024;
   return 512 * 1024;
 }
 
