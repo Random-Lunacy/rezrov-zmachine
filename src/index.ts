@@ -26,7 +26,7 @@ export { BufferMode, Color, TextStyle } from './types';
 export { BaseInputProcessor } from './ui/input/InputInterface';
 export type { InputMode, InputProcessor, InputState } from './ui/input/InputInterface';
 export { ResourceStatus, ResourceType } from './ui/multimedia/MultimediaHandler';
-export type { MultimediaHandler } from './ui/multimedia/MultimediaHandler';
+export type { MultimediaHandler, PictureData, ResourceInfo } from './ui/multimedia/MultimediaHandler';
 export { BaseScreen } from './ui/screen/BaseScreen';
 export type { Capabilities, Screen, ScreenSize } from './ui/screen/interfaces';
 export { WindowProperty, WindowType } from './ui/screen/interfaces';
