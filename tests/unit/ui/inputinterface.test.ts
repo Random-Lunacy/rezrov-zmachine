@@ -38,6 +38,18 @@ class TestInputProcessor extends BaseInputProcessor {
     this.loadTerminatingCharacters(machine as any);
   }
 
+  public exposedValidateInputCompatibility(machine: MockZMachine, state: InputState): boolean {
+    return this.validateInputCompatibility(machine as any, state);
+  }
+
+  public exposedProcessUnicodeInput(input: string): string {
+    return this.processUnicodeInput(input);
+  }
+
+  public exposedHandleV3InputSetup(machine: MockZMachine): void {
+    this.handleV3InputSetup(machine as any);
+  }
+
   // Allow direct access to terminatingChars for testing
   public getTerminatingChars(): number[] {
     return this.terminatingChars;
@@ -71,6 +83,42 @@ describe('InputInterface', () => {
     });
   });
 
+  describe('InputState interface', () => {
+    it('should support unicodeMode property for V5+', () => {
+      const state: InputState = {
+        mode: InputMode.UNICODE_TEXT,
+        resultVar: 0,
+        unicodeMode: true,
+      };
+
+      expect(state.unicodeMode).toBe(true);
+    });
+
+    it('should have all required properties', () => {
+      const state: InputState = {
+        mode: InputMode.TEXT,
+        resultVar: 0,
+        textBuffer: 0x1000,
+        parseBuffer: 0x2000,
+        time: 10,
+        routine: 0x3000,
+        currentInput: 'test',
+        terminating: 13,
+        unicodeMode: false,
+      };
+
+      expect(state.mode).toBe(InputMode.TEXT);
+      expect(state.resultVar).toBe(0);
+      expect(state.textBuffer).toBe(0x1000);
+      expect(state.parseBuffer).toBe(0x2000);
+      expect(state.time).toBe(10);
+      expect(state.routine).toBe(0x3000);
+      expect(state.currentInput).toBe('test');
+      expect(state.terminating).toBe(13);
+      expect(state.unicodeMode).toBe(false);
+    });
+  });
+
   describe('BaseInputProcessor', () => {
     describe('startTextInput', () => {
       it('should call doStartTextInput with valid buffers', () => {
@@ -90,6 +138,53 @@ describe('InputInterface', () => {
         inputProcessor.startTextInput(machine as any, state);
 
         expect(inputProcessor.doStartTextInput).toHaveBeenCalledWith(machine, state);
+      });
+
+      it('should validate input compatibility before proceeding', () => {
+        // Set up valid text and parse buffers
+        machine.state.memory.getByte.mockImplementation((addr) => {
+          if (addr === 0x1000) return 20; // Max length
+          return 0;
+        });
+
+        // Set version to 3
+        machine.state.version = 3;
+
+        const state: InputState = {
+          mode: InputMode.TEXT,
+          resultVar: 0,
+          textBuffer: 0x1000,
+          parseBuffer: 0x2000,
+        };
+
+        // Spy on validateInputCompatibility
+        const validateSpy = vi.spyOn(inputProcessor as any, 'validateInputCompatibility');
+
+        inputProcessor.startTextInput(machine as any, state);
+
+        expect(validateSpy).toHaveBeenCalledWith(machine, state);
+        expect(inputProcessor.doStartTextInput).toHaveBeenCalledWith(machine, state);
+      });
+
+      it('should cancel input if compatibility validation fails', () => {
+        // Set version to 3 but try to use Unicode mode (not supported)
+        machine.state.version = 3;
+
+        const state: InputState = {
+          mode: InputMode.UNICODE_TEXT, // Not supported in V3
+          resultVar: 0,
+          textBuffer: 0x1000,
+          parseBuffer: 0x2000,
+        };
+
+        // Spy on onInputComplete
+        const onInputCompleteSpy = vi.spyOn(inputProcessor, 'onInputComplete');
+
+        inputProcessor.startTextInput(machine as any, state);
+
+        // Should call onInputComplete with empty input when compatibility fails
+        expect(onInputCompleteSpy).toHaveBeenCalledWith(machine, '', 13);
+        expect(inputProcessor.doStartTextInput).not.toHaveBeenCalled();
       });
 
       it('should handle invalid text buffer', () => {
@@ -164,6 +259,77 @@ describe('InputInterface', () => {
         expect(handleTimedInputSpy).toHaveBeenCalledWith(machine, state);
         expect(inputProcessor.doStartTextInput).toHaveBeenCalledWith(machine, state);
       });
+
+      it('should handle V3-specific input setup', () => {
+        // Set version to 3
+        machine.state.version = 3;
+
+        // Set up valid text and parse buffers
+        machine.state.memory.getByte.mockImplementation((addr) => {
+          if (addr === 0x1000) return 20; // Max length
+          return 0;
+        });
+
+        // Set up global variables for V3 status line
+        machine.state.memory.getWord.mockImplementation((addr) => {
+          if (addr === HeaderLocation.GlobalVariables) return 0x3000; // Global vars address
+          if (addr === 0x3000) return 0x1234; // Location (global 0)
+          if (addr === 0x3002) return 100; // Score (global 1)
+          if (addr === 0x3004) return 50; // Turns (global 2)
+          if (addr === 0x3006) return 0; // Not a time game (global 3)
+          return 0;
+        });
+
+        const state: InputState = {
+          mode: InputMode.TEXT,
+          resultVar: 0,
+          textBuffer: 0x1000,
+          parseBuffer: 0x2000,
+        };
+
+        // Mock screen updateStatusBar method
+        machine.screen.updateStatusBar = vi.fn();
+
+        inputProcessor.startTextInput(machine as any, state);
+
+        // Should call updateStatusBar for V3
+        expect(machine.screen.updateStatusBar).toHaveBeenCalledWith('Location 4660', 100, 50, false);
+        expect(inputProcessor.doStartTextInput).toHaveBeenCalledWith(machine, state);
+      });
+
+      it('should handle V3 status line update errors gracefully', () => {
+        // Set version to 3
+        machine.state.version = 3;
+
+        // Set up valid text and parse buffers
+        machine.state.memory.getByte.mockImplementation((addr) => {
+          if (addr === 0x1000) return 20; // Max length
+          return 0;
+        });
+
+        // Make global variables access fail
+        machine.state.memory.getWord.mockImplementation(() => {
+          throw new Error('Memory access error');
+        });
+
+        const state: InputState = {
+          mode: InputMode.TEXT,
+          resultVar: 0,
+          textBuffer: 0x1000,
+          parseBuffer: 0x2000,
+        };
+
+        // Mock screen updateStatusBar method
+        machine.screen.updateStatusBar = vi.fn();
+
+        // Should not throw error and should continue with input
+        expect(() => {
+          inputProcessor.startTextInput(machine as any, state);
+        }).not.toThrow();
+
+        // Since compatibility validation fails, doStartTextInput should not be called
+        expect(inputProcessor.doStartTextInput).not.toHaveBeenCalled();
+      });
     });
 
     describe('startCharInput', () => {
@@ -192,6 +358,38 @@ describe('InputInterface', () => {
         inputProcessor.startCharInput(machine as any, state);
 
         expect(handleTimedInputSpy).toHaveBeenCalledWith(machine, state);
+        expect(inputProcessor.doStartCharInput).toHaveBeenCalledWith(machine, state);
+      });
+
+      it('should enable Unicode mode for V5+ Unicode character input', () => {
+        // Set version to 5
+        machine.state.version = 5;
+
+        const state: InputState = {
+          mode: InputMode.UNICODE_CHAR,
+          resultVar: 0,
+        };
+
+        inputProcessor.startCharInput(machine as any, state);
+
+        // Should set unicodeMode to true for V5+ Unicode character input
+        expect(state.unicodeMode).toBe(true);
+        expect(inputProcessor.doStartCharInput).toHaveBeenCalledWith(machine, state);
+      });
+
+      it('should not enable Unicode mode for regular character input', () => {
+        // Set version to 5
+        machine.state.version = 5;
+
+        const state: InputState = {
+          mode: InputMode.CHAR,
+          resultVar: 0,
+        };
+
+        inputProcessor.startCharInput(machine as any, state);
+
+        // Should not set unicodeMode for regular character input
+        expect(state.unicodeMode).toBeUndefined();
         expect(inputProcessor.doStartCharInput).toHaveBeenCalledWith(machine, state);
       });
     });
@@ -691,6 +889,29 @@ describe('InputInterface', () => {
         expect(machine.state.storeVariable).toHaveBeenCalledWith(0, 27);
       });
 
+      it('should process Unicode input for V5+ Unicode text mode', () => {
+        // Set version to 5
+        machine.state.version = 5;
+
+        // Set up getInputState mock with Unicode mode
+        machine.getInputState.mockReturnValue({
+          mode: InputMode.UNICODE_TEXT,
+          resultVar: 0,
+          textBuffer: 0x1000,
+          parseBuffer: 0x2000,
+          unicodeMode: true,
+        });
+
+        // Spy on processUnicodeInput
+        const processUnicodeSpy = vi.spyOn(inputProcessor as any, 'processUnicodeInput');
+
+        inputProcessor.exposedProcessTextInput(machine, 'test\u00E9', 13); // 'testé'
+
+        // Should process Unicode input
+        expect(processUnicodeSpy).toHaveBeenCalledWith('testé');
+        expect(machine.state.tokenizeLine).toHaveBeenCalledWith(0x1000, 0x2000);
+      });
+
       it('should skip tokenization if parse buffer is invalid', () => {
         // Set version to 3
         machine.state.version = 3;
@@ -741,6 +962,245 @@ describe('InputInterface', () => {
 
         // Empty string should store 0
         expect(machine.state.storeVariable).toHaveBeenCalledWith(0, 0);
+      });
+    });
+
+    describe('validateInputCompatibility', () => {
+      it('should validate Unicode input mode compatibility with V5+', () => {
+        // Set version to 5
+        machine.state.version = 5;
+
+        const state: InputState = {
+          mode: InputMode.UNICODE_TEXT,
+          resultVar: 0,
+        };
+
+        const result = inputProcessor.exposedValidateInputCompatibility(machine, state);
+
+        expect(result).toBe(true);
+      });
+
+      it('should reject Unicode input mode for V1-4', () => {
+        // Set version to 3
+        machine.state.version = 3;
+
+        const state: InputState = {
+          mode: InputMode.UNICODE_TEXT,
+          resultVar: 0,
+        };
+
+        const result = inputProcessor.exposedValidateInputCompatibility(machine, state);
+
+        expect(result).toBe(false);
+      });
+
+      it('should validate timed input compatibility with V3+', () => {
+        // Set version to 3
+        machine.state.version = 3;
+
+        const state: InputState = {
+          mode: InputMode.TIMED_TEXT,
+          resultVar: 0,
+          time: 10,
+          routine: 0x3000,
+        };
+
+        const result = inputProcessor.exposedValidateInputCompatibility(machine, state);
+
+        expect(result).toBe(true);
+      });
+
+      it('should reject timed input for V1-2', () => {
+        // Set version to 2
+        machine.state.version = 2;
+
+        const state: InputState = {
+          mode: InputMode.TIMED_TEXT,
+          resultVar: 0,
+          time: 10,
+          routine: 0x3000,
+        };
+
+        const result = inputProcessor.exposedValidateInputCompatibility(machine, state);
+
+        expect(result).toBe(false);
+      });
+
+      it('should validate V3 text input requires both buffers', () => {
+        // Set version to 3
+        machine.state.version = 3;
+
+        const state: InputState = {
+          mode: InputMode.TEXT,
+          resultVar: 0,
+          textBuffer: 0x1000,
+          // Missing parseBuffer - should fail validation
+        };
+
+        const result = inputProcessor.exposedValidateInputCompatibility(machine, state);
+
+        expect(result).toBe(false);
+      });
+
+      it('should allow V3 text input with both buffers', () => {
+        // Set version to 3
+        machine.state.version = 3;
+
+        const state: InputState = {
+          mode: InputMode.TEXT,
+          resultVar: 0,
+          textBuffer: 0x1000,
+          parseBuffer: 0x2000,
+        };
+
+        const result = inputProcessor.exposedValidateInputCompatibility(machine, state);
+
+        expect(result).toBe(true);
+      });
+
+      it('should allow V4+ text input without parse buffer', () => {
+        // Set version to 4
+        machine.state.version = 4;
+
+        const state: InputState = {
+          mode: InputMode.TEXT,
+          resultVar: 0,
+          textBuffer: 0x1000,
+          // Missing parseBuffer - should be allowed in V4+
+        };
+
+        const result = inputProcessor.exposedValidateInputCompatibility(machine, state);
+
+        expect(result).toBe(true);
+      });
+    });
+
+    describe('processUnicodeInput', () => {
+      it('should filter out invalid Unicode characters', () => {
+        const input = 'Hello\u0000World\u0007Test'; // Contains null and bell characters
+        const result = inputProcessor.exposedProcessUnicodeInput(input);
+
+        // Should filter out control characters below 32
+        expect(result).toBe('HelloWorldTest');
+      });
+
+      it('should preserve valid ASCII characters', () => {
+        const input = 'Hello World! 123';
+        const result = inputProcessor.exposedProcessUnicodeInput(input);
+
+        expect(result).toBe('Hello World! 123');
+      });
+
+      it('should handle mixed Unicode and ASCII', () => {
+        const input = 'Hello\u00E9\u00F1\u00F6World'; // 'HelloéñöWorld'
+        const result = inputProcessor.exposedProcessUnicodeInput(input);
+
+        // Should filter to basic ASCII range (32-126)
+        expect(result).toBe('HelloWorld');
+      });
+
+      it('should handle empty input', () => {
+        const result = inputProcessor.exposedProcessUnicodeInput('');
+
+        expect(result).toBe('');
+      });
+
+      it('should handle input with only control characters', () => {
+        const input = '\u0000\u0007\u0008\u0009\u000A\u000D';
+        const result = inputProcessor.exposedProcessUnicodeInput(input);
+
+        expect(result).toBe('');
+      });
+    });
+
+    describe('handleV3InputSetup', () => {
+      it('should update status bar for V3', () => {
+        // Set up global variables for V3 status line
+        machine.state.memory.getWord.mockImplementation((addr) => {
+          if (addr === HeaderLocation.GlobalVariables) return 0x3000; // Global vars address
+          if (addr === 0x3000) return 0x1234; // Location (global 0)
+          if (addr === 0x3002) return 100; // Score (global 1)
+          if (addr === 0x3004) return 50; // Turns (global 2)
+          if (addr === 0x3006) return 0; // Not a time game (global 3)
+          return 0;
+        });
+
+        // Mock screen updateStatusBar method
+        machine.screen.updateStatusBar = vi.fn();
+
+        inputProcessor.exposedHandleV3InputSetup(machine);
+
+        // Should call updateStatusBar with correct parameters
+        expect(machine.screen.updateStatusBar).toHaveBeenCalledWith('Location 4660', 100, 50, false);
+      });
+
+      it('should handle time game mode correctly', () => {
+        // Set up global variables for V3 time game
+        machine.state.memory.getWord.mockImplementation((addr) => {
+          if (addr === HeaderLocation.GlobalVariables) return 0x3000; // Global vars address
+          if (addr === 0x3000) return 0x1234; // Location (global 0)
+          if (addr === 0x3002) return 14; // Hour (global 1)
+          if (addr === 0x3004) return 30; // Minute (global 2)
+          if (addr === 0x3006) return 1; // Time game flag (global 3)
+          return 0;
+        });
+
+        // Mock screen updateStatusBar method
+        machine.screen.updateStatusBar = vi.fn();
+
+        inputProcessor.exposedHandleV3InputSetup(machine);
+
+        // Should call updateStatusBar with time mode
+        expect(machine.screen.updateStatusBar).toHaveBeenCalledWith('Location 4660', 14, 30, true);
+      });
+
+      it('should handle missing screen gracefully', () => {
+        // Set up global variables
+        machine.state.memory.getWord.mockImplementation((addr) => {
+          if (addr === HeaderLocation.GlobalVariables) return 0x3000;
+          return 0;
+        });
+
+        // Remove screen object
+        delete machine.screen;
+
+        // Should not throw error
+        expect(() => {
+          inputProcessor.exposedHandleV3InputSetup(machine);
+        }).not.toThrow();
+      });
+
+      it('should handle missing updateStatusBar method gracefully', () => {
+        // Set up global variables
+        machine.state.memory.getWord.mockImplementation((addr) => {
+          if (addr === HeaderLocation.GlobalVariables) return 0x3000;
+          return 0;
+        });
+
+        // Remove updateStatusBar method
+        delete machine.screen.updateStatusBar;
+
+        // Should not throw error
+        expect(() => {
+          inputProcessor.exposedHandleV3InputSetup(machine);
+        }).not.toThrow();
+      });
+
+      it('should handle memory access errors gracefully', () => {
+        // Make global variables access fail
+        machine.state.memory.getWord.mockImplementation(() => {
+          throw new Error('Memory access error');
+        });
+
+        // Mock screen updateStatusBar method
+        machine.screen.updateStatusBar = vi.fn();
+
+        // Should not throw error and should not call updateStatusBar
+        expect(() => {
+          inputProcessor.exposedHandleV3InputSetup(machine);
+        }).not.toThrow();
+
+        expect(machine.screen.updateStatusBar).not.toHaveBeenCalled();
       });
     });
   });

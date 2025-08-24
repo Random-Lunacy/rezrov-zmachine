@@ -338,15 +338,37 @@ describe('I/O Opcodes', () => {
   });
 
   describe('sound_effect', () => {
-    it('should log a warning that it is not implemented', () => {
+    it('should call multimedia handler for V5+ games', () => {
       // Arrange
+      mockMachine.state.version = 5;
+      const number = 1;
+      const effect = 2;
+      const volume = 128;
+      const routine = 0x1000;
+
+      // Mock multimedia handler
+      machine.multimediaHandler = {
+        playSound: vi.fn().mockReturnValue(0), // ResourceStatus.Available
+      } as any;
+
+      // Act
+      ioOpcodes.sound_effect.impl(machine, [], number, effect, volume, routine);
+
+      // Assert
+      expect(machine.multimediaHandler.playSound).toHaveBeenCalledWith(number, effect, volume, 1);
+      expect(machine.logger.debug).toHaveBeenCalledWith(expect.stringContaining('sound_effect 1 2 128 4096'));
+    });
+
+    it('should warn for V3 games', () => {
+      // Arrange
+      mockMachine.state.version = 3;
       const number = 1;
 
       // Act
       ioOpcodes.sound_effect.impl(machine, [], number);
 
       // Assert
-      expect(machine.logger.warn).toHaveBeenCalledWith(`sound_effect ${number} -- not implemented`);
+      expect(machine.logger.warn).toHaveBeenCalledWith('sound_effect not supported in version 3');
     });
   });
 
