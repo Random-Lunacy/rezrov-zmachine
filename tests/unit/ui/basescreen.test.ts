@@ -288,7 +288,8 @@ describe('BaseScreen', () => {
       expect(screen.setFont(machine as any, 5)).toBe(false);
 
       // Verify that the logger was called for each operation
-      expect(mockLogger.debug).toHaveBeenCalledTimes(4);
+      // Note: We now make 5 calls due to font manager integration
+      expect(mockLogger.debug).toHaveBeenCalledTimes(5);
     });
 
     it('should return font for specific window', () => {
@@ -314,7 +315,8 @@ describe('BaseScreen', () => {
       expect(screen.setFontForWindow(machine as any, 5, 0)).toBe(false);
 
       // Verify that the logger was called for each operation
-      expect(mockLogger.debug).toHaveBeenCalledTimes(4);
+      // Note: We now make 5 calls due to font manager integration
+      expect(mockLogger.debug).toHaveBeenCalledTimes(5);
     });
   });
 

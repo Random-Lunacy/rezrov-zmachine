@@ -121,6 +121,12 @@ export interface Screen {
   getFontForWindow(machine: ZMachine, window: number): number;
   setFontForWindow(machine: ZMachine, font: number, window: number): boolean;
 
+  // Font 3 specific methods
+  isCurrentFontFont3(): boolean;
+  getFont3Character(code: number): any;
+  isFont3Character(code: number): boolean;
+  getCurrentFontDimensions(): { width: number; height: number };
+
   // Status bar and display
   updateStatusBar(locationName: string | null, value1: number, value2: number, isTimeMode: boolean): void;
   updateDisplay(machine: ZMachine): void;

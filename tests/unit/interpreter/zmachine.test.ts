@@ -60,7 +60,7 @@ describe('ZMachine', () => {
 
   describe('Constructor', () => {
     it('should initialize with valid story buffer', () => {
-      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, { logger });
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
 
       expect(zmachine).toBeDefined();
       expect(zmachine.memory).toBeDefined();
@@ -87,7 +87,7 @@ describe('ZMachine', () => {
         hasTimedKeyboardInput: true,
       });
 
-      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, { logger });
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
 
       // Check that header bytes were set correctly for screen dimensions
       expect(zmachine.memory.getByte(HeaderLocation.ScreenHeightInLines)).toBe(20);
@@ -112,14 +112,14 @@ describe('ZMachine', () => {
       storyBuffer[HeaderLocation.StaticStringsOffset] = 0x20;
       storyBuffer[HeaderLocation.StaticStringsOffset + 1] = 0x00;
 
-      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, { logger });
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
 
       // Should have UserStackManager
       expect(() => zmachine.getUserStackManager()).not.toThrow();
     });
 
     it('should throw when accessing UserStackManager in non-Version 6', () => {
-      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, { logger });
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
 
       // Should throw when accessing UserStackManager in Version 3
       expect(() => zmachine.getUserStackManager()).toThrow(/User stacks are only available in Version 6/);
@@ -128,7 +128,7 @@ describe('ZMachine', () => {
 
   describe('Execute', () => {
     it('should start execution at initial PC from header', () => {
-      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, { logger });
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
 
       // Spy on executor
       const executeSpy = vi.spyOn(zmachine.executor, 'executeLoop').mockResolvedValue();
@@ -144,7 +144,7 @@ describe('ZMachine', () => {
 
   describe('Input State', () => {
     it('should return input state when suspended', () => {
-      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, { logger });
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
 
       // Mock executor's suspendedInputState
       const mockInputState = { mode: 0, textBuffer: 0, parseBuffer: 0 };
@@ -156,7 +156,7 @@ describe('ZMachine', () => {
     });
 
     it('should return null when not suspended', () => {
-      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, { logger });
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
 
       // Mock executor's suspendedInputState to return null
       Object.defineProperty(zmachine.executor, 'suspendedInputState', {
@@ -169,7 +169,7 @@ describe('ZMachine', () => {
 
   describe('Save and Restore', () => {
     it('should save game state', async () => {
-      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, { logger });
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
 
       // Mock storage saveSnapshot
       const saveSpy = vi.spyOn(zmachine.storage, 'saveSnapshot').mockResolvedValue();
@@ -181,7 +181,7 @@ describe('ZMachine', () => {
     });
 
     it('should handle save errors', async () => {
-      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, { logger });
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
 
       // Mock storage saveSnapshot to throw
       vi.spyOn(zmachine.storage, 'saveSnapshot').mockRejectedValue(new Error('Save failed'));
@@ -192,7 +192,7 @@ describe('ZMachine', () => {
     });
 
     it('should restore game state', async () => {
-      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, { logger });
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
 
       // Mock storage loadSnapshot and state's restoreFromSnapshot
       const loadSpy = vi.spyOn(zmachine.storage, 'loadSnapshot').mockResolvedValue({
@@ -212,7 +212,7 @@ describe('ZMachine', () => {
     });
 
     it('should handle restore errors', async () => {
-      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, { logger });
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
 
       // Mock storage loadSnapshot to throw
       vi.spyOn(zmachine.storage, 'loadSnapshot').mockRejectedValue(new Error('Restore failed'));
@@ -225,7 +225,7 @@ describe('ZMachine', () => {
 
   describe('Undo / Redo', () => {
     it('should save undo state', () => {
-      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, { logger });
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
 
       // We need access to the private _undoStack - use any to get around TypeScript
       const undoStack = (zmachine as any)._undoStack;
@@ -238,7 +238,7 @@ describe('ZMachine', () => {
     });
 
     it('should restore undo state', () => {
-      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, { logger });
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
 
       // Push a state to the undo stack
       zmachine.saveUndo();
@@ -256,7 +256,7 @@ describe('ZMachine', () => {
     });
 
     it('should return false when no undo states available', () => {
-      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, { logger });
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
 
       // Don't push any states
       const result = zmachine.restoreUndo();
@@ -265,7 +265,7 @@ describe('ZMachine', () => {
     });
 
     it('should limit undo stack to max size', () => {
-      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, { logger });
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
 
       // Push more states than the max size
       const maxUndoLevels = (zmachine as any)._maxUndoLevels;
@@ -281,7 +281,7 @@ describe('ZMachine', () => {
 
   describe('Restart', () => {
     it('should reset program counter and stacks', () => {
-      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, { logger });
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
 
       // Set up initial state
       zmachine.state.pc = 0x1000;
@@ -305,7 +305,7 @@ describe('ZMachine', () => {
 
   describe('Quit', () => {
     it('should call executor.quit', () => {
-      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, { logger });
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
 
       // Spy on executor.quit
       const quitSpy = vi.spyOn(zmachine.executor, 'quit').mockImplementation(() => {});
@@ -323,7 +323,7 @@ describe('ZMachine', () => {
     });
 
     it('should save to table', async () => {
-      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, { logger });
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
 
       // Give access to private method for testing
       const getStateMethod = vi.spyOn(zmachine as any, 'getState');
@@ -379,7 +379,7 @@ describe('ZMachine', () => {
     });
 
     it('should restore from table', async () => {
-      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, { logger });
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
 
       // Mock the private methods needed
       const writeMetadataMethod = vi.spyOn(zmachine as any, 'writeMetadataToTable');
@@ -436,7 +436,7 @@ describe('ZMachine', () => {
     });
 
     it('should fail to restore from table when save not found', async () => {
-      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, { logger });
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
 
       // Mock inputProcessor.promptForFilename
       vi.spyOn(inputProcessor, 'promptForFilename').mockResolvedValue('test_save.dat');
@@ -459,7 +459,7 @@ describe('ZMachine', () => {
       // Reset to Version 3
       storyBuffer[0] = 3;
 
-      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, { logger });
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
 
       const tableAddr = 0x1000;
       const bytes = 32;
@@ -487,7 +487,7 @@ describe('ZMachine', () => {
 
       vi.spyOn(screen, 'getCapabilities').mockReturnValue(mockCapabilities);
 
-      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, { logger });
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
 
       // For version 3, check that flags1 has appropriate bits set
       const flags1 = zmachine.memory.getByte(HeaderLocation.Flags1);
@@ -520,7 +520,7 @@ describe('ZMachine', () => {
 
       vi.spyOn(screen, 'getCapabilities').mockReturnValue(mockCapabilities);
 
-      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, { logger });
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
 
       // For version 5, check that flags1 has appropriate bits set
       const flags1 = zmachine.memory.getByte(HeaderLocation.Flags1);

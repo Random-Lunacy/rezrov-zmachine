@@ -1,6 +1,7 @@
 import { vi } from 'vitest';
 import { Executor } from '../../src/core/execution/Executor';
 import { Logger } from '../../src/utils/log';
+import { BaseMultimediaHandler } from '../../src/ui/multimedia/MultimediaHandler';
 import { MockGameState } from './MockGameState';
 import { MockInputProcessor } from './MockInputProcessor';
 import { MockMemory } from './MockMemory';
@@ -11,6 +12,7 @@ export class MockZMachine {
   screen = new MockScreen() as any;
   memory = new MockMemory() as any;
   inputProcessor = new MockInputProcessor() as any;
+  multimediaHandler = new BaseMultimediaHandler() as any;
 
   logger = {
     debug: vi.fn(),
