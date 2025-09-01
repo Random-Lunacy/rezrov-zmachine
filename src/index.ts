@@ -30,6 +30,13 @@ export type { MultimediaHandler, PictureData, ResourceInfo } from './ui/multimed
 export { BaseScreen } from './ui/screen/BaseScreen';
 export type { Capabilities, Screen, ScreenSize } from './ui/screen/interfaces';
 export { WindowProperty, WindowType } from './ui/screen/interfaces';
+export { WindowManager } from './ui/screen/WindowManager';
+export type { WindowState, WindowOptions, WindowEventType, WindowEvent, WindowEventHandler } from './ui/screen/WindowManager';
+
+// Font system
+export { FontManager, FontType } from './ui/fonts/FontManager';
+export { Font3System } from './ui/fonts/Font3System';
+export { FONT3_BITMAPS, getFont3Bitmap, hasFont3Bitmap, getAvailableFont3Codes } from './ui/fonts/Font3Bitmaps';
 
 // Parsing components
 export { AlphabetTableManager } from './parsers/AlphabetTable';
