@@ -4,6 +4,8 @@ import { Logger } from '../../utils/log';
 import { InputState } from '../input/InputInterface';
 import { Capabilities, Screen, ScreenSize, WindowProperty, WindowType } from './interfaces';
 import { BufferMode, Color, TextStyle } from '../../types';
+import { FontManager, FontType } from '../fonts';
+import { WindowManager } from './WindowManager';
 
 /**
  * BaseScreen class
@@ -21,6 +23,8 @@ export class BaseScreen implements Screen {
   protected cursorPosition: { line: number; column: number } = { line: 1, column: 1 };
   protected windowColors: Map<number, { foreground: number; background: number }> = new Map();
   protected windowFonts: Map<number, number> = new Map();
+  protected fontManager: FontManager;
+  protected windowManager: WindowManager;
 
   /**
    * Constructor for BaseScreen
@@ -31,6 +35,8 @@ export class BaseScreen implements Screen {
     this.logger = options?.logger || new Logger(id ?? 'BaseScreen');
     this.id = id;
     this.currentStyles = TextStyle.Roman;
+    this.fontManager = FontManager.getInstance();
+    this.windowManager = new WindowManager(this.logger);
 
     // Initialize default colors for both windows
     this.windowColors.set(WindowType.Lower, { foreground: Color.Default, background: Color.Default });
@@ -64,9 +70,21 @@ export class BaseScreen implements Screen {
   /**
    * Get window property with version-aware behavior
    */
-    getWindowProperty(machine: ZMachine, window: number, property: number): number {
+  getWindowProperty(machine: ZMachine, window: number, property: number): number {
     // Version is used for future version-specific property handling
 
+    // Try to get property from WindowManager first
+    try {
+      const windowManagerValue = this.windowManager.getWindowProperty(window, property);
+      if (windowManagerValue !== 0) {
+        return windowManagerValue;
+      }
+    } catch (error) {
+      // Fall back to legacy implementation if WindowManager fails
+      this.logger.debug(`WindowManager property lookup failed, using legacy: ${error}`);
+    }
+
+    // Legacy implementation for backward compatibility
     switch (property) {
       case WindowProperty.LineCount:
         if (window === WindowType.Upper) {
@@ -145,6 +163,9 @@ export class BaseScreen implements Screen {
 
     this.upperWindowHeight = Math.max(0, Math.min(lines, this.getSize().rows - 1));
 
+    // Use WindowManager for advanced window management
+    this.windowManager.splitWindow(this.upperWindowHeight);
+
     if (version <= 3) {
       // V3: Clear upper window when split occurs
       if (this.upperWindowHeight > 0 && oldHeight === 0) {
@@ -165,6 +186,10 @@ export class BaseScreen implements Screen {
     }
 
     this.outputWindowId = windowId;
+
+    // Use WindowManager for advanced window management
+    this.windowManager.setOutputWindow(windowId);
+
     this.logger.debug(`${this.id} setOutputWindow windowId=${windowId} (version ${version})`);
   }
 
@@ -325,17 +350,16 @@ export class BaseScreen implements Screen {
   setFont(machine: ZMachine, font: number): boolean {
     const version = machine.state.version;
 
-    // Return false if font 2 is requested (picture font is undefined)
-    if (font === 2) return false;
-
-    // In base implementation, pretend success for other fonts
-    const success = font === 1 || font === 3 || font === 4;
+    // Use font manager to check if font is supported
+    const success = this.fontManager.isFontSupported(font as FontType);
 
     if (success) {
       this.windowFonts.set(this.outputWindowId, font);
+      // Update font manager's current font
+      this.fontManager.setCurrentFont(font as FontType);
     }
 
-    this.logger.debug(`${this.id} setFont ${font} (version ${version})`);
+    this.logger.debug(`${this.id} setFont ${font} (version ${version}) - supported: ${success}`);
     return success;
   }
 
@@ -346,17 +370,18 @@ export class BaseScreen implements Screen {
   setFontForWindow(machine: ZMachine, font: number, window: number): boolean {
     const version = machine.state.version;
 
-    // Return false if font 2 is requested (picture font is undefined)
-    if (font === 2) return false;
-
-    // In base implementation, pretend success for other fonts
-    const success = font === 1 || font === 3 || font === 4;
+    // Use font manager to check if font is supported
+    const success = this.fontManager.isFontSupported(font as FontType);
 
     if (success) {
       this.windowFonts.set(window, font);
+      // If this is the current output window, update font manager
+      if (window === this.outputWindowId) {
+        this.fontManager.setCurrentFont(font as FontType);
+      }
     }
 
-    this.logger.debug(`${this.id} setFontForWindow ${font} ${window} (version ${version})`);
+    this.logger.debug(`${this.id} setFontForWindow ${font} ${window} (version ${version}) - supported: ${success}`);
     return success;
   }
 
@@ -368,6 +393,40 @@ export class BaseScreen implements Screen {
   getWindowTrueBackground(machine: ZMachine, window: number): number {
     const colors = this.windowColors.get(window);
     return colors ? colors.background : -1;
+  }
+
+  /**
+   * Check if the current font is Font 3 (character graphics)
+   */
+  isCurrentFontFont3(): boolean {
+    return this.fontManager.getCurrentFont() === FontType.CharacterGraphics;
+  }
+
+  /**
+   * Get Font 3 character information for the current font
+   */
+  getFont3Character(code: number) {
+    if (!this.isCurrentFontFont3()) {
+      return undefined;
+    }
+    return this.fontManager.getFont3Character(code);
+  }
+
+  /**
+   * Check if a character code is a Font 3 character
+   */
+  isFont3Character(code: number): boolean {
+    if (!this.isCurrentFontFont3()) {
+      return false;
+    }
+    return this.fontManager.isFont3Character(code);
+  }
+
+  /**
+   * Get current font dimensions
+   */
+  getCurrentFontDimensions(): { width: number; height: number } {
+    return this.fontManager.getCurrentFontDimensions();
   }
 
   quit(): void {

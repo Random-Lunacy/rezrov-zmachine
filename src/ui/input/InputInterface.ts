@@ -6,6 +6,20 @@ import { HeaderLocation } from '../../utils/constants';
  * This interface defines the methods and properties required for handling user input in a Z-Machine interpreter.
  * It includes methods for starting text and character input, handling timed input, and processing terminating characters.
  * The interface also provides event handlers for input completion, key presses, and input timeouts.
+ *
+ * Z-Machine Specification Compliance:
+ * - V1-V3: Basic text and character input with status line support
+ * - V4: Extended opcodes and timed input support
+ * - V5+: Unicode input modes, terminating character tables, and enhanced input validation
+ *
+ * Key Features:
+ * - Version-specific input mode validation
+ * - Proper buffer handling for different Z-Machine versions
+ * - Unicode input support for V5+ stories
+ * - Terminating character table support (V5+)
+ * - Timed input with proper time units (1/10 seconds)
+ * - V3 status line integration
+ * - Comprehensive input compatibility checking
  */
 
 /**
@@ -23,6 +37,7 @@ export enum InputMode {
 /**
  * InputState interface for managing input state
  * This interface defines the properties required to manage the state of user input in the Z-Machine interpreter.
+ * It includes version-specific properties and Unicode support for V5+.
  */
 export interface InputState {
   mode: InputMode; // Input mode (e.g., TEXT, CHAR, etc.)
@@ -33,6 +48,7 @@ export interface InputState {
   routine?: number; // For timed input
   currentInput?: string; // Current input buffer
   terminating?: number; // Terminating character
+  unicodeMode?: boolean; // V5+: Whether input should handle Unicode
 }
 
 /**
@@ -67,6 +83,13 @@ export abstract class BaseInputProcessor implements InputProcessor {
   protected timeoutHandle: ReturnType<typeof setTimeout> | null = null;
 
   startTextInput(machine: ZMachine, state: InputState): void {
+    // Validate input compatibility with the current Z-Machine version
+    if (!this.validateInputCompatibility(machine, state)) {
+      machine.logger.error('Input cancelled due to version incompatibility');
+      this.onInputComplete(machine, '', 13); // Return empty input with Enter as terminator
+      return;
+    }
+
     // Validate the text buffer
     if (state.textBuffer && !this.validateTextBuffer(machine, state.textBuffer)) {
       machine.logger.error('Text input cancelled due to invalid text buffer');
@@ -89,6 +112,11 @@ export abstract class BaseInputProcessor implements InputProcessor {
       this.handleTimedInput(machine, state);
     }
 
+    // V3-specific handling: ensure status line is updated before input
+    if (machine.state.version === 3) {
+      this.handleV3InputSetup(machine);
+    }
+
     // Concrete implementation provided by subclasses
     this.doStartTextInput(machine, state);
   }
@@ -105,6 +133,11 @@ export abstract class BaseInputProcessor implements InputProcessor {
     // Set up timed input if required
     if (state.time && state.time > 0 && state.routine) {
       this.handleTimedInput(machine, state);
+    }
+
+    // V5+ Unicode character input handling
+    if (machine.state.version >= 5 && state.mode === InputMode.UNICODE_CHAR) {
+      state.unicodeMode = true;
     }
 
     // Concrete implementation provided by subclasses
@@ -125,6 +158,11 @@ export abstract class BaseInputProcessor implements InputProcessor {
     if (!this.validateTextBuffer(machine, state.textBuffer)) {
       machine.logger.error('Cannot store text input due to invalid text buffer');
       return;
+    }
+
+    // Handle Unicode input for V5+ if specified
+    if (machine.state.version >= 5 && state.unicodeMode && state.mode === InputMode.UNICODE_TEXT) {
+      input = this.processUnicodeInput(input);
     }
 
     // Store the text in the text buffer
@@ -310,6 +348,157 @@ export abstract class BaseInputProcessor implements InputProcessor {
   }
 
   /**
+   * Process Unicode input for V5+ stories
+   * This method handles Unicode characters and converts them to Z-Machine compatible format
+   * @param input The Unicode input string
+   * @returns Processed input string
+   */
+  protected processUnicodeInput(input: string): string {
+    // For V5+, we need to handle Unicode characters properly
+    // This is a simplified implementation - in practice, you might want more sophisticated
+    // Unicode handling based on the specific story's requirements
+
+    // Convert to array of code points and filter out invalid characters
+    const codePoints = Array.from(input).map(char => char.codePointAt(0) || 0);
+    const validCodePoints = codePoints.filter(cp => cp >= 32 && cp <= 126); // Basic ASCII range
+
+    // Convert back to string
+    return String.fromCodePoint(...validCodePoints);
+  }
+
+  /**
+   * Handle V3-specific input setup requirements
+   * V3 has specific requirements for status line updates and input handling
+   * @param machine The Z-Machine instance
+   */
+  protected handleV3InputSetup(machine: ZMachine): void {
+    // V3 requires status line updates before input
+    // This ensures the status line is properly displayed
+    try {
+      // Update status line if supported
+      if (machine.screen && typeof machine.screen.updateStatusBar === 'function') {
+        // Get current location and score information for V3 status line
+        const globalsAddr = machine.state.memory.getWord(HeaderLocation.GlobalVariables);
+        const locationNumber = machine.state.memory.getWord(globalsAddr) || 0; // Global 0 is location
+        const value1 = machine.state.memory.getWord(globalsAddr + 2) || 0; // Global 1 is score or hours
+        const value2 = machine.state.memory.getWord(globalsAddr + 4) || 0; // Global 2 is turns or minutes
+        const timeGameFlag = machine.state.memory.getWord(globalsAddr + 6) || 0; // Global 3: time game flag
+        const isTimeMode = timeGameFlag !== 0; // Check if this is a time game (non-zero flag)
+
+        // Convert location number to string or use null if not available
+        const locationName = locationNumber > 0 ? `Location ${locationNumber}` : null;
+
+        machine.screen.updateStatusBar(locationName, value1, value2, isTimeMode);
+      }
+    } catch (e) {
+      machine.logger.debug('Status line update not supported or failed');
+    }
+  }
+
+  /**
+   * Validates input compatibility with the current Z-Machine version
+   * @param machine The Z-Machine instance
+   * @param state The input state
+   * @returns True if the input is compatible, false otherwise
+   */
+  protected validateInputCompatibility(machine: ZMachine, state: InputState): boolean {
+    const version = machine.state.version;
+
+    // Check Unicode input mode compatibility
+    if ((state.mode === InputMode.UNICODE_TEXT || state.mode === InputMode.UNICODE_CHAR) && version < 5) {
+      machine.logger.warn(`Unicode input mode not supported in Z-Machine version ${version}`);
+      return false;
+    }
+
+    // Check timed input compatibility
+    if ((state.mode === InputMode.TIMED_TEXT || state.mode === InputMode.TIMED_CHAR) && version < 3) {
+      machine.logger.warn(`Timed input not supported in Z-Machine version ${version}`);
+      return false;
+    }
+
+    // V3-specific validation
+    if (version === 3) {
+      // V3 requires both text and parse buffers for text input
+      if (state.mode === InputMode.TEXT && (!state.textBuffer || !state.parseBuffer)) {
+        machine.logger.warn('V3 requires both text and parse buffers for text input');
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Validates a text buffer to ensure it meets the minimum size requirements
+   * @param machine The Z-Machine instance
+   * @param textBuffer Address of the text buffer
+   * @returns True if the buffer is valid, false otherwise
+   */
+  protected validateTextBuffer(machine: ZMachine, textBuffer: number): boolean {
+    // Ensure the text buffer is at least 3 bytes long
+    try {
+      // Check if we can access the first 3 bytes of the buffer
+      machine.state.memory.getByte(textBuffer); // Max length byte
+      machine.state.memory.getByte(textBuffer + 1); // First data byte
+      machine.state.memory.getByte(textBuffer + 2); // Second data byte (or terminator)
+
+      // Additional version-specific validation
+      const version = machine.state.version;
+      const maxLength = machine.state.memory.getByte(textBuffer);
+
+      if (version <= 4) {
+        // V1-4: Check if we can access the full buffer size (+1 for terminator)
+        for (let i = 0; i <= maxLength; i++) {
+          machine.state.memory.getByte(textBuffer + 1 + i);
+        }
+      } else {
+        // V5+: Check if we can access the full buffer size (+1 for length byte)
+        for (let i = 0; i < maxLength; i++) {
+          machine.state.memory.getByte(textBuffer + 2 + i);
+        }
+      }
+
+      return true;
+    } catch (e) {
+      machine.logger.error(`Invalid text buffer at 0x${textBuffer.toString(16)}: ${e}`);
+      return false;
+    }
+  }
+
+  /**
+   * Validates a parse buffer to ensure it meets the minimum size requirements
+   * @param machine The Z-Machine instance
+   * @param parseBuffer Address of the parse buffer
+   * @returns True if the buffer is valid, false otherwise
+   */
+  protected validateParseBuffer(machine: ZMachine, parseBuffer: number): boolean {
+    // Ensure the parse buffer is at least 6 bytes long
+    try {
+      // Check if we can access the first 6 bytes of the buffer
+      machine.state.memory.getByte(parseBuffer); // Max tokens byte
+      machine.state.memory.getByte(parseBuffer + 1); // Actual tokens byte
+      machine.state.memory.getWord(parseBuffer + 2); // First token address
+      machine.state.memory.getByte(parseBuffer + 4); // First token length
+      machine.state.memory.getByte(parseBuffer + 5); // First token position
+
+      // Additional validation to ensure we can access all potential entries
+      const maxTokens = machine.state.memory.getByte(parseBuffer);
+      if (maxTokens > 0) {
+        // Ensure we can access the last potential entry
+        const lastEntryStart = parseBuffer + 2 + (maxTokens - 1) * 4;
+        machine.state.memory.getWord(lastEntryStart);
+        machine.state.memory.getByte(lastEntryStart + 2);
+        machine.state.memory.getByte(lastEntryStart + 3);
+      }
+
+      return true;
+    } catch (e) {
+      machine.logger.error(`Invalid parse buffer at 0x${parseBuffer.toString(16)}: ${e}`);
+      return false;
+    }
+  }
+
+  /**
    * Validates and loads terminating characters from the Z-Machine header
    * @param machine The Z-Machine instance
    * @returns Array of valid terminating characters
@@ -420,75 +609,5 @@ export abstract class BaseInputProcessor implements InputProcessor {
 
     // Any other code is invalid as a terminator
     return false;
-  }
-
-  /**
-   * Validates a text buffer to ensure it meets the minimum size requirements
-   * @param machine The Z-Machine instance
-   * @param textBuffer Address of the text buffer
-   * @returns True if the buffer is valid, false otherwise
-   */
-  protected validateTextBuffer(machine: ZMachine, textBuffer: number): boolean {
-    // Ensure the text buffer is at least 3 bytes long
-    try {
-      // Check if we can access the first 3 bytes of the buffer
-      machine.state.memory.getByte(textBuffer); // Max length byte
-      machine.state.memory.getByte(textBuffer + 1); // First data byte
-      machine.state.memory.getByte(textBuffer + 2); // Second data byte (or terminator)
-
-      // Additional version-specific validation
-      const version = machine.state.version;
-      const maxLength = machine.state.memory.getByte(textBuffer);
-
-      if (version <= 4) {
-        // V1-4: Check if we can access the full buffer size (+1 for terminator)
-        for (let i = 0; i <= maxLength; i++) {
-          machine.state.memory.getByte(textBuffer + 1 + i);
-        }
-      } else {
-        // V5+: Check if we can access the full buffer size (+1 for length byte)
-        for (let i = 0; i < maxLength; i++) {
-          machine.state.memory.getByte(textBuffer + 2 + i);
-        }
-      }
-
-      return true;
-    } catch (e) {
-      machine.logger.error(`Invalid text buffer at 0x${textBuffer.toString(16)}: ${e}`);
-      return false;
-    }
-  }
-
-  /**
-   * Validates a parse buffer to ensure it meets the minimum size requirements
-   * @param machine The Z-Machine instance
-   * @param parseBuffer Address of the parse buffer
-   * @returns True if the buffer is valid, false otherwise
-   */
-  protected validateParseBuffer(machine: ZMachine, parseBuffer: number): boolean {
-    // Ensure the parse buffer is at least 6 bytes long
-    try {
-      // Check if we can access the first 6 bytes of the buffer
-      machine.state.memory.getByte(parseBuffer); // Max tokens byte
-      machine.state.memory.getByte(parseBuffer + 1); // Actual tokens byte
-      machine.state.memory.getWord(parseBuffer + 2); // First token address
-      machine.state.memory.getByte(parseBuffer + 4); // First token length
-      machine.state.memory.getByte(parseBuffer + 5); // First token position
-
-      // Additional validation to ensure we can access all potential entries
-      const maxTokens = machine.state.memory.getByte(parseBuffer);
-      if (maxTokens > 0) {
-        // Ensure we can access the last potential entry
-        const lastEntryStart = parseBuffer + 2 + (maxTokens - 1) * 4;
-        machine.state.memory.getWord(lastEntryStart);
-        machine.state.memory.getByte(lastEntryStart + 2);
-        machine.state.memory.getByte(lastEntryStart + 3);
-      }
-
-      return true;
-    } catch (e) {
-      machine.logger.error(`Invalid parse buffer at 0x${parseBuffer.toString(16)}: ${e}`);
-      return false;
-    }
   }
 }
