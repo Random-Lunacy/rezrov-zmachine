@@ -13,15 +13,15 @@
     "prebuild": "npm run clean"
   },
   "dependencies": {
-    "chalk": "^5.4.1",
+    "chalk": "^5.6.0",
     "nopt": "^8.1.0",
     "readline-sync": "^1.4.10"
   },
   "devDependencies": {
-    "@types/node": "^24.1.0",
+    "@types/node": "^24.3.0",
     "@types/nopt": "^3.0.32",
     "@types/readline-sync": "^1.4.4",
-    "tsx": "^4.20.3",
+    "tsx": "^4.20.5",
     "typescript": "^5.9.2"
   }
 }
