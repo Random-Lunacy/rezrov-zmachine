@@ -29,5 +29,17 @@ export function parseArguments(): ParsedArgs {
     dump: ['--header', '--objectTree', '--dict', '-n'],
   };
 
-  return nopt(knownOpts, shorthandOpts, process.argv, 2) as ParsedArgs;
+  const parsed = nopt(knownOpts, shorthandOpts, process.argv, 2);
+
+  // Ensure all required properties exist with proper defaults
+  return {
+    debug: Boolean(parsed.debug),
+    noExec: Boolean(parsed.noExec),
+    header: Boolean(parsed.header),
+    objectTree: Boolean(parsed.objectTree),
+    dict: Boolean(parsed.dict),
+    argv: {
+      remain: parsed.argv?.remain || []
+    }
+  };
 }
