@@ -218,7 +218,26 @@ function sound_effect(
   routine: number = 0
 ): void {
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} sound_effect ${number} ${effect} ${volume} ${routine}`);
-  machine.logger.warn(`sound_effect ${number} -- not implemented`);
+
+  // Check if sound is supported for this version
+  const version = machine.state.version;
+  if (version < 5) {
+    machine.logger.warn(`sound_effect not supported in version ${version}`);
+    return;
+  }
+
+  try {
+    // Use the multimedia handler to play the sound
+    const status = machine.multimediaHandler.playSound(number, effect, volume, 1); // Default to 1 repeat
+
+    if (status === 0) { // ResourceStatus.Available
+      machine.logger.debug(`Sound effect ${number} started successfully`);
+    } else {
+      machine.logger.warn(`Sound effect ${number} failed to start, status: ${status}`);
+    }
+  } catch (error) {
+    machine.logger.error(`Error playing sound effect ${number}: ${error}`);
+  }
 }
 
 /**
@@ -612,3 +631,6 @@ export const ioOpcodes = {
   scroll_window: opcode('scroll_window', scroll_window),
   put_wind_prop: opcode('put_wind_prop', put_wind_prop),
 };
+
+// Export individual functions for testing
+export { sound_effect };
