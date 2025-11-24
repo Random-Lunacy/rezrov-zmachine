@@ -12,6 +12,11 @@ updates:
     commit-message:
       prefix: 'chore'
       include: 'scope'
+    groups:
+      vitest-suite:
+        patterns:
+          - "vitest"
+          - "@vitest/*"
 
   - package-ecosystem: 'npm'
     directory: '/examples/console'
