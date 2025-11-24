@@ -11,6 +11,7 @@ import { Storage } from '../storage/Storage';
 import { ZMachineState } from '../types';
 import { InputProcessor, InputState } from '../ui/input/InputInterface';
 import { Capabilities, Screen } from '../ui/screen/interfaces';
+import { BaseMultimediaHandler, MultimediaHandler } from '../ui/multimedia/MultimediaHandler';
 import { HeaderLocation } from '../utils/constants';
 import { Logger } from '../utils/log';
 import { GameState } from './GameState';
@@ -25,6 +26,7 @@ export class ZMachine {
   private readonly _state: GameState;
   private readonly _screen: Screen;
   private readonly _inputProcessor: InputProcessor;
+  private readonly _multimediaHandler: MultimediaHandler;
   private readonly _logger: Logger;
   private readonly _userStackManager: UserStackManager | null = null;
   private _storage: StorageInterface;
@@ -37,6 +39,7 @@ export class ZMachine {
    * @param storyBuffer Buffer containing the story file
    * @param screen Screen interface for output
    * @param inputProcessor Input processor for handling user input
+   * @param multimediaHandler Multimedia handler for sound and pictures (optional, defaults to BaseMultimediaHandler)
    * @param provider StorageProvider for saving game data. MemoryStorageProvider is used if none is specified
    * @param format FormatProvider for saving game data. EnhancedDatFormat is used if none is specified
    * @param options Optional configuration options
@@ -45,6 +48,7 @@ export class ZMachine {
     storyBuffer: Buffer,
     screen: Screen,
     inputProcessor: InputProcessor,
+    multimediaHandler?: MultimediaHandler,
     provider?: StorageProvider,
     format?: FormatProvider,
     options?: { logger?: Logger }
@@ -54,6 +58,7 @@ export class ZMachine {
     this._logger = options?.logger || new Logger('ZMachine');
     this._screen = screen;
     this._inputProcessor = inputProcessor;
+    this._multimediaHandler = multimediaHandler || new BaseMultimediaHandler({ logger: this._logger });
 
     // Create a new Storage with provided StorageProvider, FormatProvider, and storyBuffer.
     // Use defaults for the StorageProvider and / or FormatProvider if they are not provided.
@@ -96,6 +101,14 @@ export class ZMachine {
   get inputProcessor(): InputProcessor {
     return this._inputProcessor;
   }
+
+  /**
+   * Gets the multimedia handler for sound and picture operations
+   */
+  get multimediaHandler(): MultimediaHandler {
+    return this._multimediaHandler;
+  }
+
   public get logger(): Logger {
     return this._logger;
   }

@@ -42,6 +42,12 @@ export class MockScreen implements Screen {
     return font === 1 || font === 3 || font === 4;
   });
 
+  // Font 3 specific methods
+  isCurrentFontFont3 = vi.fn().mockReturnValue(false);
+  getFont3Character = vi.fn().mockReturnValue(undefined);
+  isFont3Character = vi.fn().mockReturnValue(false);
+  getCurrentFontDimensions = vi.fn().mockReturnValue({ width: 1, height: 1 });
+
   // Color methods with proper default color values
   getWindowTrueForeground = vi.fn().mockReturnValue(1); // Color.Default
   getWindowTrueBackground = vi.fn().mockReturnValue(1); // Color.Default
