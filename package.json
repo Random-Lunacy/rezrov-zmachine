@@ -30,7 +30,7 @@
   "author": "",
   "license": "MIT",
   "devDependencies": {
-    "@eslint/eslintrc": "^3.3.1",
+    "@eslint/eslintrc": "^3.3.3",
     "@eslint/js": "^9.37.0",
     "@types/glob": "^9.0.0",
     "@types/seedrandom": "^3.0.8",
