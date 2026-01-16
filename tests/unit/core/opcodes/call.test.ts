@@ -148,6 +148,18 @@ describe('Call Opcodes', () => {
       expect(mockZMachine.memory.unpackRoutineAddress).toHaveBeenCalledWith(routine);
       expect(mockZMachine.state.callRoutine).toHaveBeenCalledWith(unpackedAddr, resultVar, arg1);
     });
+
+    it('should store 0 when routine address is 0', () => {
+      const routine = 0;
+      const arg1 = 42;
+      const resultVar = 0x42;
+      mockZMachine.state.readByte.mockReturnValueOnce(resultVar);
+
+      callOpcodes.call_2s.impl(mockZMachine as unknown as ZMachine, [], routine, arg1);
+
+      expect(mockZMachine.state.storeVariable).toHaveBeenCalledWith(resultVar, 0);
+      expect(mockZMachine.state.callRoutine).not.toHaveBeenCalled();
+    });
   });
 
   describe('call_2n opcode', () => {
@@ -163,6 +175,15 @@ describe('Call Opcodes', () => {
       // Verify
       expect(mockZMachine.memory.unpackRoutineAddress).toHaveBeenCalledWith(routine);
       expect(mockZMachine.state.callRoutine).toHaveBeenCalledWith(unpackedAddr, null, arg1);
+    });
+
+    it('should do nothing when routine address is 0', () => {
+      const routine = 0;
+      const arg1 = 42;
+
+      callOpcodes.call_2n.impl(mockZMachine as unknown as ZMachine, [], routine, arg1);
+
+      expect(mockZMachine.state.callRoutine).not.toHaveBeenCalled();
     });
   });
 
@@ -219,6 +240,18 @@ describe('Call Opcodes', () => {
       expect(mockZMachine.memory.unpackRoutineAddress).toHaveBeenCalledWith(routine);
       expect(mockZMachine.state.callRoutine).toHaveBeenCalledWith(unpackedAddr, resultVar, ...args);
     });
+
+    it('should store 0 for routine address 0', () => {
+      const routine = 0;
+      const args = [42, 99];
+      const resultVar = 0x42;
+      mockZMachine.state.readByte.mockReturnValueOnce(resultVar);
+
+      callOpcodes.call_vs2.impl(mockZMachine as unknown as ZMachine, [], routine, ...args);
+
+      expect(mockZMachine.state.storeVariable).toHaveBeenCalledWith(resultVar, 0);
+      expect(mockZMachine.state.callRoutine).not.toHaveBeenCalled();
+    });
   });
 
   describe('call_vn opcode', () => {
@@ -235,6 +268,15 @@ describe('Call Opcodes', () => {
       expect(mockZMachine.memory.unpackRoutineAddress).toHaveBeenCalledWith(routine);
       expect(mockZMachine.state.callRoutine).toHaveBeenCalledWith(unpackedAddr, null, ...args);
     });
+
+    it('should do nothing when routine address is 0', () => {
+      const routine = 0;
+      const args = [42, 99];
+
+      callOpcodes.call_vn.impl(mockZMachine as unknown as ZMachine, [], routine, ...args);
+
+      expect(mockZMachine.state.callRoutine).not.toHaveBeenCalled();
+    });
   });
 
   describe('call_vn2 opcode', () => {
@@ -250,6 +292,15 @@ describe('Call Opcodes', () => {
       // Verify
       expect(mockZMachine.memory.unpackRoutineAddress).toHaveBeenCalledWith(routine);
       expect(mockZMachine.state.callRoutine).toHaveBeenCalledWith(unpackedAddr, null, ...args);
+    });
+
+    it('should do nothing when routine address is 0', () => {
+      const routine = 0;
+      const args = [42, 99];
+
+      callOpcodes.call_vn2.impl(mockZMachine as unknown as ZMachine, [], routine, ...args);
+
+      expect(mockZMachine.state.callRoutine).not.toHaveBeenCalled();
     });
   });
 
