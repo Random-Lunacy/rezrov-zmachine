@@ -5,7 +5,10 @@
   "main": "index.ts",
   "scripts": {
     "start": "tsx index.ts",
-    "build": "tsc"
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "clean": "rm -rf dist",
+    "prebuild": "npm run clean"
   },
   "dependencies": {
     "blessed": "^0.1.81",

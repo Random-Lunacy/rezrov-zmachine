@@ -27,6 +27,23 @@ cd examples/blessedConsole
 npm install
 ```
 
+## Build
+
+The example can be built independently using TypeScript:
+
+```bash
+# Build the project
+npm run build
+
+# Build with watch mode (auto-rebuild on changes)
+npm run build:watch
+
+# Clean build artifacts
+npm run clean
+```
+
+The built files will be placed in the `dist/` directory.
+
 ## Usage
 
 ### Basic Usage
