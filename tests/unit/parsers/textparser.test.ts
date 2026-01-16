@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Memory } from '../../../src/core/memory/Memory';
+import { Dictionary } from '../../../src/parsers/Dictionary';
 import { TextParser } from '../../../src/parsers/TextParser';
 import { Address } from '../../../src/types';
 import { HeaderLocation } from '../../../src/utils/constants';
 import { Logger, LogLevel } from '../../../src/utils/log';
-import { Dictionary } from '../../../src/parsers/Dictionary';
 import { MockMemory } from '../../mocks/MockMemory';
 
 // Suppress console output during tests
@@ -483,7 +483,7 @@ describe('TextParser', () => {
 
       // Create a new parser to ensure fresh dictionary instance
       const freshParser = new TextParser(mockMemory as unknown as Memory);
-      
+
       // Mock lookupToken to always return found
       const lookupSpy = vi.spyOn(Dictionary.prototype, 'lookupToken').mockImplementation(() => 0x1234);
 
@@ -491,27 +491,27 @@ describe('TextParser', () => {
 
       // Should have at least 1 token (may have 2 if both words are found)
       const setByteCalls = mockMemory.setByte.mock.calls;
-      const tokenCountCalls = setByteCalls.filter(call => call[0] === parseBuffer + 1);
+      const tokenCountCalls = setByteCalls.filter((call) => call[0] === parseBuffer + 1);
       expect(tokenCountCalls.length).toBeGreaterThan(0);
       const lastTokenCountCall = tokenCountCalls[tokenCountCalls.length - 1];
       const tokenCount = lastTokenCountCall[1];
       expect(tokenCount).toBeGreaterThanOrEqual(1);
-      
+
       // First word starts at position 2 (after 2 spaces), so position = 3 (1-based)
       // Token offset for first token: 2 + 0*4 = 2, position at offset + 3 = 5
-      const firstPositionCall = setByteCalls.find(call => call[0] === parseBuffer + 5);
+      const firstPositionCall = setByteCalls.find((call) => call[0] === parseBuffer + 5);
       expect(firstPositionCall).toBeDefined();
       expect(firstPositionCall![1]).toBe(3);
-      
+
       // If we have 2 tokens, verify the second word position
       if (tokenCount >= 2) {
         // Second word starts at position 9 (after "  hello  "), so position = 10 (1-based)
         // Token offset for second token: 2 + 1*4 = 6, position at offset + 3 = 9
-        const secondPositionCall = setByteCalls.find(call => call[0] === parseBuffer + 9);
+        const secondPositionCall = setByteCalls.find((call) => call[0] === parseBuffer + 9);
         expect(secondPositionCall).toBeDefined();
         expect(secondPositionCall![1]).toBe(10);
       }
-      
+
       lookupSpy.mockRestore();
     });
 

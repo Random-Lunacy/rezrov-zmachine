@@ -56,12 +56,12 @@ describe('random utilities', () => {
       initRandom('deterministic-seed');
       const value1 = random();
       const value2 = random();
-      
+
       // Reinitialize with same seed
       initRandom('deterministic-seed');
       const value3 = random();
       const value4 = random();
-      
+
       // Same seed should produce same sequence
       expect(value1).toBe(value3);
       expect(value2).toBe(value4);
@@ -69,23 +69,23 @@ describe('random utilities', () => {
 
     it('should produce same sequence with same seed', () => {
       const seed = 'same-seed-test';
-      
+
       initRandom(seed);
       const sequence1 = [randomInt(100), randomInt(100), randomInt(100), randomInt(100)];
-      
+
       initRandom(seed);
       const sequence2 = [randomInt(100), randomInt(100), randomInt(100), randomInt(100)];
-      
+
       expect(sequence1).toEqual(sequence2);
     });
 
     it('should produce different sequences with different seeds', () => {
       initRandom('seed-1');
       const sequence1 = [randomInt(100), randomInt(100), randomInt(100)];
-      
+
       initRandom('seed-2');
       const sequence2 = [randomInt(100), randomInt(100), randomInt(100)];
-      
+
       // Sequences should be different (very unlikely to be identical)
       expect(sequence1).not.toEqual(sequence2);
     });
@@ -96,11 +96,11 @@ describe('random utilities', () => {
       randomSeed('seed-test-1');
       const value1 = randomInt(100);
       const value2 = randomInt(100);
-      
+
       randomSeed('seed-test-1');
       const value3 = randomInt(100);
       const value4 = randomInt(100);
-      
+
       expect(value1).toBe(value3);
       expect(value2).toBe(value4);
     });
@@ -108,14 +108,14 @@ describe('random utilities', () => {
     it('should replace existing RNG state', () => {
       randomSeed('initial-seed');
       const value1 = randomInt(100);
-      
+
       randomSeed('new-seed');
       const value2 = randomInt(100);
-      
+
       // Different seeds should produce different values
       randomSeed('initial-seed');
       const value3 = randomInt(100);
-      
+
       expect(value1).toBe(value3);
       expect(value2).not.toBe(value1);
     });
@@ -126,14 +126,14 @@ describe('random utilities', () => {
       initRandom('range-test');
       const range = 10;
       const samples: number[] = [];
-      
+
       // Generate multiple samples
       for (let i = 0; i < 100; i++) {
         samples.push(randomInt(range));
       }
-      
+
       // All values should be in range [1, 10]
-      samples.forEach(value => {
+      samples.forEach((value) => {
         expect(value).toBeGreaterThanOrEqual(1);
         expect(value).toBeLessThanOrEqual(range);
       });
@@ -149,12 +149,12 @@ describe('random utilities', () => {
     it('should produce different values with non-deterministic seed', () => {
       initRandom(); // Non-deterministic
       const values = new Set<number>();
-      
+
       // Generate many samples - should get some variety
       for (let i = 0; i < 50; i++) {
         values.add(randomInt(10));
       }
-      
+
       // With range 10, we should get multiple different values
       expect(values.size).toBeGreaterThan(1);
     });
@@ -162,10 +162,10 @@ describe('random utilities', () => {
     it('should produce deterministic sequence with seeded RNG', () => {
       initRandom('deterministic-randomInt');
       const sequence1 = [randomInt(100), randomInt(100), randomInt(100), randomInt(100)];
-      
+
       initRandom('deterministic-randomInt');
       const sequence2 = [randomInt(100), randomInt(100), randomInt(100), randomInt(100)];
-      
+
       expect(sequence1).toEqual(sequence2);
     });
 
@@ -173,16 +173,16 @@ describe('random utilities', () => {
       initRandom('large-range-test');
       const range = 1000;
       const samples: number[] = [];
-      
+
       for (let i = 0; i < 100; i++) {
         samples.push(randomInt(range));
       }
-      
-      samples.forEach(value => {
+
+      samples.forEach((value) => {
         expect(value).toBeGreaterThanOrEqual(1);
         expect(value).toBeLessThanOrEqual(range);
       });
-      
+
       // Should have some variety with large range
       const uniqueValues = new Set(samples);
       expect(uniqueValues.size).toBeGreaterThan(1);
@@ -192,7 +192,7 @@ describe('random utilities', () => {
       initRandom('very-large-range');
       const range = 1000000;
       const value = randomInt(range);
-      
+
       expect(value).toBeGreaterThanOrEqual(1);
       expect(value).toBeLessThanOrEqual(range);
     });
@@ -203,14 +203,14 @@ describe('random utilities', () => {
       initRandom('range-from0-test');
       const range = 10;
       const samples: number[] = [];
-      
+
       // Generate multiple samples
       for (let i = 0; i < 100; i++) {
         samples.push(randomIntFrom0(range));
       }
-      
+
       // All values should be in range [0, 9]
-      samples.forEach(value => {
+      samples.forEach((value) => {
         expect(value).toBeGreaterThanOrEqual(0);
         expect(value).toBeLessThanOrEqual(range - 1);
       });
@@ -233,33 +233,23 @@ describe('random utilities', () => {
     it('should produce different values with non-deterministic seed', () => {
       initRandom(); // Non-deterministic
       const values = new Set<number>();
-      
+
       // Generate many samples - should get some variety
       for (let i = 0; i < 50; i++) {
         values.add(randomIntFrom0(10));
       }
-      
+
       // With range 10, we should get multiple different values
       expect(values.size).toBeGreaterThan(1);
     });
 
     it('should produce deterministic sequence with seeded RNG', () => {
       initRandom('deterministic-randomIntFrom0');
-      const sequence1 = [
-        randomIntFrom0(100),
-        randomIntFrom0(100),
-        randomIntFrom0(100),
-        randomIntFrom0(100),
-      ];
-      
+      const sequence1 = [randomIntFrom0(100), randomIntFrom0(100), randomIntFrom0(100), randomIntFrom0(100)];
+
       initRandom('deterministic-randomIntFrom0');
-      const sequence2 = [
-        randomIntFrom0(100),
-        randomIntFrom0(100),
-        randomIntFrom0(100),
-        randomIntFrom0(100),
-      ];
-      
+      const sequence2 = [randomIntFrom0(100), randomIntFrom0(100), randomIntFrom0(100), randomIntFrom0(100)];
+
       expect(sequence1).toEqual(sequence2);
     });
 
@@ -267,16 +257,16 @@ describe('random utilities', () => {
       initRandom('large-range-from0-test');
       const range = 1000;
       const samples: number[] = [];
-      
+
       for (let i = 0; i < 100; i++) {
         samples.push(randomIntFrom0(range));
       }
-      
-      samples.forEach(value => {
+
+      samples.forEach((value) => {
         expect(value).toBeGreaterThanOrEqual(0);
         expect(value).toBeLessThanOrEqual(range - 1);
       });
-      
+
       // Should have some variety with large range
       const uniqueValues = new Set(samples);
       expect(uniqueValues.size).toBeGreaterThan(1);
@@ -287,14 +277,14 @@ describe('random utilities', () => {
     it('should generate numbers in range [0, 1)', () => {
       initRandom('range-test-random');
       const samples: number[] = [];
-      
+
       // Generate multiple samples
       for (let i = 0; i < 100; i++) {
         samples.push(random());
       }
-      
+
       // All values should be in range [0, 1)
-      samples.forEach(value => {
+      samples.forEach((value) => {
         expect(value).toBeGreaterThanOrEqual(0);
         expect(value).toBeLessThan(1);
       });
@@ -303,14 +293,14 @@ describe('random utilities', () => {
     it('should never return exactly 1.0', () => {
       initRandom('no-one-test');
       const samples: number[] = [];
-      
+
       // Generate many samples
       for (let i = 0; i < 1000; i++) {
         samples.push(random());
       }
-      
+
       // None should be exactly 1.0
-      samples.forEach(value => {
+      samples.forEach((value) => {
         expect(value).not.toBe(1.0);
       });
     });
@@ -318,12 +308,12 @@ describe('random utilities', () => {
     it('should produce different values with non-deterministic seed', () => {
       initRandom(); // Non-deterministic
       const values = new Set<number>();
-      
+
       // Generate many samples - should get some variety
       for (let i = 0; i < 100; i++) {
         values.add(random());
       }
-      
+
       // Should have many different values
       expect(values.size).toBeGreaterThan(1);
     });
@@ -331,35 +321,35 @@ describe('random utilities', () => {
     it('should produce deterministic sequence with seeded RNG', () => {
       initRandom('deterministic-random');
       const sequence1 = [random(), random(), random(), random()];
-      
+
       initRandom('deterministic-random');
       const sequence2 = [random(), random(), random(), random()];
-      
+
       expect(sequence1).toEqual(sequence2);
     });
 
     it('should produce values across the full range [0, 1)', () => {
       initRandom('full-range-test');
       const samples: number[] = [];
-      
+
       // Generate many samples
       for (let i = 0; i < 1000; i++) {
         samples.push(random());
       }
-      
+
       // Should have values near 0, near 1, and in between
       const min = Math.min(...samples);
       const max = Math.max(...samples);
-      
+
       expect(min).toBeGreaterThanOrEqual(0);
       expect(max).toBeLessThan(1);
-      
+
       // With 1000 samples, we should get reasonable coverage
       // Check that we have values in different ranges
-      const lowRange = samples.filter(v => v < 0.25).length;
-      const midRange = samples.filter(v => v >= 0.25 && v < 0.75).length;
-      const highRange = samples.filter(v => v >= 0.75).length;
-      
+      const lowRange = samples.filter((v) => v < 0.25).length;
+      const midRange = samples.filter((v) => v >= 0.25 && v < 0.75).length;
+      const highRange = samples.filter((v) => v >= 0.75).length;
+
       // All ranges should have some values (very unlikely all would be in one range)
       expect(lowRange + midRange + highRange).toBe(1000);
     });
