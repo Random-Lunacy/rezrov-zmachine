@@ -359,8 +359,8 @@ export abstract class BaseInputProcessor implements InputProcessor {
     // Unicode handling based on the specific story's requirements
 
     // Convert to array of code points and filter out invalid characters
-    const codePoints = Array.from(input).map(char => char.codePointAt(0) || 0);
-    const validCodePoints = codePoints.filter(cp => cp >= 32 && cp <= 126); // Basic ASCII range
+    const codePoints = Array.from(input).map((char) => char.codePointAt(0) || 0);
+    const validCodePoints = codePoints.filter((cp) => cp >= 32 && cp <= 126); // Basic ASCII range
 
     // Convert back to string
     return String.fromCodePoint(...validCodePoints);
@@ -373,26 +373,10 @@ export abstract class BaseInputProcessor implements InputProcessor {
    */
   protected handleV3InputSetup(machine: ZMachine): void {
     // V3 requires status line updates before input
-    // This ensures the status line is properly displayed
-    try {
-      // Update status line if supported
-      if (machine.screen && typeof machine.screen.updateStatusBar === 'function') {
-        // Get current location and score information for V3 status line
-        const globalsAddr = machine.state.memory.getWord(HeaderLocation.GlobalVariables);
-        const locationNumber = machine.state.memory.getWord(globalsAddr) || 0; // Global 0 is location
-        const value1 = machine.state.memory.getWord(globalsAddr + 2) || 0; // Global 1 is score or hours
-        const value2 = machine.state.memory.getWord(globalsAddr + 4) || 0; // Global 2 is turns or minutes
-        const timeGameFlag = machine.state.memory.getWord(globalsAddr + 6) || 0; // Global 3: time game flag
-        const isTimeMode = timeGameFlag !== 0; // Check if this is a time game (non-zero flag)
-
-        // Convert location number to string or use null if not available
-        const locationName = locationNumber > 0 ? `Location ${locationNumber}` : null;
-
-        machine.screen.updateStatusBar(locationName, value1, value2, isTimeMode);
-      }
-    } catch (e) {
-      machine.logger.debug('Status line update not supported or failed');
-    }
+    // Delegate to ZMachine.updateStatusBar() which correctly:
+    // - Looks up the location object's name (not just the number)
+    // - Checks Flags1 bit 1 for time mode (not global variable 3)
+    machine.updateStatusBar();
   }
 
   /**

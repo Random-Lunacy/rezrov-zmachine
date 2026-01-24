@@ -50,8 +50,6 @@ export type Capabilities = {
   hasTimedKeyboardInput: boolean;
 };
 
-
-
 /**
  * Window types in Z-machine
  */
@@ -59,8 +57,6 @@ export enum WindowType {
   Lower = 0,
   Upper = 1,
 }
-
-
 
 /**
  * Window properties that can be queried

@@ -30,7 +30,8 @@ function draw_picture(machine: ZMachine, _operandTypes: OperandType[], picture: 
     // Use the multimedia handler to display the picture
     const status = machine.multimediaHandler.displayPicture(picture, x, y, 100); // Default to 100% scale
 
-    if (status === 0) { // ResourceStatus.Available
+    if (status === 0) {
+      // ResourceStatus.Available
       machine.logger.debug(`Picture ${picture} displayed successfully at (${x}, ${y})`);
     } else {
       machine.logger.warn(`Picture ${picture} failed to display, status: ${status}`);
@@ -86,7 +87,8 @@ function erase_picture(machine: ZMachine, _operandTypes: OperandType[], picture:
     // Use the multimedia handler to erase the picture
     const status = machine.multimediaHandler.erasePicture(picture);
 
-    if (status === 0) { // ResourceStatus.Available
+    if (status === 0) {
+      // ResourceStatus.Available
       machine.logger.debug(`Picture ${picture} erased successfully`);
     } else {
       machine.logger.warn(`Picture ${picture} failed to erase, status: ${status}`);
@@ -129,4 +131,4 @@ export const graphicsOpcodes = {
 };
 
 // Export individual functions for testing
-export { draw_picture, picture_data, erase_picture, picture_table };
+export { draw_picture, erase_picture, picture_data, picture_table };

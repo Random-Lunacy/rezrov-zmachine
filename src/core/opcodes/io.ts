@@ -230,7 +230,8 @@ function sound_effect(
     // Use the multimedia handler to play the sound
     const status = machine.multimediaHandler.playSound(number, effect, volume, 1); // Default to 1 repeat
 
-    if (status === 0) { // ResourceStatus.Available
+    if (status === 0) {
+      // ResourceStatus.Available
       machine.logger.debug(`Sound effect ${number} started successfully`);
     } else {
       machine.logger.warn(`Sound effect ${number} failed to start, status: ${status}`);

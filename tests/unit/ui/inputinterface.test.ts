@@ -270,16 +270,6 @@ describe('InputInterface', () => {
           return 0;
         });
 
-        // Set up global variables for V3 status line
-        machine.state.memory.getWord.mockImplementation((addr) => {
-          if (addr === HeaderLocation.GlobalVariables) return 0x3000; // Global vars address
-          if (addr === 0x3000) return 0x1234; // Location (global 0)
-          if (addr === 0x3002) return 100; // Score (global 1)
-          if (addr === 0x3004) return 50; // Turns (global 2)
-          if (addr === 0x3006) return 0; // Not a time game (global 3)
-          return 0;
-        });
-
         const state: InputState = {
           mode: InputMode.TEXT,
           resultVar: 0,
@@ -287,13 +277,13 @@ describe('InputInterface', () => {
           parseBuffer: 0x2000,
         };
 
-        // Mock screen updateStatusBar method
-        machine.screen.updateStatusBar = vi.fn();
+        // Mock ZMachine.updateStatusBar method (delegated to by handleV3InputSetup)
+        machine.updateStatusBar = vi.fn();
 
         inputProcessor.startTextInput(machine as any, state);
 
-        // Should call updateStatusBar for V3
-        expect(machine.screen.updateStatusBar).toHaveBeenCalledWith('Location 4660', 100, 50, false);
+        // Should delegate to ZMachine.updateStatusBar for V3
+        expect(machine.updateStatusBar).toHaveBeenCalled();
         expect(inputProcessor.doStartTextInput).toHaveBeenCalledWith(machine, state);
       });
 
@@ -1114,44 +1104,16 @@ describe('InputInterface', () => {
     });
 
     describe('handleV3InputSetup', () => {
-      it('should update status bar for V3', () => {
-        // Set up global variables for V3 status line
-        machine.state.memory.getWord.mockImplementation((addr) => {
-          if (addr === HeaderLocation.GlobalVariables) return 0x3000; // Global vars address
-          if (addr === 0x3000) return 0x1234; // Location (global 0)
-          if (addr === 0x3002) return 100; // Score (global 1)
-          if (addr === 0x3004) return 50; // Turns (global 2)
-          if (addr === 0x3006) return 0; // Not a time game (global 3)
-          return 0;
-        });
-
-        // Mock screen updateStatusBar method
-        machine.screen.updateStatusBar = vi.fn();
+      it('should delegate to ZMachine.updateStatusBar', () => {
+        // Mock ZMachine.updateStatusBar method
+        machine.updateStatusBar = vi.fn();
 
         inputProcessor.exposedHandleV3InputSetup(machine);
 
-        // Should call updateStatusBar with correct parameters
-        expect(machine.screen.updateStatusBar).toHaveBeenCalledWith('Location 4660', 100, 50, false);
-      });
-
-      it('should handle time game mode correctly', () => {
-        // Set up global variables for V3 time game
-        machine.state.memory.getWord.mockImplementation((addr) => {
-          if (addr === HeaderLocation.GlobalVariables) return 0x3000; // Global vars address
-          if (addr === 0x3000) return 0x1234; // Location (global 0)
-          if (addr === 0x3002) return 14; // Hour (global 1)
-          if (addr === 0x3004) return 30; // Minute (global 2)
-          if (addr === 0x3006) return 1; // Time game flag (global 3)
-          return 0;
-        });
-
-        // Mock screen updateStatusBar method
-        machine.screen.updateStatusBar = vi.fn();
-
-        inputProcessor.exposedHandleV3InputSetup(machine);
-
-        // Should call updateStatusBar with time mode
-        expect(machine.screen.updateStatusBar).toHaveBeenCalledWith('Location 4660', 14, 30, true);
+        // Should delegate to ZMachine.updateStatusBar which handles:
+        // - Looking up the location object's name (not just the number)
+        // - Checking Flags1 bit 1 for time mode (not global variable 3)
+        expect(machine.updateStatusBar).toHaveBeenCalled();
       });
 
       it('should handle missing screen gracefully', () => {

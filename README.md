@@ -248,7 +248,6 @@ The [`examples`](examples/) directory contains complete Z-Machine interpreter im
 ### Available Examples
 
 - **[Console](examples/console/)** - Basic command-line interpreter using standard I/O
-
   - Simple text-based interface
   - Good starting point for understanding the library
   - Minimal dependencies (chalk, readline-sync)
@@ -265,7 +264,6 @@ The [`tools`](tools/) directory contains debugging and analysis utilities that p
 ### Available Tools
 
 - **GameObjectExample** - Analyzes object hierarchy and properties
-
   - Displays complete object tree structure
   - Finds objects with specific attributes or properties
   - Useful for understanding game world organization

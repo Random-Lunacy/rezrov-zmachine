@@ -83,7 +83,7 @@ export interface MultimediaHandler {
    * @param resources Array of resource type and ID pairs
    * @returns Promise that resolves with array of load statuses
    */
-  preloadResources(resources: Array<{type: ResourceType, id: number}>): Promise<ResourceStatus[]>;
+  preloadResources(resources: Array<{ type: ResourceType; id: number }>): Promise<ResourceStatus[]>;
 
   // Sound Effects Methods
   /**
@@ -195,7 +195,7 @@ export interface MultimediaHandler {
    * @param resourceId Picture resource ID
    * @returns Current position {x, y} or null if not found
    */
-  getPicturePosition(resourceId: number): {x: number, y: number} | null;
+  getPicturePosition(resourceId: number): { x: number; y: number } | null;
 }
 
 /**
@@ -230,7 +230,7 @@ export class BaseMultimediaHandler implements MultimediaHandler {
     return null;
   }
 
-  async preloadResources(resources: Array<{type: ResourceType, id: number}>): Promise<ResourceStatus[]> {
+  async preloadResources(resources: Array<{ type: ResourceType; id: number }>): Promise<ResourceStatus[]> {
     this.logger.debug(`Preloading ${resources.length} resources`);
     return resources.map(() => ResourceStatus.NotAvailable);
   }
@@ -303,7 +303,7 @@ export class BaseMultimediaHandler implements MultimediaHandler {
     return ResourceStatus.NotAvailable;
   }
 
-  getPicturePosition(resourceId: number): {x: number, y: number} | null {
+  getPicturePosition(resourceId: number): { x: number; y: number } | null {
     this.logger.debug(`Getting position for picture ${resourceId}`);
     return null;
   }
