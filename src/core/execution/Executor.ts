@@ -190,9 +190,19 @@ export class Executor {
       // Then Variable form
       form = InstructionForm.Variable;
       reallyVariable = (opcode & 0x20) !== 0;
-      const typesByte = state.readByte();
-      operandTypes = this.decodeOperandTypes(typesByte);
+      const typesByte1 = state.readByte();
       opcodeNumber = opcode & 0x1f;
+
+      // Check for double-variable opcodes: call_vs2 (12) and call_vn2 (26)
+      // Per Z-machine spec section 4.4.3: "The 'double variable' form only applies
+      // to opcodes 12 (call_vs2) and 26 (call_vn2). In this case, two operand-type
+      // bytes are always present."
+      if (reallyVariable && (opcodeNumber === 12 || opcodeNumber === 26)) {
+        const typesByte2 = state.readByte();
+        operandTypes = this.decodeDoubleOperandTypes(typesByte1, typesByte2);
+      } else {
+        operandTypes = this.decodeOperandTypes(typesByte1);
+      }
     } else if ((opcode & 0x80) === 0x80) {
       // Then Short form
       form = InstructionForm.Short;
@@ -226,6 +236,38 @@ export class Executor {
         break;
       }
     }
+    return operandTypes;
+  }
+
+  /**
+   * Decodes operand types from two type bytes (for double-variable opcodes call_vs2 and call_vn2)
+   * Per Z-machine spec section 4.4.3, these opcodes always have two operand-type bytes,
+   * allowing up to 8 operands.
+   * @param typesByte1 First operand types byte (operands 0-3)
+   * @param typesByte2 Second operand types byte (operands 4-7)
+   * @returns Array of operand types (up to 8)
+   */
+  public decodeDoubleOperandTypes(typesByte1: number, typesByte2: number): Array<OperandType> {
+    const operandTypes: Array<OperandType> = [];
+
+    // Decode first 4 operands from typesByte1
+    for (let i = 0; i < 4; i++) {
+      const opType = (typesByte1 >> ((3 - i) * 2)) & 0x03;
+      if (opType === OperandType.Omitted) {
+        return operandTypes; // Stop on first Omitted
+      }
+      operandTypes.push(opType);
+    }
+
+    // Decode next 4 operands from typesByte2
+    for (let i = 0; i < 4; i++) {
+      const opType = (typesByte2 >> ((3 - i) * 2)) & 0x03;
+      if (opType === OperandType.Omitted) {
+        break; // Stop on first Omitted
+      }
+      operandTypes.push(opType);
+    }
+
     return operandTypes;
   }
 
