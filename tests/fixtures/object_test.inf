@@ -1,0 +1,47 @@
+Attribute test_attr;
+Property test_prop;
+
+Object Room "Room";
+Object -> Ball "ball" has test_attr;
+Object -> Box "box" with test_prop 10;
+
+[ Main val;
+  @get_parent Ball -> val;
+  @je val Room ?L1;
+  jump L2;
+.L1;
+  print "initial_parent passed^";
+.L2;
+  
+  @insert_obj Ball Box;
+  @get_parent Ball -> val;
+  @je val Box ?L3;
+  jump L4;
+.L3;
+  print "move_passed^";
+.L4;
+  
+  @test_attr Ball test_attr ?HasAttr;
+  print "attr_failed^";
+  jump Next1;
+.HasAttr;
+  print "attr_passed^";
+.Next1;
+
+  @clear_attr Ball test_attr;
+  @test_attr Ball test_attr ?HasAttr2;
+  print "clear_attr_passed^";
+  jump Next2;
+.HasAttr2;
+  print "clear_attr_failed^";
+.Next2;
+
+  @get_prop Box test_prop -> val;
+  @je val 10 ?L5;
+  jump L6;
+.L5;
+  print "prop_passed^";
+.L6;
+  
+  print "object_finished^";
+];

@@ -1,0 +1,45 @@
+[ Main;
+  @je 5 5 ?Equal;
+  print "je_equal failed^";
+  jump Next1;
+.Equal;
+  print "je_equal passed^";
+.Next1;
+
+  @je 5 8 ?NotEqual;
+  print "je_not_equal passed^";
+  jump Next2;
+.NotEqual;
+  print "je_not_equal failed^";
+.Next2;
+
+  @jl 5 10 ?Less;
+  print "jl_less failed^";
+  jump Next3;
+.Less;
+  print "jl_less passed^";
+.Next3;
+
+  @jg 10 5 ?Greater;
+  print "jg_greater failed^";
+  jump Next4;
+.Greater;
+  print "jg_greater passed^";
+.Next4;
+
+  @jz 0 ?Zero;
+  print "jz_zero failed^";
+  jump Next5;
+.Zero;
+  print "jz_zero passed^";
+.Next5;
+
+  @test 7 2 ?Bitmap;
+  print "test_bitmap failed^";
+  jump Next6;
+.Bitmap;
+  print "test_bitmap passed^";
+.Next6;
+
+  print "control_flow_finished^";
+];
