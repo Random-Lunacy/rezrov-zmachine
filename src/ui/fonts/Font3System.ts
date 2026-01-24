@@ -120,66 +120,66 @@ export class Font3System {
       height: 8,
       width: 8,
       characters,
-      fixedPitch: true
+      fixedPitch: true,
     };
   }
 
-    /**
+  /**
    * Create a basic character (ASCII 0-127)
    */
   private createBasicCharacter(code: number): Font3Character {
     // Use authentic bitmap data if available, otherwise create basic patterns
     const bitmap = getFont3Bitmap(code) || new Uint8Array(8);
-    
+
     if (code < 32) {
       // Control characters - empty
       return { bitmap, code, isBoxDrawing: false, isRunic: false };
     }
-    
+
     if (code === 32) {
       // Space character - completely empty
       return { bitmap, code, isBoxDrawing: false, isRunic: false };
     }
-    
+
     // For printable ASCII, use authentic bitmap data
     return { bitmap, code, isBoxDrawing: false, isRunic: false };
   }
 
-    /**
+  /**
    * Add box drawing characters (128-159)
    */
   private addBoxDrawingCharacters(characters: Map<number, Font3Character>): void {
     // Use authentic bitmap data for box drawing characters
     for (let i = 128; i <= 159; i++) {
       const bitmap = getFont3Bitmap(i) || new Uint8Array(8);
-      
+
       characters.set(i, {
         bitmap,
         code: i,
         isBoxDrawing: true,
-        isRunic: false
+        isRunic: false,
       });
     }
   }
 
-    /**
+  /**
    * Add arrow and directional characters (160-175)
    */
   private addArrowCharacters(characters: Map<number, Font3Character>): void {
     // Use authentic bitmap data for arrow characters
     for (let i = 160; i <= 175; i++) {
       const bitmap = getFont3Bitmap(i) || new Uint8Array(8);
-      
+
       characters.set(i, {
         bitmap,
         code: i,
         isBoxDrawing: false,
-        isRunic: false
+        isRunic: false,
       });
     }
   }
 
-    /**
+  /**
    * Add runic alphabet characters (176-207)
    * Based on late Anglian "futhorc" runic alphabet
    */
@@ -187,29 +187,29 @@ export class Font3System {
     // Use authentic bitmap data for runic characters
     for (let i = 176; i <= 207; i++) {
       const bitmap = getFont3Bitmap(i) || new Uint8Array(8);
-      
+
       characters.set(i, {
         bitmap,
         code: i,
         isBoxDrawing: false,
-        isRunic: true
+        isRunic: true,
       });
     }
   }
 
-    /**
+  /**
    * Add special symbols and graphics (208-255)
    */
   private addSpecialCharacters(characters: Map<number, Font3Character>): void {
     // Use authentic bitmap data for special characters
     for (let i = 208; i <= 255; i++) {
       const bitmap = getFont3Bitmap(i) || new Uint8Array(8);
-      
+
       characters.set(i, {
         bitmap,
         code: i,
         isBoxDrawing: false,
-        isRunic: false
+        isRunic: false,
       });
     }
   }

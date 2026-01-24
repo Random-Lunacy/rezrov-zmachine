@@ -17,9 +17,9 @@
  * - Smooth window transitions
  */
 
-import { Logger } from '../../utils/log';
-import { WindowType, WindowProperty } from './interfaces';
 import { Color, TextStyle } from '../../types';
+import { Logger } from '../../utils/log';
+import { WindowProperty, WindowType } from './interfaces';
 
 /**
  * Window state and properties
@@ -246,7 +246,10 @@ export class WindowManager {
     window.dirty = true;
 
     this.emitEvent(WindowEventType.MOVED, windowId, {
-      oldX, oldY, newX: window.x, newY: window.y
+      oldX,
+      oldY,
+      newX: window.x,
+      newY: window.y,
     });
 
     this.logger.debug(`Moved window ${windowId} from (${oldX}, ${oldY}) to (${window.x}, ${window.y})`);
@@ -273,7 +276,10 @@ export class WindowManager {
     window.dirty = true;
 
     this.emitEvent(WindowEventType.RESIZED, windowId, {
-      oldWidth, oldHeight, newWidth: window.width, newHeight: window.height
+      oldWidth,
+      oldHeight,
+      newWidth: window.width,
+      newHeight: window.height,
     });
 
     this.logger.debug(`Resized window ${windowId} from ${oldWidth}x${oldHeight} to ${window.width}x${window.height}`);
@@ -364,8 +370,8 @@ export class WindowManager {
         window.textStyle = value;
         break;
       case WindowProperty.ColorData:
-        window.foreground = (value >> 8) & 0xFF;
-        window.background = value & 0xFF;
+        window.foreground = (value >> 8) & 0xff;
+        window.background = value & 0xff;
         break;
       default:
         this.logger.debug(`Cannot set window property ${property}`);
@@ -408,7 +414,7 @@ export class WindowManager {
     }
 
     // Deactivate all windows
-    this.windows.forEach(window => {
+    this.windows.forEach((window) => {
       window.active = false;
     });
 
@@ -469,7 +475,9 @@ export class WindowManager {
     window.dirty = true;
 
     this.emitEvent(WindowEventType.SCROLLED, windowId, {
-      oldScrollTop, newScrollTop: window.scrollTop, lines
+      oldScrollTop,
+      newScrollTop: window.scrollTop,
+      lines,
     });
 
     this.logger.debug(`Scrolled window ${windowId} by ${lines} lines`);
@@ -501,7 +509,7 @@ export class WindowManager {
    * Get dirty windows that need redrawing
    */
   public getDirtyWindows(): WindowState[] {
-    return Array.from(this.windows.values()).filter(window => window.dirty);
+    return Array.from(this.windows.values()).filter((window) => window.dirty);
   }
 
   /**
@@ -551,7 +559,7 @@ export class WindowManager {
 
     const handlers = this.eventHandlers.get(eventType);
     if (handlers) {
-      handlers.forEach(handler => {
+      handlers.forEach((handler) => {
         try {
           handler(event);
         } catch (error) {
@@ -569,7 +577,7 @@ export class WindowManager {
     this.screenHeight = height;
 
     // Adjust existing windows to fit new screen size
-    this.windows.forEach(window => {
+    this.windows.forEach((window) => {
       if (window.x + window.width > width) {
         window.width = Math.max(1, width - window.x);
         window.rightMargin = window.x + window.width;
@@ -611,4 +619,3 @@ export class WindowManager {
     };
   }
 }
-

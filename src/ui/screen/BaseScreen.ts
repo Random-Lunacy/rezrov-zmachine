@@ -1,10 +1,10 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { ZMachine } from '../../interpreter/ZMachine';
+import { BufferMode, Color, TextStyle } from '../../types';
 import { Logger } from '../../utils/log';
+import { FontManager, FontType } from '../fonts';
 import { InputState } from '../input/InputInterface';
 import { Capabilities, Screen, ScreenSize, WindowProperty, WindowType } from './interfaces';
-import { BufferMode, Color, TextStyle } from '../../types';
-import { FontManager, FontType } from '../fonts';
 import { WindowManager } from './WindowManager';
 
 /**
@@ -258,7 +258,9 @@ export class BaseScreen implements Screen {
     }
 
     this.cursorPosition = { line, column };
-    this.logger.debug(`${this.id} setCursorPosition line=${line} column=${column} windowId=${windowId} (version ${version})`);
+    this.logger.debug(
+      `${this.id} setCursorPosition line=${line} column=${column} windowId=${windowId} (version ${version})`
+    );
   }
 
   hideCursor(machine: ZMachine, windowId: number): void {

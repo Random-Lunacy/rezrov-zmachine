@@ -28,15 +28,21 @@ export type { InputMode, InputProcessor, InputState } from './ui/input/InputInte
 export { ResourceStatus, ResourceType } from './ui/multimedia/MultimediaHandler';
 export type { MultimediaHandler, PictureData, ResourceInfo } from './ui/multimedia/MultimediaHandler';
 export { BaseScreen } from './ui/screen/BaseScreen';
-export type { Capabilities, Screen, ScreenSize } from './ui/screen/interfaces';
 export { WindowProperty, WindowType } from './ui/screen/interfaces';
+export type { Capabilities, Screen, ScreenSize } from './ui/screen/interfaces';
 export { WindowManager } from './ui/screen/WindowManager';
-export type { WindowState, WindowOptions, WindowEventType, WindowEvent, WindowEventHandler } from './ui/screen/WindowManager';
+export type {
+  WindowEvent,
+  WindowEventHandler,
+  WindowEventType,
+  WindowOptions,
+  WindowState,
+} from './ui/screen/WindowManager';
 
 // Font system
-export { FontManager, FontType } from './ui/fonts/FontManager';
+export { FONT3_BITMAPS, getAvailableFont3Codes, getFont3Bitmap, hasFont3Bitmap } from './ui/fonts/Font3Bitmaps';
 export { Font3System } from './ui/fonts/Font3System';
-export { FONT3_BITMAPS, getFont3Bitmap, hasFont3Bitmap, getAvailableFont3Codes } from './ui/fonts/Font3Bitmaps';
+export { FontManager, FontType } from './ui/fonts/FontManager';
 
 // Parsing components
 export { AlphabetTableManager } from './parsers/AlphabetTable';

@@ -5,13 +5,13 @@
  * Supports Font 1 (normal), Font 2 (picture), Font 3 (character graphics), and Font 4 (fixed pitch).
  */
 
-import { Font3System, Font3Character } from './Font3System';
+import { Font3Character, Font3System } from './Font3System';
 
 export enum FontType {
   Normal = 1,
   Picture = 2,
   CharacterGraphics = 3,
-  FixedPitch = 4
+  FixedPitch = 4,
 }
 
 export interface FontInfo {
@@ -52,7 +52,7 @@ export class FontManager {
       width: 1,
       height: 1,
       fixedPitch: false,
-      supported: true
+      supported: true,
     });
 
     // Font 2: Picture font (not supported in current implementation)
@@ -62,7 +62,7 @@ export class FontManager {
       width: 0,
       height: 0,
       fixedPitch: false,
-      supported: false
+      supported: false,
     });
 
     // Font 3: Character graphics font (Font 3)
@@ -72,7 +72,7 @@ export class FontManager {
       width: 8,
       height: 8,
       fixedPitch: true,
-      supported: true
+      supported: true,
     });
 
     // Font 4: Fixed pitch font
@@ -82,7 +82,7 @@ export class FontManager {
       width: 1,
       height: 1,
       fixedPitch: true,
-      supported: true
+      supported: true,
     });
   }
 
@@ -216,15 +216,15 @@ export class FontManager {
    */
   public convertIBMPCGraphicsCode(code: number): string {
     const conversions: { [key: number]: string } = {
-      179: '|',  // vertical stroke → ASCII 124
-      186: '#',  // hash → ASCII 35
-      196: '-',  // minus sign → ASCII 45
-      205: '=',  // equals sign → ASCII 61
+      179: '|', // vertical stroke → ASCII 124
+      186: '#', // hash → ASCII 35
+      196: '-', // minus sign → ASCII 45
+      205: '=', // equals sign → ASCII 61
     };
 
     // Default conversion for codes 179-218
     if (code >= 179 && code <= 218) {
-      return conversions[code] || '+';  // Others → plus sign (ASCII 43)
+      return conversions[code] || '+'; // Others → plus sign (ASCII 43)
     }
 
     // Return original character if no conversion needed
@@ -235,7 +235,7 @@ export class FontManager {
    * Get all supported fonts
    */
   public getSupportedFonts(): FontInfo[] {
-    return Array.from(this.fontCache.values()).filter(font => font.supported);
+    return Array.from(this.fontCache.values()).filter((font) => font.supported);
   }
 
   /**
@@ -255,7 +255,7 @@ export class FontManager {
       hasFont3: this.isFontSupported(FontType.CharacterGraphics),
       hasFont4: this.isFontSupported(FontType.FixedPitch),
       hasCharacterGraphics: this.isFontSupported(FontType.CharacterGraphics),
-      hasFixedPitch: this.isFontSupported(FontType.FixedPitch)
+      hasFixedPitch: this.isFontSupported(FontType.FixedPitch),
     };
   }
 }
