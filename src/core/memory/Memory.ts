@@ -94,7 +94,7 @@ export class Memory {
    * Check if an address is valid for a routine
    */
   isValidRoutineAddress(addr: Address): boolean {
-    return !this.isDynamicMemory(addr) && addr < this.size;
+    return addr >= 0 && !this.isDynamicMemory(addr) && addr < this.size;
   }
 
   /**

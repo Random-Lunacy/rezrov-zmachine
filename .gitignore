@@ -138,3 +138,14 @@ dist
 # repomix
 rezrov-zmachine-output.md
 rezrov-zmachine-output.xml
+
+# Claude Code
+.claude/
+.claude.json
+.claude.yaml
+.claude.yml
+
+# Claude local state / logs
+.claude-cache/
+.claude-history/
+.claude-transcripts/
