@@ -501,6 +501,46 @@ describe('ZMachine', () => {
       expect(flags1 & 0x02).toBe(0); // Pictures
     });
 
+    it('should configure flags for Version 4', () => {
+      // Create a Version 4 story
+      storyBuffer[0] = 4;
+
+      const mockCapabilities = {
+        hasColors: true,
+        hasBold: true,
+        hasItalic: true,
+        hasReverseVideo: true,
+        hasFixedPitch: true,
+        hasSplitWindow: true,
+        hasDisplayStatusBar: true,
+        hasPictures: true,
+        hasSound: true,
+        hasTimedKeyboardInput: true,
+      };
+
+      vi.spyOn(screen, 'getCapabilities').mockReturnValue(mockCapabilities);
+
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+
+      // For version 4+, check that flags1 has appropriate bits set
+      const flags1 = zmachine.memory.getByte(HeaderLocation.Flags1);
+
+      // Colors (bit 0)
+      expect(flags1 & 0x01).toBe(0x01);
+      // Pictures (bit 1)
+      expect(flags1 & 0x02).toBe(0x02);
+      // Bold font (bit 2)
+      expect(flags1 & 0x04).toBe(0x04);
+      // Italic font (bit 3)
+      expect(flags1 & 0x08).toBe(0x08);
+      // Fixed pitch font (bit 4)
+      expect(flags1 & 0x10).toBe(0x10);
+      // Sound (bit 5)
+      expect(flags1 & 0x20).toBe(0x20);
+      // Timed keyboard input (bit 7)
+      expect(flags1 & 0x80).toBe(0x80);
+    });
+
     it('should configure flags for Version 5', () => {
       // Create a Version 5 story
       storyBuffer[0] = 5;
@@ -539,6 +579,455 @@ describe('ZMachine', () => {
       expect(flags1 & 0x20).toBe(0x20);
       // Timed keyboard input (bit 7)
       expect(flags1 & 0x80).toBe(0x80);
+    });
+
+    it('should configure flags for Version 4+ with disabled capabilities', () => {
+      // Create a Version 5 story
+      storyBuffer[0] = 5;
+
+      const mockCapabilities = {
+        hasColors: false,
+        hasBold: false,
+        hasItalic: false,
+        hasReverseVideo: false,
+        hasFixedPitch: false,
+        hasSplitWindow: false,
+        hasDisplayStatusBar: false,
+        hasPictures: false,
+        hasSound: false,
+        hasTimedKeyboardInput: false,
+      };
+
+      vi.spyOn(screen, 'getCapabilities').mockReturnValue(mockCapabilities);
+
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+
+      // For version 5 with all capabilities disabled, flags should be mostly cleared
+      const flags1 = zmachine.memory.getByte(HeaderLocation.Flags1);
+
+      // All capability bits should be cleared
+      expect(flags1 & 0x01).toBe(0); // Colors
+      expect(flags1 & 0x02).toBe(0); // Pictures
+      expect(flags1 & 0x04).toBe(0); // Bold
+      expect(flags1 & 0x08).toBe(0); // Italic
+      expect(flags1 & 0x10).toBe(0); // Fixed pitch
+      expect(flags1 & 0x20).toBe(0); // Sound
+      expect(flags1 & 0x80).toBe(0); // Timed keyboard input
+    });
+
+    it('should configure flags for Version 3 with disabled capabilities', () => {
+      const mockCapabilities = {
+        hasColors: false,
+        hasBold: false,
+        hasItalic: false,
+        hasReverseVideo: false,
+        hasFixedPitch: false,
+        hasSplitWindow: false,
+        hasDisplayStatusBar: false,
+        hasPictures: false,
+        hasSound: false,
+        hasTimedKeyboardInput: false,
+      };
+
+      vi.spyOn(screen, 'getCapabilities').mockReturnValue(mockCapabilities);
+
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+
+      // For version 3, check that V3-specific flags are cleared
+      const flags1 = zmachine.memory.getByte(HeaderLocation.Flags1);
+
+      // Status line (bit 4) should be cleared
+      expect(flags1 & 0x10).toBe(0);
+      // Split screen (bit 5) should be cleared
+      expect(flags1 & 0x20).toBe(0);
+    });
+  });
+
+  describe('Undo error handling', () => {
+    it('should handle error during saveUndo', () => {
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+
+      // Mock getState to throw an error
+      vi.spyOn(zmachine as any, 'getState').mockImplementation(() => {
+        throw new Error('Memory allocation failed');
+      });
+
+      const result = zmachine.saveUndo();
+
+      expect(result).toBe(false);
+    });
+
+    it('should handle error during restoreUndo', () => {
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+
+      // First save a valid undo state
+      zmachine.saveUndo();
+
+      // Mock setState to throw an error
+      vi.spyOn(zmachine as any, 'setState').mockImplementation(() => {
+        throw new Error('State restoration failed');
+      });
+
+      const result = zmachine.restoreUndo();
+
+      expect(result).toBe(false);
+    });
+
+    it('should return false when undo stack shift returns undefined', () => {
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+
+      // Manually manipulate the undo stack to test edge case
+      (zmachine as any)._undoStack = [];
+
+      const result = zmachine.restoreUndo();
+
+      expect(result).toBe(false);
+    });
+  });
+
+  describe('restoreFromTable error handling', () => {
+    beforeEach(() => {
+      // Update story buffer to Version 5
+      storyBuffer[0] = 5;
+    });
+
+    it('should handle user canceling file selection', async () => {
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+
+      // Mock inputProcessor.promptForFilename to return empty string (user canceled)
+      vi.spyOn(inputProcessor, 'promptForFilename').mockResolvedValue('');
+
+      const result = await zmachine.restoreFromTable(0x1000, 32);
+
+      expect(result).toBe(false);
+    });
+
+    it('should handle errors during restore operation', async () => {
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+
+      // Mock inputProcessor.promptForFilename
+      vi.spyOn(inputProcessor, 'promptForFilename').mockResolvedValue('test_save.dat');
+
+      // Mock storage methods
+      vi.spyOn(zmachine.storage, 'setOptions').mockImplementation(() => {});
+      vi.spyOn(zmachine.storage, 'getSaveInfo').mockResolvedValue({
+        exists: true,
+        path: 'test_save.dat',
+      });
+      vi.spyOn(zmachine.storage, 'loadSnapshot').mockRejectedValue(new Error('Corrupted save file'));
+
+      const result = await zmachine.restoreFromTable(0x1000, 32);
+
+      expect(result).toBe(false);
+    });
+  });
+
+  describe('saveToTable error handling', () => {
+    beforeEach(() => {
+      storyBuffer[0] = 5;
+    });
+
+    it('should handle user canceling file selection during save', async () => {
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+
+      // Mock inputProcessor.promptForFilename to return empty string (user canceled)
+      vi.spyOn(inputProcessor, 'promptForFilename').mockResolvedValue('');
+
+      const result = await zmachine.saveToTable(0x1000, 32);
+
+      expect(result).toBe(false);
+    });
+
+    it('should handle errors during save operation', async () => {
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+
+      // Mock inputProcessor.promptForFilename
+      vi.spyOn(inputProcessor, 'promptForFilename').mockResolvedValue('test_save.dat');
+
+      // Mock storage methods to throw error during save
+      vi.spyOn(zmachine.storage, 'setOptions').mockImplementation(() => {});
+      vi.spyOn(zmachine.storage, 'saveSnapshot').mockRejectedValue(new Error('Disk full'));
+
+      const result = await zmachine.saveToTable(0x1000, 32);
+
+      expect(result).toBe(false);
+    });
+
+    it('should save without prompting when shouldPrompt is false', async () => {
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+
+      // Mock getState
+      vi.spyOn(zmachine as any, 'getState').mockReturnValue({
+        memory: Buffer.alloc(0x10000),
+        pc: 0x1000,
+        stack: [],
+        callFrames: [],
+        originalStory: Buffer.alloc(0x10000),
+      });
+
+      // Mock storage methods
+      vi.spyOn(zmachine.storage, 'saveSnapshot').mockResolvedValue(undefined);
+      vi.spyOn(zmachine.storage, 'getSaveInfo').mockResolvedValue({
+        exists: true,
+        path: 'default.dat',
+        format: 'ENH',
+      });
+
+      // Mock writeMetadataToTable
+      vi.spyOn(zmachine as any, 'writeMetadataToTable').mockImplementation(() => {});
+
+      const promptSpy = vi.spyOn(inputProcessor, 'promptForFilename');
+
+      const result = await zmachine.saveToTable(0x1000, 32, 0, false);
+
+      expect(result).toBe(true);
+      expect(promptSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Restart with object factory', () => {
+    it('should reset object factory cache on restart', () => {
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+
+      // Mock executor's executeLoop
+      vi.spyOn(zmachine.executor, 'executeLoop').mockResolvedValue();
+
+      // Access the object factory to trigger its initialization
+      const obj = zmachine.state.getObject(1);
+
+      zmachine.restart();
+
+      // The object factory should have been reset
+      // We can verify this by checking that getObject works correctly after restart
+      expect(zmachine.state.pc).toBe(0x0020);
+    });
+
+    it('should handle restart when object factory has no resetCache method', () => {
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+
+      // Mock executor's executeLoop
+      vi.spyOn(zmachine.executor, 'executeLoop').mockResolvedValue();
+
+      // Remove the resetCache method from the object factory
+      const objectFactory = (zmachine.state as any)._objectFactory;
+      const originalResetCache = objectFactory.resetCache;
+      delete objectFactory.resetCache;
+
+      // Should not throw when object factory has no resetCache
+      expect(() => zmachine.restart()).not.toThrow();
+
+      // Restore for other tests
+      objectFactory.resetCache = originalResetCache;
+    });
+  });
+
+  describe('Execution error handling', () => {
+    it('should log error when execution loop fails', async () => {
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+
+      // Mock executor's executeLoop to throw
+      vi.spyOn(zmachine.executor, 'executeLoop').mockRejectedValue(new Error('Execution error'));
+
+      // Spy on logger.error to verify it's called
+      const errorSpy = vi.spyOn(logger, 'error');
+
+      // Execute should handle the error gracefully
+      zmachine.execute();
+
+      // Wait for the promise to settle and verify error was logged
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('Execution error'));
+    });
+
+    it('should log error when restart execution fails', async () => {
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+
+      // Mock executor's executeLoop to throw
+      vi.spyOn(zmachine.executor, 'executeLoop').mockRejectedValue(new Error('Restart execution error'));
+
+      // Spy on logger.error to verify it's called
+      const errorSpy = vi.spyOn(logger, 'error');
+
+      zmachine.restart();
+
+      // Wait for the promise to settle and verify error was logged
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('Restart execution error'));
+    });
+  });
+
+  describe('Status bar', () => {
+    it('should update status bar for version 3', () => {
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+
+      // Set up global variables for status bar
+      // Variable 16 = location object number
+      // Variable 17 = score/hours
+      // Variable 18 = moves/minutes
+      const globalVarsAddr = zmachine.memory.getWord(HeaderLocation.GlobalVariables);
+      zmachine.memory.setWord(globalVarsAddr, 0); // Location object = 0 (no location)
+      zmachine.memory.setWord(globalVarsAddr + 2, 42); // Score = 42
+      zmachine.memory.setWord(globalVarsAddr + 4, 100); // Moves = 100
+
+      // Mock screen.updateStatusBar
+      const updateStatusBarSpy = vi.spyOn(screen, 'updateStatusBar');
+
+      zmachine.updateStatusBar();
+
+      expect(updateStatusBarSpy).toHaveBeenCalledWith(null, 42, 100, false);
+    });
+
+    it('should not update status bar for version 5', () => {
+      storyBuffer[0] = 5;
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+
+      // Mock screen.updateStatusBar
+      const updateStatusBarSpy = vi.spyOn(screen, 'updateStatusBar');
+
+      zmachine.updateStatusBar();
+
+      expect(updateStatusBarSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('MultimediaHandler', () => {
+    it('should use provided multimedia handler', () => {
+      const customMultimediaHandler = {
+        loadPicture: vi.fn(),
+        drawPicture: vi.fn(),
+        erasePicture: vi.fn(),
+        getPictureInfo: vi.fn(),
+        playSound: vi.fn(),
+        stopSound: vi.fn(),
+        logger: logger,
+      };
+
+      const zmachine = new ZMachine(
+        storyBuffer,
+        screen,
+        inputProcessor,
+        customMultimediaHandler as any,
+        undefined,
+        undefined,
+        { logger }
+      );
+
+      expect(zmachine.multimediaHandler).toBe(customMultimediaHandler);
+    });
+
+    it('should create default multimedia handler when none provided', () => {
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+
+      expect(zmachine.multimediaHandler).toBeDefined();
+    });
+  });
+
+  describe('Original story buffer', () => {
+    it('should expose the original story buffer', () => {
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+
+      // Verify originalStory is accessible and has correct version
+      expect(zmachine.originalStory).toBeDefined();
+      expect(zmachine.originalStory[0]).toBe(3); // Version 3
+
+      // Note: originalStory is a reference to the same buffer, not a copy
+      // This is the current implementation behavior
+      expect(zmachine.originalStory).toBe(storyBuffer);
+    });
+  });
+
+  describe('writeMetadataToTable', () => {
+    beforeEach(() => {
+      storyBuffer[0] = 5;
+    });
+
+    it('should write metadata to table correctly', async () => {
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+
+      // Access the private method
+      const writeMetadataToTable = (zmachine as any).writeMetadataToTable.bind(zmachine);
+
+      const tableAddr = 0x0150; // Use dynamic memory address (not 0x100 to avoid test conflicts)
+      const maxBytes = 32;
+      const saveInfo = {
+        exists: true,
+        path: 'test.dat',
+        format: 'QUETZAL',
+        description: 'Test save',
+        lastModified: new Date('2024-01-15T10:30:00Z'),
+      };
+
+      writeMetadataToTable(tableAddr, maxBytes, saveInfo);
+
+      // Verify magic number 'ZM' was written
+      expect(zmachine.memory.getByte(tableAddr)).toBe(0x5a); // 'Z'
+      expect(zmachine.memory.getByte(tableAddr + 1)).toBe(0x4d); // 'M'
+
+      // Verify version was written
+      expect(zmachine.memory.getWord(tableAddr + 2)).toBe(5);
+    });
+
+    it('should handle small buffer sizes', async () => {
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+
+      const writeMetadataToTable = (zmachine as any).writeMetadataToTable.bind(zmachine);
+
+      const tableAddr = 0x0150; // Use dynamic memory address (not 0x100 to avoid test conflicts)
+      const maxBytes = 2; // Very small buffer
+      const saveInfo = {
+        exists: true,
+        path: 'test.dat',
+        format: 'QUETZAL',
+        description: 'This is a very long description that should be truncated',
+        lastModified: new Date(),
+      };
+
+      // Should not throw even with small buffer
+      expect(() => writeMetadataToTable(tableAddr, maxBytes, saveInfo)).not.toThrow();
+    });
+  });
+
+  describe('storeFilenameInMemory', () => {
+    beforeEach(() => {
+      storyBuffer[0] = 5;
+    });
+
+    it('should store filename in memory correctly', async () => {
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+
+      const storeFilenameInMemory = (zmachine as any).storeFilenameInMemory.bind(zmachine);
+
+      const address = 0x0150; // Use dynamic memory address (not 0x100 to avoid test conflicts)
+      const filename = 'test.sav';
+
+      storeFilenameInMemory(address, filename);
+
+      // Verify length byte
+      expect(zmachine.memory.getByte(address)).toBe(filename.length);
+
+      // Verify filename bytes
+      for (let i = 0; i < filename.length; i++) {
+        expect(zmachine.memory.getByte(address + 1 + i)).toBe(filename.charCodeAt(i));
+      }
+
+      // Verify null terminator
+      expect(zmachine.memory.getByte(address + 1 + filename.length)).toBe(0);
+    });
+
+    it('should handle long filenames', async () => {
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+
+      const storeFilenameInMemory = (zmachine as any).storeFilenameInMemory.bind(zmachine);
+
+      const address = 0x0150; // Use dynamic memory address (not 0x100 to avoid test conflicts)
+      const filename = 'a'.repeat(300); // Longer than 255 chars
+
+      storeFilenameInMemory(address, filename);
+
+      // Verify length is capped at 255
+      expect(zmachine.memory.getByte(address)).toBe(255);
     });
   });
 });

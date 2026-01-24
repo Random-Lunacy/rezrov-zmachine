@@ -483,6 +483,409 @@ describe('QuetzalFormat', () => {
       expect(deserialized.memory[0x300]).toBe(mockState.memory[0x300]);
     });
   });
+
+  describe('version validation', () => {
+    it('should throw on unsupported Z-machine version', () => {
+      const testFormat = new QuetzalFormat({ logger });
+
+      // Create a story file with invalid version
+      const invalidStory = Buffer.alloc(0x10000);
+      invalidStory[0] = 9; // Invalid version (only 1-8 are valid)
+
+      // Copy header fields from original story
+      originalStory.copy(invalidStory, 0x02, 0x02, 0x30);
+
+      // Mock necessary internal methods
+      vi.spyOn(testFormat as any, 'parseChunks').mockReturnValue({
+        IFhd: Buffer.alloc(13),
+        CMem: Buffer.alloc(10),
+        Stks: Buffer.alloc(20),
+      });
+
+      vi.spyOn(testFormat as any, 'parseIFhdChunk').mockReturnValue({
+        release: 0x0123,
+        serial: 'AB1234',
+        checksum: 0x5678,
+        pc: 0x1234,
+      });
+
+      // Create a valid buffer
+      const fakeSerializedData = Buffer.alloc(100);
+      fakeSerializedData.write('FORM', 0, 'ascii');
+      fakeSerializedData.writeUInt32BE(fakeSerializedData.length - 8, 4);
+      fakeSerializedData.write('IFZS', 8, 'ascii');
+
+      expect(() => testFormat.deserialize(fakeSerializedData, invalidStory)).toThrow(/Unsupported Z-machine version/);
+    });
+
+    it('should handle V6 story files with valid offsets', () => {
+      const testFormat = new QuetzalFormat({ logger });
+
+      // Create a V6 story file
+      const v6Story = Buffer.alloc(0x10000);
+      v6Story[0] = 6; // Version 6
+      originalStory.copy(v6Story, 0x02, 0x02, 0x28);
+
+      // Set valid routine and string offsets
+      v6Story.writeUInt16BE(0x1000, 0x28); // RoutinesOffset
+      v6Story.writeUInt16BE(0x2000, 0x2a); // StaticStringsOffset
+
+      // Mock necessary internal methods
+      vi.spyOn(testFormat as any, 'parseChunks').mockReturnValue({
+        IFhd: Buffer.alloc(13),
+        CMem: Buffer.alloc(10),
+        Stks: Buffer.alloc(20),
+      });
+
+      vi.spyOn(testFormat as any, 'parseIFhdChunk').mockReturnValue({
+        release: 0x0123,
+        serial: 'AB1234',
+        checksum: 0x5678,
+        pc: 0x1234,
+      });
+
+      vi.spyOn(testFormat as any, 'parseCMemChunk').mockReturnValue(Buffer.from(mockState.memory));
+
+      vi.spyOn(testFormat as any, 'parseStksChunk').mockReturnValue({
+        stack: [],
+        callstack: [],
+      });
+
+      // Create a valid buffer
+      const fakeSerializedData = Buffer.alloc(100);
+      fakeSerializedData.write('FORM', 0, 'ascii');
+      fakeSerializedData.writeUInt32BE(fakeSerializedData.length - 8, 4);
+      fakeSerializedData.write('IFZS', 8, 'ascii');
+
+      // Should not throw for valid V6 story
+      const deserialized = testFormat.deserialize(fakeSerializedData, v6Story);
+      expect(deserialized).toBeDefined();
+    });
+
+    it('should handle V7 story files with valid offsets', () => {
+      const testFormat = new QuetzalFormat({ logger });
+
+      // Create a V7 story file
+      const v7Story = Buffer.alloc(0x10000);
+      v7Story[0] = 7; // Version 7
+      originalStory.copy(v7Story, 0x02, 0x02, 0x28);
+
+      // Set valid routine and string offsets
+      v7Story.writeUInt16BE(0x1000, 0x28); // RoutinesOffset
+      v7Story.writeUInt16BE(0x2000, 0x2a); // StaticStringsOffset
+
+      // Mock necessary internal methods
+      vi.spyOn(testFormat as any, 'parseChunks').mockReturnValue({
+        IFhd: Buffer.alloc(13),
+        CMem: Buffer.alloc(10),
+        Stks: Buffer.alloc(20),
+      });
+
+      vi.spyOn(testFormat as any, 'parseIFhdChunk').mockReturnValue({
+        release: 0x0123,
+        serial: 'AB1234',
+        checksum: 0x5678,
+        pc: 0x1234,
+      });
+
+      vi.spyOn(testFormat as any, 'parseCMemChunk').mockReturnValue(Buffer.from(mockState.memory));
+
+      vi.spyOn(testFormat as any, 'parseStksChunk').mockReturnValue({
+        stack: [],
+        callstack: [],
+      });
+
+      // Create a valid buffer
+      const fakeSerializedData = Buffer.alloc(100);
+      fakeSerializedData.write('FORM', 0, 'ascii');
+      fakeSerializedData.writeUInt32BE(fakeSerializedData.length - 8, 4);
+      fakeSerializedData.write('IFZS', 8, 'ascii');
+
+      // Should not throw for valid V7 story
+      const deserialized = testFormat.deserialize(fakeSerializedData, v7Story);
+      expect(deserialized).toBeDefined();
+    });
+  });
+
+  describe('parseIFhdChunk edge cases', () => {
+    it('should throw on IFhd chunk that is too short', () => {
+      const testFormat = new QuetzalFormat({ logger });
+      const parseIFhdChunk = (testFormat as any).parseIFhdChunk.bind(testFormat);
+
+      // Create a too-short IFhd chunk
+      const shortChunk = Buffer.alloc(5);
+
+      expect(() => parseIFhdChunk(shortChunk)).toThrow(/too short/);
+    });
+  });
+
+  describe('validateIFhdData edge cases', () => {
+    it('should throw on serial number mismatch', () => {
+      const testFormat = new QuetzalFormat({ logger });
+      const validateIFhdData = (testFormat as any).validateIFhdData.bind(testFormat);
+
+      const ifhdData = {
+        release: 0x0123,
+        serial: 'DIFFERENT', // Different from 'AB1234'
+        checksum: 0x5678,
+      };
+
+      expect(() => validateIFhdData(ifhdData, originalStory)).toThrow(/Serial number mismatch/);
+    });
+
+    it('should throw on checksum mismatch', () => {
+      const testFormat = new QuetzalFormat({ logger });
+      const validateIFhdData = (testFormat as any).validateIFhdData.bind(testFormat);
+
+      const ifhdData = {
+        release: 0x0123,
+        serial: 'AB1234',
+        checksum: 0x9999, // Different from 0x5678
+      };
+
+      expect(() => validateIFhdData(ifhdData, originalStory)).toThrow(/Checksum mismatch/);
+    });
+  });
+
+  describe('memory compression edge cases', () => {
+    it('should handle memory with many non-zero bytes', () => {
+      // Create a state with lots of non-zero data
+      const heavyState = { ...mockState };
+      heavyState.memory = Buffer.alloc(0x10000);
+
+      // Fill with non-zero pattern
+      for (let i = 0; i < 0x1000; i++) {
+        heavyState.memory[i] = (i % 255) + 1; // Avoid zeros
+      }
+
+      const serialized = format.serialize(heavyState);
+
+      // Find CMem chunk
+      const cmemIndex = findChunkIndex(serialized, 'CMem');
+      expect(cmemIndex).toBeGreaterThan(0);
+
+      // The compressed data should exist
+      const cmemSize = serialized.readUInt32BE(cmemIndex + 4);
+      expect(cmemSize).toBeGreaterThan(0);
+    });
+
+    it('should handle memory that is all zeros', () => {
+      // Create a state with all-zero memory
+      const zeroState = { ...mockState };
+      zeroState.memory = Buffer.alloc(0x10000, 0);
+
+      const serialized = format.serialize(zeroState);
+
+      // Find CMem chunk
+      const cmemIndex = findChunkIndex(serialized, 'CMem');
+      expect(cmemIndex).toBeGreaterThan(0);
+
+      // The compressed data should be smaller than original
+      const cmemSize = serialized.readUInt32BE(cmemIndex + 4);
+      expect(cmemSize).toBeLessThan(zeroState.memory.length);
+    });
+  });
+
+  describe('stack chunk edge cases', () => {
+    it('should handle empty callstack', () => {
+      const emptyState = {
+        ...mockState,
+        callFrames: [],
+        stack: [],
+      };
+
+      const serialized = format.serialize(emptyState);
+
+      // Find Stks chunk
+      const stksIndex = findChunkIndex(serialized, 'Stks');
+      expect(stksIndex).toBeGreaterThan(0);
+    });
+
+    it('should handle callframe with discardResult set to true', () => {
+      const discardState = {
+        ...mockState,
+        callFrames: [
+          {
+            returnPC: 0x5678,
+            discardResult: true,
+            storeVariable: 0,
+            argumentMask: [true, true, true],
+            locals: [10, 20],
+            stack: [40, 50],
+          },
+        ],
+      };
+
+      const serialized = format.serialize(discardState);
+
+      // Find Stks chunk
+      const stksIndex = findChunkIndex(serialized, 'Stks');
+      expect(stksIndex).toBeGreaterThan(0);
+
+      // Extract Stks chunk data
+      const stksSize = serialized.readUInt32BE(stksIndex + 4);
+      const stksData = serialized.slice(stksIndex + 8, stksIndex + 8 + stksSize);
+
+      // Skip dummy frame (6 bytes + 2 bytes stack size + dummy stack values)
+      const dummyStackSize = stksData.readUInt16BE(6);
+      const offset = 8 + dummyStackSize * 2;
+
+      // Read flags from first call frame
+      if (offset + 3 < stksData.length) {
+        const flags = stksData[offset + 3];
+        // Verify discardResult bit (0x10) is set
+        expect(flags & 0x10).toBe(0x10);
+      }
+    });
+
+    it('should handle argumentMask as a number', () => {
+      const numericArgState = {
+        ...mockState,
+        callFrames: [
+          {
+            returnPC: 0x5678,
+            discardResult: false,
+            storeVariable: 16,
+            argumentMask: 7, // Numeric bitmask instead of boolean array
+            locals: [10, 20, 30],
+            stack: [40, 50, 60],
+          },
+        ],
+      };
+
+      const serialized = format.serialize(numericArgState as any);
+
+      // Should serialize without errors
+      expect(serialized).toBeInstanceOf(Buffer);
+
+      // Find Stks chunk
+      const stksIndex = findChunkIndex(serialized, 'Stks');
+      expect(stksIndex).toBeGreaterThan(0);
+    });
+  });
+
+  describe('parseChunks edge cases', () => {
+    it('should handle chunks with odd padding', () => {
+      // Create a buffer with an odd-sized chunk that needs padding
+      // FORM structure: 'FORM' + size(4) + 'IFZS' + chunks
+      // Chunk structure: type(4) + size(4) + data + padding(if odd)
+      const buffer = Buffer.alloc(24);
+      buffer.write('FORM', 0, 'ascii');
+      buffer.writeUInt32BE(16, 4); // Size of everything after this field (IFZS + TEST chunk)
+      buffer.write('IFZS', 8, 'ascii');
+      buffer.write('TEST', 12, 'ascii');
+      buffer.writeUInt32BE(3, 16); // Odd size chunk
+      buffer.write('ABC', 20, 'ascii');
+      // Padding byte at 23 (already 0 from alloc)
+
+      const parseChunks = (format as any).parseChunks.bind(format);
+      const chunks = parseChunks(buffer);
+
+      expect(chunks['TEST']).toBeDefined();
+      expect(chunks['TEST'].length).toBe(3);
+    });
+  });
+
+  describe('getDynamicMemorySize', () => {
+    it('should return correct size for V1-V3', () => {
+      const getDynamicMemorySize = (format as any).getDynamicMemorySize.bind(format);
+
+      const v3Story = Buffer.alloc(0x100);
+      v3Story[0] = 3;
+
+      expect(getDynamicMemorySize(v3Story)).toBe(0x10000);
+    });
+
+    it('should return correct size for V4-V5', () => {
+      const getDynamicMemorySize = (format as any).getDynamicMemorySize.bind(format);
+
+      const v5Story = Buffer.alloc(0x100);
+      v5Story[0] = 5;
+
+      expect(getDynamicMemorySize(v5Story)).toBe(0x10000);
+    });
+
+    it('should return correct size for V6-V8', () => {
+      const getDynamicMemorySize = (format as any).getDynamicMemorySize.bind(format);
+
+      const v6Story = Buffer.alloc(0x100);
+      v6Story[0] = 6;
+
+      expect(getDynamicMemorySize(v6Story)).toBe(0x20000);
+
+      const v8Story = Buffer.alloc(0x100);
+      v8Story[0] = 8;
+
+      expect(getDynamicMemorySize(v8Story)).toBe(0x20000);
+    });
+  });
+
+  describe('decompressMemory edge cases', () => {
+    it('should handle incomplete run at end of data', () => {
+      const decompressMemory = (format as any).decompressMemory.bind(format);
+
+      // Create compressed data with incomplete run (zero byte at end without count)
+      const compressedData = Buffer.from([0x01, 0x02, 0x00]); // Ends with zero, no count
+
+      const result = decompressMemory(compressedData, 10);
+
+      // Should not throw, and should produce a buffer of target size
+      expect(result.length).toBe(10);
+    });
+
+    it('should pad result if compressed data is too short', () => {
+      const decompressMemory = (format as any).decompressMemory.bind(format);
+
+      // Create very short compressed data
+      const compressedData = Buffer.from([0x01, 0x02]);
+
+      const result = decompressMemory(compressedData, 100);
+
+      // Should pad with zeros to reach target size
+      expect(result.length).toBe(100);
+      expect(result[0]).toBe(0x01);
+      expect(result[1]).toBe(0x02);
+      expect(result[2]).toBe(0); // Padded
+    });
+  });
+
+  describe('validateV6V7Fields', () => {
+    it('should throw on zero strings offset', () => {
+      const validateV6V7Fields = (format as any).validateV6V7Fields.bind(format);
+
+      // Valid routines offset, zero strings offset
+      expect(() => validateV6V7Fields(0x1000, 0)).toThrow(/strings offset.*must be non-zero/i);
+    });
+
+    it('should not throw on valid offsets', () => {
+      const validateV6V7Fields = (format as any).validateV6V7Fields.bind(format);
+
+      // Both offsets valid
+      expect(() => validateV6V7Fields(0x1000, 0x2000)).not.toThrow();
+    });
+  });
+
+  describe('deserialize without original story', () => {
+    it('should throw when original story is not provided', () => {
+      const validBuffer = Buffer.alloc(100);
+      validBuffer.write('FORM', 0, 'ascii');
+      validBuffer.writeUInt32BE(validBuffer.length - 8, 4);
+      validBuffer.write('IFZS', 8, 'ascii');
+
+      expect(() => format.deserialize(validBuffer, undefined as any)).toThrow(/Original story data is required/);
+    });
+  });
+
+  describe('deserialize with missing IFZS identifier', () => {
+    it('should throw when IFZS identifier is missing', () => {
+      const invalidBuffer = Buffer.alloc(100);
+      invalidBuffer.write('FORM', 0, 'ascii');
+      invalidBuffer.writeUInt32BE(invalidBuffer.length - 8, 4);
+      invalidBuffer.write('XXXX', 8, 'ascii'); // Wrong identifier
+
+      expect(() => format.deserialize(invalidBuffer, originalStory)).toThrow(/missing IFZS identifier/);
+    });
+  });
 });
 
 // Utility function to find a chunk in an IFF file

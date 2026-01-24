@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { readFileSync } from 'fs';
+import * as fs from 'fs';
 import { Memory } from '../../../src/core/memory/Memory';
 import { AlphabetTableManager } from '../../../src/parsers/AlphabetTable';
 import { HeaderLocation } from '../../../src/utils/constants';
@@ -331,9 +331,9 @@ describe('Memory', () => {
 
       // Invalid addresses (out of bounds)
       expect(memory.isValidRoutineAddress(0x10000)).toBe(false);
-      // Note: isValidRoutineAddress doesn't check for negative addresses,
-      // but checkBounds will catch them during actual access
-      expect(memory.isValidRoutineAddress(-1)).toBe(true); // Current implementation allows this
+
+      // Invalid addresses (negative)
+      expect(memory.isValidRoutineAddress(-1)).toBe(false);
     });
 
     it('should check packed address alignment for V3', () => {
@@ -694,7 +694,7 @@ describe('Memory', () => {
       mockBuffer.writeUInt16BE(0xffff, HeaderLocation.HighMemBase);
       // This should pass validation since 0xffff <= 0xffff
       expect(() => new Memory(mockBuffer, { logger: mockLogger })).not.toThrow();
-      
+
       // Test with a value that's clearly within limits
       mockBuffer.writeUInt16BE(0x8000, HeaderLocation.StaticMemBase);
       mockBuffer.writeUInt16BE(0x9000, HeaderLocation.HighMemBase);
@@ -764,7 +764,7 @@ describe('Memory', () => {
       // Test with a valid address within bounds
       mockBuffer.writeUInt16BE(0x0900, HeaderLocation.HeaderExtTable);
       expect(() => new Memory(mockBuffer, { logger: mockLogger })).not.toThrow();
-      
+
       // Test with an address that's out of bounds for a smaller buffer
       const smallBuffer = Buffer.alloc(0x1000);
       smallBuffer[HeaderLocation.Version] = 5;
@@ -775,34 +775,16 @@ describe('Memory', () => {
       expect(() => new Memory(smallBuffer, { logger: mockLogger })).not.toThrow();
     });
 
-    it('should throw error for invalid header extension entries', () => {
-      // Use a smaller buffer to make it easier to trigger out of bounds
+    it('should validate header extension table entries', () => {
       const smallBuffer = Buffer.alloc(0x2000);
       smallBuffer[HeaderLocation.Version] = 5;
       smallBuffer.writeUInt16BE(0x0900, HeaderLocation.HeaderExtTable);
       smallBuffer.writeUInt16BE(0x0400, HeaderLocation.StaticMemBase);
       smallBuffer.writeUInt16BE(0x0800, HeaderLocation.HighMemBase);
-      
-      // The validation checks: headerExtAddr + 2 * i for i in [0, tableSize)
-      // For headerExtAddr = 0x0900 and buffer.length = 0x2000:
-      // We need: 0x0900 + 2 * i >= 0x2000
-      // 2 * i >= 0x2000 - 0x0900 = 0x1700
-      // i >= 0x1700 / 2 = 0xb80 = 2944
-      // But tableSize is a byte, max 255, so we can't trigger this with a byte
-      // Instead, let's test with a table size that causes the last entry to be out of bounds
-      // For i = tableSize - 1, we need: 0x0900 + 2 * (tableSize - 1) >= 0x2000
-      // 2 * (tableSize - 1) >= 0x1700
-      // tableSize - 1 >= 0xb80
-      // tableSize >= 0xb81 = 2945, which is > 255
-      // So we can't trigger this with a valid byte value
-      // Let's test that valid sizes work instead
+
+      // Test with valid header extension table size
       smallBuffer[0x0900] = 10; // Valid size
       expect(() => new Memory(smallBuffer, { logger: mockLogger })).not.toThrow();
-      
-      // Actually, we can test by making the header extension address itself cause issues
-      // But the first check (address in bounds) will catch that
-      // So this test case is hard to trigger with the current validation logic
-      // Let's just verify the validation works for valid cases
     });
   });
 
@@ -1105,18 +1087,20 @@ describe('Memory', () => {
     });
 
     it('should handle fromFile with file read errors', () => {
+      // Mock fs.readFileSync to throw an error
+      const mockReadFileSync = vi.spyOn(fs, 'readFileSync').mockImplementation(() => {
+        throw new Error('ENOENT: no such file or directory');
+      });
+
       // Test that fromFile properly wraps file system errors
-      // We can't easily mock fs in this test setup, but we can verify the error handling
-      // by checking that the error message format is correct
-      // The actual implementation catches errors and wraps them with "Failed to load story file:"
-      // Since mocking fs is complex with vi.mock, let's test the error wrapping logic
-      // by verifying that the error message format matches what we expect
-      
-      // For a real file that doesn't exist, this would throw
-      // But we can't easily test that without proper fs mocking
-      // So we'll skip this test or mark it as a known limitation
-      // The error handling code is: throw new Error(`Failed to load story file: ${e}`);
-      // which we've verified exists in the code
+      expect(() => Memory.fromFile('nonexistent.z3', { logger: mockLogger })).toThrow(
+        /Failed to load story file/
+      );
+
+      expect(mockReadFileSync).toHaveBeenCalledWith('nonexistent.z3');
+
+      // Restore
+      mockReadFileSync.mockRestore();
     });
   });
 });
