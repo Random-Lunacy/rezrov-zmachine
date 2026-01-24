@@ -780,6 +780,169 @@ describe('Executor', () => {
         0x5678 // Large operand
       );
     });
+
+    it('should decode call_vn2 (opcode 26) with two operand type bytes', async () => {
+      // Setup: call_vn2 instruction with 6 operands
+      // 0xfa = call_vn2 (VAR opcode 26, bit pattern 11111010)
+      // 0x16 = first type byte: 00 01 01 10 (Large, Small, Small, Variable)
+      // 0xa7 = second type byte: 10 10 01 11 (Variable, Variable, Small, Omitted)
+
+      mockZMachine.state.readByte
+        .mockReturnValueOnce(0xfa) // opcode (call_vn2)
+        .mockReturnValueOnce(0x16) // first operand types: 00 01 01 10
+        .mockReturnValueOnce(0xa7) // second operand types: 10 10 01 11
+        .mockReturnValueOnce(0x16) // small constant arg
+        .mockReturnValueOnce(0x4d) // small constant arg
+        .mockReturnValueOnce(0x01) // variable number
+        .mockReturnValueOnce(0x02) // variable number
+        .mockReturnValueOnce(0x03) // variable number
+        .mockReturnValueOnce(0x10); // small constant arg (from second type byte)
+
+      // Large constant (2 bytes)
+      mockZMachine.state.readWord.mockReturnValueOnce(0x3f32);
+
+      // Variable loads
+      mockZMachine.state.loadVariable
+        .mockReturnValueOnce(100) // var 1
+        .mockReturnValueOnce(200) // var 2
+        .mockReturnValueOnce(300); // var 3
+
+      const mockCallVn2Opcode = {
+        mnemonic: 'call_vn2',
+        impl: vi.fn(),
+      };
+
+      Object.defineProperty(executor, 'opV', {
+        value: Array(32).fill(null),
+      });
+      executor.opV[26] = mockCallVn2Opcode;
+
+      await executor.executeInstruction();
+
+      // Verify that operands were correctly extracted from TWO type bytes
+      // With two type bytes: Large(0x3f32), Small(0x16), Small(0x4d), Var(100), Var(200), Var(300), Small(0x10)
+      expect(mockCallVn2Opcode.impl).toHaveBeenCalledWith(
+        mockZMachine,
+        expect.any(Array),
+        0x3f32, // Large constant (routine address)
+        0x16, // Small constant
+        0x4d, // Small constant
+        100, // Variable 1
+        200, // Variable 2
+        300, // Variable 3
+        0x10 // Small constant from second type byte
+      );
+    });
+
+    it('should decode call_vs2 (opcode 12) with two operand type bytes', async () => {
+      // Setup: call_vs2 instruction with 6 operands
+      // 0xec = call_vs2 (VAR opcode 12, bit pattern 11101100)
+      // 0x00 = first type byte: all Large constants (00 00 00 00)
+      // 0x5f = second type byte: 01 01 11 11 (small, small, omitted, omitted)
+
+      mockZMachine.state.readByte
+        .mockReturnValueOnce(0xec) // opcode (call_vs2)
+        .mockReturnValueOnce(0x00) // first operand types: 00 00 00 00 (4 large)
+        .mockReturnValueOnce(0x5f) // second operand types: 01 01 11 11 (small, small, omitted, omitted)
+        .mockReturnValueOnce(0x10) // small constant
+        .mockReturnValueOnce(0x20); // small constant
+
+      // Four large constants from first type byte
+      mockZMachine.state.readWord
+        .mockReturnValueOnce(0x1000)
+        .mockReturnValueOnce(0x2000)
+        .mockReturnValueOnce(0x3000)
+        .mockReturnValueOnce(0x4000);
+
+      const mockCallVs2Opcode = {
+        mnemonic: 'call_vs2',
+        impl: vi.fn(),
+      };
+
+      Object.defineProperty(executor, 'opV', {
+        value: Array(32).fill(null),
+      });
+      executor.opV[12] = mockCallVs2Opcode;
+
+      await executor.executeInstruction();
+
+      // Should have 6 operands from two type bytes
+      expect(mockCallVs2Opcode.impl).toHaveBeenCalledWith(
+        mockZMachine,
+        expect.any(Array),
+        0x1000,
+        0x2000,
+        0x3000,
+        0x4000, // 4 large constants
+        0x10,
+        0x20 // 2 small constants
+      );
+    });
+
+    it('should decode regular VAR opcodes with single operand type byte', async () => {
+      // Regular call_vn (opcode 25, not 26) should only read one type byte
+      // 0xf9 = call_vn (VAR opcode 25, bit pattern 11111001)
+      mockZMachine.state.readByte
+        .mockReturnValueOnce(0xf9) // opcode (call_vn, VAR opcode 25)
+        .mockReturnValueOnce(0x03); // single operand type byte: 00 00 00 11 (large, large, large, omitted)
+
+      mockZMachine.state.readWord
+        .mockReturnValueOnce(0x1234) // large constant 1
+        .mockReturnValueOnce(0x5678) // large constant 2
+        .mockReturnValueOnce(0x9abc); // large constant 3
+
+      const mockCallVnOpcode = {
+        mnemonic: 'call_vn',
+        impl: vi.fn(),
+      };
+
+      Object.defineProperty(executor, 'opV', {
+        value: Array(32).fill(null),
+      });
+      executor.opV[25] = mockCallVnOpcode;
+
+      await executor.executeInstruction();
+
+      // Should only have 3 operands from single type byte
+      expect(mockCallVnOpcode.impl).toHaveBeenCalledWith(
+        mockZMachine,
+        expect.any(Array),
+        0x1234,
+        0x5678,
+        0x9abc
+      );
+    });
+
+    it('should stop decoding double operand types at first Omitted in first byte', async () => {
+      // call_vn2 with only 2 operands (Omitted in first type byte)
+      // 0xfa = call_vn2
+      // 0x0f = first type byte: 00 00 11 11 (Large, Large, Omitted, Omitted)
+      // 0x00 = second type byte (should be ignored since we found Omitted in first)
+
+      mockZMachine.state.readByte
+        .mockReturnValueOnce(0xfa) // opcode (call_vn2)
+        .mockReturnValueOnce(0x0f) // first operand types: 00 00 11 11
+        .mockReturnValueOnce(0x00); // second operand types (ignored)
+
+      mockZMachine.state.readWord
+        .mockReturnValueOnce(0x1000) // large constant 1
+        .mockReturnValueOnce(0x2000); // large constant 2
+
+      const mockCallVn2Opcode = {
+        mnemonic: 'call_vn2',
+        impl: vi.fn(),
+      };
+
+      Object.defineProperty(executor, 'opV', {
+        value: Array(32).fill(null),
+      });
+      executor.opV[26] = mockCallVn2Opcode;
+
+      await executor.executeInstruction();
+
+      // Should only have 2 operands since Omitted was found in first byte
+      expect(mockCallVn2Opcode.impl).toHaveBeenCalledWith(mockZMachine, expect.any(Array), 0x1000, 0x2000);
+    });
   });
 
   describe('error handling', () => {
