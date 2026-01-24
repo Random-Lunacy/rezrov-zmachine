@@ -836,7 +836,7 @@ describe('ZMachine', () => {
 
       // Wait for the promise to settle and verify error was logged
       await new Promise((resolve) => setTimeout(resolve, 10));
-      
+
       expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('Execution error'));
     });
 
@@ -853,7 +853,7 @@ describe('ZMachine', () => {
 
       // Wait for the promise to settle and verify error was logged
       await new Promise((resolve) => setTimeout(resolve, 10));
-      
+
       expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('Restart execution error'));
     });
   });

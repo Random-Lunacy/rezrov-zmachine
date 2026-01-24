@@ -331,7 +331,7 @@ describe('Memory', () => {
 
       // Invalid addresses (out of bounds)
       expect(memory.isValidRoutineAddress(0x10000)).toBe(false);
-      
+
       // Invalid addresses (negative)
       expect(memory.isValidRoutineAddress(-1)).toBe(false);
     });
