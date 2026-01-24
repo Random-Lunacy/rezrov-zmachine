@@ -1,0 +1,31 @@
+Array test_arr -> 10;
+[ Main val dest;
+  @storeb test_arr 0 42;
+  @loadb test_arr 0 -> val;
+  @je val 42 ?L1;
+  jump L2;
+.L1;
+  print "storeb_loadb passed^";
+.L2;
+  
+  @storew test_arr 1 12345;
+  @loadw test_arr 1 -> val;
+  @je val 12345 ?L3;
+  jump L4;
+.L3;
+  print "storew_loadw passed^";
+.L4;
+  
+  #IfV5;
+  dest = test_arr + 5;
+  @copy_table test_arr dest 2;
+  @loadb test_arr 5 -> val;
+  @je val 42 ?L5;
+  jump L6;
+.L5;
+  print "copy_table passed^";
+.L6;
+  #Endif;
+  
+  print "memory_finished^";
+];
