@@ -25,6 +25,12 @@ export interface FontInfo {
 
 export class FontManager {
   private static instance: FontManager;
+  public static getInstance(): FontManager {
+    if (!FontManager.instance) {
+      FontManager.instance = new FontManager();
+    }
+    return FontManager.instance;
+  }
   private font3System: Font3System;
   private currentFont: FontType = FontType.Normal;
   private fontCache: Map<FontType, FontInfo> = new Map();
@@ -32,13 +38,6 @@ export class FontManager {
   private constructor() {
     this.font3System = Font3System.getInstance();
     this.initializeFonts();
-  }
-
-  public static getInstance(): FontManager {
-    if (!FontManager.instance) {
-      FontManager.instance = new FontManager();
-    }
-    return FontManager.instance;
   }
 
   /**

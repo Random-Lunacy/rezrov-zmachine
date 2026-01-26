@@ -12,7 +12,7 @@ import { ZMachineState } from '../types';
 import { InputProcessor, InputState } from '../ui/input/InputInterface';
 import { BaseMultimediaHandler, MultimediaHandler } from '../ui/multimedia/MultimediaHandler';
 import { Capabilities, Screen } from '../ui/screen/interfaces';
-import { HeaderLocation } from '../utils/constants';
+import { HeaderLocation, Interpreter } from '../utils/constants';
 import { Logger } from '../utils/log';
 import { GameState } from './GameState';
 
@@ -131,14 +131,31 @@ export class ZMachine {
    */
   private configureScreenCapabilities(): void {
     const { rows, cols } = this._screen.getSize();
+    const version = this._state.version;
+
+    // Set interpreter number and version (required for games like Beyond Zork)
+    // Using IBM PC (6) as this is what most modern terminal interpreters emulate
+    this._memory.setByte(HeaderLocation.InterpreterNumber, Interpreter.IBM_PC);
+    this._memory.setByte(HeaderLocation.InterpreterVersion, 82); // 'R' for Rezrov
 
     // Set screen dimensions in header
     this._memory.setByte(HeaderLocation.ScreenHeightInLines, rows);
     this._memory.setByte(HeaderLocation.ScreenWidthInChars, cols);
 
+    // For V5+, also set screen dimensions in units and font size
+    // In text mode, 1 unit = 1 character, so units = chars
+    if (version >= 5) {
+      // Screen dimensions in units (for text mode, 1 unit = 1 character)
+      this._memory.setWord(HeaderLocation.ScreenWidthInUnits, cols);
+      this._memory.setWord(HeaderLocation.ScreenHeightInUnits, rows);
+
+      // Font size in units - for text mode terminals, each character is 1x1 unit
+      this._memory.setByte(HeaderLocation.FontWidthInUnits, 1);
+      this._memory.setByte(HeaderLocation.FontHeightInUnits, 1);
+    }
+
     // Configure capabilities in header flags
     const screenCapabilities = this._screen.getCapabilities();
-    const version = this._state.version;
 
     let flags1 = this._memory.getByte(HeaderLocation.Flags1);
 

@@ -375,20 +375,34 @@ function buffer_screen(machine: ZMachine, _operandTypes: OperandType[], mode: nu
 
 /**
  * Set text colors
+ *
+ * In V5: Takes 2 operands (foreground, background) and applies to the current output window
+ * In V6: Takes 3 operands (foreground, background, window) where window is optional
  */
 function set_colour(
   machine: ZMachine,
   _operandTypes: OperandType[],
   foreground: number,
   background: number,
-  window: number = 0
+  window?: number
 ): void {
   if (machine.state.version < 5) {
     machine.logger.debug(`set_colour: ignoring in version < 5`);
-    window = 0;
+    return;
   }
 
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} set_colour ${foreground} ${background} ${window}`);
+  // In V5, set_colour always applies to the current output window
+  // In V6, if window is not provided, it defaults to the current output window
+  let targetWindow: number;
+  if (machine.state.version === 6 && window !== undefined) {
+    targetWindow = window;
+  } else {
+    targetWindow = machine.screen.getOutputWindow(machine);
+  }
+
+  machine.logger.debug(
+    `${machine.executor.op_pc.toString(16)} set_colour ${foreground} ${background} -> window ${targetWindow}`
+  );
 
   if (machine.state.version === 6) {
     if (!handleTransparency(machine, foreground, background)) {
@@ -397,7 +411,7 @@ function set_colour(
     foreground = ensureValidForeground(machine, foreground);
   }
 
-  machine.screen.setTextColors(machine, window, foreground, background);
+  machine.screen.setTextColors(machine, targetWindow, foreground, background);
 }
 
 function handleTransparency(machine: ZMachine, foreground: number, background: number): boolean {

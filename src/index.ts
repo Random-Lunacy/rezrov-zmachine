@@ -42,6 +42,18 @@ export type {
 // Font system
 export { FONT3_BITMAPS, getAvailableFont3Codes, getFont3Bitmap, hasFont3Bitmap } from './ui/fonts/Font3Bitmaps';
 export { Font3System } from './ui/fonts/Font3System';
+export {
+  font3StringToUnicode,
+  font3ToUnicode,
+  getArrowCharacters,
+  getBoxDrawingCharacters,
+  getFont3Category,
+  getRunicCharacters,
+  getSpecialCharacters,
+  hasFont3Mapping,
+  translateFont3Text,
+} from './ui/fonts/Font3Unicode';
+export type { Font3Category } from './ui/fonts/Font3Unicode';
 export { FontManager, FontType } from './ui/fonts/FontManager';
 
 // Parsing components

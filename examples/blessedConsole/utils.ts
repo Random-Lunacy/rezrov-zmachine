@@ -1,3 +1,4 @@
+// @ts-expect-error No types available for nopt
 import nopt from 'nopt';
 
 export interface ParsedArgs {
@@ -39,7 +40,7 @@ export function parseArguments(): ParsedArgs {
     objectTree: Boolean(parsed.objectTree),
     dict: Boolean(parsed.dict),
     argv: {
-      remain: parsed.argv?.remain || []
-    }
+      remain: parsed.argv?.remain || [],
+    },
   };
 }

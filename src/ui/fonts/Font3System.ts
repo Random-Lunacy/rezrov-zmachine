@@ -40,17 +40,16 @@ export interface Font3Font {
  */
 export class Font3System {
   private static instance: Font3System;
-  private defaultFont: Font3Font;
-
-  private constructor() {
-    this.defaultFont = this.createDefaultFont();
-  }
-
   public static getInstance(): Font3System {
     if (!Font3System.instance) {
       Font3System.instance = new Font3System();
     }
     return Font3System.instance;
+  }
+  private defaultFont: Font3Font;
+
+  private constructor() {
+    this.defaultFont = this.createDefaultFont();
   }
 
   /**

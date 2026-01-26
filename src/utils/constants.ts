@@ -25,6 +25,9 @@ export enum HeaderLocation {
   ScreenWidthInUnits = 0x22, // Screen width in units
   ScreenHeightInUnits = 0x24, // Screen height in units
 
+  FontWidthInUnits = 0x26, // Font width in units (V5+)
+  FontHeightInUnits = 0x27, // Font height in units (V5+)
+
   RoutinesOffset = 0x28, // Offset to packed routines (V6-V7)
   StaticStringsOffset = 0x2a, // Offset to packed strings (V6-V7)
 
