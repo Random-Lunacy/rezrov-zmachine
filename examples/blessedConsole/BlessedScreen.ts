@@ -18,6 +18,15 @@ export class BlessedScreen extends BaseScreen {
   private mainWindow: any;
   private textStyle: number = TextStyle.Roman;
 
+  // Status line buffer for V5+ games that write their own status bar
+  // Stores characters at specific column positions
+  private statusLineBuffer: string = '';
+
+  // Callback to update Z-machine header when screen dimensions change
+  private onResizeCallback: ((cols: number, rows: number) => void) | null = null;
+  private lastReportedCols: number = 0;
+  private lastReportedRows: number = 0;
+
   // Mouse state for Beyond Zork support
   private mouseEnabled: boolean = true;
   private lastMouseX: number = 0;
@@ -47,6 +56,7 @@ export class BlessedScreen extends BaseScreen {
       width: '100%',
       height: 1,
       content: '',
+      wrap: false, // Don't wrap text - clip at edge instead
       style: {
         fg: 'black',
         bg: 'white',
@@ -82,7 +92,47 @@ export class BlessedScreen extends BaseScreen {
     // Set up mouse event handling for Beyond Zork map support
     this.setupMouseHandling();
 
+    // Listen for resize events to update Z-machine header when dimensions change
+    // Listen for terminal resize events
+    // Try both blessed's resize event and Node's stdout resize
+    const handleResize = () => {
+      const cols = this.screen.width as number;
+      const rows = this.screen.height as number;
+
+      // Only trigger if dimensions are valid and changed
+      if (cols > 10 && rows > 5 && (cols !== this.lastReportedCols || rows !== this.lastReportedRows)) {
+        this.lastReportedCols = cols;
+        this.lastReportedRows = rows;
+        if (this.onResizeCallback) {
+          this.onResizeCallback(cols, rows);
+        }
+
+        // Resize and redraw the status bar to match new width
+        this.resizeStatusBar(cols);
+      }
+    };
+
+    this.screen.on('resize', handleResize);
+    process.stdout.on('resize', handleResize);
+
     this.screen.render();
+  }
+
+  /**
+   * Set a callback to be called when screen dimensions become available or change.
+   * Used to update Z-machine header with correct screen dimensions.
+   */
+  setResizeCallback(callback: (cols: number, rows: number) => void): void {
+    this.onResizeCallback = callback;
+
+    // If dimensions are already valid, call immediately
+    const cols = this.screen.width as number;
+    const rows = this.screen.height as number;
+    if (cols > 10 && rows > 5) {
+      this.lastReportedCols = cols;
+      this.lastReportedRows = rows;
+      callback(cols, rows);
+    }
   }
 
   /**
@@ -148,32 +198,69 @@ export class BlessedScreen extends BaseScreen {
   }
 
   getSize(): ScreenSize {
-    return {
-      rows: this.screen.height as number,
-      cols: this.screen.width as number,
-    };
+    const blessedCols = this.screen.width as number;
+    const blessedRows = this.screen.height as number;
+
+    // Blessed reports 1x1 during early initialization before it determines
+    // actual terminal dimensions. Use sensible defaults in that case to avoid
+    // breaking cursor positioning and text formatting.
+    const cols = blessedCols > 10 ? blessedCols : 80;
+    const rows = blessedRows > 5 ? blessedRows : 25;
+
+    // If blessed now reports valid dimensions that differ from what we last reported,
+    // trigger the resize callback to update the Z-machine header
+    if (blessedCols > 10 && blessedRows > 5) {
+      if (blessedCols !== this.lastReportedCols || blessedRows !== this.lastReportedRows) {
+        this.lastReportedCols = blessedCols;
+        this.lastReportedRows = blessedRows;
+        if (this.onResizeCallback) {
+          this.onResizeCallback(blessedCols, blessedRows);
+        }
+      }
+    }
+
+    return { rows, cols };
   }
 
   print(machine: ZMachine, str: string): void {
-    const targetWindow = this.outputWindowId === 0 ? this.mainWindow : this.statusWindow;
-
     // Translate Font 3 characters to Unicode if Font 3 is active
     let textToDisplay = str;
     if (this.isCurrentFontFont3()) {
       textToDisplay = translateFont3Text(str);
     }
 
-    // Apply text styling and colors
-    const styledText = this.applyStylesAndColors(textToDisplay);
-
     if (this.outputWindowId === 0) {
       // Main window - append and scroll
-      const currentContent = targetWindow.getContent();
-      targetWindow.setContent(currentContent + styledText);
-      targetWindow.setScrollPerc(100);
+      const styledText = this.applyStylesAndColors(textToDisplay);
+      const currentContent = this.mainWindow.getContent();
+      this.mainWindow.setContent(currentContent + styledText);
+      this.mainWindow.setScrollPerc(100);
     } else {
-      // Status window - replace content (typical for status lines)
-      targetWindow.setContent(styledText);
+      // Status window (window 1) - V5+ games write directly using cursor positioning
+      // Insert text at current cursor column position
+      const col = this.cursorPosition.column - 1; // Convert to 0-based index
+      const screenWidth = this.getSize().cols;
+
+
+      // Ensure buffer is at least screenWidth characters (pad with spaces)
+      while (this.statusLineBuffer.length < screenWidth) {
+        this.statusLineBuffer += ' ';
+      }
+
+      // Insert text at cursor position, overwriting existing characters
+      const before = this.statusLineBuffer.substring(0, col);
+      const after = this.statusLineBuffer.substring(col + textToDisplay.length);
+      this.statusLineBuffer = before + textToDisplay + after;
+
+      // Trim to screen width
+      this.statusLineBuffer = this.statusLineBuffer.substring(0, screenWidth);
+
+      // Update cursor position (move right by text length)
+      this.cursorPosition.column += textToDisplay.length;
+
+      // Apply styling and update display
+      const styledText = this.applyStylesAndColors(this.statusLineBuffer);
+      this.statusWindow.setContent(styledText);
     }
 
     this.screen.render();
@@ -266,6 +353,28 @@ export class BlessedScreen extends BaseScreen {
     return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
   }
 
+  /**
+   * Resize the status bar buffer to match new screen width and redraw.
+   * Called when terminal is resized to immediately update the display.
+   */
+  private resizeStatusBar(newWidth: number): void {
+    if (this.statusLineBuffer.length === 0) return;
+
+    // Pad or trim the buffer to the new width
+    if (this.statusLineBuffer.length < newWidth) {
+      // Pad with spaces
+      this.statusLineBuffer = this.statusLineBuffer.padEnd(newWidth, ' ');
+    } else if (this.statusLineBuffer.length > newWidth) {
+      // Trim to new width
+      this.statusLineBuffer = this.statusLineBuffer.substring(0, newWidth);
+    }
+
+    // Redraw the status window with the resized buffer
+    const styledText = this.applyStylesAndColors(this.statusLineBuffer);
+    this.statusWindow.setContent(styledText);
+    this.screen.render();
+  }
+
   // Override setTextStyle to update our local textStyle for styling
   setTextStyle(machine: ZMachine, style: number): void {
     super.setTextStyle(machine, style);
@@ -319,6 +428,7 @@ export class BlessedScreen extends BaseScreen {
     }
     if (windowId === 1 || windowId === -1) {
       this.statusWindow.setContent('');
+      this.statusLineBuffer = ''; // Clear the buffer too
     }
     this.screen.render();
   }
