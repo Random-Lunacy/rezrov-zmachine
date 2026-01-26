@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import chalk from 'chalk';
-import { BaseScreen, BufferMode, Capabilities, Color, ScreenSize, TextStyle, ZMachine } from '../../dist/index.js';
+import { BaseScreen, Capabilities, Color, ScreenSize, TextStyle, ZMachine } from '../../dist/index.js';
 
 export class StdioScreen extends BaseScreen {
   private textStyle: number = TextStyle.Roman;

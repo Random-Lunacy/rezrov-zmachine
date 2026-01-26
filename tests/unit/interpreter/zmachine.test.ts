@@ -581,6 +581,23 @@ describe('ZMachine', () => {
       expect(flags1 & 0x80).toBe(0x80);
     });
 
+    it('should configure screen dimensions in units and font size for Version 5', () => {
+      // Create a Version 5 story
+      storyBuffer[0] = 5;
+
+      vi.spyOn(screen, 'getSize').mockReturnValue({ rows: 25, cols: 80 });
+
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+
+      // Check screen dimensions in units
+      expect(zmachine.memory.getWord(HeaderLocation.ScreenWidthInUnits)).toBe(80);
+      expect(zmachine.memory.getWord(HeaderLocation.ScreenHeightInUnits)).toBe(25);
+
+      // Check font size in units (1x1 for text mode)
+      expect(zmachine.memory.getByte(HeaderLocation.FontWidthInUnits)).toBe(1);
+      expect(zmachine.memory.getByte(HeaderLocation.FontHeightInUnits)).toBe(1);
+    });
+
     it('should configure flags for Version 4+ with disabled capabilities', () => {
       // Create a Version 5 story
       storyBuffer[0] = 5;

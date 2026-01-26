@@ -1,6 +1,14 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import * as blessed from 'blessed';
-import { BaseScreen, BufferMode, Capabilities, Color, ScreenSize, TextStyle, ZMachine } from '../../dist/index.js';
+import {
+  BaseScreen,
+  Capabilities,
+  Color,
+  ScreenSize,
+  TextStyle,
+  translateFont3Text,
+  ZMachine,
+} from '../../dist/index.js';
 
 export class BlessedScreen extends BaseScreen {
   private screen: blessed.Widgets.Screen;
@@ -10,12 +18,20 @@ export class BlessedScreen extends BaseScreen {
   private mainWindow: any;
   private textStyle: number = TextStyle.Roman;
 
+  // Mouse state for Beyond Zork support
+  private mouseEnabled: boolean = true;
+  private lastMouseX: number = 0;
+  private lastMouseY: number = 0;
+  private lastMouseButton: number = 0;
+  private mouseClickCallback: ((x: number, y: number, button: number) => void) | null = null;
+
   constructor() {
     super('BlessedScreen', { logger: undefined });
 
     this.screen = blessed.screen({
       smartCSR: true,
       title: 'Z-Machine',
+      mouse: true, // Enable mouse support for Beyond Zork
       cursor: {
         artificial: true,
         shape: 'line',
@@ -63,7 +79,57 @@ export class BlessedScreen extends BaseScreen {
       return false; // Prevent further processing
     });
 
+    // Set up mouse event handling for Beyond Zork map support
+    this.setupMouseHandling();
+
     this.screen.render();
+  }
+
+  /**
+   * Set up mouse event handling for clickable elements
+   * Beyond Zork uses mouse clicks on the map for navigation
+   */
+  private setupMouseHandling(): void {
+    // Handle mouse clicks on the main window
+    this.mainWindow.on('click', (data: { x: number; y: number; button: string }) => {
+      if (!this.mouseEnabled) return;
+
+      // Convert blessed coordinates to 1-based Z-machine coordinates
+      // Account for window position
+      const x = data.x + 1;
+      const y = data.y - (this.mainWindow.top as number) + 1;
+      const button = data.button === 'left' ? 1 : data.button === 'right' ? 2 : data.button === 'middle' ? 3 : 0;
+
+      this.lastMouseX = x;
+      this.lastMouseY = y;
+      this.lastMouseButton = button;
+
+      this.logger.debug(`Mouse click: x=${x}, y=${y}, button=${button}`);
+
+      // Call the callback if set
+      if (this.mouseClickCallback) {
+        this.mouseClickCallback(x, y, button);
+      }
+    });
+
+    // Handle mouse clicks on the status window (upper window)
+    this.statusWindow.on('click', (data: { x: number; y: number; button: string }) => {
+      if (!this.mouseEnabled) return;
+
+      const x = data.x + 1;
+      const y = data.y + 1;
+      const button = data.button === 'left' ? 1 : data.button === 'right' ? 2 : data.button === 'middle' ? 3 : 0;
+
+      this.lastMouseX = x;
+      this.lastMouseY = y;
+      this.lastMouseButton = button;
+
+      this.logger.debug(`Mouse click (status): x=${x}, y=${y}, button=${button}`);
+
+      if (this.mouseClickCallback) {
+        this.mouseClickCallback(x, y, button);
+      }
+    });
   }
 
   getCapabilities(): Capabilities {
@@ -91,8 +157,14 @@ export class BlessedScreen extends BaseScreen {
   print(machine: ZMachine, str: string): void {
     const targetWindow = this.outputWindowId === 0 ? this.mainWindow : this.statusWindow;
 
+    // Translate Font 3 characters to Unicode if Font 3 is active
+    let textToDisplay = str;
+    if (this.isCurrentFontFont3()) {
+      textToDisplay = translateFont3Text(str);
+    }
+
     // Apply text styling and colors
-    const styledText = this.applyStylesAndColors(str);
+    const styledText = this.applyStylesAndColors(textToDisplay);
 
     if (this.outputWindowId === 0) {
       // Main window - append and scroll
@@ -140,7 +212,12 @@ export class BlessedScreen extends BaseScreen {
   }
 
   private mapZMachineColor(color: number): string | null {
+    // Standard Z-machine colors (0-15)
     switch (color) {
+      case Color.Current:
+        return null; // Keep current color
+      case Color.Default:
+        return null; // Use default color
       case Color.Black:
         return 'black';
       case Color.Red:
@@ -159,12 +236,34 @@ export class BlessedScreen extends BaseScreen {
         return 'white';
       case Color.Gray:
         return 'gray';
-      case Color.Default:
-        return null;
-      default:
-        this.logger.warn(`Unrecognized color: ${color}`);
-        return null;
     }
+
+    // Z-machine true colors (values > 15)
+    // Encoded as 15-bit RGB: 0bBBBBB_GGGGG_RRRRR
+    if (color > 15) {
+      return this.trueColorToHex(color);
+    }
+
+    // Reserved colors 11-15 (not yet standardized)
+    this.logger.debug(`Reserved color ${color}, using default`);
+    return null;
+  }
+
+  /**
+   * Convert a Z-machine 15-bit true color to a hex color string
+   * Z-machine format: 0bBBBBB_GGGGG_RRRRR (5 bits each for B, G, R)
+   * @param trueColor The 15-bit true color value
+   * @returns Hex color string like '#rrggbb'
+   */
+  private trueColorToHex(trueColor: number): string {
+    // Extract 5-bit color components and scale to 8-bit (0-255)
+    const r = (trueColor & 0x1f) * 8;
+    const g = ((trueColor >> 5) & 0x1f) * 8;
+    const b = ((trueColor >> 10) & 0x1f) * 8;
+
+    // Format as hex color string
+    const toHex = (n: number): string => n.toString(16).padStart(2, '0');
+    return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
   }
 
   // Override setTextStyle to update our local textStyle for styling
@@ -177,10 +276,14 @@ export class BlessedScreen extends BaseScreen {
   setTextColors(machine: ZMachine, window: number, foreground: number, background: number): void {
     super.setTextColors(machine, window, foreground, background);
 
+    // Get the resolved colors from windowColors (handles Color.Current properly)
+    const resolvedColors = this.windowColors.get(window);
+    if (!resolvedColors) return;
+
     // Apply colors to the window immediately
     const targetWindow = window === 0 ? this.mainWindow : this.statusWindow;
-    const fgColor = this.mapZMachineColor(foreground);
-    const bgColor = this.mapZMachineColor(background);
+    const fgColor = this.mapZMachineColor(resolvedColors.foreground);
+    const bgColor = this.mapZMachineColor(resolvedColors.background);
 
     if (fgColor || bgColor) {
       targetWindow.style.fg = fgColor || targetWindow.style.fg;
@@ -360,8 +463,8 @@ export class BlessedScreen extends BaseScreen {
 
     // Restore terminal to normal mode
     process.stdout.write('\x1b[?25h'); // Show cursor
-    process.stdout.write('\x1b[0m');    // Reset colors
-    process.stdout.write('\x1b[2J');    // Clear screen
+    process.stdout.write('\x1b[0m'); // Reset colors
+    process.stdout.write('\x1b[2J'); // Clear screen
 
     process.exit(0);
   }
@@ -371,7 +474,50 @@ export class BlessedScreen extends BaseScreen {
     return this.screen;
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   getMainWindow(): any {
     return this.mainWindow;
+  }
+
+  /**
+   * Get the last recorded mouse position and button
+   * Used by read_mouse opcode
+   */
+  getMouseState(): { x: number; y: number; button: number } {
+    return {
+      x: this.lastMouseX,
+      y: this.lastMouseY,
+      button: this.lastMouseButton,
+    };
+  }
+
+  /**
+   * Set a callback to be called when a mouse click occurs
+   * Used by Beyond Zork for map navigation
+   */
+  setMouseClickCallback(callback: ((x: number, y: number, button: number) => void) | null): void {
+    this.mouseClickCallback = callback;
+  }
+
+  /**
+   * Enable or disable mouse handling
+   */
+  setMouseEnabled(enabled: boolean): void {
+    this.mouseEnabled = enabled;
+  }
+
+  /**
+   * Check if mouse handling is enabled
+   */
+  isMouseEnabled(): boolean {
+    return this.mouseEnabled;
+  }
+
+  /**
+   * Get the status window for multi-window support
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  getStatusWindow(): any {
+    return this.statusWindow;
   }
 }

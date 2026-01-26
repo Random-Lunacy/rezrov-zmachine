@@ -13,13 +13,17 @@ export class BlessedInputProcessor extends BaseInputProcessor {
   private cursorInterval: NodeJS.Timeout | null = null;
   private cursorVisible: boolean = true;
 
+  // Mouse support for Beyond Zork
+  private mouseClickHandler: ((data: { x: number; y: number; button: string }) => void) | null = null;
+  private pendingMouseClick: { x: number; y: number; button: number } | null = null;
+
   constructor(screen: any, options?: { logger?: Logger }) {
     super();
     this.logger = options?.logger || new Logger('BlessedInputProcessor');
     this.screen = screen;
     // Get the main window from the screen - look for the box that's not at the top
-    this.mainWindow = screen.children.find((child: any) =>
-      child.type === 'box' && child.top !== 0 && child.scrollable === true
+    this.mainWindow = screen.children.find(
+      (child: any) => child.type === 'box' && child.top !== 0 && child.scrollable === true
     );
   }
 
@@ -40,7 +44,7 @@ export class BlessedInputProcessor extends BaseInputProcessor {
     const lines = content.split('\n');
     this.inputStartPosition = {
       line: lines.length - 1,
-      column: lines[lines.length - 1]?.length || 0
+      column: lines[lines.length - 1]?.length || 0,
     };
 
     // Set up key handler for inline input
@@ -100,7 +104,7 @@ export class BlessedInputProcessor extends BaseInputProcessor {
     this.cursorVisible = false;
   }
 
-    private updateInputDisplay(): void {
+  private updateInputDisplay(): void {
     // Get current content
     const content = this.mainWindow.getContent();
     const lines = content.split('\n');
@@ -122,7 +126,7 @@ export class BlessedInputProcessor extends BaseInputProcessor {
     this.screen.render();
   }
 
-    private finishInput(machine: ZMachine): void {
+  private finishInput(machine: ZMachine): void {
     this.isWaitingForInput = false;
 
     // Stop cursor blinking
@@ -169,6 +173,7 @@ export class BlessedInputProcessor extends BaseInputProcessor {
     // Handle special keys that should be ignored
     const handleKey = (ch: string, key: blessed.Widgets.Events.IKeyEventArg) => {
       this.screen.removeListener('keypress', handleKey);
+      this.removeMouseHandler();
 
       // Ignore escape - don't handle it at all
       if (key?.name === 'escape') {
@@ -206,7 +211,54 @@ export class BlessedInputProcessor extends BaseInputProcessor {
       this.onKeyPress(machine, ch || '');
     };
 
+    // Set up mouse click handler for Beyond Zork
+    // Mouse clicks during read_char can be used for map navigation
+    this.mouseClickHandler = (_data: { x: number; y: number; button: string }) => {
+      // Store the click for potential use by the game
+      const button = _data.button === 'left' ? 1 : _data.button === 'right' ? 2 : _data.button === 'middle' ? 3 : 0;
+      this.pendingMouseClick = {
+        x: _data.x + 1,
+        y: _data.y + 1,
+        button,
+      };
+      this.logger.debug(`Mouse click during char input: ${JSON.stringify(this.pendingMouseClick)}`);
+
+      // For Beyond Zork, a mouse click during read_char should generate
+      // a special character code (254 for single click, 253 for double click)
+      // Remove handlers and signal the click
+      this.screen.removeListener('keypress', handleKey);
+      this.removeMouseHandler();
+
+      // Send mouse click as special character (254 = single click)
+      this.onKeyPress(machine, String.fromCharCode(254));
+    };
+
+    // Listen for clicks on the main window
+    const mainWindow = this.mainWindow;
+    if (mainWindow) {
+      mainWindow.on('click', this.mouseClickHandler);
+    }
+
     this.screen.on('keypress', handleKey);
+  }
+
+  /**
+   * Remove the current mouse click handler
+   */
+  private removeMouseHandler(): void {
+    if (this.mouseClickHandler && this.mainWindow) {
+      this.mainWindow.removeListener('click', this.mouseClickHandler);
+      this.mouseClickHandler = null;
+    }
+  }
+
+  /**
+   * Get the pending mouse click (if any) and clear it
+   */
+  getPendingMouseClick(): { x: number; y: number; button: number } | null {
+    const click = this.pendingMouseClick;
+    this.pendingMouseClick = null;
+    return click;
   }
 
   processTerminatingCharacters(input: string, terminators: number[] = this.terminatingChars): number {
@@ -284,5 +336,8 @@ export class BlessedInputProcessor extends BaseInputProcessor {
       this.screen.removeListener('keypress', this.keyHandler);
       this.keyHandler = null;
     }
+
+    // Remove mouse handler if active
+    this.removeMouseHandler();
   }
 }

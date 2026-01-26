@@ -635,20 +635,21 @@ describe('I/O Opcodes', () => {
   });
 
   describe('set_colour', () => {
-    it('should call screen.setTextColors with the correct colors', () => {
+    it('should call screen.setTextColors with current output window in V5', () => {
       // Arrange
       const foreground = 3; // Red
       const background = 2; // Black
+      // getOutputWindow returns 0 by default
 
       // Act
       ioOpcodes.set_colour.impl(machine, [], foreground, background);
 
-      // Assert
+      // Assert - V5 uses current output window (0 from mock)
       expect(machine.screen.setTextColors).toHaveBeenCalledWith(machine, 0, foreground, background);
-      expect(machine.logger.debug).toHaveBeenCalledWith('1234 set_colour 3 2 0');
+      expect(machine.logger.debug).toHaveBeenCalledWith('1234 set_colour 3 2 -> window 0');
     });
 
-    it('should ignore window parameter in versions < 5', () => {
+    it('should ignore set_colour entirely in versions < 5', () => {
       // Arrange
       mockMachine.state.version = 4;
       const foreground = 3;
@@ -658,14 +659,45 @@ describe('I/O Opcodes', () => {
       // Act
       ioOpcodes.set_colour.impl(machine, [], foreground, background, window);
 
-      // Assert
+      // Assert - colors not supported pre-V5, so setTextColors should not be called
       expect(machine.logger.debug).toHaveBeenCalledWith(`set_colour: ignoring in version < 5`);
+      expect(machine.screen.setTextColors).not.toHaveBeenCalled();
+    });
+
+    it('should ignore window parameter in Version 5 and use current output window', () => {
+      // Arrange
+      mockMachine.state.version = 5;
+      const foreground = 3;
+      const background = 2;
+      const windowParam = 1; // This should be ignored in V5
+      // Set current output window to 0
+      machine.screen.getOutputWindow = vi.fn().mockReturnValue(0);
+
+      // Act
+      ioOpcodes.set_colour.impl(machine, [], foreground, background, windowParam);
+
+      // Assert - V5 ignores window parameter and uses current output window
       expect(machine.screen.setTextColors).toHaveBeenCalledWith(machine, 0, foreground, background);
     });
 
-    it('should respect window parameter in Version 5+', () => {
+    it('should use current output window when no window specified in V5', () => {
       // Arrange
       mockMachine.state.version = 5;
+      const foreground = 4; // Green
+      const background = 3; // Red
+      // Simulate upper window is current
+      machine.screen.getOutputWindow = vi.fn().mockReturnValue(1);
+
+      // Act
+      ioOpcodes.set_colour.impl(machine, [], foreground, background);
+
+      // Assert - should use current output window (1)
+      expect(machine.screen.setTextColors).toHaveBeenCalledWith(machine, 1, foreground, background);
+    });
+
+    it('should respect window parameter in Version 6', () => {
+      // Arrange
+      mockMachine.state.version = 6;
       const foreground = 3;
       const background = 2;
       const window = 1;
@@ -673,7 +705,7 @@ describe('I/O Opcodes', () => {
       // Act
       ioOpcodes.set_colour.impl(machine, [], foreground, background, window);
 
-      // Assert
+      // Assert - V6 uses explicit window parameter
       expect(machine.screen.setTextColors).toHaveBeenCalledWith(machine, window, foreground, background);
     });
 

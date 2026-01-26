@@ -392,12 +392,12 @@ describe('BaseScreen', () => {
       );
     });
 
-    it('should handle Color.Current (-1) in setTextColors', () => {
+    it('should handle Color.Current (0) in setTextColors', () => {
       // First set some colors
       screen.setTextColors(v5Machine as any, 0, Color.Red, Color.Blue);
 
-      // Now use Color.Current (-1) to keep existing colors
-      screen.setTextColors(v5Machine as any, 0, -1, -1);
+      // Now use Color.Current (0) to keep existing colors
+      screen.setTextColors(v5Machine as any, 0, Color.Current, Color.Current);
 
       // Colors should remain Red and Blue
       expect(screen.getWindowTrueForeground(v5Machine as any, 0)).toBe(Color.Red);

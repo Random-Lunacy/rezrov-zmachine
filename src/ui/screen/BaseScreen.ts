@@ -112,11 +112,12 @@ export class BaseScreen implements Screen {
       case WindowProperty.TextStyle:
         return this.currentStyles;
 
-      case WindowProperty.ColorData:
+      case WindowProperty.ColorData: {
         const colors = this.windowColors.get(window);
         if (!colors) return 0;
         // Pack foreground and background into a single value
         return (colors.foreground << 8) | colors.background;
+      }
 
       case WindowProperty.Width:
         return this.getSize().cols;
@@ -308,9 +309,10 @@ export class BaseScreen implements Screen {
 
     const currentColors = this.windowColors.get(window) || { foreground: Color.Default, background: Color.Default };
 
-    // Handle Color.Current (-1) by keeping current values
-    const newForeground = foreground === -1 ? currentColors.foreground : foreground;
-    const newBackground = background === -1 ? currentColors.background : background;
+    // Handle Color.Current (0) by keeping current values
+    // Color.Default (1) is stored as-is and resolved at render time
+    const newForeground = foreground === Color.Current ? currentColors.foreground : foreground;
+    const newBackground = background === Color.Current ? currentColors.background : background;
 
     this.windowColors.set(window, { foreground: newForeground, background: newBackground });
 
