@@ -1,5 +1,13 @@
 import * as fs from 'fs';
-import { dumpDictionary, dumpHeader, dumpObjectTable, Logger, LogLevel, ZMachine } from '../../dist/index.js';
+import {
+  dumpDictionary,
+  dumpHeader,
+  dumpObjectTable,
+  HeaderLocation,
+  Logger,
+  LogLevel,
+  ZMachine,
+} from '../../dist/index.js';
 import { BlessedInputProcessor } from './BlessedInputProcessor.js';
 import { BlessedScreen } from './BlessedScreen.js';
 import { parseArguments } from './utils.js';
@@ -43,6 +51,21 @@ try {
   // Create the Z-machine
   const machine = new ZMachine(storyData, screen, inputProcessor, undefined, undefined);
 
+  // Set up callback to update Z-machine header when blessed knows actual screen dimensions
+  screen.setResizeCallback((cols: number, rows: number) => {
+    const version = machine.state.version;
+
+    machine.memory.setByte(HeaderLocation.ScreenHeightInLines, rows);
+    machine.memory.setByte(HeaderLocation.ScreenWidthInChars, cols);
+
+    if (version >= 5) {
+      machine.memory.setWord(HeaderLocation.ScreenWidthInUnits, cols);
+      machine.memory.setWord(HeaderLocation.ScreenHeightInUnits, rows);
+    }
+
+    logger.debug(`Updated screen dimensions in header: ${cols}x${rows}`);
+  });
+
   // Show debugging info if requested
   if (parsed.header) {
     dumpHeader(machine);
@@ -58,7 +81,24 @@ try {
 
   // Run the machine unless the --noExec flag is set
   if (!parsed.noExec) {
-    machine.execute();
+    // Delay execution briefly to let blessed determine terminal dimensions.
+    // This ensures the game reads correct screen width during initialization.
+    setTimeout(() => {
+      // Update header with current dimensions before game starts
+      const { rows, cols } = screen.getSize();
+      const version = machine.state.version;
+
+      machine.memory.setByte(HeaderLocation.ScreenHeightInLines, rows);
+      machine.memory.setByte(HeaderLocation.ScreenWidthInChars, cols);
+
+      if (version >= 5) {
+        machine.memory.setWord(HeaderLocation.ScreenWidthInUnits, cols);
+        machine.memory.setWord(HeaderLocation.ScreenHeightInUnits, rows);
+      }
+
+      logger.debug(`Starting game with screen dimensions: ${cols}x${rows}`);
+      machine.execute();
+    }, 50); // Small delay for blessed to initialize
   }
 } catch (error) {
   logger.error(`Error: ${error instanceof Error ? error.message : String(error)}`);

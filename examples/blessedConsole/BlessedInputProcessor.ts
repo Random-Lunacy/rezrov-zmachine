@@ -39,6 +39,9 @@ export class BlessedInputProcessor extends BaseInputProcessor {
     this.isWaitingForInput = true;
     this.currentInput = '';
 
+    // Disable mouse tracking during text input to prevent escape sequence leakage
+    this.screen.program.disableMouse();
+
     // Get current cursor position from the main window
     const content = this.mainWindow.getContent();
     const lines = content.split('\n');
@@ -50,6 +53,12 @@ export class BlessedInputProcessor extends BaseInputProcessor {
     // Set up key handler for inline input
     this.keyHandler = (ch: string, key: blessed.Widgets.Events.IKeyEventArg) => {
       if (!this.isWaitingForInput) return;
+
+      // Ignore mouse events - they can generate spurious characters
+      // Mouse events in blessed have key.name === 'mouse' or include escape sequences
+      if (key?.name === 'mouse' || key?.mouse) {
+        return;
+      }
 
       // Handle backspace
       if (key?.name === 'backspace' || key?.name === 'delete') {
@@ -73,8 +82,14 @@ export class BlessedInputProcessor extends BaseInputProcessor {
         return;
       }
 
-      // Handle regular characters
-      if (ch && ch.length === 1 && ch.charCodeAt(0) >= 32) {
+      // Handle regular characters - but filter out potential escape sequence fragments
+      // Mouse escape sequences can leak characters like 'M', '[', or high-bit chars
+      if (ch && ch.length === 1 && ch.charCodeAt(0) >= 32 && ch.charCodeAt(0) < 127) {
+        // Additional filter: ignore if the character looks like part of an escape sequence
+        // or if there's no proper key name (which can indicate raw escape data)
+        if (key?.sequence && key.sequence.includes('\x1b')) {
+          return; // Part of an escape sequence
+        }
         this.currentInput += ch;
         this.updateInputDisplay();
       }
@@ -132,6 +147,9 @@ export class BlessedInputProcessor extends BaseInputProcessor {
     // Stop cursor blinking
     this.stopCursorBlink();
 
+    // Re-enable mouse tracking
+    this.screen.program.enableMouse();
+
     // Remove the key handler
     if (this.keyHandler) {
       this.screen.removeListener('keypress', this.keyHandler);
@@ -172,6 +190,16 @@ export class BlessedInputProcessor extends BaseInputProcessor {
 
     // Handle special keys that should be ignored
     const handleKey = (ch: string, key: blessed.Widgets.Events.IKeyEventArg) => {
+      // Ignore mouse events - they can generate spurious characters
+      if (key?.name === 'mouse' || key?.mouse) {
+        return; // Don't remove listener, wait for real key
+      }
+
+      // Ignore escape sequences that leak through
+      if (key?.sequence && key.sequence.includes('\x1b') && !key.name) {
+        return; // Part of an escape sequence, wait for real key
+      }
+
       this.screen.removeListener('keypress', handleKey);
       this.removeMouseHandler();
 
@@ -207,8 +235,13 @@ export class BlessedInputProcessor extends BaseInputProcessor {
         return;
       }
 
-      // Regular character
-      this.onKeyPress(machine, ch || '');
+      // Regular character - but filter out high-bit chars from mouse events
+      if (ch && ch.charCodeAt(0) >= 32 && ch.charCodeAt(0) < 127) {
+        this.onKeyPress(machine, ch);
+      } else if (ch) {
+        // Non-printable or high-bit character, restart and wait for valid input
+        this.doStartCharInput(machine, state);
+      }
     };
 
     // Set up mouse click handler for Beyond Zork
