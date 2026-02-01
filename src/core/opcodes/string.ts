@@ -122,16 +122,23 @@ function print_table(
 
 /**
  * Tokenize input text
+ * Per Z-machine spec: tokenise text parse dict flag
+ * - text: address of text buffer containing input
+ * - parse: address of parse buffer to write tokens to
+ * - dict: dictionary address (0 = default dictionary)
+ * - flag: if non-zero, only recognized words are stored
  */
 function tokenize(
   machine: ZMachine,
   _operandTypes: OperandType[],
   text: number,
-  dict: number,
-  parse: number = 0,
+  parse: number,
+  dict: number = 0,
   flag: number = 0
 ): void {
-  machine.logger.debug(`tokenise: text=${text}, dict=${dict}, parse=${parse}, flag=${flag}`);
+  machine.logger.debug(
+    `tokenise: text=0x${text.toString(16)}, parse=0x${parse.toString(16)}, dict=0x${dict.toString(16)}, flag=${flag}`
+  );
   machine.state.tokenizeLine(text, parse, dict, flag !== 0);
 }
 

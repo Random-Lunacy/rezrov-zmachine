@@ -268,30 +268,32 @@ describe('String Opcodes', () => {
     it('should tokenize text with default parameters', () => {
       // Arrange
       const text = 0x3000;
-      const dict = 0x4000;
+      const parse = 0x4000;
 
-      // Act
-      stringOpcodes.tokenise.impl(machine, [], text, dict);
+      // Act - Z-machine spec: tokenise text parse [dict] [flag]
+      stringOpcodes.tokenise.impl(machine, [], text, parse);
 
       // Assert
-      expect(mockMachine.state.tokenizeLine).toHaveBeenCalledWith(text, 0, dict, false);
-      expect(mockMachine.logger.debug).toHaveBeenCalledWith(`tokenise: text=${text}, dict=${dict}, parse=0, flag=0`);
+      expect(mockMachine.state.tokenizeLine).toHaveBeenCalledWith(text, parse, 0, false);
+      expect(mockMachine.logger.debug).toHaveBeenCalledWith(
+        `tokenise: text=0x${text.toString(16)}, parse=0x${parse.toString(16)}, dict=0x0, flag=0`
+      );
     });
 
-    it('should handle parse and flag parameters', () => {
+    it('should handle dict and flag parameters', () => {
       // Arrange
       const text = 0x3000;
-      const dict = 0x4000;
       const parse = 0x5000;
+      const dict = 0x4000;
       const flag = 1;
 
-      // Act
-      stringOpcodes.tokenise.impl(machine, [], text, dict, parse, flag);
+      // Act - Z-machine spec: tokenise text parse dict flag
+      stringOpcodes.tokenise.impl(machine, [], text, parse, dict, flag);
 
       // Assert
       expect(mockMachine.state.tokenizeLine).toHaveBeenCalledWith(text, parse, dict, true);
       expect(mockMachine.logger.debug).toHaveBeenCalledWith(
-        `tokenise: text=${text}, dict=${dict}, parse=${parse}, flag=${flag}`
+        `tokenise: text=0x${text.toString(16)}, parse=0x${parse.toString(16)}, dict=0x${dict.toString(16)}, flag=${flag}`
       );
     });
   });

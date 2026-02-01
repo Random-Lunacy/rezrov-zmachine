@@ -107,6 +107,15 @@ export abstract class BaseInputProcessor implements InputProcessor {
     // Load terminating characters
     this.loadTerminatingCharacters(machine);
 
+    // Clear the parse buffer token count when starting new input
+    // This is critical for timed input: the timeout routine may read the parse buffer
+    // to check "what has the player typed so far". If we don't clear the token count,
+    // the timeout routine sees old tokens from the previous command and may corrupt
+    // the parser's internal state (thinking those tokens are partial current input).
+    if (state.parseBuffer) {
+      machine.state.memory.setByte(state.parseBuffer + 1, 0);
+    }
+
     // Set up timed input if required
     if (state.time && state.time > 0 && state.routine) {
       this.handleTimedInput(machine, state);
@@ -206,10 +215,17 @@ export abstract class BaseInputProcessor implements InputProcessor {
    * It sets a timeout to trigger the input routine after the specified time.
    */
   handleTimedInput(machine: ZMachine, state: InputState): void {
+    // Don't set up timer if we're no longer suspended waiting for input
+    if (!machine.executor.isSuspended) {
+      machine.logger.debug('handleTimedInput: executor not suspended, not setting timer');
+      return;
+    }
+
     if (state.time && state.time > 0 && state.routine) {
+      const timeoutMs = state.time * 100;
       this.timeoutHandle = setTimeout(() => {
         this.onInputTimeout(machine, state);
-      }, state.time * 100); // Time is in 1/10 seconds per spec
+      }, timeoutMs); // Time is in 1/10 seconds per spec
     }
   }
 
@@ -290,15 +306,61 @@ export abstract class BaseInputProcessor implements InputProcessor {
   /**
    * Handle input timeout events
    * This method is called when the input times out.
-   * It processes the timeout based on the current input mode and calls the specified routine if provided.
+   *
+   * According to Z-machine spec:
+   * - Call the timeout routine
+   * - If routine returns 0 (false): restart timer and continue waiting for input
+   * - If routine returns non-zero (true): terminate input with terminator 0
+   *
+   * IMPORTANT: Subclasses that manage UI state (event handlers, cursors, etc.) should override
+   * this method to clean up their UI state before calling super.onInputTimeout().
    */
   onInputTimeout(machine: ZMachine, state: InputState): void {
+    // Don't process timeout if we're no longer suspended waiting for input
+    // This can happen if input completed while the timeout routine was executing
+    if (!machine.executor.isSuspended) {
+      machine.logger.debug('onInputTimeout: executor not suspended, ignoring stale timeout');
+      return;
+    }
+
+    // Clear the current timeout (we'll restart it if needed)
+    if (this.timeoutHandle) {
+      clearTimeout(this.timeoutHandle);
+      this.timeoutHandle = null;
+    }
+
     if (state.routine) {
       const routineAddr = machine.state.memory.unpackRoutineAddress(state.routine);
-      machine.state.callRoutine(routineAddr, null);
-      machine.executor.resume().catch((error) => {
-        machine.logger.error(`Error resuming execution after input timeout: ${error}`);
-      });
+
+      // Capture call depth BEFORE calling routine
+      // After callRoutine, depth will be originalCallDepth + 1
+      const originalCallDepth = machine.state.callstack.length;
+
+      // Call the timeout routine and capture its return value
+      // We use a special variable slot (stack) to capture the return value
+      // The routine will push its return value, and we'll check it
+      machine.state.callRoutine(routineAddr, 0); // Store result in stack (variable 0)
+
+      // Execute the timeout routine until it returns to original depth
+      machine.executor
+        .executeTimeoutRoutine(originalCallDepth)
+        .then((routineReturnValue) => {
+          machine.logger.debug(`Timeout routine returned: ${routineReturnValue}`);
+
+          if (routineReturnValue === 0) {
+            // Routine returned 0 (false): restart timer and continue waiting
+            machine.logger.debug('Timeout routine returned 0, restarting timer');
+            this.handleTimedInput(machine, state);
+          } else {
+            // Routine returned non-zero (true): terminate input
+            machine.logger.debug('Timeout routine returned non-zero, terminating input');
+            // Store 0 as the terminating character (timeout terminator)
+            this.onInputComplete(machine, state.currentInput || '', 0);
+          }
+        })
+        .catch((error) => {
+          machine.logger.error(`Error executing timeout routine: ${error}`);
+        });
     }
   }
 
@@ -339,7 +401,7 @@ export abstract class BaseInputProcessor implements InputProcessor {
       }
       memory.setByte(textBuffer + 1 + input.length, 0);
     } else {
-      // V5+: Store with length prefix
+      // V5+: Store with length prefix (no null terminator per spec)
       memory.setByte(textBuffer + 1, input.length);
       for (let i = 0; i < input.length; i++) {
         memory.setByte(textBuffer + 2 + i, input.charCodeAt(i));

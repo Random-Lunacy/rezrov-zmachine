@@ -410,6 +410,9 @@ describe('InputInterface', () => {
           routine: 0x3000,
         };
 
+        // Simulate executor being suspended (waiting for input)
+        (machine.executor as any).simulateSuspend(state);
+
         inputProcessor.handleTimedInput(machine as any, state);
 
         expect(setTimeoutSpy).toHaveBeenCalled();
@@ -427,6 +430,25 @@ describe('InputInterface', () => {
           routine: 0x3000,
         };
 
+        // Simulate executor being suspended
+        (machine.executor as any).simulateSuspend(state);
+
+        inputProcessor.handleTimedInput(machine as any, state);
+
+        expect(setTimeoutSpy).not.toHaveBeenCalled();
+      });
+
+      it('should not set a timeout if executor is not suspended', () => {
+        const setTimeoutSpy = vi.spyOn(global, 'setTimeout');
+
+        const state: InputState = {
+          mode: InputMode.TIMED_TEXT,
+          resultVar: 0,
+          time: 10,
+          routine: 0x3000,
+        };
+
+        // Don't call simulateSuspend - executor is not suspended
         inputProcessor.handleTimedInput(machine as any, state);
 
         expect(setTimeoutSpy).not.toHaveBeenCalled();
@@ -546,20 +568,74 @@ describe('InputInterface', () => {
     });
 
     describe('onInputTimeout', () => {
-      it('should call the routine specified in state', () => {
+      it('should call the routine specified in state and execute it', async () => {
         const state: InputState = {
           mode: InputMode.TIMED_TEXT,
           resultVar: 0,
           routine: 0x1234,
         };
 
+        // Simulate executor being suspended
+        (machine.executor as any).simulateSuspend(state);
+
         machine.state.memory.unpackRoutineAddress.mockReturnValue(0x2468);
+        machine.state.callstack = { length: 1 };
 
         inputProcessor.onInputTimeout(machine as any, state);
 
-        // Should call the routine with null (no result variable)
-        expect(machine.state.callRoutine).toHaveBeenCalledWith(0x2468, null);
-        expect(machine.executor.resume).toHaveBeenCalled();
+        // Should call the routine with variable 0 (stack) to capture return value
+        expect(machine.state.callRoutine).toHaveBeenCalledWith(0x2468, 0);
+        expect(machine.executor.executeTimeoutRoutine).toHaveBeenCalledWith(1);
+      });
+
+      it('should restart timer if routine returns 0', async () => {
+        const state: InputState = {
+          mode: InputMode.TIMED_TEXT,
+          resultVar: 0,
+          routine: 0x1234,
+          time: 10,
+        };
+
+        // Simulate executor being suspended
+        (machine.executor as any).simulateSuspend(state);
+
+        machine.state.memory.unpackRoutineAddress.mockReturnValue(0x2468);
+        machine.state.callstack = { length: 1 };
+        machine.executor.executeTimeoutRoutine.mockResolvedValue(0);
+
+        inputProcessor.onInputTimeout(machine as any, state);
+
+        // Wait for the promise to resolve
+        await vi.waitFor(() => {
+          expect(machine.executor.executeTimeoutRoutine).toHaveBeenCalled();
+        });
+      });
+
+      it('should complete input if routine returns non-zero', async () => {
+        const state: InputState = {
+          mode: InputMode.TIMED_TEXT,
+          resultVar: 0,
+          routine: 0x1234,
+          time: 10,
+          currentInput: 'test',
+        };
+
+        // Simulate executor being suspended
+        (machine.executor as any).simulateSuspend(state);
+
+        machine.state.memory.unpackRoutineAddress.mockReturnValue(0x2468);
+        machine.state.callstack = { length: 1 };
+        machine.executor.executeTimeoutRoutine.mockResolvedValue(1);
+
+        // Spy on onInputComplete
+        const onInputCompleteSpy = vi.spyOn(inputProcessor, 'onInputComplete');
+
+        inputProcessor.onInputTimeout(machine as any, state);
+
+        // Wait for the promise to resolve
+        await vi.waitFor(() => {
+          expect(onInputCompleteSpy).toHaveBeenCalledWith(machine, 'test', 0);
+        });
       });
 
       it('should do nothing if no routine specified', () => {
@@ -569,10 +645,27 @@ describe('InputInterface', () => {
           routine: undefined,
         };
 
+        // Simulate executor being suspended
+        (machine.executor as any).simulateSuspend(state);
+
         inputProcessor.onInputTimeout(machine as any, state);
 
         expect(machine.state.callRoutine).not.toHaveBeenCalled();
-        expect(machine.executor.resume).not.toHaveBeenCalled();
+        expect(machine.executor.executeTimeoutRoutine).not.toHaveBeenCalled();
+      });
+
+      it('should do nothing if executor is not suspended', () => {
+        const state: InputState = {
+          mode: InputMode.TIMED_TEXT,
+          resultVar: 0,
+          routine: 0x1234,
+        };
+
+        // Don't call simulateSuspend - executor is not suspended
+        inputProcessor.onInputTimeout(machine as any, state);
+
+        expect(machine.state.callRoutine).not.toHaveBeenCalled();
+        expect(machine.executor.executeTimeoutRoutine).not.toHaveBeenCalled();
       });
     });
 
