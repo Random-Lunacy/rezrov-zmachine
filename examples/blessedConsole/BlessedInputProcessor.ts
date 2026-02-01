@@ -13,6 +13,9 @@ export class BlessedInputProcessor extends BaseInputProcessor {
   private cursorInterval: NodeJS.Timeout | null = null;
   private cursorVisible: boolean = true;
 
+  // Flag to pause input handling during timeout routine execution
+  private isExecutingTimeoutRoutine: boolean = false;
+
   // Mouse support for Beyond Zork
   private mouseClickHandler: ((data: { x: number; y: number; button: string }) => void) | null = null;
   private pendingMouseClick: { x: number; y: number; button: number } | null = null;
@@ -27,17 +30,29 @@ export class BlessedInputProcessor extends BaseInputProcessor {
     );
   }
 
-  protected doStartTextInput(machine: ZMachine, state: InputState): void {
+  protected doStartTextInput(machine: ZMachine, _state: InputState): void {
     this.logger.debug('Starting text input');
+
+    // IMPORTANT: Clean up any existing input state before starting new input
+    // This handles the case where a previous input was terminated by timeout
+    // and the base class onInputComplete was called without going through finishInput
+    if (this.keyHandler) {
+      this.screen.removeListener('keypress', this.keyHandler);
+      this.keyHandler = null;
+    }
+    this.stopCursorBlink();
+    this.isExecutingTimeoutRoutine = false;
 
     this.loadTerminatingCharacters(machine);
 
-    if (state.time && state.time > 0 && state.routine) {
-      this.handleTimedInput(machine, state);
-    }
+    // NOTE: Do NOT call handleTimedInput here - the base class startTextInput() already does this.
+    // Calling it twice would create duplicate timeouts, causing repeated timeout callbacks.
 
     this.isWaitingForInput = true;
     this.currentInput = '';
+
+    // Disable mouse tracking during text input to prevent escape sequence leakage
+    this.screen.program.disableMouse();
 
     // Get current cursor position from the main window
     const content = this.mainWindow.getContent();
@@ -50,6 +65,15 @@ export class BlessedInputProcessor extends BaseInputProcessor {
     // Set up key handler for inline input
     this.keyHandler = (ch: string, key: blessed.Widgets.Events.IKeyEventArg) => {
       if (!this.isWaitingForInput) return;
+
+      // Ignore input while timeout routine is executing to prevent race conditions
+      if (this.isExecutingTimeoutRoutine) return;
+
+      // Ignore mouse events - they can generate spurious characters
+      // Mouse events in blessed have key.name === 'mouse' or include escape sequences
+      if (key?.name === 'mouse' || key?.mouse) {
+        return;
+      }
 
       // Handle backspace
       if (key?.name === 'backspace' || key?.name === 'delete') {
@@ -73,8 +97,14 @@ export class BlessedInputProcessor extends BaseInputProcessor {
         return;
       }
 
-      // Handle regular characters
-      if (ch && ch.length === 1 && ch.charCodeAt(0) >= 32) {
+      // Handle regular characters - but filter out potential escape sequence fragments
+      // Mouse escape sequences can leak characters like 'M', '[', or high-bit chars
+      if (ch && ch.length === 1 && ch.charCodeAt(0) >= 32 && ch.charCodeAt(0) < 127) {
+        // Additional filter: ignore if the character looks like part of an escape sequence
+        // or if there's no proper key name (which can indicate raw escape data)
+        if (key?.sequence && key.sequence.includes('\x1b')) {
+          return; // Part of an escape sequence
+        }
         this.currentInput += ch;
         this.updateInputDisplay();
       }
@@ -128,9 +158,13 @@ export class BlessedInputProcessor extends BaseInputProcessor {
 
   private finishInput(machine: ZMachine): void {
     this.isWaitingForInput = false;
+    this.isExecutingTimeoutRoutine = false;
 
     // Stop cursor blinking
     this.stopCursorBlink();
+
+    // Re-enable mouse tracking
+    this.screen.program.enableMouse();
 
     // Remove the key handler
     if (this.keyHandler) {
@@ -166,12 +200,21 @@ export class BlessedInputProcessor extends BaseInputProcessor {
   protected doStartCharInput(machine: ZMachine, state: InputState): void {
     this.logger.debug('Starting char input');
 
-    if (state.time && state.time > 0 && state.routine) {
-      this.handleTimedInput(machine, state);
-    }
+    // NOTE: Do NOT call handleTimedInput here - the base class startCharInput() already does this.
+    // Calling it twice would create duplicate timeouts.
 
     // Handle special keys that should be ignored
     const handleKey = (ch: string, key: blessed.Widgets.Events.IKeyEventArg) => {
+      // Ignore mouse events - they can generate spurious characters
+      if (key?.name === 'mouse' || key?.mouse) {
+        return; // Don't remove listener, wait for real key
+      }
+
+      // Ignore escape sequences that leak through
+      if (key?.sequence && key.sequence.includes('\x1b') && !key.name) {
+        return; // Part of an escape sequence, wait for real key
+      }
+
       this.screen.removeListener('keypress', handleKey);
       this.removeMouseHandler();
 
@@ -207,8 +250,13 @@ export class BlessedInputProcessor extends BaseInputProcessor {
         return;
       }
 
-      // Regular character
-      this.onKeyPress(machine, ch || '');
+      // Regular character - but filter out high-bit chars from mouse events
+      if (ch && ch.charCodeAt(0) >= 32 && ch.charCodeAt(0) < 127) {
+        this.onKeyPress(machine, ch);
+      } else if (ch) {
+        // Non-printable or high-bit character, restart and wait for valid input
+        this.doStartCharInput(machine, state);
+      }
     };
 
     // Set up mouse click handler for Beyond Zork
@@ -325,6 +373,61 @@ export class BlessedInputProcessor extends BaseInputProcessor {
 
       this.screen.render();
     });
+  }
+
+  /**
+   * Override onInputTimeout to pass current input to the base class.
+   * The base class will execute the timeout routine and either:
+   * - Restart the timer (routine returned 0) - UI stays active
+   * - Complete input (routine returned non-zero) - finishInput handles cleanup
+   */
+  onInputTimeout(machine: ZMachine, state: InputState): void {
+    // Don't process timeout if we're no longer waiting for input
+    // This can happen due to race conditions with user pressing enter
+    if (!this.isWaitingForInput) {
+      this.logger.debug('onInputTimeout: not waiting for input, ignoring stale timeout');
+      return;
+    }
+
+    // Pass the current input buffer to the state so base class can use it
+    state.currentInput = this.currentInput;
+
+    // Pause input handling while the timeout routine executes
+    // This prevents race conditions where keypresses during routine execution
+    // could be processed multiple times or cause display issues
+    this.isExecutingTimeoutRoutine = true;
+
+    // Stop cursor blinking during routine execution to prevent screen.render() calls
+    this.stopCursorBlink();
+
+    // Call base implementation which will execute the timeout routine
+    // and either restart timer or call onInputComplete
+    super.onInputTimeout(machine, state);
+  }
+
+  /**
+   * Called by base class after timeout routine completes and timer is restarted.
+   * We override handleTimedInput to resume input handling.
+   */
+  handleTimedInput(machine: ZMachine, state: InputState): void {
+    // Don't restart if we're no longer waiting for input
+    // This can happen if input completed while the timeout routine was executing
+    // BUT: On initial setup, isWaitingForInput may not be set yet, so only check
+    // this guard if we're coming from a timeout routine (isExecutingTimeoutRoutine was true)
+    if (this.isExecutingTimeoutRoutine && !this.isWaitingForInput) {
+      this.logger.debug('handleTimedInput: not waiting for input, ignoring');
+      this.isExecutingTimeoutRoutine = false;
+      return;
+    }
+
+    // Resume input handling now that the routine has finished
+    this.isExecutingTimeoutRoutine = false;
+
+    // Restart cursor blinking
+    this.startCursorBlink();
+
+    // Call base implementation to set up the timer
+    super.handleTimedInput(machine, state);
   }
 
   cleanup(): void {

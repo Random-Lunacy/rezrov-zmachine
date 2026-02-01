@@ -80,6 +80,8 @@ export class Executor {
       if (e instanceof SuspendState) {
         this.logger.debug('Caught SuspendState, setting up suspension...');
         this._suspended = true;
+        // Create InputState once and reuse it - this ensures getInputState() returns
+        // the same object that the input processor is using
         this._suspendedInputState = e.toInputState();
 
         this.logger.debug(`Suspended state: ${JSON.stringify(this._suspended)}`);
@@ -87,7 +89,8 @@ export class Executor {
         setImmediate(() => {
           this.logger.debug('Starting input setup in setImmediate...');
           try {
-            const inputState = e.toInputState();
+            // Use the same InputState object stored in _suspendedInputState
+            const inputState = this._suspendedInputState!;
             this.logger.debug(`Input state: ${JSON.stringify(inputState)}`);
 
             // Update status bar for V1-3
@@ -408,5 +411,39 @@ export class Executor {
    */
   quit(): void {
     this._quit = true;
+  }
+
+  /**
+   * Execute a timeout routine until it returns, capturing its return value.
+   * This is used for timed input where the routine's return value determines
+   * whether to continue waiting (return 0) or terminate input (return non-zero).
+   *
+   * @param originalCallDepth The callstack depth BEFORE the routine was called
+   * @returns The return value of the timeout routine
+   */
+  async executeTimeoutRoutine(originalCallDepth: number): Promise<number> {
+    // The routine was already called and pushed a frame, so current depth is originalCallDepth + 1
+    // We execute until the routine returns (depth goes back to originalCallDepth)
+    // Use > not >= because after return we'll be AT originalCallDepth, not below it
+
+    try {
+      while (!this._quit && this.zMachine.state.callstack.length > originalCallDepth) {
+        this._op_pc = this.zMachine.state.pc;
+        await this.executeInstruction();
+      }
+    } catch (e) {
+      if (e instanceof SuspendState) {
+        // The timeout routine itself tried to read input - this shouldn't happen
+        // in well-behaved games, but if it does, treat as "continue waiting"
+        this.logger.warn('Timeout routine attempted to read input, treating as continue');
+        return 0;
+      }
+      throw e;
+    }
+
+    // The routine has returned - the return value was pushed to the stack
+    // (we called with returnVar=0 which is the stack)
+    const returnValue = this.zMachine.state.stack.pop() || 0;
+    return returnValue;
   }
 }

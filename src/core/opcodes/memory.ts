@@ -32,25 +32,25 @@ function copy_table(
   }
 
   const sourceSize = Math.abs(size);
-  const sourceEnd = sourceAddr + sourceSize;
 
   machine.logger.debug(`copy_table ${sourceAddr} ${destAddr} ${size}`);
 
   if (destAddr === 0) {
-    // Just check that source region is valid
-    if (sourceAddr < 0 || sourceEnd > machine.memory.size) {
-      throw new Error(`Invalid copy_table source range: ${sourceAddr}-${sourceEnd}`);
+    // Per Z-machine spec: "If second is zero, the first table is zeroed for size bytes"
+    for (let i = 0; i < sourceSize; i++) {
+      machine.memory.setByte(sourceAddr + i, 0);
     }
     return;
   }
 
   if (size > 0) {
-    // Positive size: normal copy
+    // Positive size: copy backwards (high to low) to handle overlaps where dest > source
     machine.memory.copyBlock(sourceAddr, destAddr, size);
   } else {
-    // Negative size: fill destination with zeros
+    // Negative size: copy forwards (low to high) to handle overlaps where source > dest
+    // This is required by the Z-machine spec for overlapping copies
     for (let i = 0; i < sourceSize; i++) {
-      machine.memory.setByte(destAddr + i, 0);
+      machine.memory.setByte(destAddr + i, machine.memory.getByte(sourceAddr + i));
     }
   }
 }

@@ -335,7 +335,11 @@ export class GameState {
     const frame = this._callstack.pop()!;
     this.logger.debug(`Returning from routine with value ${value} (0x${value.toString(16)})`);
 
-    // Store return value if needed
+    // Restore stack to state before routine was called
+    // This discards any temporary values pushed during routine execution
+    this._stack.length = frame.previousSP;
+
+    // Store return value if needed (this may push to stack if resultVariable is 0)
     if (frame.resultVariable !== null) {
       this.storeVariable(frame.resultVariable, value);
     }

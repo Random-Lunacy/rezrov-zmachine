@@ -26,6 +26,13 @@ export class BaseScreen implements Screen {
   protected fontManager: FontManager;
   protected windowManager: WindowManager;
 
+  // Output stream 3 (memory stream) state - can be nested up to 16 levels
+  protected memoryStreamStack: Array<{ table: number; width: number }> = [];
+
+  // Upper window buffer for V5+ games that write directly using cursor positioning
+  // Stores characters at specific positions, one string per line
+  protected upperWindowBuffer: string[] = [];
+
   /**
    * Constructor for BaseScreen
    * @param id The screen ID
@@ -210,6 +217,12 @@ export class BaseScreen implements Screen {
       this.upperWindowHeight = 0;
       this.outputWindowId = WindowType.Lower;
       this.cursorPosition = { line: 1, column: 1 };
+      this.upperWindowBuffer = [];
+    } else if (windowId === WindowType.Upper) {
+      this.upperWindowBuffer = [];
+      if (version >= 5) {
+        this.cursorPosition = { line: 1, column: 1 };
+      }
     } else if (version >= 5) {
       // V5: Cursor moves to top-left for any erased window
       this.cursorPosition = { line: 1, column: 1 };
@@ -322,15 +335,207 @@ export class BaseScreen implements Screen {
   }
 
   enableOutputStream(machine: ZMachine, streamId: number, table: number, width: number): void {
-    this.logger.error(
-      `not implemented: ${this.id} enableOutputStream streamId=${streamId} table=${table} width=${width}`
-    );
+    this.logger.debug(`${this.id} enableOutputStream streamId=${streamId} table=${table} width=${width}`);
+
+    if (streamId === 3) {
+      // Memory stream - push table address onto stack
+      // Initialize the length word to 0
+      machine.memory.setWord(table, 0);
+      this.memoryStreamStack.push({ table, width });
+      this.logger.debug(`Memory stream enabled, stack depth: ${this.memoryStreamStack.length}`);
+    }
+    // Other streams (1, 2, 4) are handled by subclasses or ignored
   }
 
   disableOutputStream(machine: ZMachine, streamId: number, table: number, width: number): void {
-    this.logger.error(
-      `not implemented: ${this.id} disableOutputStream streamId=${streamId} table=${table} width=${width}`
-    );
+    this.logger.debug(`${this.id} disableOutputStream streamId=${streamId}`);
+
+    if (streamId === 3) {
+      // Memory stream - pop from stack
+      if (this.memoryStreamStack.length > 0) {
+        this.memoryStreamStack.pop();
+        this.logger.debug(`Memory stream disabled, stack depth: ${this.memoryStreamStack.length}`);
+      } else {
+        this.logger.warn('Attempted to disable memory stream when none was active');
+      }
+    }
+    // Other streams handled by subclasses or ignored
+  }
+
+  /**
+   * Check if memory stream (stream 3) is currently active
+   */
+  isMemoryStreamActive(): boolean {
+    return this.memoryStreamStack.length > 0;
+  }
+
+  /**
+   * Write text to the active memory stream table
+   * Called by print when stream 3 is active
+   */
+  protected writeToMemoryStream(machine: ZMachine, text: string): void {
+    if (this.memoryStreamStack.length === 0) return;
+
+    const { table } = this.memoryStreamStack[this.memoryStreamStack.length - 1];
+
+    // Get current length from table
+    let currentLength = machine.memory.getWord(table);
+
+    // Write each character as a ZSCII byte
+    for (let i = 0; i < text.length; i++) {
+      const charCode = text.charCodeAt(i);
+      // Write character at offset: table + 2 (skip length word) + currentLength
+      machine.memory.setByte(table + 2 + currentLength, charCode);
+      currentLength++;
+    }
+
+    // Update the length word
+    machine.memory.setWord(table, currentLength);
+  }
+
+  /**
+   * Write text to the upper window buffer at current cursor position.
+   * Handles buffer expansion, text insertion, and cursor advancement.
+   * Returns the combined buffer content for rendering by subclasses.
+   *
+   * @param text The text to write
+   * @param screenWidth The current screen width for padding
+   * @returns The combined buffer content as a single string with newlines
+   */
+  protected writeToUpperWindowBuffer(text: string, screenWidth: number): string {
+    const line = this.cursorPosition.line - 1; // Convert to 0-based index
+    const col = this.cursorPosition.column - 1; // Convert to 0-based index
+
+    // Ensure we have enough lines in the buffer
+    while (this.upperWindowBuffer.length <= line) {
+      this.upperWindowBuffer.push(''.padEnd(screenWidth, ' '));
+    }
+
+    // Get the current line
+    let currentLine = this.upperWindowBuffer[line];
+
+    // Ensure line is at least screenWidth characters (pad with spaces)
+    while (currentLine.length < screenWidth) {
+      currentLine += ' ';
+    }
+
+    // Insert text at cursor position, overwriting existing characters
+    const before = currentLine.substring(0, col);
+    const after = currentLine.substring(col + text.length);
+    currentLine = before + text + after;
+
+    // Trim to screen width and update the line in the buffer
+    this.upperWindowBuffer[line] = currentLine.substring(0, screenWidth);
+
+    // Update cursor position (move right by text length)
+    this.cursorPosition.column += text.length;
+
+    // Return combined content for rendering
+    return this.upperWindowBuffer.join('\n');
+  }
+
+  /**
+   * Resize the upper window buffer to match new screen width.
+   * Call this when the screen is resized.
+   *
+   * @param newWidth The new screen width
+   * @returns The resized buffer content, or null if buffer was empty
+   */
+  protected resizeUpperWindowBuffer(newWidth: number): string | null {
+    if (this.upperWindowBuffer.length === 0) return null;
+
+    // Resize each line in the buffer
+    this.upperWindowBuffer = this.upperWindowBuffer.map((line) => {
+      if (line.length < newWidth) {
+        return line.padEnd(newWidth, ' ');
+      } else if (line.length > newWidth) {
+        return line.substring(0, newWidth);
+      }
+      return line;
+    });
+
+    return this.upperWindowBuffer.join('\n');
+  }
+
+  /**
+   * Get the current upper window buffer content.
+   * Useful for subclasses that need to re-render after style changes.
+   */
+  protected getUpperWindowBufferContent(): string {
+    return this.upperWindowBuffer.join('\n');
+  }
+
+  /**
+   * Format a V3-style status bar line.
+   * Returns the formatted string; subclasses handle rendering.
+   *
+   * @param locationName The location name (left side)
+   * @param value1 Score or hours
+   * @param value2 Moves or minutes
+   * @param isTimeMode Whether to format as time (true) or score/moves (false)
+   * @param width The screen width
+   * @returns The formatted status bar string
+   */
+  formatStatusBarLine(
+    locationName: string | null,
+    value1: number,
+    value2: number,
+    isTimeMode: boolean,
+    width: number
+  ): string {
+    // Handle missing location
+    const lhs = locationName || '';
+
+    // Format right-hand side based on mode
+    let rhs: string;
+    if (isTimeMode) {
+      // Format as 12-hour time with AM/PM
+      const hours = value1;
+      const minutes = value2;
+
+      // Handle invalid time values
+      if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+        rhs = '??:??';
+      } else {
+        const hour12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+        const ampm = hours < 12 ? 'AM' : 'PM';
+        rhs = `${hour12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+      }
+    } else {
+      // Format as score/moves (negative scores allowed)
+      rhs = `Score: ${value1} Moves: ${value2}`;
+    }
+
+    // Pad between left and right sides
+    const padding = Math.max(0, width - lhs.length - rhs.length);
+    return lhs + ' '.repeat(padding) + rhs;
+  }
+
+  /**
+   * Convert a Z-machine 15-bit true color to RGB components.
+   * Z-machine format: 0bBBBBB_GGGGG_RRRRR (5 bits each for B, G, R)
+   *
+   * @param trueColor The 15-bit true color value
+   * @returns Object with r, g, b values (0-255 each)
+   */
+  trueColorToRgb(trueColor: number): { r: number; g: number; b: number } {
+    // Extract 5-bit color components and scale to 8-bit (0-255)
+    const r = (trueColor & 0x1f) * 8;
+    const g = ((trueColor >> 5) & 0x1f) * 8;
+    const b = ((trueColor >> 10) & 0x1f) * 8;
+    return { r, g, b };
+  }
+
+  /**
+   * Convert a Z-machine 15-bit true color to a hex color string.
+   *
+   * @param trueColor The 15-bit true color value
+   * @returns Hex color string like '#rrggbb'
+   */
+  trueColorToHex(trueColor: number): string {
+    const { r, g, b } = this.trueColorToRgb(trueColor);
+    const toHex = (n: number): string => n.toString(16).padStart(2, '0');
+    return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
   }
 
   selectInputStream(machine: ZMachine, streamId: number): void {

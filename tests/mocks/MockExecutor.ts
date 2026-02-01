@@ -39,6 +39,11 @@ export class MockExecutor {
     return this.executeLoop();
   });
 
+  public executeTimeoutRoutine = vi.fn().mockImplementation(async (_targetCallDepth: number): Promise<number> => {
+    // Default implementation returns 0 (continue waiting)
+    return Promise.resolve(0);
+  });
+
   public quit = vi.fn().mockImplementation((): void => {
     this._quit = true;
   });

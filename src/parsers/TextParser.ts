@@ -1,5 +1,3 @@
-// Updates to src/parsers/TextParser.ts
-
 import { Memory } from '../core/memory/Memory';
 import { Address } from '../types';
 import { HeaderLocation } from '../utils/constants';
@@ -42,13 +40,19 @@ export class TextParser {
    * @param flag If true, only recognized words are added to the parse buffer
    */
   tokenizeLine(textBuffer: Address, parseBuffer: Address, dict: Address = 0, flag: boolean = false): void {
-    this.logger.debug(`Tokenizing line: textBuffer=${textBuffer}, parseBuffer=${parseBuffer}`);
+    this.logger.debug(
+      `Tokenizing line: textBuffer=0x${textBuffer.toString(16)}, parseBuffer=0x${parseBuffer.toString(16)}`
+    );
 
     // Get the dictionary
     const dictionary = this.getDictionary(dict);
 
     // Reset the token count to 0
     this.memory.setByte(parseBuffer + 1, 0);
+
+    // NOTE: Do NOT clear the entire parse buffer area!
+    // The game may store other data in the unused token slots.
+    // Only the token count byte needs to be reset.
 
     // Skip the separators
     const separators = dictionary.getSeparators();
@@ -81,7 +85,7 @@ export class TextParser {
     }
 
     text = text.toLowerCase();
-    this.logger.debug(`Input text: "${text}"`);
+    this.logger.debug(`Input text after lowercase: "${text}"`);
 
     // Helper functions for character classification
     const isSpace = (c: string): boolean => c === ' ';
@@ -164,8 +168,11 @@ export class TextParser {
       // Store word length
       this.memory.setByte(parseBuffer + tokenOffset + 2, word.length);
 
-      // Store word position (1-based)
-      this.memory.setByte(parseBuffer + tokenOffset + 3, position + 1);
+      // Store word position - this should be the byte offset into the text buffer
+      // For V5+, text starts at textBuffer+2, so position in text buffer = position + 2
+      // For V1-4, text starts at textBuffer+1, so position in text buffer = position + 1
+      const bufferPosition = this.version >= 5 ? position + 2 : position + 1;
+      this.memory.setByte(parseBuffer + tokenOffset + 3, bufferPosition);
 
       // Increment token count
       this.memory.setByte(parseBuffer + 1, tokenCount + 1);
@@ -206,6 +213,9 @@ export class TextParser {
 
     // Reset the token count to 0
     this.memory.setByte(parseBuffer + 1, 0);
+
+    // NOTE: Do NOT clear the entire parse buffer area!
+    // The game may store other data in the unused token slots.
 
     // Get the dictionary
     const dictionary = this.getDictionary(dict);

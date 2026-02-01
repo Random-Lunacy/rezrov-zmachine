@@ -56,21 +56,25 @@ describe('Memory Opcodes', () => {
       expect(mockMachine.logger.debug).toHaveBeenCalledWith(`copy_table ${sourceAddr} ${destAddr} ${size}`);
     });
 
-    it('should fill destination with zeros when size < 0', () => {
+    it('should copy forwards when size < 0 (for overlapping regions)', () => {
       // Arrange
       const sourceAddr = 0x1000;
       const destAddr = 0x2000;
       const size = -5;
 
-      // Act
+      // Set up getByte to return predictable values
+      mockMachine.memory.getByte.mockImplementation((addr: number) => addr & 0xff);
+
+      // Act - Per Z-machine spec: negative size means copy forwards (low to high)
       memoryOpcodes.copy_table.impl(machine, [], sourceAddr, destAddr, size);
 
       // Assert
       expect(mockMachine.memory.copyBlock).not.toHaveBeenCalled();
-      // Should set 5 bytes to zero
+      // Should copy 5 bytes forwards from source to dest
       expect(mockMachine.memory.setByte).toHaveBeenCalledTimes(5);
       for (let i = 0; i < 5; i++) {
-        expect(mockMachine.memory.setByte).toHaveBeenCalledWith(destAddr + i, 0);
+        expect(mockMachine.memory.getByte).toHaveBeenCalledWith(sourceAddr + i);
+        expect(mockMachine.memory.setByte).toHaveBeenCalledWith(destAddr + i, (sourceAddr + i) & 0xff);
       }
     });
 
@@ -89,30 +93,21 @@ describe('Memory Opcodes', () => {
       expect(mockMachine.logger.debug).toHaveBeenCalledWith('copy_table: no-op');
     });
 
-    it('should validate source range when destAddr = 0', () => {
+    it('should zero source table when destAddr = 0', () => {
       // Arrange
       const sourceAddr = 0x1000;
       const destAddr = 0;
       const size = 10;
 
-      // Act
+      // Act - Per Z-machine spec: "If second is zero, the first table is zeroed for size bytes"
       memoryOpcodes.copy_table.impl(machine, [], sourceAddr, destAddr, size);
 
       // Assert
       expect(mockMachine.memory.copyBlock).not.toHaveBeenCalled();
-      expect(mockMachine.memory.setByte).not.toHaveBeenCalled();
-    });
-
-    it('should throw an error for invalid source range', () => {
-      // Arrange
-      const sourceAddr = 0xffff; // End of memory
-      const destAddr = 0;
-      const size = 10; // Would go past end of memory
-
-      // Act & Assert
-      expect(() => memoryOpcodes.copy_table.impl(machine, [], sourceAddr, destAddr, size)).toThrow(
-        'Invalid copy_table source range'
-      );
+      // Should zero 10 bytes at source address
+      for (let i = 0; i < size; i++) {
+        expect(mockMachine.memory.setByte).toHaveBeenCalledWith(sourceAddr + i, 0);
+      }
     });
   });
 
