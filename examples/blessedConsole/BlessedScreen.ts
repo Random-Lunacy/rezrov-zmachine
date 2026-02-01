@@ -18,10 +18,6 @@ export class BlessedScreen extends BaseScreen {
   private mainWindow: any;
   private textStyle: number = TextStyle.Roman;
 
-  // Status line buffer for V5+ games that write their own status bar
-  // Stores characters at specific column positions
-  private statusLineBuffer: string = '';
-
   // Callback to update Z-machine header when screen dimensions change
   private onResizeCallback: ((cols: number, rows: number) => void) | null = null;
   private lastReportedCols: number = 0;
@@ -223,6 +219,12 @@ export class BlessedScreen extends BaseScreen {
   }
 
   print(machine: ZMachine, str: string): void {
+    // Check if memory stream (stream 3) is active - if so, write to memory only
+    if (this.isMemoryStreamActive()) {
+      this.writeToMemoryStream(machine, str);
+      return; // Don't output to screen when memory stream is active
+    }
+
     // Translate Font 3 characters to Unicode if Font 3 is active
     let textToDisplay = str;
     if (this.isCurrentFontFont3()) {
@@ -236,30 +238,10 @@ export class BlessedScreen extends BaseScreen {
       this.mainWindow.setContent(currentContent + styledText);
       this.mainWindow.setScrollPerc(100);
     } else {
-      // Status window (window 1) - V5+ games write directly using cursor positioning
-      // Insert text at current cursor column position
-      const col = this.cursorPosition.column - 1; // Convert to 0-based index
+      // Upper window - use BaseScreen's buffer management
       const screenWidth = this.getSize().cols;
-
-
-      // Ensure buffer is at least screenWidth characters (pad with spaces)
-      while (this.statusLineBuffer.length < screenWidth) {
-        this.statusLineBuffer += ' ';
-      }
-
-      // Insert text at cursor position, overwriting existing characters
-      const before = this.statusLineBuffer.substring(0, col);
-      const after = this.statusLineBuffer.substring(col + textToDisplay.length);
-      this.statusLineBuffer = before + textToDisplay + after;
-
-      // Trim to screen width
-      this.statusLineBuffer = this.statusLineBuffer.substring(0, screenWidth);
-
-      // Update cursor position (move right by text length)
-      this.cursorPosition.column += textToDisplay.length;
-
-      // Apply styling and update display
-      const styledText = this.applyStylesAndColors(this.statusLineBuffer);
+      const combinedContent = this.writeToUpperWindowBuffer(textToDisplay, screenWidth);
+      const styledText = this.applyStylesAndColors(combinedContent);
       this.statusWindow.setContent(styledText);
     }
 
@@ -337,40 +319,15 @@ export class BlessedScreen extends BaseScreen {
   }
 
   /**
-   * Convert a Z-machine 15-bit true color to a hex color string
-   * Z-machine format: 0bBBBBB_GGGGG_RRRRR (5 bits each for B, G, R)
-   * @param trueColor The 15-bit true color value
-   * @returns Hex color string like '#rrggbb'
-   */
-  private trueColorToHex(trueColor: number): string {
-    // Extract 5-bit color components and scale to 8-bit (0-255)
-    const r = (trueColor & 0x1f) * 8;
-    const g = ((trueColor >> 5) & 0x1f) * 8;
-    const b = ((trueColor >> 10) & 0x1f) * 8;
-
-    // Format as hex color string
-    const toHex = (n: number): string => n.toString(16).padStart(2, '0');
-    return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
-  }
-
-  /**
    * Resize the status bar buffer to match new screen width and redraw.
    * Called when terminal is resized to immediately update the display.
    */
   private resizeStatusBar(newWidth: number): void {
-    if (this.statusLineBuffer.length === 0) return;
+    const resizedContent = this.resizeUpperWindowBuffer(newWidth);
+    if (resizedContent === null) return;
 
-    // Pad or trim the buffer to the new width
-    if (this.statusLineBuffer.length < newWidth) {
-      // Pad with spaces
-      this.statusLineBuffer = this.statusLineBuffer.padEnd(newWidth, ' ');
-    } else if (this.statusLineBuffer.length > newWidth) {
-      // Trim to new width
-      this.statusLineBuffer = this.statusLineBuffer.substring(0, newWidth);
-    }
-
-    // Redraw the status window with the resized buffer
-    const styledText = this.applyStylesAndColors(this.statusLineBuffer);
+    // Redraw the status window with resized buffer
+    const styledText = this.applyStylesAndColors(resizedContent);
     this.statusWindow.setContent(styledText);
     this.screen.render();
   }
@@ -421,14 +378,13 @@ export class BlessedScreen extends BaseScreen {
 
   // Override clearWindow to use BaseScreen's v5 logic and update blessed windows
   clearWindow(machine: ZMachine, windowId: number): void {
-    super.clearWindow(machine, windowId);
+    super.clearWindow(machine, windowId); // BaseScreen clears upperWindowBuffer
 
     if (windowId === 0 || windowId === -1) {
       this.mainWindow.setContent('');
     }
     if (windowId === 1 || windowId === -1) {
       this.statusWindow.setContent('');
-      this.statusLineBuffer = ''; // Clear the buffer too
     }
     this.screen.render();
   }
@@ -448,13 +404,6 @@ export class BlessedScreen extends BaseScreen {
     }
   }
 
-  // Override setCursorPosition to use BaseScreen's v5 logic
-  setCursorPosition(machine: ZMachine, line: number, column: number, windowId: number): void {
-    super.setCursorPosition(machine, line, column, windowId);
-    // blessed handles cursor positioning internally for most cases
-    this.logger.debug(`setCursorPosition: ${line}, ${column}, window: ${windowId}`);
-  }
-
   hideCursor(machine: ZMachine, windowId: number): void {
     this.screen.cursor.shape = 'line';
     this.screen.cursor.blink = false;
@@ -468,33 +417,8 @@ export class BlessedScreen extends BaseScreen {
   }
 
   updateStatusBar(locationName: string | null, value1: number, value2: number, isTimeMode: boolean): void {
-    // Handle missing location
-    const lhs = locationName || '[No Location]'; // Or whatever placeholder you prefer
-
-    // Format right-hand side based on mode
-    let rhs: string;
-    if (isTimeMode) {
-      // Format as 12-hour time with AM/PM
-      const hours = value1;
-      const minutes = value2;
-
-      // Handle invalid time values
-      if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
-        rhs = '??:??';
-      } else {
-        const hour12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
-        const ampm = hours < 12 ? 'AM' : 'PM';
-        rhs = `${hour12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
-      }
-    } else {
-      // Format as score/moves (negative scores allowed)
-      rhs = `Score: ${value1} Moves: ${value2}`;
-    }
-
-    // Use existing layout logic
     const width = this.getSize().cols;
-    const padding = Math.max(0, width - lhs.length - rhs.length);
-    const statusLine = lhs + ' '.repeat(padding) + rhs;
+    const statusLine = this.formatStatusBarLine(locationName, value1, value2, isTimeMode, width);
     this.statusWindow.setContent(statusLine);
     this.screen.render();
   }
@@ -502,30 +426,6 @@ export class BlessedScreen extends BaseScreen {
   updateDisplay(machine: ZMachine): void {
     super.updateDisplay(machine);
     this.screen.render();
-  }
-
-  getCurrentFont(machine: ZMachine): number {
-    return super.getCurrentFont(machine);
-  }
-
-  setFont(machine: ZMachine, font: number): boolean {
-    return super.setFont(machine, font);
-  }
-
-  getFontForWindow(machine: ZMachine, window: number): number {
-    return super.getFontForWindow(machine, window);
-  }
-
-  setFontForWindow(machine: ZMachine, font: number, window: number): boolean {
-    return super.setFontForWindow(machine, font, window);
-  }
-
-  getWindowTrueForeground(machine: ZMachine, window: number): number {
-    return super.getWindowTrueForeground(machine, window);
-  }
-
-  getWindowTrueBackground(machine: ZMachine, window: number): number {
-    return super.getWindowTrueBackground(machine, window);
   }
 
   getWindowProperty(machine: ZMachine, window: number, property: number): number {
@@ -548,14 +448,6 @@ export class BlessedScreen extends BaseScreen {
       default:
         return 0;
     }
-  }
-
-  enableOutputStream(machine: ZMachine, streamId: number, table: number, width: number): void {
-    this.logger.debug(`enableOutputStream: ${streamId}, ${table}, ${width}`);
-  }
-
-  disableOutputStream(machine: ZMachine, streamId: number, table: number, width: number): void {
-    this.logger.debug(`disableOutputStream: ${streamId}`);
   }
 
   selectInputStream(machine: ZMachine, streamId: number): void {

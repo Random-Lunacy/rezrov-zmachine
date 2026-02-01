@@ -101,7 +101,7 @@ describe('String Opcodes', () => {
       expect(mockMachine.state.readZString).toHaveBeenCalled();
       expect(ZString.decodeZString).toHaveBeenCalledWith(mockMachine.memory, zstring, true);
       expect(machine.screen.print).toHaveBeenCalledWith(machine, decodedString);
-      expect(mockMachine.logger.debug).toHaveBeenCalledWith(`print ${zstring}`);
+      expect(mockMachine.logger.debug).toHaveBeenCalledWith(`print: "${decodedString}"`);
     });
   });
 

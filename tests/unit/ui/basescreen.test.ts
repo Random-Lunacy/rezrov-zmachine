@@ -241,26 +241,37 @@ describe('BaseScreen', () => {
   });
 
   describe('stream methods', () => {
-    it('should log error message for enableOutputStream', () => {
+    it('should log debug message for enableOutputStream', () => {
       screen.enableOutputStream(machine as any, 1, 0x1000, 80);
 
-      expect(mockLogger.error).toHaveBeenCalledWith(
-        'not implemented: TestScreen enableOutputStream streamId=1 table=4096 width=80'
-      );
+      expect(mockLogger.debug).toHaveBeenCalledWith('TestScreen enableOutputStream streamId=1 table=4096 width=80');
     });
 
-    it('should log error message for disableOutputStream', () => {
+    it('should log debug message for disableOutputStream', () => {
       screen.disableOutputStream(machine as any, 1, 0x1000, 80);
 
-      expect(mockLogger.error).toHaveBeenCalledWith(
-        'not implemented: TestScreen disableOutputStream streamId=1 table=4096 width=80'
-      );
+      expect(mockLogger.debug).toHaveBeenCalledWith('TestScreen disableOutputStream streamId=1');
     });
 
     it('should log error message for selectInputStream', () => {
       screen.selectInputStream(machine as any, 1);
 
       expect(mockLogger.error).toHaveBeenCalledWith('not implemented: TestScreen selectInputStream streamId=1');
+    });
+
+    it('should track memory stream stack when enabling stream 3', () => {
+      // Mock machine memory methods
+      (machine as any).memory = {
+        setWord: vi.fn(),
+        getWord: vi.fn().mockReturnValue(0),
+        setByte: vi.fn(),
+      };
+
+      screen.enableOutputStream(machine as any, 3, 0x5000, 80);
+      expect(screen.isMemoryStreamActive()).toBe(true);
+
+      screen.disableOutputStream(machine as any, 3, 0, 0);
+      expect(screen.isMemoryStreamActive()).toBe(false);
     });
   });
 
@@ -660,6 +671,334 @@ describe('BaseScreen', () => {
       // We need to check that the window-specific font was set, not the global font manager
       expect(screen.getFontForWindow(machine as any, 1)).toBe(3);
       expect(screen.getFontForWindow(machine as any, 0)).toBe(1);
+    });
+  });
+
+  describe('upper window buffer management', () => {
+    it('should write text to buffer at cursor position', () => {
+      // Access protected method via type assertion
+      const testScreen = screen as any;
+
+      // Set cursor to line 1, column 1 (default)
+      testScreen.cursorPosition = { line: 1, column: 1 };
+
+      const result = testScreen.writeToUpperWindowBuffer('Hello', 80);
+
+      // Should contain the text padded to screen width
+      expect(result).toContain('Hello');
+      expect(result.length).toBe(80); // Single line, 80 chars
+    });
+
+    it('should advance cursor after writing', () => {
+      const testScreen = screen as any;
+      testScreen.cursorPosition = { line: 1, column: 1 };
+
+      testScreen.writeToUpperWindowBuffer('Hello', 80);
+
+      // Cursor should have moved right by 5 characters
+      expect(testScreen.cursorPosition.column).toBe(6);
+    });
+
+    it('should handle multiple lines', () => {
+      const testScreen = screen as any;
+
+      // Write to line 1
+      testScreen.cursorPosition = { line: 1, column: 1 };
+      testScreen.writeToUpperWindowBuffer('Line 1', 80);
+
+      // Write to line 2
+      testScreen.cursorPosition = { line: 2, column: 1 };
+      const result = testScreen.writeToUpperWindowBuffer('Line 2', 80);
+
+      // Result should have two lines
+      const lines = result.split('\n');
+      expect(lines.length).toBe(2);
+      expect(lines[0]).toContain('Line 1');
+      expect(lines[1]).toContain('Line 2');
+    });
+
+    it('should overwrite existing text at cursor position', () => {
+      const testScreen = screen as any;
+
+      // Write initial text
+      testScreen.cursorPosition = { line: 1, column: 1 };
+      testScreen.writeToUpperWindowBuffer('AAAAA', 80);
+
+      // Overwrite at position 3
+      testScreen.cursorPosition = { line: 1, column: 3 };
+      const result = testScreen.writeToUpperWindowBuffer('BBB', 80);
+
+      // Should be "AABBBAA..." (first 2 A's, then BBB, then rest)
+      expect(result.substring(0, 8)).toBe('AABBB   ');
+    });
+
+    it('should expand buffer for lines beyond current size', () => {
+      const testScreen = screen as any;
+
+      // Write directly to line 5 (0-indexed: line 4)
+      testScreen.cursorPosition = { line: 5, column: 1 };
+      const result = testScreen.writeToUpperWindowBuffer('Line 5', 80);
+
+      // Should have 5 lines (indices 0-4)
+      const lines = result.split('\n');
+      expect(lines.length).toBe(5);
+    });
+
+    it('should trim lines to screen width', () => {
+      const testScreen = screen as any;
+      testScreen.cursorPosition = { line: 1, column: 1 };
+
+      // Write text that would extend beyond 20 char width
+      const result = testScreen.writeToUpperWindowBuffer('This is a very long line', 20);
+
+      expect(result.length).toBe(20);
+    });
+  });
+
+  describe('resizeUpperWindowBuffer', () => {
+    it('should return null for empty buffer', () => {
+      const testScreen = screen as any;
+      const result = testScreen.resizeUpperWindowBuffer(100);
+      expect(result).toBeNull();
+    });
+
+    it('should pad lines when width increases', () => {
+      const testScreen = screen as any;
+
+      // Write some text at narrow width
+      testScreen.cursorPosition = { line: 1, column: 1 };
+      testScreen.writeToUpperWindowBuffer('Test', 40);
+
+      // Resize to wider
+      const result = testScreen.resizeUpperWindowBuffer(80);
+
+      expect(result).not.toBeNull();
+      expect(result!.length).toBe(80);
+    });
+
+    it('should truncate lines when width decreases', () => {
+      const testScreen = screen as any;
+
+      // Write some text at wide width
+      testScreen.cursorPosition = { line: 1, column: 1 };
+      testScreen.writeToUpperWindowBuffer('This is a longer line of text', 80);
+
+      // Resize to narrower
+      const result = testScreen.resizeUpperWindowBuffer(20);
+
+      expect(result).not.toBeNull();
+      expect(result!.length).toBe(20);
+    });
+  });
+
+  describe('getUpperWindowBufferContent', () => {
+    it('should return empty string for empty buffer', () => {
+      const testScreen = screen as any;
+      const result = testScreen.getUpperWindowBufferContent();
+      expect(result).toBe('');
+    });
+
+    it('should return buffer content', () => {
+      const testScreen = screen as any;
+
+      testScreen.cursorPosition = { line: 1, column: 1 };
+      testScreen.writeToUpperWindowBuffer('Test', 80);
+
+      const result = testScreen.getUpperWindowBufferContent();
+      expect(result).toContain('Test');
+    });
+  });
+
+  describe('clearWindow clears upper window buffer', () => {
+    it('should clear upper window buffer when clearing upper window', () => {
+      const testScreen = screen as any;
+
+      // Write some text
+      testScreen.cursorPosition = { line: 1, column: 1 };
+      testScreen.writeToUpperWindowBuffer('Test', 80);
+
+      // Clear upper window (window 1)
+      screen.clearWindow(machine as any, 1);
+
+      // Buffer should be empty
+      expect(testScreen.upperWindowBuffer.length).toBe(0);
+    });
+
+    it('should clear upper window buffer when clearing entire screen (-1)', () => {
+      const testScreen = screen as any;
+
+      // Write some text
+      testScreen.cursorPosition = { line: 1, column: 1 };
+      testScreen.writeToUpperWindowBuffer('Test', 80);
+
+      // Clear entire screen
+      screen.clearWindow(machine as any, -1);
+
+      // Buffer should be empty
+      expect(testScreen.upperWindowBuffer.length).toBe(0);
+    });
+
+    it('should not clear upper window buffer when clearing lower window', () => {
+      const testScreen = screen as any;
+
+      // Write some text
+      testScreen.cursorPosition = { line: 1, column: 1 };
+      testScreen.writeToUpperWindowBuffer('Test', 80);
+
+      // Clear lower window (window 0)
+      screen.clearWindow(machine as any, 0);
+
+      // Buffer should still have content
+      expect(testScreen.upperWindowBuffer.length).toBe(1);
+    });
+  });
+
+  describe('formatStatusBarLine', () => {
+    it('should format score/moves mode correctly', () => {
+      const result = screen.formatStatusBarLine('West of House', 100, 42, false, 80);
+
+      expect(result).toContain('West of House');
+      expect(result).toContain('Score: 100');
+      expect(result).toContain('Moves: 42');
+      expect(result.length).toBe(80);
+    });
+
+    it('should format time mode correctly', () => {
+      const result = screen.formatStatusBarLine('Kitchen', 14, 30, true, 80);
+
+      expect(result).toContain('Kitchen');
+      expect(result).toContain('2:30 PM');
+      expect(result.length).toBe(80);
+    });
+
+    it('should handle midnight correctly', () => {
+      const result = screen.formatStatusBarLine('Location', 0, 0, true, 80);
+
+      expect(result).toContain('12:00 AM');
+    });
+
+    it('should handle noon correctly', () => {
+      const result = screen.formatStatusBarLine('Location', 12, 0, true, 80);
+
+      expect(result).toContain('12:00 PM');
+    });
+
+    it('should handle invalid time values', () => {
+      const result = screen.formatStatusBarLine('Location', 25, 61, true, 80);
+
+      expect(result).toContain('??:??');
+    });
+
+    it('should handle null location name', () => {
+      const result = screen.formatStatusBarLine(null, 50, 10, false, 80);
+
+      expect(result).toContain('Score: 50');
+      expect(result.length).toBe(80);
+    });
+
+    it('should handle negative scores', () => {
+      const result = screen.formatStatusBarLine('Location', -10, 5, false, 80);
+
+      expect(result).toContain('Score: -10');
+    });
+
+    it('should pad between left and right sides', () => {
+      const result = screen.formatStatusBarLine('A', 1, 1, false, 40);
+
+      // Left side: "A" (1 char)
+      // Right side: "Score: 1 Moves: 1" (17 chars)
+      // Total padding needed: 40 - 1 - 17 = 22
+      expect(result.startsWith('A')).toBe(true);
+      expect(result.endsWith('Score: 1 Moves: 1')).toBe(true);
+      expect(result.length).toBe(40);
+    });
+  });
+
+  describe('trueColorToRgb', () => {
+    it('should convert black (0) correctly', () => {
+      const result = screen.trueColorToRgb(0);
+
+      expect(result).toEqual({ r: 0, g: 0, b: 0 });
+    });
+
+    it('should convert pure red correctly', () => {
+      // Pure red in 15-bit: 0b00000_00000_11111 = 31
+      const result = screen.trueColorToRgb(31);
+
+      expect(result.r).toBe(31 * 8); // 248
+      expect(result.g).toBe(0);
+      expect(result.b).toBe(0);
+    });
+
+    it('should convert pure green correctly', () => {
+      // Pure green in 15-bit: 0b00000_11111_00000 = 31 << 5 = 992
+      const result = screen.trueColorToRgb(992);
+
+      expect(result.r).toBe(0);
+      expect(result.g).toBe(31 * 8); // 248
+      expect(result.b).toBe(0);
+    });
+
+    it('should convert pure blue correctly', () => {
+      // Pure blue in 15-bit: 0b11111_00000_00000 = 31 << 10 = 31744
+      const result = screen.trueColorToRgb(31744);
+
+      expect(result.r).toBe(0);
+      expect(result.g).toBe(0);
+      expect(result.b).toBe(31 * 8); // 248
+    });
+
+    it('should convert white correctly', () => {
+      // White in 15-bit: 0b11111_11111_11111 = 32767
+      const result = screen.trueColorToRgb(32767);
+
+      expect(result.r).toBe(248);
+      expect(result.g).toBe(248);
+      expect(result.b).toBe(248);
+    });
+  });
+
+  describe('trueColorToHex', () => {
+    it('should convert black to #000000', () => {
+      const result = screen.trueColorToHex(0);
+
+      expect(result).toBe('#000000');
+    });
+
+    it('should convert pure red to hex', () => {
+      // Pure red: 31 -> r=248
+      const result = screen.trueColorToHex(31);
+
+      expect(result).toBe('#f80000');
+    });
+
+    it('should convert pure green to hex', () => {
+      // Pure green: 992 -> g=248
+      const result = screen.trueColorToHex(992);
+
+      expect(result).toBe('#00f800');
+    });
+
+    it('should convert pure blue to hex', () => {
+      // Pure blue: 31744 -> b=248
+      const result = screen.trueColorToHex(31744);
+
+      expect(result).toBe('#0000f8');
+    });
+
+    it('should convert white to hex', () => {
+      // White: 32767 -> all=248
+      const result = screen.trueColorToHex(32767);
+
+      expect(result).toBe('#f8f8f8');
+    });
+
+    it('should convert mixed colors correctly', () => {
+      // Mix: r=16, g=8, b=4 in 5-bit each
+      // Value: (4 << 10) | (8 << 5) | 16 = 4096 + 256 + 16 = 4368
+      const result = screen.trueColorToHex(4368);
+
+      expect(result).toBe('#804020'); // r=128, g=64, b=32
     });
   });
 });

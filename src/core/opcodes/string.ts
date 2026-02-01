@@ -26,8 +26,9 @@ import { opcode } from './base';
  * Print the string at the given address
  */
 function print_addr(machine: ZMachine, _operandTypes: OperandType[], stringAddr: number): void {
+  const decoded = decodeZString(machine.memory, machine.memory.getZString(stringAddr), true);
   machine.logger.debug(`print_addr ${stringAddr.toString(16)}`);
-  machine.screen.print(machine, decodeZString(machine.memory, machine.memory.getZString(stringAddr), true));
+  machine.screen.print(machine, decoded);
 }
 
 /**
@@ -35,9 +36,9 @@ function print_addr(machine: ZMachine, _operandTypes: OperandType[], stringAddr:
  */
 function print_paddr(machine: ZMachine, _operandTypes: OperandType[], packedAddr: number): void {
   const addr = machine.state.memory.unpackStringAddress(packedAddr);
+  const decoded = decodeZString(machine.memory, machine.memory.getZString(addr), true);
   machine.logger.debug(`print_paddr ${packedAddr} -> ${addr}`);
-
-  machine.screen.print(machine, decodeZString(machine.memory, machine.memory.getZString(addr), true));
+  machine.screen.print(machine, decoded);
 }
 
 /**
@@ -53,8 +54,9 @@ function new_line(machine: ZMachine): void {
  */
 function print(machine: ZMachine): void {
   const zstring = machine.state.readZString();
-  machine.logger.debug(`print ${zstring}`);
-  machine.screen.print(machine, decodeZString(machine.memory, zstring, true));
+  const decoded = decodeZString(machine.memory, zstring, true);
+  machine.logger.debug(`print: "${decoded.substring(0, 40)}"`);
+  machine.screen.print(machine, decoded);
 }
 
 /**
