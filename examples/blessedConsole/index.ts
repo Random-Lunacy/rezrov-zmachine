@@ -25,6 +25,9 @@ if (!file) {
 const logger = new Logger('Console');
 if (parsed.debug) {
   Logger.setLevel(LogLevel.DEBUG);
+  // For blessedConsole, log to file instead of console since blessed takes over the terminal
+  Logger.setLogToConsole(false);
+  Logger.setLogToFile(true, 'zmachine-debug.log');
 } else {
   Logger.setLevel(LogLevel.INFO);
 }

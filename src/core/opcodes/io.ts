@@ -57,10 +57,16 @@ function set_window(machine: ZMachine, _operandTypes: OperandType[], window: num
 
 /**
  * Clear a window
+ * The window argument is a signed 16-bit value:
+ * -1 (0xFFFF) = clear all, unsplit, select window 0
+ * -2 (0xFFFE) = clear all but don't unsplit
+ * 0 = clear window 0
+ * 1 = clear window 1
  */
 function erase_window(machine: ZMachine, _operandTypes: OperandType[], window: number): void {
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} erase_window ${window}`);
-  machine.screen.clearWindow(machine, window);
+  const signedWindow = toI16(window);
+  machine.logger.debug(`${machine.executor.op_pc.toString(16)} erase_window ${signedWindow}`);
+  machine.screen.clearWindow(machine, signedWindow);
 }
 
 /**

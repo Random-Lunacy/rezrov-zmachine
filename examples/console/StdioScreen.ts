@@ -132,14 +132,15 @@ export class StdioScreen extends BaseScreen {
   clearWindow(machine: ZMachine, windowId: number): void {
     super.clearWindow(machine, windowId);
 
-    if (windowId === -1) {
-      // Clear all windows
-      // eslint-disable-next-line no-console
-      console.clear();
-    } else if (windowId === this.outputWindowId) {
-      // eslint-disable-next-line no-console
-      console.clear();
+    // Clear screen using Node.js native API (more cross-platform than raw ANSI escapes)
+    if (windowId === -1 || windowId === 0) {
+      // Clear all windows (-1) or main window (0)
+      // Move cursor to top-left, then clear from cursor to end of screen
+      process.stdout.cursorTo(0, 0);
+      process.stdout.clearScreenDown();
     }
+    // Note: Window 1 (upper/status) clearing is not fully supported in this simple console
+    // implementation since we don't maintain a separate buffer for it
   }
 
   clearLine(machine: ZMachine, value: number): void {

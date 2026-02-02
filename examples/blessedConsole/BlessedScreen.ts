@@ -30,6 +30,10 @@ export class BlessedScreen extends BaseScreen {
   private lastMouseButton: number = 0;
   private mouseClickCallback: ((x: number, y: number, button: number) => void) | null = null;
 
+  // Raw content buffer for main window - needed because blessed's getContent() returns
+  // rendered text without tags, so we can't append new tagged content to it
+  private mainWindowContent: string = '';
+
   constructor() {
     super('BlessedScreen', { logger: undefined });
 
@@ -234,8 +238,9 @@ export class BlessedScreen extends BaseScreen {
     if (this.outputWindowId === 0) {
       // Main window - append and scroll
       const styledText = this.applyStylesAndColors(textToDisplay);
-      const currentContent = this.mainWindow.getContent();
-      this.mainWindow.setContent(currentContent + styledText);
+      // Use our raw content buffer instead of getContent() which strips tags
+      this.mainWindowContent += styledText;
+      this.mainWindow.setContent(this.mainWindowContent);
       this.mainWindow.setScrollPerc(100);
     } else {
       // Upper window - use BaseScreen's buffer management
@@ -251,12 +256,13 @@ export class BlessedScreen extends BaseScreen {
   private applyStylesAndColors(str: string): string {
     let result = str;
 
-    // Apply text styles using blessed tags
+    // Apply text styles using blessed tags (or ANSI escapes where blessed doesn't support)
     if (this.currentStyles & TextStyle.Bold) {
       result = `{bold}${result}{/bold}`;
     }
     if (this.currentStyles & TextStyle.Italic) {
-      result = `{italic}${result}{/italic}`;
+      // Blessed doesn't support italic - use underline as visual emphasis fallback
+      result = `{underline}${result}{/underline}`;
     }
     if (this.currentStyles & TextStyle.ReverseVideo) {
       result = `{inverse}${result}{/inverse}`;
@@ -380,8 +386,15 @@ export class BlessedScreen extends BaseScreen {
   clearWindow(machine: ZMachine, windowId: number): void {
     super.clearWindow(machine, windowId); // BaseScreen clears upperWindowBuffer
 
+    this.logger.debug(`BlessedScreen.clearWindow called with windowId=${windowId}`);
+
     if (windowId === 0 || windowId === -1) {
+      this.logger.debug(`Clearing main window (current content length: ${this.mainWindow.getContent().length})`);
+      // Clear both the content buffer and blessed content
+      this.mainWindowContent = '';
       this.mainWindow.setContent('');
+      this.mainWindow.setScrollPerc(0);
+      this.logger.debug(`Main window after clear (content length: ${this.mainWindow.getContent().length})`);
     }
     if (windowId === 1 || windowId === -1) {
       this.statusWindow.setContent('');
@@ -393,14 +406,24 @@ export class BlessedScreen extends BaseScreen {
   clearLine(machine: ZMachine, value: number): void {
     super.clearLine(machine, value);
 
-    const targetWindow = this.outputWindowId === 0 ? this.mainWindow : this.statusWindow;
-    // Clear current line - simplified implementation
-    const content = targetWindow.getContent();
-    const lines = content.split('\n');
-    if (lines.length > 0) {
-      lines[lines.length - 1] = '';
-      targetWindow.setContent(lines.join('\n'));
-      this.screen.render();
+    if (this.outputWindowId === 0) {
+      // Main window - use our raw content buffer
+      const lines = this.mainWindowContent.split('\n');
+      if (lines.length > 0) {
+        lines[lines.length - 1] = '';
+        this.mainWindowContent = lines.join('\n');
+        this.mainWindow.setContent(this.mainWindowContent);
+        this.screen.render();
+      }
+    } else {
+      // Upper window - use getContent() as before
+      const content = this.statusWindow.getContent();
+      const lines = content.split('\n');
+      if (lines.length > 0) {
+        lines[lines.length - 1] = '';
+        this.statusWindow.setContent(lines.join('\n'));
+        this.screen.render();
+      }
     }
   }
 
