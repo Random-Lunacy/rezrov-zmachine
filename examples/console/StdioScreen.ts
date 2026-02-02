@@ -1,6 +1,14 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import chalk from 'chalk';
-import { BaseScreen, Capabilities, Color, ScreenSize, TextStyle, ZMachine } from '../../dist/index.js';
+import {
+  BaseScreen,
+  Capabilities,
+  Color,
+  ScreenSize,
+  TextStyle,
+  translateFont3Text,
+  ZMachine,
+} from '../../dist/index.js';
 
 export class StdioScreen extends BaseScreen {
   private textStyle: number = TextStyle.Roman;
@@ -25,17 +33,33 @@ export class StdioScreen extends BaseScreen {
   }
 
   getSize(): ScreenSize {
-    return { rows: 25, cols: 80 };
+    // Use actual terminal dimensions if available, fallback to defaults
+    return {
+      rows: process.stdout.rows || 25,
+      cols: process.stdout.columns || 80,
+    };
   }
 
   print(machine: ZMachine, str: string): void {
+    // Check if memory stream (stream 3) is active - if so, write to memory only
+    if (this.isMemoryStreamActive()) {
+      this.writeToMemoryStream(machine, str);
+      return; // Don't output to screen when memory stream is active
+    }
+
     if (this.outputWindowId !== 0) {
       return;
     }
 
-    str = this.applyStyles(str);
-    str = this.applyColors(str);
-    process.stdout.write(str);
+    // Translate Font 3 characters to Unicode if Font 3 is active
+    let textToDisplay = str;
+    if (this.isCurrentFontFont3()) {
+      textToDisplay = translateFont3Text(str);
+    }
+
+    textToDisplay = this.applyStyles(textToDisplay);
+    textToDisplay = this.applyColors(textToDisplay);
+    process.stdout.write(textToDisplay);
   }
 
   applyStyles(str: string): string {
@@ -146,49 +170,14 @@ export class StdioScreen extends BaseScreen {
     // Move cursor to top-left before writing status bar
     process.stdout.write('\x1b[H');
 
-    // Handle missing location
-    const lhs = locationName || '[No Location]';
-
-    // Format right-hand side based on mode
-    let rhs: string;
-    if (isTimeMode) {
-      // Format as 12-hour time with AM/PM
-      const hours = value1;
-      const minutes = value2;
-
-      // Handle invalid time values
-      if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
-        rhs = '??:??';
-      } else {
-        const hour12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
-        const ampm = hours < 12 ? 'AM' : 'PM';
-        rhs = `${hour12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
-      }
-    } else {
-      rhs = `Score: ${value1} Moves: ${value2}`;
-    }
-
+    // Use BaseScreen's formatStatusBarLine() helper for consistent formatting
     const width = this.getSize().cols;
-    const padding = width - lhs.length - rhs.length - 2;
+    const statusLine = this.formatStatusBarLine(locationName, value1, value2, isTimeMode, width);
 
-    this.logger.debug(`Updating status bar: ${lhs} | ${rhs} (padding: ${padding})`);
+    this.logger.debug(`Updating status bar: ${statusLine}`);
 
-    if (padding >= 0) {
-      const statusLine = `${chalk.inverse(lhs + ' '.repeat(padding) + rhs)}`;
-      process.stdout.write('\r\x1b[K' + statusLine + '\n');
-    } else {
-      // Not enough space, truncate left side
-      const maxLhsLength = width - rhs.length - 3; // 3 for "..."
-      if (maxLhsLength > 0) {
-        const truncatedLhs = lhs.substring(0, maxLhsLength) + '...';
-        const statusLine = chalk.inverse(`${truncatedLhs}${rhs}`);
-        process.stdout.write('\r\x1b[K' + statusLine + '\n');
-      } else {
-        // RHS is too long, just show what fits
-        const statusLine = chalk.inverse(rhs.substring(0, width));
-        process.stdout.write('\r\x1b[K' + statusLine + '\n');
-      }
-    }
+    // Write the status line with inverse video
+    process.stdout.write('\r\x1b[K' + chalk.inverse(statusLine) + '\n');
 
     // Restore cursor position
     process.stdout.write('\x1b8'); // or '\x1b[u'
@@ -240,6 +229,9 @@ export class StdioScreen extends BaseScreen {
   }
 
   quit(): void {
+    // Restore terminal state before exiting
+    process.stdout.write('\x1b[?25h'); // Show cursor
+    process.stdout.write('\x1b[0m'); // Reset colors/styles
     process.exit(0);
   }
 }

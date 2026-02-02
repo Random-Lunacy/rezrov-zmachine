@@ -21,6 +21,14 @@ if (parsed.debug) {
   Logger.setLevel(LogLevel.INFO);
 }
 
+// Handle process signals for clean exit
+process.on('SIGINT', () => {
+  // Restore terminal state on Ctrl+C
+  process.stdout.write('\x1b[?25h'); // Show cursor
+  process.stdout.write('\x1b[0m'); // Reset colors/styles
+  process.exit(0);
+});
+
 try {
   // Load the story file
   const storyData = fs.readFileSync(file);
@@ -53,6 +61,9 @@ try {
     machine.execute();
   }
 } catch (error) {
+  // Restore terminal state on error
+  process.stdout.write('\x1b[?25h'); // Show cursor
+  process.stdout.write('\x1b[0m'); // Reset colors/styles
   logger.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
   process.exit(1);
 }
