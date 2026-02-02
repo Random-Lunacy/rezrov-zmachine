@@ -12,6 +12,7 @@ import { SuspendState } from './SuspendState';
  */
 export class Executor {
   private _quit: boolean = false;
+  private _restarting: boolean = false;
   private _op_pc: Address = 0;
   private _suspended: boolean = false;
   private _suspendedInputState: InputState | null = null;
@@ -72,7 +73,8 @@ export class Executor {
       if (this._suspended) {
         this.logger.debug('ExecuteLoop exited due to suspension');
       }
-      if (this._quit) {
+      if (this._quit && !this._restarting) {
+        // Only call screen.quit() for true program termination, not for restart
         this.logger.info('Program execution terminated');
         this.zMachine.screen.quit();
       }
@@ -411,6 +413,27 @@ export class Executor {
    */
   quit(): void {
     this._quit = true;
+  }
+
+  /**
+   * Signals that a restart is in progress
+   * This causes the current execution loop to exit without calling screen.quit()
+   */
+  signalRestart(): void {
+    this._quit = true;
+    this._restarting = true;
+  }
+
+  /**
+   * Resets the executor state for restart
+   * This clears all execution flags and suspended state
+   */
+  reset(): void {
+    this._quit = false;
+    this._restarting = false;
+    this._suspended = false;
+    this._suspendedInputState = null;
+    this._op_pc = 0;
   }
 
   /**

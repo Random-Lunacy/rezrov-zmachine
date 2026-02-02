@@ -280,7 +280,7 @@ describe('ZMachine', () => {
   });
 
   describe('Restart', () => {
-    it('should reset program counter and stacks', () => {
+    it('should reset program counter and stacks', async () => {
       const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
 
       // Set up initial state
@@ -292,14 +292,192 @@ describe('ZMachine', () => {
 
       zmachine.restart();
 
-      // PC should be reset to initial value from header
+      // PC should be reset to initial value from header (synchronously)
       expect(zmachine.state.pc).toBe(0x0020);
-      // Stack should be empty
+      // Stack should be empty (synchronously)
       expect(zmachine.state.stack.length).toBe(0);
-      // Callstack should be empty
+      // Callstack should be empty (synchronously)
       expect(zmachine.state.callstack.length).toBe(0);
-      // executor.executeLoop should be called
+
+      // Wait for setImmediate callback to execute
+      await new Promise((resolve) => setImmediate(resolve));
+
+      // executor.executeLoop should be called (asynchronously in setImmediate)
       expect(executeSpy).toHaveBeenCalled();
+    });
+
+    it('should reset ALL dynamic memory to original story state', () => {
+      // Create a story buffer with known initial values in dynamic memory
+      const testStoryBuffer = Buffer.alloc(0x10000);
+      testStoryBuffer[0] = 3; // Version 3
+
+      // Set header fields
+      testStoryBuffer[HeaderLocation.InitialPC] = 0x00;
+      testStoryBuffer[HeaderLocation.InitialPC + 1] = 0x20;
+      testStoryBuffer[HeaderLocation.ObjectTable] = 0x01;
+      testStoryBuffer[HeaderLocation.ObjectTable + 1] = 0x00;
+      testStoryBuffer[HeaderLocation.Dictionary] = 0x02;
+      testStoryBuffer[HeaderLocation.Dictionary + 1] = 0x00;
+      testStoryBuffer[HeaderLocation.GlobalVariables] = 0x03;
+      testStoryBuffer[HeaderLocation.GlobalVariables + 1] = 0x00;
+      // Static memory starts at 0x0400 (dynamic memory is 0x0000 - 0x03FF)
+      testStoryBuffer[HeaderLocation.StaticMemBase] = 0x04;
+      testStoryBuffer[HeaderLocation.StaticMemBase + 1] = 0x00;
+      testStoryBuffer[HeaderLocation.HighMemBase] = 0x05;
+      testStoryBuffer[HeaderLocation.HighMemBase + 1] = 0x00;
+
+      // Set some initial values in dynamic memory (object/game state simulation)
+      // These represent game state like object locations, inventory, etc.
+      const testAddress1 = 0x100; // Object table area
+      const testAddress2 = 0x200; // Another area in dynamic memory
+      testStoryBuffer[testAddress1] = 0xAA; // Original value
+      testStoryBuffer[testAddress2] = 0xBB; // Original value
+
+      const zmachine = new ZMachine(testStoryBuffer, screen, inputProcessor, undefined, undefined, undefined, {
+        logger,
+      });
+
+      // Mock executor's executeLoop
+      vi.spyOn(zmachine.executor, 'executeLoop').mockResolvedValue();
+
+      // Modify dynamic memory (simulating game state changes)
+      zmachine.memory.buffer[testAddress1] = 0x11; // Changed value
+      zmachine.memory.buffer[testAddress2] = 0x22; // Changed value
+
+      // Verify the memory was modified
+      expect(zmachine.memory.buffer[testAddress1]).toBe(0x11);
+      expect(zmachine.memory.buffer[testAddress2]).toBe(0x22);
+
+      // Restart the machine
+      zmachine.restart();
+
+      // Memory should be restored to original values
+      expect(zmachine.memory.buffer[testAddress1]).toBe(0xAA);
+      expect(zmachine.memory.buffer[testAddress2]).toBe(0xBB);
+    });
+
+    it('should clear undo stack on restart', () => {
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+
+      // Mock executor's executeLoop
+      vi.spyOn(zmachine.executor, 'executeLoop').mockResolvedValue();
+
+      // Save some undo states
+      zmachine.saveUndo();
+      zmachine.saveUndo();
+      expect((zmachine as any)._undoStack.length).toBe(2);
+
+      // Restart
+      zmachine.restart();
+
+      // Undo stack should be cleared
+      expect((zmachine as any)._undoStack.length).toBe(0);
+    });
+
+    it('should preserve interpreter-set header fields after restart', () => {
+      // Spy on screen methods to provide consistent capabilities
+      vi.spyOn(screen, 'getSize').mockReturnValue({ rows: 25, cols: 80 });
+      vi.spyOn(screen, 'getCapabilities').mockReturnValue({
+        hasColors: false,
+        hasBold: true,
+        hasItalic: true,
+        hasReverseVideo: true,
+        hasFixedPitch: true,
+        hasSplitWindow: true,
+        hasDisplayStatusBar: true,
+        hasPictures: false,
+        hasSound: false,
+        hasTimedKeyboardInput: false,
+      });
+
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+
+      // Mock executor's executeLoop
+      vi.spyOn(zmachine.executor, 'executeLoop').mockResolvedValue();
+
+      // Record the interpreter-set values before restart
+      const interpreterNumberBefore = zmachine.memory.getByte(HeaderLocation.InterpreterNumber);
+      const interpreterVersionBefore = zmachine.memory.getByte(HeaderLocation.InterpreterVersion);
+      const screenHeightBefore = zmachine.memory.getByte(HeaderLocation.ScreenHeightInLines);
+      const screenWidthBefore = zmachine.memory.getByte(HeaderLocation.ScreenWidthInChars);
+
+      // Restart
+      zmachine.restart();
+
+      // Interpreter-set header fields should be restored/preserved
+      expect(zmachine.memory.getByte(HeaderLocation.InterpreterNumber)).toBe(interpreterNumberBefore);
+      expect(zmachine.memory.getByte(HeaderLocation.InterpreterVersion)).toBe(interpreterVersionBefore);
+      expect(zmachine.memory.getByte(HeaderLocation.ScreenHeightInLines)).toBe(screenHeightBefore);
+      expect(zmachine.memory.getByte(HeaderLocation.ScreenWidthInChars)).toBe(screenWidthBefore);
+    });
+
+    it('should cancel pending input and signal restart on restart', () => {
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+
+      // Mock executor's executeLoop
+      vi.spyOn(zmachine.executor, 'executeLoop').mockResolvedValue();
+
+      // Spy on signalRestart and inputProcessor.cancelInput
+      const signalRestartSpy = vi.spyOn(zmachine.executor, 'signalRestart');
+      const cancelInputSpy = vi.spyOn(inputProcessor, 'cancelInput');
+
+      // Restart
+      zmachine.restart();
+
+      // Verify signalRestart was called and input was cancelled (synchronously)
+      expect(signalRestartSpy).toHaveBeenCalled();
+      expect(cancelInputSpy).toHaveBeenCalledWith(zmachine);
+    });
+
+    it('should reset executor state asynchronously after restart', async () => {
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+
+      // Mock executor's executeLoop
+      const executeLoopSpy = vi.spyOn(zmachine.executor, 'executeLoop').mockResolvedValue();
+
+      // Spy on executor.reset
+      const resetSpy = vi.spyOn(zmachine.executor, 'reset');
+
+      // Restart
+      zmachine.restart();
+
+      // reset() and executeLoop() are called in setImmediate, so wait for it
+      await new Promise((resolve) => setImmediate(resolve));
+
+      // Verify executor was reset and executeLoop was called
+      expect(resetSpy).toHaveBeenCalled();
+      expect(executeLoopSpy).toHaveBeenCalled();
+    });
+
+    it('should allow clean restart even if executor was suspended', async () => {
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+
+      // Mock executor's executeLoop
+      const executeLoopSpy = vi.spyOn(zmachine.executor, 'executeLoop').mockResolvedValue();
+
+      // Simulate a suspended state by setting executor flags
+      Object.defineProperty(zmachine.executor, '_suspended', { value: true, writable: true });
+      Object.defineProperty(zmachine.executor, '_suspendedInputState', {
+        value: { mode: 1, resultVar: 0 },
+        writable: true,
+      });
+      Object.defineProperty(zmachine.executor, '_quit', { value: false, writable: true });
+      Object.defineProperty(zmachine.executor, '_restarting', { value: false, writable: true });
+
+      // Restart
+      zmachine.restart();
+
+      // Wait for the setImmediate callback to execute
+      await new Promise((resolve) => setImmediate(resolve));
+
+      // Verify executor flags were reset (via reset() method called in setImmediate)
+      expect(zmachine.executor['_suspended']).toBe(false);
+      expect(zmachine.executor['_suspendedInputState']).toBe(null);
+      expect(zmachine.executor['_quit']).toBe(false);
+      expect(zmachine.executor['_restarting']).toBe(false);
+
+      // Verify executeLoop was called (should be able to run now)
+      expect(executeLoopSpy).toHaveBeenCalled();
     });
   });
 
@@ -942,16 +1120,70 @@ describe('ZMachine', () => {
   });
 
   describe('Original story buffer', () => {
-    it('should expose the original story buffer', () => {
+    it('should expose a copy of the original story buffer', () => {
       const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
 
       // Verify originalStory is accessible and has correct version
       expect(zmachine.originalStory).toBeDefined();
       expect(zmachine.originalStory[0]).toBe(3); // Version 3
 
-      // Note: originalStory is a reference to the same buffer, not a copy
-      // This is the current implementation behavior
-      expect(zmachine.originalStory).toBe(storyBuffer);
+      // originalStory is a COPY of the original buffer (not a reference)
+      // This is required for proper restart functionality
+      expect(zmachine.originalStory).not.toBe(storyBuffer);
+
+      // The copy should have the same length
+      expect(zmachine.originalStory.length).toBe(storyBuffer.length);
+
+      // Key story file fields should match (version, addresses, etc.)
+      expect(zmachine.originalStory[HeaderLocation.Version]).toBe(storyBuffer[HeaderLocation.Version]);
+      expect(zmachine.originalStory[HeaderLocation.InitialPC]).toBe(storyBuffer[HeaderLocation.InitialPC]);
+      expect(zmachine.originalStory[HeaderLocation.ObjectTable]).toBe(storyBuffer[HeaderLocation.ObjectTable]);
+    });
+
+    it('should not be affected by modifications to working memory', () => {
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+
+      // Get original value
+      const originalValue = zmachine.originalStory[0x100];
+
+      // Modify working memory
+      zmachine.memory.buffer[0x100] = 0xff;
+
+      // Original story should be unchanged
+      expect(zmachine.originalStory[0x100]).toBe(originalValue);
+      expect(zmachine.memory.buffer[0x100]).toBe(0xff);
+    });
+
+    it('should preserve pristine header without interpreter modifications', () => {
+      // Create a pristine story buffer with zeroed interpreter fields
+      const pristineBuffer = Buffer.alloc(0x10000);
+      pristineBuffer[0] = 3; // Version 3
+      pristineBuffer[HeaderLocation.InitialPC] = 0x00;
+      pristineBuffer[HeaderLocation.InitialPC + 1] = 0x20;
+      pristineBuffer[HeaderLocation.ObjectTable] = 0x01;
+      pristineBuffer[HeaderLocation.ObjectTable + 1] = 0x00;
+      pristineBuffer[HeaderLocation.Dictionary] = 0x02;
+      pristineBuffer[HeaderLocation.Dictionary + 1] = 0x00;
+      pristineBuffer[HeaderLocation.GlobalVariables] = 0x03;
+      pristineBuffer[HeaderLocation.GlobalVariables + 1] = 0x00;
+      pristineBuffer[HeaderLocation.StaticMemBase] = 0x04;
+      pristineBuffer[HeaderLocation.StaticMemBase + 1] = 0x00;
+      pristineBuffer[HeaderLocation.HighMemBase] = 0x05;
+      pristineBuffer[HeaderLocation.HighMemBase + 1] = 0x00;
+
+      // Interpreter number and version should be 0 initially
+      expect(pristineBuffer[HeaderLocation.InterpreterNumber]).toBe(0);
+      expect(pristineBuffer[HeaderLocation.InterpreterVersion]).toBe(0);
+
+      const zmachine = new ZMachine(pristineBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+
+      // Working memory should have interpreter modifications
+      expect(zmachine.memory.buffer[HeaderLocation.InterpreterNumber]).not.toBe(0);
+      expect(zmachine.memory.buffer[HeaderLocation.InterpreterVersion]).not.toBe(0);
+
+      // Original story should NOT have interpreter modifications (pristine copy)
+      expect(zmachine.originalStory[HeaderLocation.InterpreterNumber]).toBe(0);
+      expect(zmachine.originalStory[HeaderLocation.InterpreterVersion]).toBe(0);
     });
   });
 

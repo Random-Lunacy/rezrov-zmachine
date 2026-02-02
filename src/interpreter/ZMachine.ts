@@ -53,7 +53,9 @@ export class ZMachine {
     format?: FormatProvider,
     options?: { logger?: Logger }
   ) {
-    this._originalStory = storyBuffer;
+    // Store a copy of the original story for restart functionality
+    // This must be a copy, not a reference, since Memory modifies the buffer in place
+    this._originalStory = Buffer.from(storyBuffer);
     this._memory = new Memory(storyBuffer);
     this._logger = options?.logger || new Logger('ZMachine');
     this._screen = screen;
@@ -573,31 +575,61 @@ export class ZMachine {
 
   /**
    * Restart the Z-machine from the beginning
+   *
+   * According to Z-machine spec section 6.1.3:
+   * - Dynamic memory is copied back from the original story file
+   * - The stack is emptied
+   * - Execution resumes at the initial PC from the header
+   * - Certain header fields set by the interpreter are preserved/re-initialized
    */
   restart(): void {
-    // Reset the machine state to its initial state
-    this._state.pc = this._memory.getWord(HeaderLocation.InitialPC);
+    // Cancel any pending input operations first
+    // This clears timeouts and other input-related state
+    this._inputProcessor.cancelInput(this);
+
+    // Signal the current execution loop to exit for restart
+    // This is critical: restart() is called from within an opcode handler,
+    // which is within the current executeLoop(). We need the old loop to exit
+    // cleanly before starting a new one. Using signalRestart() instead of quit()
+    // ensures screen.quit() is not called.
+    this._executor.signalRestart();
 
     // Clear stacks
     this._state.stack.length = 0;
     this._state.callstack.length = 0;
 
-    // Reset memory to original story (except header)
-    const headerSize = 64; // Standard header size
-    for (let i = headerSize; i < this._memory.size; i++) {
-      if (this._memory.isDynamicMemory(i)) {
-        this._memory.buffer[i] = this._originalStory[i];
-      }
+    // Restore ALL dynamic memory from the original story file
+    // This includes the header, which will be re-initialized below
+    const dynamicMemoryEnd = this._memory.dynamicMemoryEnd;
+    for (let i = 0; i < dynamicMemoryEnd; i++) {
+      this._memory.buffer[i] = this._originalStory[i];
     }
 
-    // Reset object factory cache
+    // Re-configure screen capabilities (this sets interpreter-specific header fields)
+    // This must be done after restoring memory to ensure header is properly initialized
+    this.configureScreenCapabilities();
+
+    // Reset the program counter to the initial PC from the (now restored) header
+    this._state.pc = this._memory.getWord(HeaderLocation.InitialPC);
+
+    // Reset object factory cache to clear any cached object state
     if (this._state['_objectFactory'] && typeof this._state['_objectFactory'].resetCache === 'function') {
       this._state['_objectFactory'].resetCache();
     }
 
-    // Re-execute from the beginning
-    this._executor.executeLoop().catch((error) => {
-      this._logger.error(`Error during restart execution: ${error}`);
+    // Clear the undo stack since we're restarting
+    this._undoStack.length = 0;
+
+    // Schedule the new execution loop to start after the current call stack unwinds.
+    // This ensures the old executeLoop() exits cleanly before the new one begins.
+    setImmediate(() => {
+      // Reset executor state now that the old loop has exited
+      this._executor.reset();
+
+      // Start fresh execution
+      this._executor.executeLoop().catch((error) => {
+        this._logger.error(`Error during restart execution: ${error}`);
+      });
     });
   }
 
