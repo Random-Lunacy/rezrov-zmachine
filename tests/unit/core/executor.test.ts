@@ -715,6 +715,111 @@ describe('Executor', () => {
     });
   });
 
+  describe('reset', () => {
+    it('should reset all execution flags', () => {
+      // Set various flags to non-default values
+      Object.defineProperty(executor, '_quit', { value: true, writable: true });
+      Object.defineProperty(executor, '_restarting', { value: true, writable: true });
+      Object.defineProperty(executor, '_suspended', { value: true, writable: true });
+      Object.defineProperty(executor, '_suspendedInputState', { value: { mode: InputMode.CHAR }, writable: true });
+      Object.defineProperty(executor, '_op_pc', { value: 0x1234, writable: true });
+
+      // Call reset
+      executor.reset();
+
+      // Verify all flags are reset to default values
+      expect(executor['_quit']).toBe(false);
+      expect(executor['_restarting']).toBe(false);
+      expect(executor['_suspended']).toBe(false);
+      expect(executor['_suspendedInputState']).toBe(null);
+      expect(executor['_op_pc']).toBe(0);
+    });
+
+    it('should allow executeLoop to run after reset', async () => {
+      // First, set quit to true (simulating a quit state)
+      Object.defineProperty(executor, '_quit', { value: true, writable: true });
+
+      // Spy on executeInstruction
+      const executeInstructionSpy = vi.spyOn(executor, 'executeInstruction').mockImplementation(async () => {
+        // Set quit after first call to end the loop
+        Object.defineProperty(executor, '_quit', { value: true, writable: true });
+      });
+
+      // Without reset, executeLoop should exit immediately
+      await executor.executeLoop();
+      expect(executeInstructionSpy).not.toHaveBeenCalled();
+
+      // Reset the executor
+      executor.reset();
+
+      // Now executeLoop should run
+      await executor.executeLoop();
+      expect(executeInstructionSpy).toHaveBeenCalled();
+    });
+
+    it('should allow executeLoop to run after reset from suspended state', async () => {
+      // Set suspended state
+      Object.defineProperty(executor, '_suspended', { value: true, writable: true });
+      Object.defineProperty(executor, '_suspendedInputState', {
+        value: { mode: InputMode.TEXT, resultVar: 1 },
+        writable: true,
+      });
+
+      // Spy on executeInstruction
+      const executeInstructionSpy = vi.spyOn(executor, 'executeInstruction').mockImplementation(async () => {
+        // Set quit after first call to end the loop
+        Object.defineProperty(executor, '_quit', { value: true, writable: true });
+      });
+
+      // Without reset, executeLoop should exit immediately due to suspended flag
+      await executor.executeLoop();
+      expect(executeInstructionSpy).not.toHaveBeenCalled();
+
+      // Reset the executor
+      executor.reset();
+
+      // Now executeLoop should run
+      await executor.executeLoop();
+      expect(executeInstructionSpy).toHaveBeenCalled();
+    });
+  });
+
+  describe('signalRestart', () => {
+    it('should set quit and restarting flags', () => {
+      // Initially both should be false
+      expect(executor['_quit']).toBe(false);
+      expect(executor['_restarting']).toBe(false);
+
+      // Signal restart
+      executor.signalRestart();
+
+      // Both flags should now be true
+      expect(executor['_quit']).toBe(true);
+      expect(executor['_restarting']).toBe(true);
+    });
+
+    it('should cause executeLoop to exit without calling screen.quit', async () => {
+      // Set up a simple execution scenario
+      let instructionCount = 0;
+      vi.spyOn(executor, 'executeInstruction').mockImplementation(async () => {
+        instructionCount++;
+        if (instructionCount === 2) {
+          // Signal restart on second instruction
+          executor.signalRestart();
+        }
+      });
+
+      // Run the loop
+      await executor.executeLoop();
+
+      // Should have executed 2 instructions then exited
+      expect(instructionCount).toBe(2);
+
+      // screen.quit should NOT have been called (because we're restarting, not quitting)
+      expect(mockZMachine.screen.quit).not.toHaveBeenCalled();
+    });
+  });
+
   describe('instruction decoding', () => {
     it('should decode operand types correctly', async () => {
       // We need to access the private method, so define a test opcode to use it
