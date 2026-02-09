@@ -145,7 +145,7 @@ machine.execute();
 
 - **Text Display**: Standard text formatting and colors
 - **Input Handling**: Line input and single character input
-- **Z-Machine Versions**: Supports Z-Machine versions 3-5
+- **Z-Machine Versions**: Supports Z-Machine versions 1-5
 
 ## Controls
 

@@ -35,31 +35,48 @@ This project is a port/refactoring of the [ebozz](https://github.com/toshok/eboz
 
 - **Fully modular design**: Clear separation between core interpreter, UI, storage, and parsing components
 - **TypeScript implementation**: Strong typing for better development experience
-- **High compatibility**: Support for Z-machine versions 1 through 8
+- **High compatibility**: Full support for Z-machine versions 1-5, with V6-V8 in progress
 - **Extensible interfaces**: Easily create custom UI and storage implementations
 - **Modern architecture**: Promise-based APIs for asynchronous operations
 - **Comprehensive object model**: Full support for the Z-machine object system
 
 ## Implementation Status
 
-Currently implemented:
+### Core Interpreter
 
-- Basic object system
-- Text parsing and dictionary handling
-- Memory management
+- **Execution engine**: Complete fetch-decode-execute loop supporting all instruction forms (short, long, variable, extended)
+- **Opcodes**: 100+ opcodes implemented across 12 categories (math, control, memory, stack, call, string, I/O, object, game, graphics)
+- **Memory management**: Full implementation with header validation, dynamic/static/high memory regions, and packed address unpacking
+- **Object system**: Complete object tree traversal, attribute/property manipulation, and version-specific layouts (V1-V3 and V4+)
+- **Text parsing**: Z-string encoding/decoding with abbreviation tables, custom alphabets (V5+), and dictionary lookup
+- **Save/restore**: Quetzal and Enhanced .dat format support with three storage providers (filesystem, browser localStorage, in-memory)
+- **Undo**: 10-level undo stack via save_undo/restore_undo
 
-In progress:
+### Z-Machine Version Support
 
-- Execution loop
-- Basic support for Z-machine versions 1-3
-- Extended opcodes for versions 5+
+| Version | Status | Notes |
+|---------|--------|-------|
+| V1-V3 | **Complete** | Fully tested with classic Infocom titles |
+| V4 | **Complete** | Extended opcodes and expanded object table |
+| V5 | **Mostly complete** | Core support working; advanced screen features still being validated against Beyond Zork |
+| V6 | **Partial** | Architecture present, basic graphics opcodes delegate to multimedia handler; ~11 windowing opcodes not yet implemented |
+| V7-V8 | **Partial** | Version detection and address calculations defined; not yet tested with story files |
+
+### UI and Examples
+
+- **Window management**: Split-window support with status bar and scrollable main text
+- **Font system**: Font 3 bitmap and Unicode mapping support
+- **Example implementations**: Two complete working interpreters — a basic console (readline-sync + chalk) and an advanced terminal UI (blessed with split windows)
 
 ## Roadmap
 
-- [ ] Full support for Z-machine versions 3-5
-- [ ] Add example UI implementations (terminal, web, etc.)
-- [ ] Implement graphics support for V6 games
-- [ ] Complete implementation of all Z-machine versions
+- [ ] Complete V5 screen model validation (Beyond Zork extended screen features)
+- [ ] Implement remaining V6 windowing opcodes (set_margins, move_window, window_size, etc.)
+- [ ] Full graphics and multimedia handler for V6 games
+- [ ] Implement `encode_text` and `print_form` opcodes
+- [ ] V7-V8 story file testing and validation
+- [ ] Publish to npm registry
+- [ ] Add web-based example implementation
 
 ## Installation
 
@@ -191,22 +208,43 @@ export class MyCustomScreen extends BaseScreen {
 }
 ```
 
-## Custom Storage Implementation
+## Custom Storage Provider
 
-Similarly, you can create your own storage implementation for save/restore functionality:
+You can create your own storage provider for save/restore functionality by implementing the `StorageProvider` interface:
 
 ```typescript
-import { Storage, Snapshot } from 'rezrov-zmachine';
+import { StorageProvider } from 'rezrov-zmachine';
 
-export class MyCustomStorage implements Storage {
-  saveSnapshot(snapshot: Snapshot): void {
-    // Your implementation here
+export class MyStorageProvider implements StorageProvider {
+  async read(location: string): Promise<Buffer | null> {
+    // Read save data from your storage backend
   }
 
-  loadSnapshot(): Snapshot {
-    // Your implementation here
+  async write(location: string, data: Buffer): Promise<void> {
+    // Write save data to your storage backend
+  }
+
+  async list(pattern?: string): Promise<string[]> {
+    // List available save files
+  }
+
+  async exists(location: string): Promise<boolean> {
+    // Check if a save file exists
   }
 }
+```
+
+Then use it with a format provider when creating the storage system:
+
+```typescript
+import { ZMachine, Storage, QuetzalFormat } from 'rezrov-zmachine';
+
+const storage = new Storage(
+  new QuetzalFormat(),
+  new MyStorageProvider(),
+  storyBuffer
+);
+const machine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, storage);
 ```
 
 ## Working with Game Objects
