@@ -140,7 +140,7 @@ The main file demonstrates the integration pattern:
 const screen = new BlessedScreen();
 
 // Create input processor with access to blessed screen
-const inputProcessor = new BlessedInputProcessor(screen.getBlessedScreen());
+const inputProcessor = new BlessedInputProcessor(screen);
 
 // Create Z-Machine with implementations
 const machine = new ZMachine(storyData, screen, inputProcessor);
