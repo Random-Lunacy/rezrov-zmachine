@@ -505,6 +505,23 @@ export class BlessedScreen extends BaseScreen {
   }
 
   /**
+   * Get the current main window content buffer.
+   * Used by BlessedInputProcessor to synchronize input display with the content buffer.
+   */
+  getMainWindowContent(): string {
+    return this.mainWindowContent;
+  }
+
+  /**
+   * Set the main window content buffer and update the display.
+   * Used by BlessedInputProcessor to synchronize input display with the content buffer.
+   */
+  setMainWindowContent(content: string): void {
+    this.mainWindowContent = content;
+    this.mainWindow.setContent(this.mainWindowContent);
+  }
+
+  /**
    * Get the last recorded mouse position and button
    * Used by read_mouse opcode
    */
