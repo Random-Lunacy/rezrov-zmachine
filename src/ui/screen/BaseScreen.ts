@@ -33,17 +33,23 @@ export class BaseScreen implements Screen {
   // Stores characters at specific positions, one string per line
   protected upperWindowBuffer: string[] = [];
 
+  // Bottom-aligned output configuration
+  // When true, initial output starts at bottom of screen and scrolls up
+  protected startFromBottom: boolean = true;
+  protected hasReceivedFirstOutput: boolean = false;
+
   /**
    * Constructor for BaseScreen
    * @param id The screen ID
    * @param options Optional options
    */
-  constructor(id: string, options?: { logger?: Logger }) {
+  constructor(id: string, options?: { logger?: Logger; startFromBottom?: boolean }) {
     this.logger = options?.logger || new Logger(id ?? 'BaseScreen');
     this.id = id;
     this.currentStyles = TextStyle.Roman;
     this.fontManager = FontManager.getInstance();
     this.windowManager = new WindowManager(this.logger);
+    this.startFromBottom = options?.startFromBottom ?? true;
 
     // Initialize default colors for both windows
     this.windowColors.set(WindowType.Lower, { foreground: Color.Default, background: Color.Default });
@@ -161,6 +167,15 @@ export class BaseScreen implements Screen {
   }
 
   /**
+   * Initialize output position for bottom-aligned text.
+   * Called on first output when startFromBottom is enabled.
+   * Subclasses should override to implement platform-specific positioning.
+   */
+  protected initializeOutputPosition(): void {
+    // Default implementation - subclasses override for specific behavior
+  }
+
+  /**
    * Split window with version-aware behavior
    * V3: Upper window is cleared when split occurs
    * V5: Upper window is NOT cleared when split occurs
@@ -218,14 +233,20 @@ export class BaseScreen implements Screen {
       this.outputWindowId = WindowType.Lower;
       this.cursorPosition = { line: 1, column: 1 };
       this.upperWindowBuffer = [];
+      // Reset for bottom-aligned output on next print
+      this.hasReceivedFirstOutput = false;
     } else if (windowId === WindowType.Upper) {
       this.upperWindowBuffer = [];
       if (version >= 5) {
         this.cursorPosition = { line: 1, column: 1 };
       }
-    } else if (version >= 5) {
-      // V5: Cursor moves to top-left for any erased window
-      this.cursorPosition = { line: 1, column: 1 };
+    } else if (windowId === WindowType.Lower) {
+      if (version >= 5) {
+        // V5: Cursor moves to top-left for any erased window
+        this.cursorPosition = { line: 1, column: 1 };
+      }
+      // Reset for bottom-aligned output on next print
+      this.hasReceivedFirstOutput = false;
     }
 
     this.logger.debug(`${this.id} clearWindow windowId=${windowId} (version ${version})`);

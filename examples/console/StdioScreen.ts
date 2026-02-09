@@ -40,6 +40,19 @@ export class StdioScreen extends BaseScreen {
     };
   }
 
+  /**
+   * Initialize output position for bottom-aligned text.
+   * Positions cursor near bottom of screen so first content appears at bottom.
+   */
+  protected initializeOutputPosition(): void {
+    if (!this.startFromBottom || this.hasReceivedFirstOutput) return;
+
+    const { rows } = this.getSize();
+    // Position cursor near bottom (leave room for input line)
+    const targetRow = Math.max(0, rows - 2);
+    process.stdout.cursorTo(0, targetRow);
+  }
+
   print(machine: ZMachine, str: string): void {
     // Check if memory stream (stream 3) is active - if so, write to memory only
     if (this.isMemoryStreamActive()) {
@@ -49,6 +62,12 @@ export class StdioScreen extends BaseScreen {
 
     if (this.outputWindowId !== 0) {
       return;
+    }
+
+    // Initialize bottom-aligned output on first print to main window
+    if (!this.hasReceivedFirstOutput && this.startFromBottom) {
+      this.initializeOutputPosition();
+      this.hasReceivedFirstOutput = true;
     }
 
     // Translate Font 3 characters to Unicode if Font 3 is active

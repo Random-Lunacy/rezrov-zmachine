@@ -222,6 +222,23 @@ export class BlessedScreen extends BaseScreen {
     return { rows, cols };
   }
 
+  /**
+   * Initialize output position for bottom-aligned text.
+   * Pre-fills the main window with empty lines so first content appears at bottom.
+   */
+  protected initializeOutputPosition(): void {
+    if (!this.startFromBottom || this.hasReceivedFirstOutput) return;
+
+    const { rows } = this.getSize();
+    const statusHeight = this.statusWindow.height as number;
+    const visibleHeight = rows - statusHeight;
+
+    // Pre-fill with newlines so first content appears at bottom
+    this.mainWindowContent = '\n'.repeat(Math.max(0, visibleHeight - 1));
+    this.mainWindow.setContent(this.mainWindowContent);
+    this.mainWindow.setScrollPerc(100);
+  }
+
   print(machine: ZMachine, str: string): void {
     // Check if memory stream (stream 3) is active - if so, write to memory only
     if (this.isMemoryStreamActive()) {
@@ -236,6 +253,12 @@ export class BlessedScreen extends BaseScreen {
     }
 
     if (this.outputWindowId === 0) {
+      // Initialize bottom-aligned output on first print to main window
+      if (!this.hasReceivedFirstOutput && this.startFromBottom) {
+        this.initializeOutputPosition();
+        this.hasReceivedFirstOutput = true;
+      }
+
       // Main window - append and scroll
       const styledText = this.applyStylesAndColors(textToDisplay);
       // Use our raw content buffer instead of getContent() which strips tags
