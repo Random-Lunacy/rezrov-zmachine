@@ -34,7 +34,7 @@ if (parsed.debug) {
 
 // Create the screen and input processor
 const screen = new BlessedScreen();
-const inputProcessor = new BlessedInputProcessor(screen.getBlessedScreen());
+const inputProcessor = new BlessedInputProcessor(screen);
 
 // Set up cleanup on process exit
 process.on('exit', () => {

@@ -222,6 +222,23 @@ export class BlessedScreen extends BaseScreen {
     return { rows, cols };
   }
 
+  /**
+   * Initialize output position for bottom-aligned text.
+   * Pre-fills the main window with empty lines so first content appears at bottom.
+   */
+  protected initializeOutputPosition(): void {
+    if (!this.startFromBottom || this.hasReceivedFirstOutput) return;
+
+    const { rows } = this.getSize();
+    const statusHeight = this.statusWindow.height as number;
+    const visibleHeight = rows - statusHeight;
+
+    // Pre-fill with newlines so first content appears at bottom
+    this.mainWindowContent = '\n'.repeat(Math.max(0, visibleHeight - 1));
+    this.mainWindow.setContent(this.mainWindowContent);
+    this.mainWindow.setScrollPerc(100);
+  }
+
   print(machine: ZMachine, str: string): void {
     // Check if memory stream (stream 3) is active - if so, write to memory only
     if (this.isMemoryStreamActive()) {
@@ -236,6 +253,12 @@ export class BlessedScreen extends BaseScreen {
     }
 
     if (this.outputWindowId === 0) {
+      // Initialize bottom-aligned output on first print to main window
+      if (!this.hasReceivedFirstOutput && this.startFromBottom) {
+        this.initializeOutputPosition();
+        this.hasReceivedFirstOutput = true;
+      }
+
       // Main window - append and scroll
       const styledText = this.applyStylesAndColors(textToDisplay);
       // Use our raw content buffer instead of getContent() which strips tags
@@ -246,8 +269,9 @@ export class BlessedScreen extends BaseScreen {
       // Upper window - use BaseScreen's buffer management
       const screenWidth = this.getSize().cols;
       const combinedContent = this.writeToUpperWindowBuffer(textToDisplay, screenWidth);
-      const styledText = this.applyStylesAndColors(combinedContent);
-      this.statusWindow.setContent(styledText);
+      // The statusWindow has base style fg: 'black', bg: 'white' which provides
+      // the inverted appearance - just set plain content without {inverse} tags
+      this.statusWindow.setContent(combinedContent);
     }
 
     this.screen.render();
@@ -333,8 +357,8 @@ export class BlessedScreen extends BaseScreen {
     if (resizedContent === null) return;
 
     // Redraw the status window with resized buffer
-    const styledText = this.applyStylesAndColors(resizedContent);
-    this.statusWindow.setContent(styledText);
+    // The statusWindow's base style (fg: 'black', bg: 'white') provides the inverted look
+    this.statusWindow.setContent(resizedContent);
     this.screen.render();
   }
 
@@ -416,14 +440,11 @@ export class BlessedScreen extends BaseScreen {
         this.screen.render();
       }
     } else {
-      // Upper window - use getContent() as before
-      const content = this.statusWindow.getContent();
-      const lines = content.split('\n');
-      if (lines.length > 0) {
-        lines[lines.length - 1] = '';
-        this.statusWindow.setContent(lines.join('\n'));
-        this.screen.render();
-      }
+      // Upper window - use the buffer
+      // The statusWindow's base style (fg: 'black', bg: 'white') provides the inverted look
+      const bufferContent = this.upperWindowBuffer.join('\n');
+      this.statusWindow.setContent(bufferContent);
+      this.screen.render();
     }
   }
 
@@ -502,6 +523,23 @@ export class BlessedScreen extends BaseScreen {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   getMainWindow(): any {
     return this.mainWindow;
+  }
+
+  /**
+   * Get the current main window content buffer.
+   * Used by BlessedInputProcessor to synchronize input display with the content buffer.
+   */
+  getMainWindowContent(): string {
+    return this.mainWindowContent;
+  }
+
+  /**
+   * Set the main window content buffer and update the display.
+   * Used by BlessedInputProcessor to synchronize input display with the content buffer.
+   */
+  setMainWindowContent(content: string): void {
+    this.mainWindowContent = content;
+    this.mainWindow.setContent(this.mainWindowContent);
   }
 
   /**

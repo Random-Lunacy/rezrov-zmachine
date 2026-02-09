@@ -1,10 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import * as blessed from 'blessed';
 import { BaseInputProcessor, InputState, Logger, ZMachine } from '../../dist/index.js';
+import { BlessedScreen } from './BlessedScreen.js';
 
 export class BlessedInputProcessor extends BaseInputProcessor {
   private logger: Logger;
   private screen: blessed.Widgets.Screen;
+  private blessedScreen: BlessedScreen;
   private mainWindow: any;
   private isWaitingForInput: boolean = false;
   private currentInput: string = '';
@@ -20,14 +22,12 @@ export class BlessedInputProcessor extends BaseInputProcessor {
   private mouseClickHandler: ((data: { x: number; y: number; button: string }) => void) | null = null;
   private pendingMouseClick: { x: number; y: number; button: number } | null = null;
 
-  constructor(screen: any, options?: { logger?: Logger }) {
+  constructor(blessedScreen: BlessedScreen, options?: { logger?: Logger }) {
     super();
     this.logger = options?.logger || new Logger('BlessedInputProcessor');
-    this.screen = screen;
-    // Get the main window from the screen - look for the box that's not at the top
-    this.mainWindow = screen.children.find(
-      (child: any) => child.type === 'box' && child.top !== 0 && child.scrollable === true
-    );
+    this.blessedScreen = blessedScreen;
+    this.screen = blessedScreen.getBlessedScreen();
+    this.mainWindow = blessedScreen.getMainWindow();
   }
 
   protected doStartTextInput(machine: ZMachine, _state: InputState): void {
@@ -54,8 +54,8 @@ export class BlessedInputProcessor extends BaseInputProcessor {
     // Disable mouse tracking during text input to prevent escape sequence leakage
     this.screen.program.disableMouse();
 
-    // Get current cursor position from the main window
-    const content = this.mainWindow.getContent();
+    // Get current cursor position from BlessedScreen's content buffer
+    const content = this.blessedScreen.getMainWindowContent();
     const lines = content.split('\n');
     this.inputStartPosition = {
       line: lines.length - 1,
@@ -71,7 +71,8 @@ export class BlessedInputProcessor extends BaseInputProcessor {
 
       // Ignore mouse events - they can generate spurious characters
       // Mouse events in blessed have key.name === 'mouse' or include escape sequences
-      if (key?.name === 'mouse' || key?.mouse) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (key?.name === 'mouse' || (key as any)?.mouse) {
         return;
       }
 
@@ -135,8 +136,8 @@ export class BlessedInputProcessor extends BaseInputProcessor {
   }
 
   private updateInputDisplay(): void {
-    // Get current content
-    const content = this.mainWindow.getContent();
+    // Get current content from the BlessedScreen's content buffer
+    const content = this.blessedScreen.getMainWindowContent();
     const lines = content.split('\n');
 
     // Find the line where input should be displayed
@@ -150,7 +151,7 @@ export class BlessedInputProcessor extends BaseInputProcessor {
     // Update the line
     lines[inputLine] = newLine;
 
-    // Update the main window content
+    // Update the main window content (only the display, not the buffer - we'll sync on finish)
     this.mainWindow.setContent(lines.join('\n'));
     this.mainWindow.setScrollPerc(100);
     this.screen.render();
@@ -172,22 +173,23 @@ export class BlessedInputProcessor extends BaseInputProcessor {
       this.keyHandler = null;
     }
 
+    // Get the current content from BlessedScreen's buffer
+    let content = this.blessedScreen.getMainWindowContent();
+    const lines = content.split('\n');
+    const inputLine = this.inputStartPosition.line;
+
     // Echo the input to the display (without cursor)
     if (this.currentInput.length > 0) {
-      const content = this.mainWindow.getContent();
-      const lines = content.split('\n');
-      const inputLine = this.inputStartPosition.line;
       const baseLine = lines[inputLine] || '';
       const baseContent = baseLine.substring(0, this.inputStartPosition.column);
       const newLine = baseContent + this.currentInput;
       lines[inputLine] = newLine;
-      this.mainWindow.setContent(lines.join('\n'));
-      this.mainWindow.setScrollPerc(100);
+      content = lines.join('\n');
     }
 
-    // Add a newline after input
-    const content = this.mainWindow.getContent();
-    this.mainWindow.setContent(content + '\n');
+    // Add a newline after input and sync to BlessedScreen's buffer
+    content = content + '\n';
+    this.blessedScreen.setMainWindowContent(content);
     this.mainWindow.setScrollPerc(100);
 
     // Process the input
@@ -206,7 +208,8 @@ export class BlessedInputProcessor extends BaseInputProcessor {
     // Handle special keys that should be ignored
     const handleKey = (ch: string, key: blessed.Widgets.Events.IKeyEventArg) => {
       // Ignore mouse events - they can generate spurious characters
-      if (key?.name === 'mouse' || key?.mouse) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (key?.name === 'mouse' || (key as any)?.mouse) {
         return; // Don't remove listener, wait for real key
       }
 

@@ -1001,4 +1001,82 @@ describe('BaseScreen', () => {
       expect(result).toBe('#804020'); // r=128, g=64, b=32
     });
   });
+
+  describe('bottom-aligned output configuration', () => {
+    it('should default startFromBottom to true', () => {
+      const defaultScreen = new BaseScreen('DefaultScreen');
+      expect(defaultScreen['startFromBottom']).toBe(true);
+    });
+
+    it('should allow disabling startFromBottom via constructor option', () => {
+      const topScreen = new BaseScreen('TopScreen', { startFromBottom: false });
+      expect(topScreen['startFromBottom']).toBe(false);
+    });
+
+    it('should initialize hasReceivedFirstOutput to false', () => {
+      expect(screen['hasReceivedFirstOutput']).toBe(false);
+    });
+
+    it('should have an initializeOutputPosition method', () => {
+      const testScreen = screen as any;
+      expect(typeof testScreen.initializeOutputPosition).toBe('function');
+    });
+
+    it('should reset hasReceivedFirstOutput when clearing entire screen (-1)', () => {
+      const testScreen = screen as any;
+      testScreen.hasReceivedFirstOutput = true;
+
+      screen.clearWindow(machine as any, -1);
+
+      expect(testScreen.hasReceivedFirstOutput).toBe(false);
+    });
+
+    it('should reset hasReceivedFirstOutput when clearing lower window (0)', () => {
+      const testScreen = screen as any;
+      testScreen.hasReceivedFirstOutput = true;
+
+      screen.clearWindow(machine as any, 0);
+
+      expect(testScreen.hasReceivedFirstOutput).toBe(false);
+    });
+
+    it('should NOT reset hasReceivedFirstOutput when clearing upper window (1)', () => {
+      const testScreen = screen as any;
+      testScreen.hasReceivedFirstOutput = true;
+
+      screen.clearWindow(machine as any, 1);
+
+      expect(testScreen.hasReceivedFirstOutput).toBe(true);
+    });
+
+    it('should accept both logger and startFromBottom options together', () => {
+      const customScreen = new BaseScreen('CustomScreen', {
+        logger: mockLogger,
+        startFromBottom: false,
+      });
+
+      expect(customScreen['logger']).toBe(mockLogger);
+      expect(customScreen['startFromBottom']).toBe(false);
+    });
+  });
+
+  describe('initializeOutputPosition', () => {
+    it('should be callable without error', () => {
+      const testScreen = screen as any;
+      expect(() => testScreen.initializeOutputPosition()).not.toThrow();
+    });
+
+    it('should be a no-op in base implementation', () => {
+      const testScreen = screen as any;
+      const beforeState = {
+        startFromBottom: testScreen.startFromBottom,
+        hasReceivedFirstOutput: testScreen.hasReceivedFirstOutput,
+      };
+
+      testScreen.initializeOutputPosition();
+
+      expect(testScreen.startFromBottom).toBe(beforeState.startFromBottom);
+      expect(testScreen.hasReceivedFirstOutput).toBe(beforeState.hasReceivedFirstOutput);
+    });
+  });
 });
