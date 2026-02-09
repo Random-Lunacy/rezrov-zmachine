@@ -269,8 +269,9 @@ export class BlessedScreen extends BaseScreen {
       // Upper window - use BaseScreen's buffer management
       const screenWidth = this.getSize().cols;
       const combinedContent = this.writeToUpperWindowBuffer(textToDisplay, screenWidth);
-      const styledText = this.applyStylesAndColors(combinedContent);
-      this.statusWindow.setContent(styledText);
+      // The statusWindow has base style fg: 'black', bg: 'white' which provides
+      // the inverted appearance - just set plain content without {inverse} tags
+      this.statusWindow.setContent(combinedContent);
     }
 
     this.screen.render();
@@ -356,8 +357,8 @@ export class BlessedScreen extends BaseScreen {
     if (resizedContent === null) return;
 
     // Redraw the status window with resized buffer
-    const styledText = this.applyStylesAndColors(resizedContent);
-    this.statusWindow.setContent(styledText);
+    // The statusWindow's base style (fg: 'black', bg: 'white') provides the inverted look
+    this.statusWindow.setContent(resizedContent);
     this.screen.render();
   }
 
@@ -439,14 +440,11 @@ export class BlessedScreen extends BaseScreen {
         this.screen.render();
       }
     } else {
-      // Upper window - use getContent() as before
-      const content = this.statusWindow.getContent();
-      const lines = content.split('\n');
-      if (lines.length > 0) {
-        lines[lines.length - 1] = '';
-        this.statusWindow.setContent(lines.join('\n'));
-        this.screen.render();
-      }
+      // Upper window - use the buffer
+      // The statusWindow's base style (fg: 'black', bg: 'white') provides the inverted look
+      const bufferContent = this.upperWindowBuffer.join('\n');
+      this.statusWindow.setContent(bufferContent);
+      this.screen.render();
     }
   }
 

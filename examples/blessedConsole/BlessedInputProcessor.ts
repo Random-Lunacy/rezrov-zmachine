@@ -71,7 +71,8 @@ export class BlessedInputProcessor extends BaseInputProcessor {
 
       // Ignore mouse events - they can generate spurious characters
       // Mouse events in blessed have key.name === 'mouse' or include escape sequences
-      if (key?.name === 'mouse' || key?.mouse) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (key?.name === 'mouse' || (key as any)?.mouse) {
         return;
       }
 
@@ -207,7 +208,8 @@ export class BlessedInputProcessor extends BaseInputProcessor {
     // Handle special keys that should be ignored
     const handleKey = (ch: string, key: blessed.Widgets.Events.IKeyEventArg) => {
       // Ignore mouse events - they can generate spurious characters
-      if (key?.name === 'mouse' || key?.mouse) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (key?.name === 'mouse' || (key as any)?.mouse) {
         return; // Don't remove listener, wait for real key
       }
 
