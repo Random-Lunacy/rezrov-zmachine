@@ -101,7 +101,9 @@ function set_cursor(
   }
 
   if (machine.state.version < 6) {
-    window = machine.screen.getOutputWindow(machine);
+    // Per spec 8.7.2: set_cursor always targets the upper window in V4/V5
+    // "This is the cursor which set_cursor sets."
+    window = 1; // WindowType.Upper
   }
 
   machine.screen.setCursorPosition(machine, line, column, window);
@@ -112,7 +114,13 @@ function set_cursor(
  */
 function get_cursor(machine: ZMachine, _operandTypes: OperandType[], array: number): void {
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} get_cursor ${array}`);
-  machine.logger.warn(`get_cursor ${array} -- not implemented`);
+
+  // Per spec: stores cursor position as two words at array address
+  // array→0: current line (1-based)
+  // array→2: current column (1-based)
+  const pos = machine.screen.getCursorPosition(machine);
+  machine.memory.setWord(array, pos.line);
+  machine.memory.setWord(array + 2, pos.column);
 }
 
 /**

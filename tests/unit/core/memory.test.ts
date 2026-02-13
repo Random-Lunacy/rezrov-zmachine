@@ -141,8 +141,10 @@ describe('Memory', () => {
       memory.setByte(0x3ff, 0xbb);
       expect(memory.getByte(0x3ff)).toBe(0xbb);
 
-      // Test writing to read-only memory
-      expect(() => memory.setByte(0x400, 0xcc)).toThrow(/Cannot write to read-only memory/);
+      // Writing to static memory should warn but not throw (games like Beyond Zork do this)
+      memory.setByte(0x400, 0xcc);
+      expect(memory.getByte(0x400)).toBe(0xcc);
+      expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('non-dynamic memory'));
 
       // Test out-of-bounds access
       expect(() => memory.getByte(0x10000)).toThrow(/Memory access out of bounds/);
@@ -162,11 +164,16 @@ describe('Memory', () => {
       memory.setWord(0x3fe, 0xccdd);
       expect(memory.getWord(0x3fe)).toBe(0xccdd);
 
-      // Test writing to read-only memory
-      expect(() => memory.setWord(0x400, 0xeeff)).toThrow(/Cannot write to read-only memory/);
+      // Writing to static memory should warn but not throw
+      memory.setWord(0x400, 0xeeff);
+      expect(memory.getWord(0x400)).toBe(0xeeff);
+      expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('non-dynamic memory'));
 
-      // Test straddling memory regions
-      expect(() => memory.setWord(0x3ff, 0x1122)).toThrow(/Cannot write to read-only memory/);
+      // Straddling dynamic/static boundary should also warn
+      mockLogger.warn = vi.fn();
+      memory.setWord(0x3ff, 0x1122);
+      expect(memory.getWord(0x3ff)).toBe(0x1122);
+      expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('non-dynamic memory'));
 
       // Test out-of-bounds access
       expect(() => memory.getWord(0xffff)).toThrow(/Memory access out of bounds/);
@@ -197,8 +204,10 @@ describe('Memory', () => {
       expect(memory.getByte(0x200)).toBe(0);
       expect(memory.getByte(0x201)).toBe(1);
 
-      // Test copy to read-only memory
-      expect(() => memory.copyBlock(0x100, 0x400, 10)).toThrow(/Cannot write to read-only memory/);
+      // Copy to static memory should warn but not throw
+      mockLogger.warn = vi.fn();
+      memory.copyBlock(0x100, 0x400, 10);
+      expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('non-dynamic memory'));
     });
 
     it('should compare memory blocks correctly', () => {
@@ -472,14 +481,19 @@ describe('Memory', () => {
       expect(memory.getByte(0x103)).toBe(0xdd);
     });
 
-    it('should throw error when setting bytes to read-only memory', () => {
+    it('should warn when setting bytes to static memory', () => {
       const testData = Buffer.from([0xaa, 0xbb]);
-      expect(() => memory.setBytes(0x500, testData)).toThrow(/Cannot write to read-only memory/);
+      memory.setBytes(0x500, testData);
+      expect(memory.getByte(0x500)).toBe(0xaa);
+      expect(memory.getByte(0x501)).toBe(0xbb);
+      expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('non-dynamic memory'));
     });
 
-    it('should handle special case at 0x0400', () => {
+    it('should allow writes at 0x0400 with warning', () => {
       const testData = Buffer.from([0xaa]);
-      expect(() => memory.setBytes(0x0400, testData)).toThrow(/Cannot write to read-only memory/);
+      memory.setBytes(0x0400, testData);
+      expect(memory.getByte(0x0400)).toBe(0xaa);
+      expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('non-dynamic memory'));
     });
 
     it('should throw error when setting bytes out of bounds', () => {
@@ -507,10 +521,12 @@ describe('Memory', () => {
       memory = new Memory(mockBuffer, { logger: mockLogger });
     });
 
-    it('should set memory for testing with protection', () => {
+    it('should set memory for testing with protection warning', () => {
       const testData = Buffer.from([0xaa, 0xbb, 0xcc]);
-      // With protection, should fail for read-only memory
-      expect(() => memory.setMemoryForTesting(0x500, testData, false)).toThrow(/Cannot write to read-only memory/);
+      // With protection, writes to static memory should warn but succeed
+      memory.setMemoryForTesting(0x500, testData, false);
+      expect(memory.getByte(0x500)).toBe(0xaa);
+      expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('non-dynamic memory'));
     });
 
     it('should set memory for testing without protection', () => {

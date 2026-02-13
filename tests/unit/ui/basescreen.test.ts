@@ -426,34 +426,32 @@ describe('BaseScreen', () => {
       );
     });
 
-    it('should warn on out-of-bounds cursor position in V5', () => {
+    it('should allow cursor position beyond upper window height (Beyond Zork compatibility)', () => {
       // Split window to height 5
       screen.splitWindow(v5Machine as any, 5);
 
-      // Try to set cursor outside bounds
-      screen.setCursorPosition(v5Machine as any, 10, 10, 1); // Line 10 > upper window height 5
+      // Beyond Zork uses screen-absolute coordinates that exceed upper window height
+      screen.setCursorPosition(v5Machine as any, 10, 10, 1);
 
-      expect(mockLogger.warn).toHaveBeenCalledWith(
-        'TestScreen setCursorPosition: position (10, 10) outside window bounds'
-      );
+      // Should succeed - no bounds check on window height
+      expect(screen['cursorPosition']).toEqual({ line: 10, column: 10 });
     });
 
-    it('should warn on zero line position in V5', () => {
+    it('should warn on zero line position', () => {
       screen.splitWindow(v5Machine as any, 5);
       screen.setCursorPosition(v5Machine as any, 0, 10, 1); // Line 0 is invalid
 
       expect(mockLogger.warn).toHaveBeenCalledWith(
-        'TestScreen setCursorPosition: position (0, 10) outside window bounds'
+        'TestScreen setCursorPosition: invalid position (0, 10)'
       );
     });
 
-    it('should warn on out-of-bounds column position in V5', () => {
+    it('should allow cursor position beyond screen width (games use screen-absolute coords)', () => {
       screen.splitWindow(v5Machine as any, 5);
       screen.setCursorPosition(v5Machine as any, 3, 100, 1); // Column 100 > screen width 80
 
-      expect(mockLogger.warn).toHaveBeenCalledWith(
-        'TestScreen setCursorPosition: position (3, 100) outside window bounds'
-      );
+      // Should succeed - real games use these coordinates
+      expect(screen['cursorPosition']).toEqual({ line: 3, column: 100 });
     });
 
     it('should clear cursor position when clearing any window in V5', () => {
@@ -535,8 +533,8 @@ describe('BaseScreen', () => {
       // Try to split more lines than screen has
       screen.splitWindow(machine as any, 100);
 
-      // Should be clamped to screen height - 1
-      expect(screen['upperWindowHeight']).toBe(24); // 25 - 1
+      // Should be clamped to screen height (V5+ allows full-screen upper window)
+      expect(screen['upperWindowHeight']).toBe(25);
 
       // Try negative lines
       screen.splitWindow(machine as any, -5);
@@ -752,6 +750,38 @@ describe('BaseScreen', () => {
       const result = testScreen.writeToUpperWindowBuffer('This is a very long line', 20);
 
       expect(result.length).toBe(20);
+    });
+
+    it('should handle newlines by moving cursor to start of next line', () => {
+      const testScreen = screen as any;
+      testScreen.cursorPosition = { line: 1, column: 1 };
+
+      // Write text with embedded newline (per spec 8.7.2.1)
+      const result = testScreen.writeToUpperWindowBuffer('Hello\nWorld', 80);
+
+      const lines = result.split('\n');
+      expect(lines.length).toBe(2);
+      expect(lines[0]).toContain('Hello');
+      expect(lines[1]).toContain('World');
+      // After newline, cursor should be on line 2 after writing "World"
+      expect(testScreen.cursorPosition.line).toBe(2);
+      expect(testScreen.cursorPosition.column).toBe(6); // "World" = 5 chars, cursor at 6
+    });
+
+    it('should clamp cursor at right edge of screen', () => {
+      const testScreen = screen as any;
+      testScreen.cursorPosition = { line: 1, column: 1 };
+
+      // Write text that fills the screen width exactly
+      testScreen.writeToUpperWindowBuffer('A'.repeat(10), 10);
+
+      // Cursor should not go past screen width + 1
+      expect(testScreen.cursorPosition.column).toBe(11);
+
+      // Writing more text should be lost (per spec: "it does not go any further")
+      const result = testScreen.writeToUpperWindowBuffer('B', 10);
+      const line = result.split('\n')[0];
+      expect(line).toBe('A'.repeat(10)); // No B written
     });
   });
 

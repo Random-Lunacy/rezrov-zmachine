@@ -11,6 +11,7 @@ export class MockScreen implements Screen {
   clearWindow = vi.fn();
   clearLine = vi.fn();
   setCursorPosition = vi.fn();
+  getCursorPosition = vi.fn().mockReturnValue({ line: 1, column: 1 });
   hideCursor = vi.fn();
   showCursor = vi.fn();
   setBufferMode = vi.fn();

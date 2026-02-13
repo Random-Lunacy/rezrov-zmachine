@@ -79,13 +79,16 @@ describe('Memory with minimal.z5 fixture', () => {
       // Restore original value
       memory.setByte(testAddr, origVal);
 
-      // Should not be able to write to static memory
+      // Writing to static memory should warn but not throw (per Beyond Zork compatibility)
       const staticAddr = memory.getWord(HeaderLocation.StaticMemBase);
-      expect(() => memory.setByte(staticAddr, 0)).toThrow(/Cannot write to read-only memory/);
+      expect(() => memory.setByte(staticAddr, 0)).not.toThrow();
 
-      // Should not be able to write to high memory
+      // Writing to high memory should also warn but not throw
       const highAddr = memory.getWord(HeaderLocation.HighMemBase);
-      expect(() => memory.setByte(highAddr, 0)).toThrow(/Cannot write to read-only memory/);
+      expect(() => memory.setByte(highAddr, 0)).not.toThrow();
+
+      // Writing past end of memory should still throw
+      expect(() => memory.setByte(memory.size, 0)).toThrow(/Memory access out of bounds/);
     });
 
     it('checks for extended features', () => {

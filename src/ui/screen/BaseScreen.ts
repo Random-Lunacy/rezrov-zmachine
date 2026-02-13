@@ -184,7 +184,8 @@ export class BaseScreen implements Screen {
     const version = machine.state.version;
     const oldHeight = this.upperWindowHeight;
 
-    this.upperWindowHeight = Math.max(0, Math.min(lines, this.getSize().rows - 1));
+    // V5+ allows the upper window to cover the full screen (for title pages, etc.)
+    this.upperWindowHeight = Math.max(0, Math.min(lines, this.getSize().rows));
 
     // Use WindowManager for advanced window management
     this.windowManager.splitWindow(this.upperWindowHeight);
@@ -228,12 +229,17 @@ export class BaseScreen implements Screen {
     const version = machine.state.version;
 
     if (windowId === -1) {
-      // Clear entire screen
+      // Per spec: unsplit screen, clear all, select lower window, cursor to top-left
       this.upperWindowHeight = 0;
       this.outputWindowId = WindowType.Lower;
       this.cursorPosition = { line: 1, column: 1 };
       this.upperWindowBuffer = [];
       // Reset for bottom-aligned output on next print
+      this.hasReceivedFirstOutput = false;
+    } else if (windowId === -2) {
+      // Per spec: clear all windows but don't unsplit, don't change active window
+      this.upperWindowBuffer = [];
+      this.cursorPosition = { line: 1, column: 1 };
       this.hasReceivedFirstOutput = false;
     } else if (windowId === WindowType.Upper) {
       this.upperWindowBuffer = [];
@@ -273,8 +279,10 @@ export class BaseScreen implements Screen {
   }
 
   /**
-   * Set cursor position with version-aware validation
-   * V5: Illegal to move cursor outside current window size
+   * Set cursor position in the upper window.
+   * Per spec 8.7.2, set_cursor always targets the upper window in V4/V5.
+   * Real Infocom games (e.g., Beyond Zork) use screen-absolute coordinates that
+   * may exceed the current upper window height, so we only validate basic sanity.
    */
   setCursorPosition(machine: ZMachine, line: number, column: number, windowId: number): void {
     const version = machine.state.version;
@@ -284,18 +292,20 @@ export class BaseScreen implements Screen {
       return;
     }
 
-    if (version >= 5) {
-      // V5: Validate cursor position is within window bounds
-      if (line < 1 || line > this.upperWindowHeight || column < 1 || column > this.getSize().cols) {
-        this.logger.warn(`${this.id} setCursorPosition: position (${line}, ${column}) outside window bounds`);
-        return;
-      }
+    // Basic sanity: coordinates must be positive
+    if (line < 1 || column < 1) {
+      this.logger.warn(`${this.id} setCursorPosition: invalid position (${line}, ${column})`);
+      return;
     }
 
     this.cursorPosition = { line, column };
     this.logger.debug(
       `${this.id} setCursorPosition line=${line} column=${column} windowId=${windowId} (version ${version})`
     );
+  }
+
+  getCursorPosition(_machine: ZMachine): { line: number; column: number } {
+    return { line: this.cursorPosition.line, column: this.cursorPosition.column };
   }
 
   hideCursor(machine: ZMachine, windowId: number): void {
@@ -424,32 +434,43 @@ export class BaseScreen implements Screen {
    * @returns The combined buffer content as a single string with newlines
    */
   protected writeToUpperWindowBuffer(text: string, screenWidth: number): string {
-    const line = this.cursorPosition.line - 1; // Convert to 0-based index
-    const col = this.cursorPosition.column - 1; // Convert to 0-based index
+    // Per spec 8.7.2.1: In the upper window, cursor moves right on each character.
+    // If it hits the right edge, it does not go further (text is lost).
+    // A newline moves cursor to left margin of the next line down.
+    for (const char of text) {
+      if (char === '\n') {
+        // Newline: move to start of next line
+        this.cursorPosition.line++;
+        this.cursorPosition.column = 1;
+        continue;
+      }
 
-    // Ensure we have enough lines in the buffer
-    while (this.upperWindowBuffer.length <= line) {
-      this.upperWindowBuffer.push(''.padEnd(screenWidth, ' '));
+      const lineIdx = this.cursorPosition.line - 1;
+      const colIdx = this.cursorPosition.column - 1;
+
+      // Don't write past right edge of screen
+      if (colIdx >= screenWidth) {
+        continue;
+      }
+
+      // Ensure we have enough lines in the buffer
+      while (this.upperWindowBuffer.length <= lineIdx) {
+        this.upperWindowBuffer.push(''.padEnd(screenWidth, ' '));
+      }
+
+      // Get the current line and pad if needed
+      let currentLine = this.upperWindowBuffer[lineIdx];
+      while (currentLine.length < screenWidth) {
+        currentLine += ' ';
+      }
+
+      // Write character at cursor position, overwriting existing character
+      currentLine = currentLine.substring(0, colIdx) + char + currentLine.substring(colIdx + 1);
+      this.upperWindowBuffer[lineIdx] = currentLine.substring(0, screenWidth);
+
+      // Advance cursor right (clamp at right edge)
+      this.cursorPosition.column = Math.min(this.cursorPosition.column + 1, screenWidth + 1);
     }
-
-    // Get the current line
-    let currentLine = this.upperWindowBuffer[line];
-
-    // Ensure line is at least screenWidth characters (pad with spaces)
-    while (currentLine.length < screenWidth) {
-      currentLine += ' ';
-    }
-
-    // Insert text at cursor position, overwriting existing characters
-    const before = currentLine.substring(0, col);
-    const after = currentLine.substring(col + text.length);
-    currentLine = before + text + after;
-
-    // Trim to screen width and update the line in the buffer
-    this.upperWindowBuffer[line] = currentLine.substring(0, screenWidth);
-
-    // Update cursor position (move right by text length)
-    this.cursorPosition.column += text.length;
 
     // Return combined content for rendering
     return this.upperWindowBuffer.join('\n');
