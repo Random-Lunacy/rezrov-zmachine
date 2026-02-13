@@ -101,6 +101,7 @@ export interface Screen {
 
   // Cursor control
   setCursorPosition(machine: ZMachine, line: number, column: number, windowId: number): void;
+  getCursorPosition(machine: ZMachine): { line: number; column: number };
   hideCursor(machine: ZMachine, windowId: number): void;
   showCursor(machine: ZMachine, windowId: number): void;
 

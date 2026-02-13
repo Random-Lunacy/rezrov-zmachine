@@ -94,7 +94,7 @@ describe('I/O Opcodes', () => {
   });
 
   describe('set_cursor', () => {
-    it('should call screen.setCursorPosition for normal position', () => {
+    it('should call screen.setCursorPosition targeting upper window in V5', () => {
       // Arrange
       const line = 3;
       const column = 5;
@@ -102,8 +102,8 @@ describe('I/O Opcodes', () => {
       // Act
       ioOpcodes.set_cursor.impl(machine, [], line, column);
 
-      // Assert
-      expect(machine.screen.setCursorPosition).toHaveBeenCalledWith(machine, line, column, 0);
+      // Assert - Per spec 8.7.2, set_cursor always targets upper window (1) in V4/V5
+      expect(machine.screen.setCursorPosition).toHaveBeenCalledWith(machine, line, column, 1);
       expect(machine.logger.debug).toHaveBeenCalledWith('1234 set_cursor 3 5');
     });
 
@@ -131,33 +131,48 @@ describe('I/O Opcodes', () => {
       expect(machine.screen.setCursorPosition).not.toHaveBeenCalled();
     });
 
-    it('should use current window for versions < 6', () => {
+    it('should always target upper window in V5 regardless of output window or parameter', () => {
       // Arrange
       mockMachine.state.version = 5;
       const line = 3;
       const column = 5;
       const customWindow = 2;
-      machine.screen.getOutputWindow = vi.fn().mockReturnValue(1);
+
+      // Act - pass a custom window parameter (should be ignored in V5)
+      ioOpcodes.set_cursor.impl(machine, [], line, column, customWindow);
+
+      // Assert - Per spec 8.7.2, always uses upper window (1) in V4/V5
+      expect(machine.screen.setCursorPosition).toHaveBeenCalledWith(machine, line, column, 1);
+    });
+
+    it('should use provided window parameter in V6', () => {
+      // Arrange
+      mockMachine.state.version = 6;
+      const line = 3;
+      const column = 5;
+      const customWindow = 2;
 
       // Act
       ioOpcodes.set_cursor.impl(machine, [], line, column, customWindow);
 
-      // Assert
-      expect(machine.screen.getOutputWindow).toHaveBeenCalledWith(machine);
-      expect(machine.screen.setCursorPosition).toHaveBeenCalledWith(machine, line, column, 1);
+      // Assert - V6 uses the window parameter as-is
+      expect(machine.screen.setCursorPosition).toHaveBeenCalledWith(machine, line, column, customWindow);
     });
   });
 
   describe('get_cursor', () => {
-    it('should log a warning that it is not implemented', () => {
+    it('should store cursor position at the given array address', () => {
       // Arrange
       const array = 0x1000;
+      mockMachine.screen.getCursorPosition = vi.fn().mockReturnValue({ line: 5, column: 10 });
 
       // Act
       ioOpcodes.get_cursor.impl(machine, [], array);
 
       // Assert
-      expect(machine.logger.warn).toHaveBeenCalledWith(`get_cursor ${array} -- not implemented`);
+      expect(mockMachine.screen.getCursorPosition).toHaveBeenCalledWith(machine);
+      expect(mockMachine.memory.setWord).toHaveBeenCalledWith(array, 5);
+      expect(mockMachine.memory.setWord).toHaveBeenCalledWith(array + 2, 10);
     });
   });
 

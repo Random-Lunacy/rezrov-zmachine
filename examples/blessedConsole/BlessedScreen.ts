@@ -49,7 +49,9 @@ export class BlessedScreen extends BaseScreen {
       },
     });
 
-    // Status bar (Window 1) - fixed at top
+    // Upper window (Window 1) - fixed at top
+    // Uses same colors as lower window by default; V3 status bar and V5 games
+    // set their own colors via set_text_style/set_colour opcodes
     this.statusWindow = blessed.box({
       top: 0,
       left: 0,
@@ -58,8 +60,8 @@ export class BlessedScreen extends BaseScreen {
       content: '',
       wrap: false, // Don't wrap text - clip at edge instead
       style: {
-        fg: 'black',
-        bg: 'white',
+        fg: 'white',
+        bg: 'black',
       },
       tags: true,
     });
@@ -269,8 +271,16 @@ export class BlessedScreen extends BaseScreen {
       // Upper window - use BaseScreen's buffer management
       const screenWidth = this.getSize().cols;
       const combinedContent = this.writeToUpperWindowBuffer(textToDisplay, screenWidth);
-      // The statusWindow has base style fg: 'black', bg: 'white' which provides
-      // the inverted appearance - just set plain content without {inverse} tags
+
+      // Extend statusWindow if buffer lines exceed the current split height
+      // (Beyond Zork positions title page text beyond the split boundary)
+      const bufferLines = this['upperWindowBuffer'].length;
+      if (bufferLines > (this.statusWindow.height as number)) {
+        this.statusWindow.height = bufferLines;
+        this.mainWindow.top = bufferLines;
+        this.mainWindow.height = `100%-${bufferLines}`;
+      }
+
       this.statusWindow.setContent(combinedContent);
     }
 
@@ -412,15 +422,27 @@ export class BlessedScreen extends BaseScreen {
 
     this.logger.debug(`BlessedScreen.clearWindow called with windowId=${windowId}`);
 
-    if (windowId === 0 || windowId === -1) {
-      this.logger.debug(`Clearing main window (current content length: ${this.mainWindow.getContent().length})`);
-      // Clear both the content buffer and blessed content
+    if (windowId === -1) {
+      // Clear both windows and unsplit
       this.mainWindowContent = '';
       this.mainWindow.setContent('');
       this.mainWindow.setScrollPerc(0);
-      this.logger.debug(`Main window after clear (content length: ${this.mainWindow.getContent().length})`);
-    }
-    if (windowId === 1 || windowId === -1) {
+      this.statusWindow.setContent('');
+      // Unsplit: reset blessed window dimensions
+      this.statusWindow.height = 0;
+      this.mainWindow.top = 0;
+      this.mainWindow.height = '100%';
+    } else if (windowId === -2) {
+      // Clear both windows but preserve split state
+      this.mainWindowContent = '';
+      this.mainWindow.setContent('');
+      this.mainWindow.setScrollPerc(0);
+      this.statusWindow.setContent('');
+    } else if (windowId === 0) {
+      this.mainWindowContent = '';
+      this.mainWindow.setContent('');
+      this.mainWindow.setScrollPerc(0);
+    } else if (windowId === 1) {
       this.statusWindow.setContent('');
     }
     this.screen.render();
@@ -441,7 +463,7 @@ export class BlessedScreen extends BaseScreen {
       }
     } else {
       // Upper window - use the buffer
-      // The statusWindow's base style (fg: 'black', bg: 'white') provides the inverted look
+      // Upper window - refresh from the buffer
       const bufferContent = this.upperWindowBuffer.join('\n');
       this.statusWindow.setContent(bufferContent);
       this.screen.render();
@@ -463,7 +485,8 @@ export class BlessedScreen extends BaseScreen {
   updateStatusBar(locationName: string | null, value1: number, value2: number, isTimeMode: boolean): void {
     const width = this.getSize().cols;
     const statusLine = this.formatStatusBarLine(locationName, value1, value2, isTimeMode, width);
-    this.statusWindow.setContent(statusLine);
+    // V3 status bar should appear reversed (black on white)
+    this.statusWindow.setContent(`{inverse}${statusLine}{/inverse}`);
     this.screen.render();
   }
 

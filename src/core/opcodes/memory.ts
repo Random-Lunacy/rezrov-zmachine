@@ -14,6 +14,7 @@
 
 import { ZMachine } from '../../interpreter/ZMachine';
 import { OperandType } from '../../types';
+import { toI16 } from '../memory/cast16';
 import { opcode } from './base';
 
 /**
@@ -24,8 +25,11 @@ function copy_table(
   _operandTypes: OperandType[],
   sourceAddr: number,
   destAddr: number,
-  size: number
+  rawSize: number
 ): void {
+  // Size is a signed 16-bit value: positive = copy forward, negative = copy backward
+  const size = toI16(rawSize);
+
   if (size === 0) {
     machine.logger.debug('copy_table: no-op');
     return; // No-op
@@ -33,7 +37,7 @@ function copy_table(
 
   const sourceSize = Math.abs(size);
 
-  machine.logger.debug(`copy_table ${sourceAddr} ${destAddr} ${size}`);
+  machine.logger.debug(`copy_table ${sourceAddr} ${destAddr} ${size} (raw: ${rawSize})`);
 
   if (destAddr === 0) {
     // Per Z-machine spec: "If second is zero, the first table is zeroed for size bytes"
@@ -44,12 +48,12 @@ function copy_table(
   }
 
   if (size > 0) {
-    // Positive size: copy backwards (high to low) to handle overlaps where dest > source
+    // Positive size: copy forward (low to high)
+    // copyBlock handles overlap detection internally
     machine.memory.copyBlock(sourceAddr, destAddr, size);
   } else {
-    // Negative size: copy forwards (low to high) to handle overlaps where source > dest
-    // This is required by the Z-machine spec for overlapping copies
-    for (let i = 0; i < sourceSize; i++) {
+    // Negative size: copy backward (high to low) - guaranteed no overlap per spec
+    for (let i = sourceSize - 1; i >= 0; i--) {
       machine.memory.setByte(destAddr + i, machine.memory.getByte(sourceAddr + i));
     }
   }

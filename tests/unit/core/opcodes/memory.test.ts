@@ -53,7 +53,7 @@ describe('Memory Opcodes', () => {
 
       // Assert
       expect(mockMachine.memory.copyBlock).toHaveBeenCalledWith(sourceAddr, destAddr, size);
-      expect(mockMachine.logger.debug).toHaveBeenCalledWith(`copy_table ${sourceAddr} ${destAddr} ${size}`);
+      expect(mockMachine.logger.debug).toHaveBeenCalledWith(`copy_table ${sourceAddr} ${destAddr} ${size} (raw: ${size})`);
     });
 
     it('should copy forwards when size < 0 (for overlapping regions)', () => {

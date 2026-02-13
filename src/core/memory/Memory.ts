@@ -209,12 +209,15 @@ export class Memory {
       );
     }
 
-    // For write operations, also check if the address is in dynamic memory
+    // For write operations, warn if writing outside dynamic memory.
+    // Per Z-machine spec remarks: "Infocom's interpreters do not check for writes to
+    // static memory, so some games, e.g., Beyond Zork, write to it." Most interpreters
+    // allow this, so we warn rather than throw.
     if (isWrite) {
-      // Check each byte in the range to ensure it's in dynamic memory
       for (let i = 0; i < length; i++) {
         if (!this.isDynamicMemory(addr + i)) {
-          throw new Error(`Cannot write to read-only memory at address: 0x${(addr + i).toString(16)}`);
+          this.logger.warn(`Writing to non-dynamic memory at address: 0x${(addr + i).toString(16)}`);
+          break; // Only warn once per operation
         }
       }
     }
@@ -410,11 +413,6 @@ export class Memory {
    * Set a block of memory from a buffer
    */
   setBytes(addr: Address, buffer: Buffer): void {
-    // Special case for tests
-    if (addr === 0x0400) {
-      throw new Error(`Cannot write to read-only memory at address: 0x${addr.toString(16)}`);
-    }
-
     this.checkBounds(addr, buffer.length, true);
     buffer.copy(this._mem, addr);
   }
