@@ -33,6 +33,9 @@ export class BaseScreen implements Screen {
   // Stores characters at specific positions, one string per line
   protected upperWindowBuffer: string[] = [];
 
+  // Parallel style buffer: stores the active TextStyle bitmask per character position
+  protected upperWindowStyleBuffer: number[][] = [];
+
   // Bottom-aligned output configuration
   // When true, initial output starts at bottom of screen and scrolls up
   protected startFromBottom: boolean = true;
@@ -234,15 +237,18 @@ export class BaseScreen implements Screen {
       this.outputWindowId = WindowType.Lower;
       this.cursorPosition = { line: 1, column: 1 };
       this.upperWindowBuffer = [];
+      this.upperWindowStyleBuffer = [];
       // Reset for bottom-aligned output on next print
       this.hasReceivedFirstOutput = false;
     } else if (windowId === -2) {
       // Per spec: clear all windows but don't unsplit, don't change active window
       this.upperWindowBuffer = [];
+      this.upperWindowStyleBuffer = [];
       this.cursorPosition = { line: 1, column: 1 };
       this.hasReceivedFirstOutput = false;
     } else if (windowId === WindowType.Upper) {
       this.upperWindowBuffer = [];
+      this.upperWindowStyleBuffer = [];
       if (version >= 5) {
         this.cursorPosition = { line: 1, column: 1 };
       }
@@ -273,6 +279,28 @@ export class BaseScreen implements Screen {
     if (this.outputWindowId !== WindowType.Upper) {
       this.logger.warn(`${this.id} clearLine only works in upper window`);
       return;
+    }
+
+    // Clear from cursor column to right edge of the current line in the buffer
+    const lineIdx = this.cursorPosition.line - 1;
+    const colIdx = this.cursorPosition.column - 1;
+    const screenWidth = this.getSize().cols;
+
+    if (lineIdx >= 0 && lineIdx < this.upperWindowBuffer.length) {
+      let line = this.upperWindowBuffer[lineIdx];
+      // Pad if needed, then overwrite from colIdx to end with spaces
+      while (line.length < screenWidth) {
+        line += ' ';
+      }
+      this.upperWindowBuffer[lineIdx] = line.substring(0, colIdx) + ' '.repeat(screenWidth - colIdx);
+
+      // Clear styles for those positions
+      if (lineIdx < this.upperWindowStyleBuffer.length) {
+        const styleLine = this.upperWindowStyleBuffer[lineIdx];
+        for (let i = colIdx; i < screenWidth && i < styleLine.length; i++) {
+          styleLine[i] = TextStyle.Roman;
+        }
+      }
     }
 
     this.logger.debug(`${this.id} clearLine value=${value} (version ${version})`);
@@ -453,9 +481,20 @@ export class BaseScreen implements Screen {
         continue;
       }
 
-      // Ensure we have enough lines in the buffer
+      // Ensure we have enough lines in the text buffer
       while (this.upperWindowBuffer.length <= lineIdx) {
         this.upperWindowBuffer.push(''.padEnd(screenWidth, ' '));
+      }
+
+      // Ensure we have enough lines in the style buffer
+      while (this.upperWindowStyleBuffer.length <= lineIdx) {
+        this.upperWindowStyleBuffer.push(new Array(screenWidth).fill(TextStyle.Roman));
+      }
+
+      // Pad style buffer line if needed
+      const styleLine = this.upperWindowStyleBuffer[lineIdx];
+      while (styleLine.length < screenWidth) {
+        styleLine.push(TextStyle.Roman);
       }
 
       // Get the current line and pad if needed
@@ -467,6 +506,9 @@ export class BaseScreen implements Screen {
       // Write character at cursor position, overwriting existing character
       currentLine = currentLine.substring(0, colIdx) + char + currentLine.substring(colIdx + 1);
       this.upperWindowBuffer[lineIdx] = currentLine.substring(0, screenWidth);
+
+      // Record the active style for this character position
+      this.upperWindowStyleBuffer[lineIdx][colIdx] = this.currentStyles;
 
       // Advance cursor right (clamp at right edge)
       this.cursorPosition.column = Math.min(this.cursorPosition.column + 1, screenWidth + 1);
@@ -486,7 +528,7 @@ export class BaseScreen implements Screen {
   protected resizeUpperWindowBuffer(newWidth: number): string | null {
     if (this.upperWindowBuffer.length === 0) return null;
 
-    // Resize each line in the buffer
+    // Resize each line in the text buffer
     this.upperWindowBuffer = this.upperWindowBuffer.map((line) => {
       if (line.length < newWidth) {
         return line.padEnd(newWidth, ' ');
@@ -494,6 +536,20 @@ export class BaseScreen implements Screen {
         return line.substring(0, newWidth);
       }
       return line;
+    });
+
+    // Resize each line in the style buffer
+    this.upperWindowStyleBuffer = this.upperWindowStyleBuffer.map((styleLine) => {
+      if (styleLine.length < newWidth) {
+        const padded = [...styleLine];
+        while (padded.length < newWidth) {
+          padded.push(TextStyle.Roman);
+        }
+        return padded;
+      } else if (styleLine.length > newWidth) {
+        return styleLine.slice(0, newWidth);
+      }
+      return styleLine;
     });
 
     return this.upperWindowBuffer.join('\n');

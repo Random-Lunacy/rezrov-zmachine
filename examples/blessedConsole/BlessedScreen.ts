@@ -270,18 +270,18 @@ export class BlessedScreen extends BaseScreen {
     } else {
       // Upper window - use BaseScreen's buffer management
       const screenWidth = this.getSize().cols;
-      const combinedContent = this.writeToUpperWindowBuffer(textToDisplay, screenWidth);
+      this.writeToUpperWindowBuffer(textToDisplay, screenWidth);
 
       // Extend statusWindow if buffer lines exceed the current split height
       // (Beyond Zork positions title page text beyond the split boundary)
-      const bufferLines = this['upperWindowBuffer'].length;
+      const bufferLines = this.upperWindowBuffer.length;
       if (bufferLines > (this.statusWindow.height as number)) {
         this.statusWindow.height = bufferLines;
         this.mainWindow.top = bufferLines;
         this.mainWindow.height = `100%-${bufferLines}`;
       }
 
-      this.statusWindow.setContent(combinedContent);
+      this.statusWindow.setContent(this.renderStyledUpperWindow());
     }
 
     this.screen.render();
@@ -318,6 +318,60 @@ export class BlessedScreen extends BaseScreen {
     }
 
     return result;
+  }
+
+  /**
+   * Render the upper window buffer with per-character style tags for blessed.
+   * Groups consecutive characters with the same style and wraps each run
+   * in the appropriate blessed tags.
+   */
+  private renderStyledUpperWindow(): string {
+    const lines: string[] = [];
+
+    for (let lineIdx = 0; lineIdx < this.upperWindowBuffer.length; lineIdx++) {
+      const textLine = this.upperWindowBuffer[lineIdx];
+      const styleLine = lineIdx < this.upperWindowStyleBuffer.length ? this.upperWindowStyleBuffer[lineIdx] : [];
+
+      let result = '';
+      let runStart = 0;
+
+      while (runStart < textLine.length) {
+        const runStyle = runStart < styleLine.length ? styleLine[runStart] : 0;
+
+        // Find the end of this style run
+        let runEnd = runStart + 1;
+        while (runEnd < textLine.length) {
+          const nextStyle = runEnd < styleLine.length ? styleLine[runEnd] : 0;
+          if (nextStyle !== runStyle) break;
+          runEnd++;
+        }
+
+        const runText = textLine.substring(runStart, runEnd);
+
+        // Apply blessed tags for non-Roman styles
+        if (runStyle === 0) {
+          result += runText;
+        } else {
+          let styled = runText;
+          if (runStyle & TextStyle.ReverseVideo) {
+            styled = `{inverse}${styled}{/inverse}`;
+          }
+          if (runStyle & TextStyle.Bold) {
+            styled = `{bold}${styled}{/bold}`;
+          }
+          if (runStyle & TextStyle.Italic) {
+            styled = `{underline}${styled}{/underline}`;
+          }
+          result += styled;
+        }
+
+        runStart = runEnd;
+      }
+
+      lines.push(result);
+    }
+
+    return lines.join('\n');
   }
 
   private mapZMachineColor(color: number): string | null {
@@ -366,9 +420,8 @@ export class BlessedScreen extends BaseScreen {
     const resizedContent = this.resizeUpperWindowBuffer(newWidth);
     if (resizedContent === null) return;
 
-    // Redraw the status window with resized buffer
-    // The statusWindow's base style (fg: 'black', bg: 'white') provides the inverted look
-    this.statusWindow.setContent(resizedContent);
+    // Redraw the status window with styled content
+    this.statusWindow.setContent(this.renderStyledUpperWindow());
     this.screen.render();
   }
 
@@ -462,10 +515,8 @@ export class BlessedScreen extends BaseScreen {
         this.screen.render();
       }
     } else {
-      // Upper window - use the buffer
-      // Upper window - refresh from the buffer
-      const bufferContent = this.upperWindowBuffer.join('\n');
-      this.statusWindow.setContent(bufferContent);
+      // Upper window - refresh from the styled buffer
+      this.statusWindow.setContent(this.renderStyledUpperWindow());
       this.screen.render();
     }
   }
