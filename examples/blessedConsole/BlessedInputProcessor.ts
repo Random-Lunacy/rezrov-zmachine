@@ -221,30 +221,37 @@ export class BlessedInputProcessor extends BaseInputProcessor {
       this.screen.removeListener('keypress', handleKey);
       this.removeMouseHandler();
 
-      // Ignore escape - don't handle it at all
-      if (key?.name === 'escape') {
-        // Restart character input, ignoring escape
-        this.doStartCharInput(machine, state);
+      // Enter/Return → ZSCII 13
+      if (key?.name === 'enter' || key?.name === 'return') {
+        this.onKeyPress(machine, String.fromCharCode(13));
         return;
       }
 
-      // Ignore extended keys (arrows, function keys, etc.)
-      if (
-        key &&
-        (key.name === 'up' ||
-          key.name === 'down' ||
-          key.name === 'left' ||
-          key.name === 'right' ||
-          key.name === 'pageup' ||
-          key.name === 'pagedown' ||
-          key.name?.startsWith('f') || // Function keys
-          key.name === 'home' ||
-          key.name === 'end' ||
-          key.name === 'insert' ||
-          key.name === 'delete')
-      ) {
-        // Restart character input, ignoring this key
-        this.doStartCharInput(machine, state);
+      // Escape → ZSCII 27
+      if (key?.name === 'escape') {
+        this.onKeyPress(machine, String.fromCharCode(27));
+        return;
+      }
+
+      // Arrow keys → ZSCII 129-132
+      const arrowMap: Record<string, number> = { up: 129, down: 130, left: 131, right: 132 };
+      if (key?.name && arrowMap[key.name] !== undefined) {
+        this.onKeyPress(machine, String.fromCharCode(arrowMap[key.name]));
+        return;
+      }
+
+      // Function keys F1-F12 → ZSCII 133-144
+      if (key?.name && /^f(\d+)$/.test(key.name)) {
+        const fNum = parseInt(key.name.substring(1), 10);
+        if (fNum >= 1 && fNum <= 12) {
+          this.onKeyPress(machine, String.fromCharCode(132 + fNum));
+          return;
+        }
+      }
+
+      // Delete → ZSCII 8
+      if (key?.name === 'delete' || key?.name === 'backspace') {
+        this.onKeyPress(machine, String.fromCharCode(8));
         return;
       }
 
@@ -256,8 +263,8 @@ export class BlessedInputProcessor extends BaseInputProcessor {
       // Regular character - but filter out high-bit chars from mouse events
       if (ch && ch.charCodeAt(0) >= 32 && ch.charCodeAt(0) < 127) {
         this.onKeyPress(machine, ch);
-      } else if (ch) {
-        // Non-printable or high-bit character, restart and wait for valid input
+      } else {
+        // Non-printable, high-bit, or unrecognized key - restart and wait for valid input
         this.doStartCharInput(machine, state);
       }
     };
