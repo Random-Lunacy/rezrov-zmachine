@@ -81,6 +81,20 @@ describe('Dictionary', () => {
       expect(dictionary.isSorted()).toBe(false);
     });
 
+    it('should interpret unsigned entry count as signed for dynamic dictionaries', () => {
+      // When memory stores -1 as unsigned 16-bit, getWord returns 0xFFFF (65535).
+      // Dictionary must interpret this as -1 (1 unsorted entry).
+      mockMemory.getWord.mockImplementationOnce((addr: number) => {
+        if (addr === dictionaryAddr + 5) return 0xffff; // -1 as unsigned 16-bit
+        return 0;
+      });
+
+      const dictionary = new Dictionary(mockMemory as unknown as Memory, dictionaryAddr, 3, { logger });
+
+      expect(dictionary.getNumEntries()).toBe(1);
+      expect(dictionary.isSorted()).toBe(false);
+    });
+
     it('should format separators as a readable string', () => {
       const dictionary = new Dictionary(mockMemory as unknown as Memory, dictionaryAddr, 3, { logger });
       const separatorsString = dictionary.getSeparatorsAsString();

@@ -1,4 +1,5 @@
 import { Memory } from '../core/memory/Memory';
+import { toI16 } from '../core/memory/cast16';
 import { Address } from '../types';
 import { Logger } from '../utils/log';
 
@@ -32,7 +33,8 @@ export class Dictionary {
     // Read dictionary header
     this.separators = this.readSeparators();
     this.entryLength = this.memory.getByte(this.dictAddr + this.separators.length + 1);
-    this.numEntries = this.memory.getWord(this.dictAddr + this.separators.length + 2);
+    // Entry count is signed: negative means unsorted (linear search required)
+    this.numEntries = toI16(this.memory.getWord(this.dictAddr + this.separators.length + 2));
     this.entriesStart = this.dictAddr + this.separators.length + 4;
 
     this.logger.debug(

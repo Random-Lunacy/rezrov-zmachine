@@ -420,15 +420,101 @@ describe('String Opcodes', () => {
   });
 
   describe('encode_text', () => {
-    it('should throw a not implemented error', () => {
+    it('should encode ZSCII text and write packed words to memory', () => {
       // Arrange
-      const text = 0x1000;
-      mockMachine.memory.getZString = vi.fn().mockReturnValue([65, 66, 67]);
+      const zsciiText = 0x1000;
+      const codedText = 0x2000;
+      const text = 'look';
 
-      // Act & Assert
-      expect(() => stringOpcodes.encode_text.impl(machine, [], text)).toThrow('Unimplemented opcode: encode_text');
-      expect(mockMachine.memory.getZString).toHaveBeenCalledWith(text);
-      expect(mockMachine.logger.debug).toHaveBeenCalled();
+      // Mock memory reads for ZSCII source text
+      mockMachine.memory.getByte = vi.fn().mockImplementation((addr: number) => {
+        const offset = addr - zsciiText;
+        if (offset >= 0 && offset < text.length) {
+          return text.charCodeAt(offset);
+        }
+        return 0;
+      });
+
+      // Mock version
+      mockMachine.state.version = 5;
+
+      // Mock encoding functions
+      const mockZChars = [17, 21, 21, 16, 5, 5, 5, 5, 5]; // "look" encoded
+      const mockPacked = [0x4ab5, 0xa0a5, 0xc0a5]; // 3 packed words for V5
+      vi.spyOn(ZString, 'encodeZString').mockReturnValue(mockZChars);
+      vi.spyOn(ZString, 'packZCharacters').mockReturnValue(mockPacked);
+
+      // Act
+      stringOpcodes.encode_text.impl(machine, [], zsciiText, text.length, 0, codedText);
+
+      // Assert - should read 4 bytes from source
+      expect(mockMachine.memory.getByte).toHaveBeenCalledWith(zsciiText + 0);
+      expect(mockMachine.memory.getByte).toHaveBeenCalledWith(zsciiText + 1);
+      expect(mockMachine.memory.getByte).toHaveBeenCalledWith(zsciiText + 2);
+      expect(mockMachine.memory.getByte).toHaveBeenCalledWith(zsciiText + 3);
+
+      // Assert - should write 3 packed words to destination
+      expect(mockMachine.memory.setWord).toHaveBeenCalledWith(codedText, mockPacked[0]);
+      expect(mockMachine.memory.setWord).toHaveBeenCalledWith(codedText + 2, mockPacked[1]);
+      expect(mockMachine.memory.setWord).toHaveBeenCalledWith(codedText + 4, mockPacked[2]);
+    });
+
+    it('should apply from offset when reading source text', () => {
+      // Arrange: buffer has length byte at offset 0, then text at offset 1
+      const zsciiText = 0x1000;
+      const codedText = 0x2000;
+      const from = 1;
+      const length = 4;
+
+      mockMachine.memory.getByte = vi.fn().mockImplementation((addr: number) => {
+        // Byte 0 = length (4), bytes 1-4 = "test"
+        const data = [4, 116, 101, 115, 116]; // length, t, e, s, t
+        const offset = addr - zsciiText;
+        return data[offset] ?? 0;
+      });
+
+      mockMachine.state.version = 5;
+
+      const mockZChars = [25, 10, 24, 25, 5, 5, 5, 5, 5];
+      const mockPacked = [0x6545, 0xc8a5, 0xc0a5];
+      vi.spyOn(ZString, 'encodeZString').mockReturnValue(mockZChars);
+      vi.spyOn(ZString, 'packZCharacters').mockReturnValue(mockPacked);
+
+      // Act
+      stringOpcodes.encode_text.impl(machine, [], zsciiText, length, from, codedText);
+
+      // Assert - should read starting at zsciiText + from
+      expect(mockMachine.memory.getByte).toHaveBeenCalledWith(zsciiText + 1);
+      expect(mockMachine.memory.getByte).toHaveBeenCalledWith(zsciiText + 2);
+      expect(mockMachine.memory.getByte).toHaveBeenCalledWith(zsciiText + 3);
+      expect(mockMachine.memory.getByte).toHaveBeenCalledWith(zsciiText + 4);
+
+      // Assert - encodeZString received the text starting after the from offset
+      expect(ZString.encodeZString).toHaveBeenCalledWith(mockMachine.memory, 'test', 5);
+    });
+
+    it('should pass text to encodeZString for encoding', () => {
+      // Arrange
+      const zsciiText = 0x1000;
+      const codedText = 0x2000;
+
+      mockMachine.memory.getByte = vi.fn().mockImplementation((addr: number) => {
+        // "hi" at offset 0
+        const data = [104, 105]; // h, i
+        return data[addr - zsciiText] ?? 0;
+      });
+
+      mockMachine.state.version = 5;
+
+      vi.spyOn(ZString, 'encodeZString').mockReturnValue([13, 14, 5, 5, 5, 5, 5, 5, 5]);
+      vi.spyOn(ZString, 'packZCharacters').mockReturnValue([0x3545, 0xa0a5, 0xc0a5]);
+
+      // Act
+      stringOpcodes.encode_text.impl(machine, [], zsciiText, 2, 0, codedText);
+
+      // Assert - should pass the decoded text string to encodeZString
+      expect(ZString.encodeZString).toHaveBeenCalledWith(mockMachine.memory, 'hi', 5);
+      expect(ZString.packZCharacters).toHaveBeenCalledWith([13, 14, 5, 5, 5, 5, 5, 5, 5], 5);
     });
   });
 });

@@ -17,7 +17,7 @@
  * - `check_unicode`: Checks if a Unicode character can be displayed.
  */
 import { ZMachine } from '../../interpreter/ZMachine';
-import { decodeZString } from '../../parsers/ZString';
+import { decodeZString, encodeZString, packZCharacters } from '../../parsers/ZString';
 import { OperandType } from '../../types';
 import { toI16 } from '../memory/cast16';
 import { opcode } from './base';
@@ -196,10 +196,30 @@ function print_form(machine: ZMachine, _operandTypes: OperandType[], form: numbe
   throw new Error(`Unimplemented opcode: print_form`);
 }
 
-function encode_text(machine: ZMachine, _operandTypes: OperandType[], text: number): void {
-  const encoded_text = machine.memory.getZString(text);
-  machine.logger.debug(`encode_text ${text} -> ${encoded_text}`);
-  throw new Error(`Unimplemented opcode: encode_text`);
+function encode_text(
+  machine: ZMachine,
+  _operandTypes: OperandType[],
+  zsciiText: number,
+  length: number,
+  from: number,
+  codedText: number
+): void {
+  // Read ZSCII characters from memory at zsciiText + from
+  let text = '';
+  for (let i = 0; i < length; i++) {
+    text += String.fromCharCode(machine.memory.getByte(zsciiText + from + i));
+  }
+
+  machine.logger.debug(`encode_text: text="${text}", from=${from}, length=${length}, dest=0x${codedText.toString(16)}`);
+
+  // Encode using existing ZString utilities
+  const zChars = encodeZString(machine.memory, text, machine.state.version);
+  const packed = packZCharacters(zChars, machine.state.version);
+
+  // Write packed words to coded-text address
+  for (let i = 0; i < packed.length; i++) {
+    machine.memory.setWord(codedText + i * 2, packed[i]);
+  }
 }
 
 /**
