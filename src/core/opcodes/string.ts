@@ -104,7 +104,22 @@ function print_table(
 ): void {
   machine.logger.debug(`print_table: addr=${zscii_text}, width=${width}, height=${height}, skip=${skip}`);
 
+  // Per spec: after each row, cursor returns to the starting column and moves one line down.
+  const startPos = machine.screen.getCursorPosition(machine);
+  const outputWindow = machine.screen.getOutputWindow(machine);
+  const isUpperWindow = outputWindow === 1;
+
   for (let i = 0; i < height; i++) {
+    // Position cursor at the starting column for each row after the first
+    if (i > 0) {
+      if (isUpperWindow) {
+        const windowId = machine.state.version < 6 ? 1 : outputWindow;
+        machine.screen.setCursorPosition(machine, startPos.line + i, startPos.column, windowId);
+      } else {
+        machine.screen.print(machine, '\n');
+      }
+    }
+
     const row = [];
 
     // Calculate the starting address for this row
@@ -114,12 +129,19 @@ function print_table(
     // Read each character in the current row
     for (let j = 0; j < width; j++) {
       const charCode = machine.memory.getByte(rowStartAddr + j);
-      row.push(String.fromCharCode(charCode));
+      // Replace control characters (0-31) with spaces to prevent cursor jumps.
+      // print_table data is a fixed-width grid; control chars would break the layout.
+      row.push(charCode < 32 ? ' ' : String.fromCharCode(charCode));
     }
 
-    // Print the row
-    machine.screen.print(machine, row.join('') + '\n');
+    // Print the row (no newline - cursor positioning handles row advancement)
+    machine.screen.print(machine, row.join(''));
   }
+
+  // Per spec: "There is no implicit new-line at the end."
+  // The cursor remains at the end of the last printed row.
+  // Between rows, cursor moves to start column of next line, but after
+  // the final row, cursor stays where the last character was printed.
 }
 
 /**

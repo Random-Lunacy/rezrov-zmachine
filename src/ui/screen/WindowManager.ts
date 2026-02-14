@@ -314,25 +314,33 @@ export class WindowManager {
     }
 
     switch (property) {
-      case WindowProperty.LineCount:
+      case WindowProperty.YCoordinate:
+        return window.y + 1; // Convert 0-based to 1-based
+      case WindowProperty.XCoordinate:
+        return window.x + 1; // Convert 0-based to 1-based
+      case WindowProperty.YSize:
         return window.height;
-      case WindowProperty.CursorLine:
+      case WindowProperty.XSize:
+        return window.width;
+      case WindowProperty.YCursor:
         return window.cursorLine;
-      case WindowProperty.CursorColumn:
+      case WindowProperty.XCursor:
         return window.cursorColumn;
       case WindowProperty.LeftMargin:
-        return window.leftMargin;
+        return Math.max(0, window.leftMargin - 1); // Convert position to margin size
       case WindowProperty.RightMargin:
-        return window.rightMargin;
-      case WindowProperty.Font:
-        return window.font;
+        return Math.max(0, window.width - window.rightMargin); // Convert position to margin size
       case WindowProperty.TextStyle:
         return window.textStyle;
       case WindowProperty.ColorData:
         return (window.foreground << 8) | window.background;
-      case WindowProperty.Width:
-        return window.width;
-      case WindowProperty.Height:
+      case WindowProperty.Font:
+        return window.font;
+      case WindowProperty.FontSize:
+        return (1 << 8) | 1; // Default 1x1 font size
+      case WindowProperty.Attributes:
+        return 0;
+      case WindowProperty.LineCount:
         return window.height;
       default:
         this.logger.debug(`Unknown window property ${property}`);
@@ -351,17 +359,19 @@ export class WindowManager {
     }
 
     switch (property) {
-      case WindowProperty.CursorLine:
+      case WindowProperty.YCursor:
         window.cursorLine = Math.max(1, Math.min(value, window.height));
         break;
-      case WindowProperty.CursorColumn:
+      case WindowProperty.XCursor:
         window.cursorColumn = Math.max(1, Math.min(value, window.width));
         break;
       case WindowProperty.LeftMargin:
-        window.leftMargin = Math.max(1, Math.min(value, window.width));
+        // Value is margin size; convert to internal position (1-based)
+        window.leftMargin = value + 1;
         break;
       case WindowProperty.RightMargin:
-        window.rightMargin = Math.max(window.leftMargin, Math.min(value, window.width));
+        // Value is margin size; convert to internal position
+        window.rightMargin = window.width - value;
         break;
       case WindowProperty.Font:
         window.font = value;

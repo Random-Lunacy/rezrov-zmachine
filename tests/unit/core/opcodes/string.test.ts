@@ -201,17 +201,22 @@ describe('String Opcodes', () => {
         return 0;
       });
 
-      // Act
+      // Act - default height=1, lower window (getOutputWindow returns 0)
       stringOpcodes.print_table.impl(machine, [], address, width);
 
       // Assert
       expect(mockMachine.memory.getByte).toHaveBeenCalledWith(address);
       expect(mockMachine.memory.getByte).toHaveBeenCalledWith(address + 1);
       expect(mockMachine.memory.getByte).toHaveBeenCalledWith(address + 2);
-      expect(machine.screen.print).toHaveBeenCalledWith(machine, 'ABC\n');
+      expect(machine.screen.print).toHaveBeenCalledWith(machine, 'ABC');
+      // Per spec: "There is no implicit new-line at the end."
+      // No trailing newline after the last row
+      const printCalls = (machine.screen.print as ReturnType<typeof vi.fn>).mock.calls;
+      const printArgs = printCalls.map((c: [unknown, string]) => c[1]);
+      expect(printArgs).not.toContain('\n');
     });
 
-    it('should print a table with multiple rows', () => {
+    it('should print a table with multiple rows in lower window', () => {
       // Arrange
       const address = 0x3000;
       const width = 2;
@@ -224,7 +229,7 @@ describe('String Opcodes', () => {
         return 0;
       });
 
-      // Act
+      // Act - lower window (getOutputWindow returns 0)
       stringOpcodes.print_table.impl(machine, [], address, width, height);
 
       // Assert
@@ -232,8 +237,9 @@ describe('String Opcodes', () => {
       expect(mockMachine.memory.getByte).toHaveBeenCalledWith(address + 1);
       expect(mockMachine.memory.getByte).toHaveBeenCalledWith(address + 2);
       expect(mockMachine.memory.getByte).toHaveBeenCalledWith(address + 3);
-      expect(machine.screen.print).toHaveBeenCalledWith(machine, 'AB\n');
-      expect(machine.screen.print).toHaveBeenCalledWith(machine, 'CD\n');
+      // Row 1 printed, then newline between rows, row 2 printed, then trailing newline
+      expect(machine.screen.print).toHaveBeenCalledWith(machine, 'AB');
+      expect(machine.screen.print).toHaveBeenCalledWith(machine, 'CD');
     });
 
     it('should handle skip parameter between rows', () => {
@@ -251,7 +257,7 @@ describe('String Opcodes', () => {
         return 0;
       });
 
-      // Act
+      // Act - lower window
       stringOpcodes.print_table.impl(machine, [], address, width, height, skip);
 
       // Assert
@@ -259,8 +265,56 @@ describe('String Opcodes', () => {
       expect(mockMachine.memory.getByte).toHaveBeenCalledWith(address + 1);
       expect(mockMachine.memory.getByte).toHaveBeenCalledWith(address + 3);
       expect(mockMachine.memory.getByte).toHaveBeenCalledWith(address + 4);
-      expect(machine.screen.print).toHaveBeenCalledWith(machine, 'AB\n');
-      expect(machine.screen.print).toHaveBeenCalledWith(machine, 'CD\n');
+      expect(machine.screen.print).toHaveBeenCalledWith(machine, 'AB');
+      expect(machine.screen.print).toHaveBeenCalledWith(machine, 'CD');
+    });
+
+    it('should replace control characters with spaces in table data', () => {
+      // Arrange - buffer contains control characters (e.g., stray LF/CR from captured text)
+      const address = 0x3000;
+      const width = 5;
+      mockMachine.memory.getByte = vi.fn().mockImplementation((addr) => {
+        if (addr === address) return 65; // A
+        if (addr === address + 1) return 10; // LF (control char)
+        if (addr === address + 2) return 13; // CR (control char)
+        if (addr === address + 3) return 0; // NUL (control char)
+        if (addr === address + 4) return 66; // B
+        return 0;
+      });
+
+      // Act
+      stringOpcodes.print_table.impl(machine, [], address, width);
+
+      // Assert - control chars (0-31) should be replaced with spaces
+      expect(machine.screen.print).toHaveBeenCalledWith(machine, 'A   B');
+    });
+
+    it('should use setCursorPosition for row positioning in upper window', () => {
+      // Arrange
+      const address = 0x3000;
+      const width = 2;
+      const height = 2;
+      mockMachine.screen.getOutputWindow = vi.fn().mockReturnValue(1); // Upper window
+      mockMachine.screen.getCursorPosition = vi.fn().mockReturnValue({ line: 3, column: 5 });
+      mockMachine.state.version = 5;
+      mockMachine.memory.getByte = vi.fn().mockImplementation((addr) => {
+        if (addr === address) return 65; // A
+        if (addr === address + 1) return 66; // B
+        if (addr === address + 2) return 67; // C
+        if (addr === address + 3) return 68; // D
+        return 0;
+      });
+
+      // Act
+      stringOpcodes.print_table.impl(machine, [], address, width, height);
+
+      // Assert - row 1 printed at current cursor, then setCursorPosition for row 2
+      expect(machine.screen.print).toHaveBeenCalledWith(machine, 'AB');
+      expect(machine.screen.setCursorPosition).toHaveBeenCalledWith(machine, 4, 5, 1); // line 3+1, col 5
+      expect(machine.screen.print).toHaveBeenCalledWith(machine, 'CD');
+      // Per spec: "There is no implicit new-line at the end."
+      // Cursor should NOT be positioned below the table after the last row
+      expect(machine.screen.setCursorPosition).toHaveBeenCalledTimes(1); // Only between rows, not after
     });
   });
 

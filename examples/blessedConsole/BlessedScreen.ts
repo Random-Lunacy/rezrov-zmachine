@@ -547,25 +547,8 @@ export class BlessedScreen extends BaseScreen {
   }
 
   getWindowProperty(machine: ZMachine, window: number, property: number): number {
-    // Use BaseScreen's implementation for most properties
-    const baseValue = super.getWindowProperty(machine, window, property);
-    if (baseValue !== 0) {
-      return baseValue;
-    }
-
-    // Fall back to blessed-specific implementations for some properties
-    switch (property) {
-      case 0: // Y cursor position
-        return this.cursorPosition.line;
-      case 1: // X cursor position
-        return this.cursorPosition.column;
-      case 2: // Y size
-        return window === 0 ? (this.mainWindow.height as number) : (this.statusWindow.height as number);
-      case 3: // X size
-        return this.getSize().cols;
-      default:
-        return 0;
-    }
+    // BaseScreen tracks all relevant state (cursor, size, font, etc.)
+    return super.getWindowProperty(machine, window, property);
   }
 
   selectInputStream(machine: ZMachine, streamId: number): void {

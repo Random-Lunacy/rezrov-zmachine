@@ -175,8 +175,8 @@ describe('WindowManager', () => {
     it('should get window properties', () => {
       const windowId = windowManager.createWindow({ x: 10, y: 5, width: 30, height: 15 });
 
-      expect(windowManager.getWindowProperty(windowId, WindowProperty.Width)).toBe(30);
-      expect(windowManager.getWindowProperty(windowId, WindowProperty.Height)).toBe(15);
+      expect(windowManager.getWindowProperty(windowId, WindowProperty.XSize)).toBe(30);
+      expect(windowManager.getWindowProperty(windowId, WindowProperty.YSize)).toBe(15);
       expect(windowManager.getWindowProperty(windowId, WindowProperty.Font)).toBe(1);
       expect(windowManager.getWindowProperty(windowId, WindowProperty.TextStyle)).toBe(TextStyle.Roman);
     });
@@ -186,8 +186,8 @@ describe('WindowManager', () => {
 
       windowManager.setWindowProperty(windowId, WindowProperty.Font, 3);
       windowManager.setWindowProperty(windowId, WindowProperty.TextStyle, TextStyle.Bold);
-      windowManager.setWindowProperty(windowId, WindowProperty.CursorLine, 5);
-      windowManager.setWindowProperty(windowId, WindowProperty.CursorColumn, 10);
+      windowManager.setWindowProperty(windowId, WindowProperty.YCursor, 5);
+      windowManager.setWindowProperty(windowId, WindowProperty.XCursor, 10);
 
       const window = windowManager.getWindow(windowId)!;
       expect(window.font).toBe(3);

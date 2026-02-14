@@ -48,12 +48,14 @@ function copy_table(
   }
 
   if (size > 0) {
-    // Positive size: copy forward (low to high)
+    // Positive size: interpreter may copy in either direction to handle overlap safely
     // copyBlock handles overlap detection internally
     machine.memory.copyBlock(sourceAddr, destAddr, size);
   } else {
-    // Negative size: copy backward (high to low) - guaranteed no overlap per spec
-    for (let i = sourceSize - 1; i >= 0; i--) {
+    // Negative size: per spec section 15, interpreter MUST copy forwards (low to high).
+    // This is used by games like Beyond Zork to propagate a byte value through a buffer
+    // (e.g., filling SLINE with spaces by copying SLINE[0] to SLINE[1..N]).
+    for (let i = 0; i < sourceSize; i++) {
       machine.memory.setByte(destAddr + i, machine.memory.getByte(sourceAddr + i));
     }
   }

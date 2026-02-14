@@ -72,12 +72,20 @@ describe('Font3Unicode', () => {
       expect(font3ToUnicode(212)).toBe('\u2588'); // █ Full Block
     });
 
-    it('should pass through standard ASCII characters (32-126)', () => {
-      expect(font3ToUnicode(32)).toBe(' ');
-      expect(font3ToUnicode(65)).toBe('A');
-      expect(font3ToUnicode(97)).toBe('a');
-      expect(font3ToUnicode(48)).toBe('0');
-      expect(font3ToUnicode(126)).toBe('~');
+    it('should map printable range (32-126) to Font 3 graphics', () => {
+      expect(font3ToUnicode(32)).toBe(' '); // Space stays space
+      expect(font3ToUnicode(33)).toBe('\u2190'); // ← Left arrow
+      expect(font3ToUnicode(34)).toBe('\u2192'); // → Right arrow
+      expect(font3ToUnicode(38)).toBe('\u2500'); // ─ Horizontal line
+      expect(font3ToUnicode(40)).toBe('\u2502'); // │ Vertical line
+      expect(font3ToUnicode(47)).toBe('\u250C'); // ┌ Top-left corner
+      expect(font3ToUnicode(48)).toBe('\u2510'); // ┐ Top-right corner
+      expect(font3ToUnicode(49)).toBe('\u2518'); // ┘ Bottom-right corner
+      expect(font3ToUnicode(54)).toBe('\u2588'); // █ Full block
+      expect(font3ToUnicode(65)).toBe('\u2596'); // ▖ Quarter block (not 'A')
+      expect(font3ToUnicode(97)).toBe('\u16AA'); // ᚪ Runic letter ac (not 'a')
+      expect(font3ToUnicode(91)).toBe('\u253C'); // ┼ Box cross
+      expect(font3ToUnicode(92)).toBe('\u2191'); // ↑ Up arrow
     });
 
     it('should return space for control characters (0-31)', () => {
@@ -86,11 +94,12 @@ describe('Font3Unicode', () => {
       expect(font3ToUnicode(31)).toBe(' ');
     });
 
-    it('should return replacement character for unmapped codes', () => {
-      // Code 127 (DEL) is in ASCII range but not a printable character
-      // It should be returned as-is since it's in the 32-126 range check
-      // Actually 127 is outside 32-126, so it will be the replacement char
-      expect(font3ToUnicode(127)).toBe('\uFFFD');
+    it('should return space for unmapped codes', () => {
+      // Code 127 (DEL) has no Font 3 mapping
+      expect(font3ToUnicode(127)).toBe(' ');
+      // Codes 71-74 are not assigned in Bocfel
+      expect(font3ToUnicode(71)).toBe(' ');
+      expect(font3ToUnicode(72)).toBe(' ');
     });
   });
 
@@ -101,10 +110,11 @@ describe('Font3Unicode', () => {
       expect(result).toBe('\u2500\u2502\u250C\u2510');
     });
 
-    it('should handle mixed ASCII and Font 3 codes', () => {
-      const codes = [65, 128, 66, 129]; // A─B│
+    it('should handle mixed printable and extended Font 3 codes', () => {
+      // Code 65 = ▖, 128 = ─, 66 = ▘, 129 = │
+      const codes = [65, 128, 66, 129];
       const result = font3StringToUnicode(codes);
-      expect(result).toBe('A\u2500B\u2502');
+      expect(result).toBe('\u2596\u2500\u2598\u2502');
     });
 
     it('should handle empty array', () => {
@@ -120,16 +130,18 @@ describe('Font3Unicode', () => {
       expect(result).toBe('\u2500\u2502');
     });
 
-    it('should preserve standard ASCII text', () => {
-      const text = 'Hello';
+    it('should map ASCII text to Font 3 graphics', () => {
+      // 'elf' chars map to Font 3 runes, not ASCII passthrough
+      // e=101(ᛖ) l=108(ᛚ) f=102(ᚠ)
+      const text = 'elf';
       const result = translateFont3Text(text);
-      expect(result).toBe('Hello');
+      expect(result).toBe('\u16D6\u16DA\u16A0');
     });
 
     it('should handle mixed content', () => {
-      const text = 'Room' + String.fromCharCode(128) + 'Exit';
+      const text = String.fromCharCode(47, 38, 48); // ┌─┐
       const result = translateFont3Text(text);
-      expect(result).toBe('Room\u2500Exit');
+      expect(result).toBe('\u250C\u2500\u2510');
     });
 
     it('should handle empty string', () => {
@@ -158,9 +170,10 @@ describe('Font3Unicode', () => {
       expect(hasFont3Mapping(255)).toBe(true);
     });
 
-    it('should return false for ASCII codes (no specific mapping)', () => {
-      expect(hasFont3Mapping(65)).toBe(false);
-      expect(hasFont3Mapping(32)).toBe(false);
+    it('should return true for printable range codes (32-126)', () => {
+      expect(hasFont3Mapping(65)).toBe(true);
+      expect(hasFont3Mapping(32)).toBe(true);
+      expect(hasFont3Mapping(97)).toBe(true);
     });
 
     it('should return false for control characters', () => {
@@ -237,23 +250,40 @@ describe('Font3Unicode', () => {
   });
 
   describe('Beyond Zork map rendering', () => {
-    it('should correctly render a simple box', () => {
-      // A simple 3x3 box: ┌─┐
-      //                   │ │
-      //                   └─┘
-      const topRow = [130, 128, 131]; // ┌─┐
-      const midRow = [129, 32, 129]; // │ │
-      const botRow = [132, 128, 133]; // └─┘
+    it('should correctly render a simple box using printable range codes', () => {
+      // Beyond Zork uses printable range codes for map borders:
+      // Code 47=┌, 38=─, 48=┐, 40=│, 46=└, 49=┘
+      const topRow = [47, 38, 48]; // ┌─┐
+      const midRow = [40, 32, 40]; // │ │
+      const botRow = [46, 38, 49]; // └─┘
 
       expect(font3StringToUnicode(topRow)).toBe('\u250C\u2500\u2510');
       expect(font3StringToUnicode(midRow)).toBe('\u2502 \u2502');
       expect(font3StringToUnicode(botRow)).toBe('\u2514\u2500\u2518');
     });
 
-    it('should correctly render directional arrows for exits', () => {
-      // North: ↑, South: ↓, East: →, West: ←
-      const exits = [160, 161, 163, 162];
-      expect(font3StringToUnicode(exits)).toBe('\u2191\u2193\u2192\u2190');
+    it('should correctly render directional arrows', () => {
+      // Printable range arrows: 33=←, 34=→, 92=↑, 93=↓
+      expect(font3ToUnicode(33)).toBe('\u2190'); // ←
+      expect(font3ToUnicode(34)).toBe('\u2192'); // →
+      expect(font3ToUnicode(92)).toBe('\u2191'); // ↑
+      expect(font3ToUnicode(93)).toBe('\u2193'); // ↓
+    });
+
+    it('should correctly render block graphics', () => {
+      // Block elements used for room/connection fills
+      expect(font3ToUnicode(54)).toBe('\u2588'); // █ Full block
+      expect(font3ToUnicode(55)).toBe('\u2580'); // ▀ Upper half
+      expect(font3ToUnicode(56)).toBe('\u2584'); // ▄ Lower half
+      expect(font3ToUnicode(57)).toBe('\u258C'); // ▌ Left half
+      expect(font3ToUnicode(58)).toBe('\u2590'); // ▐ Right half
+    });
+
+    it('should correctly render runic characters', () => {
+      // Runes mapped to lowercase a-z
+      expect(font3ToUnicode(97)).toBe('\u16AA'); // ᚪ (a)
+      expect(font3ToUnicode(102)).toBe('\u16A0'); // ᚠ (f)
+      expect(font3ToUnicode(122)).toBe('\u16DF'); // ᛟ (z)
     });
   });
 });

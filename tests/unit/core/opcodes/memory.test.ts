@@ -78,6 +78,37 @@ describe('Memory Opcodes', () => {
       }
     });
 
+    it('should propagate values forward when negative-size copy overlaps (Beyond Zork SLINE fill)', () => {
+      // Beyond Zork uses overlapping copy_table with negative size to fill a buffer:
+      //   SLINE[0] = space (0x20)
+      //   COPYT SLINE, SLINE+1, -(SLINE_LENGTH-1)
+      // The forward copy propagates the space through the entire buffer.
+      const baseAddr = 0x1000;
+      const slineLength = 10;
+
+      // Use a real array to verify propagation behavior
+      const mem = new Uint8Array(slineLength);
+      mem[0] = 0x20; // space at position 0
+      // Positions 1-9 contain garbage
+      for (let i = 1; i < slineLength; i++) {
+        mem[i] = 0xff;
+      }
+
+      // Mock getByte/setByte to read/write from the array
+      mockMachine.memory.getByte.mockImplementation((addr: number) => mem[addr - baseAddr]);
+      mockMachine.memory.setByte.mockImplementation((addr: number, val: number) => {
+        mem[addr - baseAddr] = val;
+      });
+
+      // Copy SLINE to SLINE+1 with negative size (must copy forward)
+      memoryOpcodes.copy_table.impl(machine, [], baseAddr, baseAddr + 1, -(slineLength - 1));
+
+      // The entire buffer should now be filled with spaces (0x20)
+      for (let i = 0; i < slineLength; i++) {
+        expect(mem[i]).toBe(0x20);
+      }
+    });
+
     it('should do nothing when size = 0', () => {
       // Arrange
       const sourceAddr = 0x1000;

@@ -2,21 +2,123 @@
  * Font 3 to Unicode Mapping for Terminal Display
  *
  * Maps Z-Machine Font 3 character codes to Unicode equivalents for rendering
- * in text terminals. This approach follows what modern interpreters like
- * Bocfel, Frotz, and Gargoyle use for Font 3 support.
+ * in text terminals. The printable range (32-126) uses the authoritative mapping
+ * from Bocfel (unicode.cpp:build_zscii_to_character_graphics_table).
  *
  * Font 3 Character Ranges:
- * - 0-31: Control characters (empty)
- * - 32-127: Standard ASCII with graphical interpretations
- * - 128-159: Box drawing characters (essential for Beyond Zork maps)
- * - 160-175: Arrows and directional symbols
- * - 176-207: Runic alphabet (late Anglian "futhorc")
- * - 208-255: Special symbols and graphics
+ * - 0-31: Control characters (space)
+ * - 32-126: Character graphics (box drawing, blocks, arrows, runes)
+ * - 128-159: Box drawing characters (extended)
+ * - 160-175: Arrows and directional symbols (extended)
+ * - 176-207: Runic alphabet (extended)
+ * - 208-255: Special symbols and graphics (extended)
  */
 
 /**
+ * Font 3 printable range (codes 32-126) mapped to Unicode
+ * Sourced from Bocfel Z-machine interpreter (unicode.cpp)
+ *
+ * This is the primary mapping used by Beyond Zork for its map display,
+ * status area borders, and graphical elements.
+ */
+const FONT3_PRINTABLE_MAP: Record<number, string> = {
+  32: ' ', // Space
+  33: '\u2190', // ← Left arrow
+  34: '\u2192', // → Right arrow
+  35: '\u2571', // ╱ Box drawings light diagonal upper right to lower left
+  36: '\u2572', // ╲ Box drawings light diagonal upper left to lower right
+  37: ' ', // Space
+  38: '\u2500', // ─ Horizontal line
+  39: '\u2500', // ─ Horizontal line
+  40: '\u2502', // │ Vertical line
+  41: '\u2502', // │ Vertical line
+  42: '\u2534', // ┴ Up and horizontal
+  43: '\u252C', // ┬ Down and horizontal
+  44: '\u251C', // ├ Vertical and right
+  45: '\u2524', // ┤ Vertical and left
+  46: '\u2514', // └ Up and right
+  47: '\u250C', // ┌ Down and right
+  48: '\u2510', // ┐ Down and left
+  49: '\u2518', // ┘ Up and left
+  50: '\u2514', // └ Up and right (default, non-alt)
+  51: '\u250C', // ┌ Down and right (default, non-alt)
+  52: '\u2510', // ┐ Down and left (default, non-alt)
+  53: '\u2518', // ┘ Up and left (default, non-alt)
+  54: '\u2588', // █ Full block
+  55: '\u2580', // ▀ Upper half block
+  56: '\u2584', // ▄ Lower half block
+  57: '\u258C', // ▌ Left half block
+  58: '\u2590', // ▐ Right half block
+  59: '\u2584', // ▄ Lower half block (default, non-alt)
+  60: '\u2580', // ▀ Upper half block (default, non-alt)
+  61: '\u258C', // ▌ Left half block (default, non-alt)
+  62: '\u2590', // ▐ Right half block (default, non-alt)
+  63: '\u259D', // ▝ Quadrant upper right
+  64: '\u2597', // ▗ Quadrant lower right
+  65: '\u2596', // ▖ Quadrant lower left
+  66: '\u2598', // ▘ Quadrant upper left
+  67: '\u259D', // ▝ Quadrant upper right (default, non-alt)
+  68: '\u2597', // ▗ Quadrant lower right (default, non-alt)
+  69: '\u2596', // ▖ Quadrant lower left (default, non-alt)
+  70: '\u2598', // ▘ Quadrant upper left (default, non-alt)
+  // 71-74: Not assigned in Bocfel (replacement character)
+  75: '\u2594', // ▔ Upper one eighth block
+  76: '\u2581', // ▁ Lower one eighth block
+  77: '\u258F', // ▏ Left one eighth block
+  78: '\u2595', // ▕ Right one eighth block
+  79: ' ', // Space
+  80: '\u258F', // ▏ Left one eighth block
+  81: '\u258E', // ▎ Left one quarter block
+  82: '\u258D', // ▍ Left three eighths block
+  83: '\u258C', // ▌ Left half block
+  84: '\u258B', // ▋ Left five eighths block
+  85: '\u258A', // ▊ Left three quarters block
+  86: '\u2589', // ▉ Left seven eighths block
+  87: '\u2588', // █ Full block
+  88: '\u2595', // ▕ Right one eighth block
+  89: '\u258F', // ▏ Left one eighth block
+  90: '\u2573', // ╳ Box drawings light diagonal cross
+  91: '\u253C', // ┼ Box drawings light vertical and horizontal
+  92: '\u2191', // ↑ Upwards arrow
+  93: '\u2193', // ↓ Downwards arrow
+  94: '\u2195', // ↕ Up down arrow
+  95: '\u2395', // ⎕ APL functional symbol quad
+  96: '?', // Fallback
+  97: '\u16AA', // ᚪ Runic letter ac
+  98: '\u16D2', // ᛒ Runic letter berkanan
+  99: '\u16C7', // ᛇ Runic letter iwaz
+  100: '\u16DE', // ᛞ Runic letter dagaz
+  101: '\u16D6', // ᛖ Runic letter ehwaz
+  102: '\u16A0', // ᚠ Runic letter fehu
+  103: '\u16B7', // ᚷ Runic letter gebo
+  104: '\u16BB', // ᚻ Runic letter haegl
+  105: '\u16C1', // ᛁ Runic letter isaz
+  106: '\u16C4', // ᛄ Runic letter ger
+  107: '\u16E6', // ᛦ Runic letter long branch yr
+  108: '\u16DA', // ᛚ Runic letter laguz
+  109: '\u16D7', // ᛗ Runic letter mannaz
+  110: '\u16BE', // ᚾ Runic letter naudiz
+  111: '\u16A9', // ᚩ Runic letter os
+  112: '\u15BE', // ᖾ Canadian syllabics (peorth approximation)
+  113: '\u16B3', // ᚳ Runic letter cen
+  114: '\u16B1', // ᚱ Runic letter raido
+  115: '\u16CB', // ᛋ Runic letter sowilo
+  116: '\u16CF', // ᛏ Runic letter tiwaz
+  117: '\u16A2', // ᚢ Runic letter uruz
+  118: '\u16E0', // ᛠ Runic letter ear
+  119: '\u16B9', // ᚹ Runic letter wunjo
+  120: '\u16C9', // ᛉ Runic letter algiz
+  121: '\u16A5', // ᚥ Runic letter w
+  122: '\u16DF', // ᛟ Runic letter othala
+  123: '\u2191', // ↑ Upwards arrow
+  124: '\u2193', // ↓ Downwards arrow
+  125: '\u2195', // ↕ Up down arrow
+  126: '?', // Fallback
+};
+
+/**
  * Unicode Box Drawing characters for Font 3 codes 128-159
- * These are critical for Beyond Zork's interactive map display
+ * Extended mapping for additional box drawing support
  */
 const BOX_DRAWING_MAP: Record<number, string> = {
   // Primary box drawing set (used by Beyond Zork)
@@ -179,6 +281,7 @@ const SPECIAL_MAP: Record<number, string> = {
  * Combined Font 3 to Unicode mapping table
  */
 const FONT3_UNICODE_MAP: Record<number, string> = {
+  ...FONT3_PRINTABLE_MAP,
   ...BOX_DRAWING_MAP,
   ...ARROW_MAP,
   ...RUNIC_MAP,
@@ -202,18 +305,8 @@ export function font3ToUnicode(code: number): string {
     return FONT3_UNICODE_MAP[code];
   }
 
-  // For standard ASCII (32-126), return the character as-is
-  if (code >= 32 && code <= 126) {
-    return String.fromCharCode(code);
-  }
-
-  // For control characters and unmapped codes, return a placeholder
-  if (code < 32) {
-    return ' '; // Control characters become spaces
-  }
-
-  // Fallback: return question mark for truly unknown codes
-  return '\uFFFD'; // Unicode Replacement Character
+  // For control characters and unmapped codes, return space
+  return ' ';
 }
 
 /**

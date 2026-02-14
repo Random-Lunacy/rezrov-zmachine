@@ -21,6 +21,7 @@ export class BaseScreen implements Screen {
   protected bufferMode: number = BufferMode.Buffered;
   protected upperWindowHeight: number = 0;
   protected cursorPosition: { line: number; column: number } = { line: 1, column: 1 };
+  protected windowCursors: Map<number, { line: number; column: number }> = new Map();
   protected windowColors: Map<number, { foreground: number; background: number }> = new Map();
   protected windowFonts: Map<number, number> = new Map();
   protected fontManager: FontManager;
@@ -61,6 +62,10 @@ export class BaseScreen implements Screen {
     // Initialize default fonts for both windows
     this.windowFonts.set(WindowType.Lower, 1);
     this.windowFonts.set(WindowType.Upper, 1);
+
+    // Initialize per-window cursor positions (1-based, matching Infocom behavior)
+    this.windowCursors.set(WindowType.Lower, { line: 1, column: 1 });
+    this.windowCursors.set(WindowType.Upper, { line: 1, column: 1 });
   }
 
   /**
@@ -87,43 +92,46 @@ export class BaseScreen implements Screen {
    * Get window property with version-aware behavior
    */
   getWindowProperty(machine: ZMachine, window: number, property: number): number {
-    // Version is used for future version-specific property handling
-
-    // Try to get property from WindowManager first
-    try {
-      const windowManagerValue = this.windowManager.getWindowProperty(window, property);
-      if (windowManagerValue !== 0) {
-        return windowManagerValue;
-      }
-    } catch (error) {
-      // Fall back to legacy implementation if WindowManager fails
-      this.logger.debug(`WindowManager property lookup failed, using legacy: ${error}`);
-    }
-
-    // Legacy implementation for backward compatibility
+    // Use BaseScreen's own tracked state as the source of truth.
+    // The WindowManager's state can be stale (e.g., cursor position is only updated
+    // in BaseScreen.cursorPosition, not in WindowManager's window state).
+    const screenSize = this.getSize();
     switch (property) {
-      case WindowProperty.LineCount:
+      case WindowProperty.YCoordinate:
+        // y-coordinate of top of window (1-based)
+        if (window === WindowType.Upper) {
+          return 1;
+        } else {
+          return this.upperWindowHeight + 1;
+        }
+
+      case WindowProperty.XCoordinate:
+        // x-coordinate of left of window (1-based)
+        return 1;
+
+      case WindowProperty.YSize:
+        // Height of window in units
         if (window === WindowType.Upper) {
           return this.upperWindowHeight;
         } else {
-          const screenSize = this.getSize();
           return screenSize.rows - this.upperWindowHeight;
         }
 
-      case WindowProperty.CursorLine:
+      case WindowProperty.XSize:
+        // Width of window in units
+        return screenSize.cols;
+
+      case WindowProperty.YCursor:
         return this.cursorPosition.line;
 
-      case WindowProperty.CursorColumn:
+      case WindowProperty.XCursor:
         return this.cursorPosition.column;
 
       case WindowProperty.LeftMargin:
-        return 1; // Default left margin
+        return 0; // Margin size (0 = no margin)
 
       case WindowProperty.RightMargin:
-        return this.getSize().cols; // Default right margin
-
-      case WindowProperty.Font:
-        return this.windowFonts.get(window) || 1;
+        return 0; // Margin size (0 = no margin)
 
       case WindowProperty.TextStyle:
         return this.currentStyles;
@@ -135,14 +143,21 @@ export class BaseScreen implements Screen {
         return (colors.foreground << 8) | colors.background;
       }
 
-      case WindowProperty.Width:
-        return this.getSize().cols;
+      case WindowProperty.Font:
+        return this.windowFonts.get(window) || 1;
 
-      case WindowProperty.Height:
+      case WindowProperty.FontSize:
+        // Font size: height in top byte, width in bottom byte
+        return (1 << 8) | 1;
+
+      case WindowProperty.Attributes:
+        return 0;
+
+      case WindowProperty.LineCount:
         if (window === WindowType.Upper) {
           return this.upperWindowHeight;
         } else {
-          return this.getSize().rows - this.upperWindowHeight;
+          return screenSize.rows - this.upperWindowHeight;
         }
 
       default:
@@ -207,12 +222,26 @@ export class BaseScreen implements Screen {
   setOutputWindow(machine: ZMachine, windowId: number): void {
     const version = machine.state.version;
 
+    // Save current window's cursor position before switching
+    // (matches Infocom interpreter behavior: ZSCRN saves OLD0X/OLD0Y per window)
+    this.windowCursors.set(this.outputWindowId, { ...this.cursorPosition });
+
     if (windowId === WindowType.Upper && version <= 3) {
       // V3: Reset cursor to top-left when selecting upper window
       this.cursorPosition = { line: 1, column: 1 };
+    } else {
+      // V4+: Restore target window's saved cursor position
+      const savedCursor = this.windowCursors.get(windowId);
+      if (savedCursor) {
+        this.cursorPosition = { ...savedCursor };
+      }
     }
 
     this.outputWindowId = windowId;
+
+    // Sync fontManager to the target window's font so isCurrentFontFont3() is correct
+    const windowFont = this.windowFonts.get(windowId) || 1;
+    this.fontManager.setCurrentFont(windowFont as FontType);
 
     // Use WindowManager for advanced window management
     this.windowManager.setOutputWindow(windowId);
@@ -236,6 +265,8 @@ export class BaseScreen implements Screen {
       this.upperWindowHeight = 0;
       this.outputWindowId = WindowType.Lower;
       this.cursorPosition = { line: 1, column: 1 };
+      this.windowCursors.set(WindowType.Lower, { line: 1, column: 1 });
+      this.windowCursors.set(WindowType.Upper, { line: 1, column: 1 });
       this.upperWindowBuffer = [];
       this.upperWindowStyleBuffer = [];
       // Reset for bottom-aligned output on next print
@@ -245,6 +276,8 @@ export class BaseScreen implements Screen {
       this.upperWindowBuffer = [];
       this.upperWindowStyleBuffer = [];
       this.cursorPosition = { line: 1, column: 1 };
+      this.windowCursors.set(WindowType.Lower, { line: 1, column: 1 });
+      this.windowCursors.set(WindowType.Upper, { line: 1, column: 1 });
       this.hasReceivedFirstOutput = false;
     } else if (windowId === WindowType.Upper) {
       this.upperWindowBuffer = [];
@@ -253,10 +286,9 @@ export class BaseScreen implements Screen {
         this.cursorPosition = { line: 1, column: 1 };
       }
     } else if (windowId === WindowType.Lower) {
-      if (version >= 5) {
-        // V5: Cursor moves to top-left for any erased window
-        this.cursorPosition = { line: 1, column: 1 };
-      }
+      // V5: Cursor moves to top-left for the erased window.
+      // The lower window cursor is managed by the terminal (blessed appends text),
+      // so we do NOT reset cursorPosition here - that tracks the upper window cursor.
       // Reset for bottom-aligned output on next print
       this.hasReceivedFirstOutput = false;
     }
@@ -364,8 +396,14 @@ export class BaseScreen implements Screen {
       return;
     }
 
-    this.currentStyles = style;
-    this.logger.debug(`${this.id} setTextStyle style=${style} (version ${version})`);
+    // Per spec: style 0 resets to Roman (clears all styles).
+    // Non-zero styles are additive - OR the bits into the current style.
+    if (style === 0) {
+      this.currentStyles = 0;
+    } else {
+      this.currentStyles |= style;
+    }
+    this.logger.debug(`${this.id} setTextStyle style=${style} -> currentStyles=${this.currentStyles} (version ${version})`);
   }
 
   /**
@@ -442,7 +480,13 @@ export class BaseScreen implements Screen {
 
     // Write each character as a ZSCII byte
     for (let i = 0; i < text.length; i++) {
-      const charCode = text.charCodeAt(i);
+      let charCode = text.charCodeAt(i);
+      // Convert JavaScript newline (LF=10) to ZSCII newline (CR=13).
+      // Games like Beyond Zork capture text via stream 3 and later scan for
+      // ZSCII 13 to find line breaks (e.g., JUSTIFY-DBOX).
+      if (charCode === 10) {
+        charCode = 13;
+      }
       // Write character at offset: table + 2 (skip length word) + currentLength
       machine.memory.setByte(table + 2 + currentLength, charCode);
       currentLength++;
