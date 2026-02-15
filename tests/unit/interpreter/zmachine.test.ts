@@ -500,148 +500,84 @@ describe('ZMachine', () => {
       storyBuffer[0] = 5;
     });
 
-    it('should save to table', async () => {
+    it('should save auxiliary data to a file', async () => {
       const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
-
-      // Give access to private method for testing
-      const getStateMethod = vi.spyOn(zmachine as any, 'getState');
-      getStateMethod.mockImplementation(() => ({
-        memory: Buffer.alloc(0x10000),
-        pc: 0x1000,
-        stack: [],
-        callFrames: [],
-        originalStory: Buffer.alloc(0x10000),
-      }));
-
-      // Mock the writeMetadataToTable private method to avoid implementation issues
-      const writeMetadataMethod = vi.spyOn(zmachine as any, 'writeMetadataToTable');
-      writeMetadataMethod.mockImplementation(() => {});
 
       // Mock inputProcessor.promptForFilename to return a valid filename
       const promptSpy = vi.spyOn(inputProcessor, 'promptForFilename');
-      promptSpy.mockResolvedValue('test_save.dat');
+      promptSpy.mockResolvedValue('test_aux.dat');
 
-      // Mock storage methods with properly chained promises
-      const setOptionsSpy = vi.spyOn(zmachine.storage, 'setOptions');
-      setOptionsSpy.mockImplementation(() => {});
+      // Mock storage writeRaw
+      const writeRawSpy = vi.spyOn(zmachine.storage, 'writeRaw');
+      writeRawSpy.mockResolvedValue(undefined);
 
-      const saveSnapshotSpy = vi.spyOn(zmachine.storage, 'saveSnapshot');
-      saveSnapshotSpy.mockResolvedValue(undefined);
+      // Write some data to memory at the table address
+      const tableAddr = 0x0150;
+      const dataBytes = 8;
+      for (let i = 0; i < dataBytes; i++) {
+        zmachine.memory.setByte(tableAddr + i, 0x41 + i); // 'A', 'B', 'C', ...
+      }
 
-      const getSaveInfoSpy = vi.spyOn(zmachine.storage, 'getSaveInfo');
-      getSaveInfoSpy.mockResolvedValue({
-        exists: true,
-        path: 'test_save.dat',
-        description: 'Test save',
-        format: 'ENH',
-        lastModified: new Date(),
-      });
+      const result = await zmachine.saveAuxiliary(tableAddr, dataBytes, 0, true);
 
-      // Spy on memory.setByte to track table updates
-      const setByteSpy = vi.spyOn(zmachine.memory, 'setByte');
-
-      const tableAddr = 0x1000;
-      const bytes = 32;
-      const result = await zmachine.saveToTable(tableAddr, bytes);
-
-      // Verify the method calls happened in the expected sequence
-      expect(promptSpy).toHaveBeenCalledWith(zmachine, 'save');
-      expect(setOptionsSpy).toHaveBeenCalledWith({ filename: 'test_save.dat' });
-      expect(getStateMethod).toHaveBeenCalled();
-      expect(saveSnapshotSpy).toHaveBeenCalled();
-      expect(getSaveInfoSpy).toHaveBeenCalled();
-      expect(writeMetadataMethod).toHaveBeenCalled();
-
-      // Check the final result
       expect(result).toBe(true);
+      expect(promptSpy).toHaveBeenCalledWith(zmachine, 'save');
+      expect(writeRawSpy).toHaveBeenCalled();
+
+      // Verify the written buffer has 32-byte name header + data
+      const writtenBuffer = writeRawSpy.mock.calls[0][1];
+      expect(writtenBuffer.length).toBe(32 + dataBytes);
+      // Data starts at offset 32
+      expect(writtenBuffer[32]).toBe(0x41); // 'A'
+      expect(writtenBuffer[33]).toBe(0x42); // 'B'
     });
 
-    it('should restore from table', async () => {
+    it('should restore auxiliary data from a file', async () => {
       const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
-
-      // Mock the private methods needed
-      const writeMetadataMethod = vi.spyOn(zmachine as any, 'writeMetadataToTable');
-      writeMetadataMethod.mockImplementation(() => {});
-
-      const storeFilenameMethod = vi.spyOn(zmachine as any, 'storeFilenameInMemory');
-      storeFilenameMethod.mockImplementation(() => {});
-
-      const setStateMethod = vi.spyOn(zmachine as any, 'setState');
-      setStateMethod.mockImplementation(() => {});
 
       // Mock inputProcessor.promptForFilename
       const promptSpy = vi.spyOn(inputProcessor, 'promptForFilename');
-      promptSpy.mockResolvedValue('test_save.dat');
+      promptSpy.mockResolvedValue('test_aux.dat');
 
-      // Mock storage methods
-      const setOptionsSpy = vi.spyOn(zmachine.storage, 'setOptions');
-      setOptionsSpy.mockImplementation(() => {});
+      // Create a mock auxiliary file: 32-byte name header + data
+      const auxData = Buffer.alloc(32 + 8);
+      // Name header: empty (no name)
+      // Data: 0x41, 0x42, 0x43, ...
+      for (let i = 0; i < 8; i++) {
+        auxData[32 + i] = 0x41 + i;
+      }
 
-      const getSaveInfoSpy = vi.spyOn(zmachine.storage, 'getSaveInfo');
-      getSaveInfoSpy.mockResolvedValue({
-        exists: true,
-        path: 'test_save.dat',
-        description: 'Test save',
-        format: 'ENH',
-        lastModified: new Date(),
-      });
+      const readRawSpy = vi.spyOn(zmachine.storage, 'readRaw');
+      readRawSpy.mockResolvedValue(auxData);
 
-      const loadSnapshotSpy = vi.spyOn(zmachine.storage, 'loadSnapshot');
-      loadSnapshotSpy.mockResolvedValue({
-        memory: Buffer.alloc(0x10000),
-        pc: 0x1000,
-        stack: [],
-        callFrames: [],
-        originalStory: Buffer.alloc(0x10000),
-      });
+      const tableAddr = 0x0150;
+      const result = await zmachine.restoreAuxiliary(tableAddr, 8, 0, true);
 
-      const tableAddr = 0x1000;
-      const bytes = 32;
-      const nameAddr = 0x2000;
-      const result = await zmachine.restoreFromTable(tableAddr, bytes, nameAddr);
-
-      // Verify the methods were called in the expected sequence
+      expect(result).toBe(8);
       expect(promptSpy).toHaveBeenCalledWith(zmachine, 'restore');
-      expect(setOptionsSpy).toHaveBeenCalledWith({ filename: 'test_save.dat' });
-      expect(getSaveInfoSpy).toHaveBeenCalled();
-      expect(loadSnapshotSpy).toHaveBeenCalled();
-      expect(storeFilenameMethod).toHaveBeenCalledWith(nameAddr, 'test_save.dat');
-      expect(writeMetadataMethod).toHaveBeenCalled();
-      expect(setStateMethod).toHaveBeenCalled();
 
-      // Check the final result
-      expect(result).toBe(true);
+      // Verify data was written to memory
+      expect(zmachine.memory.getByte(tableAddr)).toBe(0x41);
+      expect(zmachine.memory.getByte(tableAddr + 1)).toBe(0x42);
     });
 
-    it('should fail to restore from table when save not found', async () => {
+    it('should return 0 when auxiliary file not found', async () => {
       const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
 
-      // Mock inputProcessor.promptForFilename
-      vi.spyOn(inputProcessor, 'promptForFilename').mockResolvedValue('test_save.dat');
+      vi.spyOn(inputProcessor, 'promptForFilename').mockResolvedValue('test_aux.dat');
+      vi.spyOn(zmachine.storage, 'readRaw').mockResolvedValue(null);
 
-      // Mock storage methods
-      vi.spyOn(zmachine.storage, 'setOptions').mockImplementation(() => {});
-      vi.spyOn(zmachine.storage, 'getSaveInfo').mockResolvedValue({
-        exists: false,
-        path: 'test_save.dat',
-      });
+      const result = await zmachine.restoreAuxiliary(0x0150, 8, 0, true);
 
-      const tableAddr = 0x1000;
-      const bytes = 32;
-      const result = await zmachine.restoreFromTable(tableAddr, bytes);
-
-      expect(result).toBe(false);
+      expect(result).toBe(0);
     });
 
-    it('should not allow restore from table in versions < 5', async () => {
-      // Reset to Version 3
-      storyBuffer[0] = 3;
-
+    it('should return false when user cancels save prompt', async () => {
       const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
 
-      const tableAddr = 0x1000;
-      const bytes = 32;
-      const result = await zmachine.restoreFromTable(tableAddr, bytes);
+      vi.spyOn(inputProcessor, 'promptForFilename').mockResolvedValue('');
+
+      const result = await zmachine.saveAuxiliary(0x0150, 8, 0, true);
 
       expect(result).toBe(false);
     });
@@ -926,44 +862,60 @@ describe('ZMachine', () => {
     });
   });
 
-  describe('restoreFromTable error handling', () => {
+  describe('restoreAuxiliary error handling', () => {
     beforeEach(() => {
-      // Update story buffer to Version 5
       storyBuffer[0] = 5;
     });
 
     it('should handle user canceling file selection', async () => {
       const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
 
-      // Mock inputProcessor.promptForFilename to return empty string (user canceled)
       vi.spyOn(inputProcessor, 'promptForFilename').mockResolvedValue('');
 
-      const result = await zmachine.restoreFromTable(0x1000, 32);
+      const result = await zmachine.restoreAuxiliary(0x0150, 32, 0, true);
 
-      expect(result).toBe(false);
+      expect(result).toBe(0);
     });
 
     it('should handle errors during restore operation', async () => {
       const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
 
-      // Mock inputProcessor.promptForFilename
-      vi.spyOn(inputProcessor, 'promptForFilename').mockResolvedValue('test_save.dat');
+      vi.spyOn(inputProcessor, 'promptForFilename').mockResolvedValue('test_aux.dat');
+      vi.spyOn(zmachine.storage, 'readRaw').mockRejectedValue(new Error('Disk error'));
 
-      // Mock storage methods
-      vi.spyOn(zmachine.storage, 'setOptions').mockImplementation(() => {});
-      vi.spyOn(zmachine.storage, 'getSaveInfo').mockResolvedValue({
-        exists: true,
-        path: 'test_save.dat',
-      });
-      vi.spyOn(zmachine.storage, 'loadSnapshot').mockRejectedValue(new Error('Corrupted save file'));
+      const result = await zmachine.restoreAuxiliary(0x0150, 32, 0, true);
 
-      const result = await zmachine.restoreFromTable(0x1000, 32);
+      expect(result).toBe(0);
+    });
 
-      expect(result).toBe(false);
+    it('should reject file with mismatched name header', async () => {
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+
+      vi.spyOn(inputProcessor, 'promptForFilename').mockResolvedValue('test_aux.dat');
+
+      // Set up a name in memory: length=3, "ABC"
+      const nameAddr = 0x0180;
+      zmachine.memory.setByte(nameAddr, 3);
+      zmachine.memory.setByte(nameAddr + 1, 0x41); // A
+      zmachine.memory.setByte(nameAddr + 2, 0x42); // B
+      zmachine.memory.setByte(nameAddr + 3, 0x43); // C
+
+      // Create aux file with different name: length=3, "XYZ"
+      const auxData = Buffer.alloc(32 + 8);
+      auxData[0] = 3;
+      auxData[1] = 0x58; // X
+      auxData[2] = 0x59; // Y
+      auxData[3] = 0x5a; // Z
+
+      vi.spyOn(zmachine.storage, 'readRaw').mockResolvedValue(auxData);
+
+      const result = await zmachine.restoreAuxiliary(0x0150, 8, nameAddr, true);
+
+      expect(result).toBe(0);
     });
   });
 
-  describe('saveToTable error handling', () => {
+  describe('saveAuxiliary error handling', () => {
     beforeEach(() => {
       storyBuffer[0] = 5;
     });
@@ -971,10 +923,9 @@ describe('ZMachine', () => {
     it('should handle user canceling file selection during save', async () => {
       const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
 
-      // Mock inputProcessor.promptForFilename to return empty string (user canceled)
       vi.spyOn(inputProcessor, 'promptForFilename').mockResolvedValue('');
 
-      const result = await zmachine.saveToTable(0x1000, 32);
+      const result = await zmachine.saveAuxiliary(0x0150, 32, 0, true);
 
       expect(result).toBe(false);
     });
@@ -982,14 +933,10 @@ describe('ZMachine', () => {
     it('should handle errors during save operation', async () => {
       const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
 
-      // Mock inputProcessor.promptForFilename
-      vi.spyOn(inputProcessor, 'promptForFilename').mockResolvedValue('test_save.dat');
+      vi.spyOn(inputProcessor, 'promptForFilename').mockResolvedValue('test_aux.dat');
+      vi.spyOn(zmachine.storage, 'writeRaw').mockRejectedValue(new Error('Disk full'));
 
-      // Mock storage methods to throw error during save
-      vi.spyOn(zmachine.storage, 'setOptions').mockImplementation(() => {});
-      vi.spyOn(zmachine.storage, 'saveSnapshot').mockRejectedValue(new Error('Disk full'));
-
-      const result = await zmachine.saveToTable(0x1000, 32);
+      const result = await zmachine.saveAuxiliary(0x0150, 32, 0, true);
 
       expect(result).toBe(false);
     });
@@ -997,29 +944,12 @@ describe('ZMachine', () => {
     it('should save without prompting when shouldPrompt is false', async () => {
       const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
 
-      // Mock getState
-      vi.spyOn(zmachine as any, 'getState').mockReturnValue({
-        memory: Buffer.alloc(0x10000),
-        pc: 0x1000,
-        stack: [],
-        callFrames: [],
-        originalStory: Buffer.alloc(0x10000),
-      });
-
-      // Mock storage methods
-      vi.spyOn(zmachine.storage, 'saveSnapshot').mockResolvedValue(undefined);
-      vi.spyOn(zmachine.storage, 'getSaveInfo').mockResolvedValue({
-        exists: true,
-        path: 'default.dat',
-        format: 'ENH',
-      });
-
-      // Mock writeMetadataToTable
-      vi.spyOn(zmachine as any, 'writeMetadataToTable').mockImplementation(() => {});
+      const writeRawSpy = vi.spyOn(zmachine.storage, 'writeRaw');
+      writeRawSpy.mockResolvedValue(undefined);
 
       const promptSpy = vi.spyOn(inputProcessor, 'promptForFilename');
 
-      const result = await zmachine.saveToTable(0x1000, 32, 0, false);
+      const result = await zmachine.saveAuxiliary(0x0150, 8, 0, false);
 
       expect(result).toBe(true);
       expect(promptSpy).not.toHaveBeenCalled();
@@ -1233,96 +1163,4 @@ describe('ZMachine', () => {
     });
   });
 
-  describe('writeMetadataToTable', () => {
-    beforeEach(() => {
-      storyBuffer[0] = 5;
-    });
-
-    it('should write metadata to table correctly', async () => {
-      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
-
-      // Access the private method
-      const writeMetadataToTable = (zmachine as any).writeMetadataToTable.bind(zmachine);
-
-      const tableAddr = 0x0150; // Use dynamic memory address (not 0x100 to avoid test conflicts)
-      const maxBytes = 32;
-      const saveInfo = {
-        exists: true,
-        path: 'test.dat',
-        format: 'QUETZAL',
-        description: 'Test save',
-        lastModified: new Date('2024-01-15T10:30:00Z'),
-      };
-
-      writeMetadataToTable(tableAddr, maxBytes, saveInfo);
-
-      // Verify magic number 'ZM' was written
-      expect(zmachine.memory.getByte(tableAddr)).toBe(0x5a); // 'Z'
-      expect(zmachine.memory.getByte(tableAddr + 1)).toBe(0x4d); // 'M'
-
-      // Verify version was written
-      expect(zmachine.memory.getWord(tableAddr + 2)).toBe(5);
-    });
-
-    it('should handle small buffer sizes', async () => {
-      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
-
-      const writeMetadataToTable = (zmachine as any).writeMetadataToTable.bind(zmachine);
-
-      const tableAddr = 0x0150; // Use dynamic memory address (not 0x100 to avoid test conflicts)
-      const maxBytes = 2; // Very small buffer
-      const saveInfo = {
-        exists: true,
-        path: 'test.dat',
-        format: 'QUETZAL',
-        description: 'This is a very long description that should be truncated',
-        lastModified: new Date(),
-      };
-
-      // Should not throw even with small buffer
-      expect(() => writeMetadataToTable(tableAddr, maxBytes, saveInfo)).not.toThrow();
-    });
-  });
-
-  describe('storeFilenameInMemory', () => {
-    beforeEach(() => {
-      storyBuffer[0] = 5;
-    });
-
-    it('should store filename in memory correctly', async () => {
-      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
-
-      const storeFilenameInMemory = (zmachine as any).storeFilenameInMemory.bind(zmachine);
-
-      const address = 0x0150; // Use dynamic memory address (not 0x100 to avoid test conflicts)
-      const filename = 'test.sav';
-
-      storeFilenameInMemory(address, filename);
-
-      // Verify length byte
-      expect(zmachine.memory.getByte(address)).toBe(filename.length);
-
-      // Verify filename bytes
-      for (let i = 0; i < filename.length; i++) {
-        expect(zmachine.memory.getByte(address + 1 + i)).toBe(filename.charCodeAt(i));
-      }
-
-      // Verify null terminator
-      expect(zmachine.memory.getByte(address + 1 + filename.length)).toBe(0);
-    });
-
-    it('should handle long filenames', async () => {
-      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
-
-      const storeFilenameInMemory = (zmachine as any).storeFilenameInMemory.bind(zmachine);
-
-      const address = 0x0150; // Use dynamic memory address (not 0x100 to avoid test conflicts)
-      const filename = 'a'.repeat(300); // Longer than 255 chars
-
-      storeFilenameInMemory(address, filename);
-
-      // Verify length is capped at 255
-      expect(zmachine.memory.getByte(address)).toBe(255);
-    });
-  });
 });

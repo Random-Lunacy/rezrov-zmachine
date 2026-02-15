@@ -27,14 +27,15 @@ export class MockZMachine {
   handleTimedInput = vi.fn();
   saveGame = vi.fn().mockResolvedValue(true);
   restoreGame = vi.fn().mockResolvedValue(true);
-  saveToTable = vi.fn().mockResolvedValue(true);
-  restoreFromTable = vi.fn().mockResolvedValue(true);
+  saveAuxiliary = vi.fn().mockResolvedValue(true);
+  restoreAuxiliary = vi.fn().mockResolvedValue(0);
   saveUndo = vi.fn().mockReturnValue(true);
   restoreUndo = vi.fn().mockReturnValue(true);
   restart = vi.fn();
   quit = vi.fn();
   updateStatusBar = vi.fn();
   getUserStackManager = vi.fn().mockReturnValue({});
+  originalStory = Buffer.alloc(0);
   storage = {};
 
   constructor() {

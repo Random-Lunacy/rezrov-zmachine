@@ -9,6 +9,8 @@ export interface StorageInterface {
   getSaveInfo(): Promise<SaveInfo>;
   listSaves(): Promise<SaveInfo[]>;
   setOptions(options: StorageOptions): void;
+  writeRaw(filename: string, data: Buffer): Promise<void>;
+  readRaw(filename: string): Promise<Buffer | null>;
 }
 
 /**
