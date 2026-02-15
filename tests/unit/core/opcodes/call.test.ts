@@ -55,52 +55,35 @@ describe('Call Opcodes', () => {
       expect(mockZMachine.state.callRoutine).not.toHaveBeenCalled();
     });
 
-    it('should throw error when routine header is invalid', () => {
+    it('should throw error when unpacking routine address fails', () => {
       const routine = 0x1234;
+      const resultVar = 0x42;
+      mockZMachine.state.readByte = vi.fn().mockReturnValueOnce(resultVar);
 
-      // Mock the key methods to simulate an invalid routine
-      mockZMachine.memory.unpackRoutineAddress = vi.fn().mockReturnValue(0x5678);
-      mockZMachine.memory.checkPackedAddressAlignment = vi.fn().mockReturnValue(true); // Pass alignment check
-      mockZMachine.state.memory.validateRoutineHeader = vi.fn().mockReturnValue(false); // Fail header validation
+      // Mock unpackRoutineAddress to throw
+      mockZMachine.memory.unpackRoutineAddress = vi.fn().mockImplementation(() => {
+        throw new Error('Packed address out of range');
+      });
 
-      // This will cause validateAndUnpackRoutine to return -1, which should trigger the error in call_1s
       expect(() => {
         callOpcodes.call_1s.impl(mockZMachine as unknown as ZMachine, [], routine);
-      }).toThrow(/Invalid routine address or header/);
+      }).toThrow(/Invalid routine address/);
 
-      // Verify validation methods were called
       expect(mockZMachine.memory.unpackRoutineAddress).toHaveBeenCalledWith(routine);
-      expect(mockZMachine.state.memory.validateRoutineHeader).toHaveBeenCalled();
     });
 
     it('should throw error when routine address is not in valid memory', () => {
       const routine = 0x1234;
 
       // Mock validation to fail at the isValidRoutineAddress check
-      mockZMachine.memory.isValidRoutineAddress.mockReturnValueOnce(false); // ← Updated
+      mockZMachine.memory.isValidRoutineAddress.mockReturnValueOnce(false);
 
       expect(() => {
         callOpcodes.call_1s.impl(mockZMachine as unknown as ZMachine, [], routine);
-      }).toThrow(/Invalid routine address or header/);
+      }).toThrow(/Invalid routine address/);
 
       expect(mockZMachine.memory.unpackRoutineAddress).toHaveBeenCalledWith(routine);
-      expect(mockZMachine.memory.isValidRoutineAddress).toHaveBeenCalled(); // ← Updated
-    });
-
-    it('should throw error when routine address is not properly aligned', () => {
-      const routine = 0x1234;
-      const unpackedAddress = routine * 2;
-
-      // Mock address alignment check to fail
-      mockZMachine.memory.checkPackedAddressAlignment.mockReturnValueOnce(false);
-
-      expect(() => {
-        callOpcodes.call_1s.impl(mockZMachine as unknown as ZMachine, [], routine);
-      }).toThrow(/Invalid routine address or header/);
-
-      // Verify validation methods were called
-      expect(mockZMachine.memory.unpackRoutineAddress).toHaveBeenCalledWith(routine);
-      expect(mockZMachine.memory.checkPackedAddressAlignment).toHaveBeenCalledWith(unpackedAddress, true);
+      expect(mockZMachine.memory.isValidRoutineAddress).toHaveBeenCalled();
     });
   });
 

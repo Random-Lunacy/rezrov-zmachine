@@ -298,6 +298,11 @@ export class GameState {
 
     // Arguments override the first locals
     const argCount = Math.min(args.length, numLocals);
+    if (args.length > numLocals) {
+      this.logger.warn(
+        `Routine at ${hex(routineAddress)}: ${args.length} arguments supplied but only ${numLocals} locals defined`
+      );
+    }
     for (let i = 0; i < argCount; i++) {
       locals[i] = args[i];
     }
