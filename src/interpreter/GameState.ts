@@ -483,7 +483,7 @@ export class GameState {
       }
     }
 
-    // Branch conditions: 0 in bit 7 means "branch on true"
+    // Bit 7 = 0 means "branch on false", bit 7 = 1 means "branch on true" (Z-spec §4.7)
     return [offset, (branchData & 0x80) === 0x00];
   }
 
