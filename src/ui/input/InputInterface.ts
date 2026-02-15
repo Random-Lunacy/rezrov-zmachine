@@ -393,6 +393,11 @@ export abstract class BaseInputProcessor implements InputProcessor {
     // Truncate input if needed
     input = input.slice(0, maxInput);
 
+    // V5+: spec requires text to be stored in lowercase
+    if (version >= 5) {
+      input = input.toLowerCase();
+    }
+
     // Store input according to version requirements
     if (version <= 4) {
       // V1-4: Store as null-terminated string

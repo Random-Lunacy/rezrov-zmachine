@@ -48,6 +48,15 @@ export type Capabilities = {
   hasPictures: boolean;
   hasSound: boolean;
   hasTimedKeyboardInput: boolean;
+
+  // Default colors for V5+ header bytes 0x2C/0x2D (Z-machine Color enum values)
+  defaultForeground?: number;
+  defaultBackground?: number;
+
+  // Interpreter number for header byte 0x1E (defaults to Amiga=4 for good color palette support)
+  // Some games like Beyond Zork use this to select color palettes.
+  // See Interpreter enum in constants.ts for valid values.
+  interpreterNumber?: number;
 };
 
 /**
@@ -59,19 +68,26 @@ export enum WindowType {
 }
 
 /**
- * Window properties that can be queried
+ * Window properties per Z-machine spec (Table 8.8.3.1 / Section 16)
+ * Property numbers match the values used by get_wind_prop / put_wind_prop opcodes.
  */
 export enum WindowProperty {
-  LineCount = 0,
-  CursorLine = 1,
-  CursorColumn = 2,
-  LeftMargin = 3,
-  RightMargin = 4,
-  Font = 5,
-  TextStyle = 6,
-  ColorData = 7,
-  Width = 8,
-  Height = 9,
+  YCoordinate = 0,
+  XCoordinate = 1,
+  YSize = 2,
+  XSize = 3,
+  YCursor = 4,
+  XCursor = 5,
+  LeftMargin = 6,
+  RightMargin = 7,
+  NewlineInterrupt = 8,
+  InterruptCountdown = 9,
+  TextStyle = 10,
+  ColorData = 11,
+  Font = 12,
+  FontSize = 13,
+  Attributes = 14,
+  LineCount = 15,
 }
 
 /**

@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import { dumpDictionary, dumpHeader, dumpObjectTable, Logger, LogLevel, ZMachine } from '../../dist/index.js';
 import { StdioInputProcessor } from './StdioInputProcessor.js';
 import { StdioScreen } from './StdioScreen.js';
-import { parseArguments } from './utils.js';
+import { INTERPRETER_NAMES, parseArguments } from './utils.js';
 
 const parsed = parseArguments();
 const file = parsed.argv.remain[0];
@@ -10,6 +10,24 @@ const file = parsed.argv.remain[0];
 if (!file) {
   // eslint-disable-next-line no-console
   console.error('Must specify path to z-machine story file');
+  // eslint-disable-next-line no-console
+  console.error('Usage: node index.js [options] <story-file>');
+  // eslint-disable-next-line no-console
+  console.error('Options:');
+  // eslint-disable-next-line no-console
+  console.error('  -d, --debug                Enable debug logging');
+  // eslint-disable-next-line no-console
+  console.error('  -i, --interpreter <name>   Set interpreter type (default: amiga)');
+  // eslint-disable-next-line no-console
+  console.error(`                             Valid: ${Object.keys(INTERPRETER_NAMES).join(', ')}`);
+  // eslint-disable-next-line no-console
+  console.error('  -h, --header               Dump story file header');
+  // eslint-disable-next-line no-console
+  console.error('  -o, --objectTree           Dump object table');
+  // eslint-disable-next-line no-console
+  console.error('  -t, --dict                 Dump dictionary');
+  // eslint-disable-next-line no-console
+  console.error('  -n, --noExec               Show info without running');
   process.exit(1);
 }
 
@@ -35,7 +53,8 @@ try {
   logger.debug(`Loaded ${storyData.length} bytes from ${file}`);
 
   // Create the screen and input processor
-  const screen = new StdioScreen();
+  const interpreterNumber = parsed.interpreter ? INTERPRETER_NAMES[parsed.interpreter] : undefined;
+  const screen = new StdioScreen(interpreterNumber);
   const inputProcessor = new StdioInputProcessor();
 
   // Create the Z-machine

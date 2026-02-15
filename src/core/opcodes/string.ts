@@ -17,7 +17,7 @@
  * - `check_unicode`: Checks if a Unicode character can be displayed.
  */
 import { ZMachine } from '../../interpreter/ZMachine';
-import { decodeZString } from '../../parsers/ZString';
+import { decodeZString, encodeZString, packZCharacters } from '../../parsers/ZString';
 import { OperandType } from '../../types';
 import { toI16 } from '../memory/cast16';
 import { opcode } from './base';
@@ -104,7 +104,22 @@ function print_table(
 ): void {
   machine.logger.debug(`print_table: addr=${zscii_text}, width=${width}, height=${height}, skip=${skip}`);
 
+  // Per spec: after each row, cursor returns to the starting column and moves one line down.
+  const startPos = machine.screen.getCursorPosition(machine);
+  const outputWindow = machine.screen.getOutputWindow(machine);
+  const isUpperWindow = outputWindow === 1;
+
   for (let i = 0; i < height; i++) {
+    // Position cursor at the starting column for each row after the first
+    if (i > 0) {
+      if (isUpperWindow) {
+        const windowId = machine.state.version < 6 ? 1 : outputWindow;
+        machine.screen.setCursorPosition(machine, startPos.line + i, startPos.column, windowId);
+      } else {
+        machine.screen.print(machine, '\n');
+      }
+    }
+
     const row = [];
 
     // Calculate the starting address for this row
@@ -114,12 +129,19 @@ function print_table(
     // Read each character in the current row
     for (let j = 0; j < width; j++) {
       const charCode = machine.memory.getByte(rowStartAddr + j);
-      row.push(String.fromCharCode(charCode));
+      // Replace control characters (0-31) with spaces to prevent cursor jumps.
+      // print_table data is a fixed-width grid; control chars would break the layout.
+      row.push(charCode < 32 ? ' ' : String.fromCharCode(charCode));
     }
 
-    // Print the row
-    machine.screen.print(machine, row.join('') + '\n');
+    // Print the row (no newline - cursor positioning handles row advancement)
+    machine.screen.print(machine, row.join(''));
   }
+
+  // Per spec: "There is no implicit new-line at the end."
+  // The cursor remains at the end of the last printed row.
+  // Between rows, cursor moves to start column of next line, but after
+  // the final row, cursor stays where the last character was printed.
 }
 
 /**
@@ -174,10 +196,30 @@ function print_form(machine: ZMachine, _operandTypes: OperandType[], form: numbe
   throw new Error(`Unimplemented opcode: print_form`);
 }
 
-function encode_text(machine: ZMachine, _operandTypes: OperandType[], text: number): void {
-  const encoded_text = machine.memory.getZString(text);
-  machine.logger.debug(`encode_text ${text} -> ${encoded_text}`);
-  throw new Error(`Unimplemented opcode: encode_text`);
+function encode_text(
+  machine: ZMachine,
+  _operandTypes: OperandType[],
+  zsciiText: number,
+  length: number,
+  from: number,
+  codedText: number
+): void {
+  // Read ZSCII characters from memory at zsciiText + from
+  let text = '';
+  for (let i = 0; i < length; i++) {
+    text += String.fromCharCode(machine.memory.getByte(zsciiText + from + i));
+  }
+
+  machine.logger.debug(`encode_text: text="${text}", from=${from}, length=${length}, dest=0x${codedText.toString(16)}`);
+
+  // Encode using existing ZString utilities
+  const zChars = encodeZString(machine.memory, text, machine.state.version);
+  const packed = packZCharacters(zChars, machine.state.version);
+
+  // Write packed words to coded-text address
+  for (let i = 0; i < packed.length; i++) {
+    machine.memory.setWord(codedText + i * 2, packed[i]);
+  }
 }
 
 /**

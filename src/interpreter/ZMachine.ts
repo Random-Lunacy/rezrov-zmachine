@@ -8,7 +8,7 @@ import { SaveInfo, StorageInterface } from '../storage/interfaces';
 import { MemoryStorageProvider } from '../storage/providers/MemoryStorageProvider';
 import { StorageProvider } from '../storage/providers/StorageProvider';
 import { Storage } from '../storage/Storage';
-import { ZMachineState } from '../types';
+import { Color, ZMachineState } from '../types';
 import { InputProcessor, InputState } from '../ui/input/InputInterface';
 import { BaseMultimediaHandler, MultimediaHandler } from '../ui/multimedia/MultimediaHandler';
 import { Capabilities, Screen } from '../ui/screen/interfaces';
@@ -135,9 +135,14 @@ export class ZMachine {
     const { rows, cols } = this._screen.getSize();
     const version = this._state.version;
 
+    // Configure capabilities in header flags
+    const screenCapabilities = this._screen.getCapabilities();
+
     // Set interpreter number and version (required for games like Beyond Zork)
-    // Using IBM PC (6) as this is what most modern terminal interpreters emulate
-    this._memory.setByte(HeaderLocation.InterpreterNumber, Interpreter.IBM_PC);
+    // Default to Amiga (4) which provides better default color palettes in games
+    // that select palettes based on interpreter number. Configurable via Capabilities.
+    const interpreterNumber = screenCapabilities.interpreterNumber ?? Interpreter.Amiga;
+    this._memory.setByte(HeaderLocation.InterpreterNumber, interpreterNumber);
     this._memory.setByte(HeaderLocation.InterpreterVersion, 82); // 'R' for Rezrov
 
     // Set screen dimensions in header
@@ -154,10 +159,13 @@ export class ZMachine {
       // Font size in units - for text mode terminals, each character is 1x1 unit
       this._memory.setByte(HeaderLocation.FontWidthInUnits, 1);
       this._memory.setByte(HeaderLocation.FontHeightInUnits, 1);
-    }
 
-    // Configure capabilities in header flags
-    const screenCapabilities = this._screen.getCapabilities();
+      // Write default colors to header (Z-machine spec section 8.3.2)
+      const defaultFg = screenCapabilities.defaultForeground ?? Color.White;
+      const defaultBg = screenCapabilities.defaultBackground ?? Color.Black;
+      this._memory.setByte(HeaderLocation.DefaultForegroundColor, defaultFg);
+      this._memory.setByte(HeaderLocation.DefaultBackgroundColor, defaultBg);
+    }
 
     let flags1 = this._memory.getByte(HeaderLocation.Flags1);
 

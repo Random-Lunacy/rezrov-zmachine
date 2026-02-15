@@ -82,50 +82,48 @@ describe('BaseScreen', () => {
   });
 
   describe('getWindowProperty', () => {
-    it('should return appropriate values for implemented properties', () => {
-      // Test LineCount property for upper window
-      const lineCountResult = screen.getWindowProperty(machine as any, 1, 0);
-      expect(lineCountResult).toBe(0); // upperWindowHeight is 0 initially
+    it('should return appropriate values for spec-defined properties', () => {
+      // Property 0: YCoordinate - top of window (1-based)
+      expect(screen.getWindowProperty(machine as any, 1, 0)).toBe(1); // Upper window starts at row 1
+      expect(screen.getWindowProperty(machine as any, 0, 0)).toBe(1); // Lower starts at upperHeight+1 (0+1)
 
-      // Test CursorLine property
-      const cursorLineResult = screen.getWindowProperty(machine as any, 1, 1);
-      expect(cursorLineResult).toBe(1); // cursorPosition.line is 1 initially
+      // Property 1: XCoordinate - left of window (1-based)
+      expect(screen.getWindowProperty(machine as any, 1, 1)).toBe(1);
 
-      // Test CursorColumn property
-      const cursorColumnResult = screen.getWindowProperty(machine as any, 1, 2);
-      expect(cursorColumnResult).toBe(1); // cursorPosition.column is 1 initially
+      // Property 2: YSize - height in units
+      expect(screen.getWindowProperty(machine as any, 1, 2)).toBe(0); // Upper window height initially 0
+      expect(screen.getWindowProperty(machine as any, 0, 2)).toBe(25); // Lower = 25 - 0
 
-      // Test LeftMargin property
-      const leftMarginResult = screen.getWindowProperty(machine as any, 1, 3);
-      expect(leftMarginResult).toBe(1); // Default left margin
+      // Property 3: XSize - width in units
+      expect(screen.getWindowProperty(machine as any, 1, 3)).toBe(80); // Screen width
 
-      // Test RightMargin property
-      const rightMarginResult = screen.getWindowProperty(machine as any, 1, 4);
-      expect(rightMarginResult).toBe(80); // getSize().cols
+      // Property 4: YCursor - cursor line (1-based)
+      expect(screen.getWindowProperty(machine as any, 1, 4)).toBe(1);
 
-      // Test Font property
-      const fontResult = screen.getWindowProperty(machine as any, 1, 5);
-      expect(fontResult).toBe(1); // Default font
+      // Property 5: XCursor - cursor column (1-based)
+      expect(screen.getWindowProperty(machine as any, 1, 5)).toBe(1);
 
-      // Test TextStyle property
-      const textStyleResult = screen.getWindowProperty(machine as any, 1, 6);
-      expect(textStyleResult).toBe(0); // currentStyles is 0 initially
+      // Property 6: LeftMargin - margin size
+      expect(screen.getWindowProperty(machine as any, 1, 6)).toBe(0);
 
-      // Test ColorData property
-      const colorDataResult = screen.getWindowProperty(machine as any, 1, 7);
-      expect(colorDataResult).toBe(257); // Default colors packed: (1 << 8) | 1 = 257
+      // Property 7: RightMargin - margin size
+      expect(screen.getWindowProperty(machine as any, 1, 7)).toBe(0);
 
-      // Test Width property
-      const widthResult = screen.getWindowProperty(machine as any, 1, 8);
-      expect(widthResult).toBe(80); // getSize().cols
+      // Property 10: TextStyle
+      expect(screen.getWindowProperty(machine as any, 1, 10)).toBe(0);
 
-      // Test Height property for upper window (window 1)
-      const heightResult = screen.getWindowProperty(machine as any, 1, 9);
-      expect(heightResult).toBe(0); // upperWindowHeight is 0 initially
+      // Property 11: ColorData - packed fg/bg
+      expect(screen.getWindowProperty(machine as any, 1, 11)).toBe(257); // (1 << 8) | 1
 
-      // Test Height property for lower window (window 0)
-      const lowerHeightResult = screen.getWindowProperty(machine as any, 0, 9);
-      expect(lowerHeightResult).toBe(25); // getSize().rows - upperWindowHeight = 25 - 0
+      // Property 12: Font
+      expect(screen.getWindowProperty(machine as any, 1, 12)).toBe(1);
+
+      // Property 13: FontSize - (height << 8 | width)
+      expect(screen.getWindowProperty(machine as any, 1, 13)).toBe(257); // (1 << 8) | 1
+
+      // Property 15: LineCount
+      expect(screen.getWindowProperty(machine as any, 1, 15)).toBe(0); // Upper height = 0
+      expect(screen.getWindowProperty(machine as any, 0, 15)).toBe(25); // Lower = 25 - 0
 
       // Test unknown property
       const unknownResult = screen.getWindowProperty(machine as any, 1, 99);
@@ -273,6 +271,32 @@ describe('BaseScreen', () => {
       screen.disableOutputStream(machine as any, 3, 0, 0);
       expect(screen.isMemoryStreamActive()).toBe(false);
     });
+
+    it('should convert LF (10) to ZSCII CR (13) in memory stream', () => {
+      // Mock machine memory methods
+      const setByteCalls: Array<{ addr: number; value: number }> = [];
+      (machine as any).memory = {
+        setWord: vi.fn(),
+        getWord: vi.fn().mockReturnValue(0),
+        setByte: vi.fn().mockImplementation((addr: number, value: number) => {
+          setByteCalls.push({ addr, value });
+        }),
+      };
+
+      const table = 0x5000;
+      screen.enableOutputStream(machine as any, 3, table, 80);
+
+      // Write text with a JavaScript newline (LF=10)
+      const testScreen = screen as any;
+      testScreen.writeToMemoryStream(machine, 'A\nB');
+
+      // Verify bytes written: 'A' (65), CR (13), 'B' (66)
+      expect(setByteCalls).toEqual([
+        { addr: table + 2, value: 65 }, // 'A'
+        { addr: table + 3, value: 13 }, // ZSCII CR, not LF
+        { addr: table + 4, value: 66 }, // 'B'
+      ]);
+    });
   });
 
   describe('font methods', () => {
@@ -392,7 +416,25 @@ describe('BaseScreen', () => {
     it('should support setTextStyle in V5', () => {
       screen.setTextStyle(v5Machine as any, TextStyle.Bold);
 
-      expect(mockLogger.debug).toHaveBeenCalledWith('TestScreen setTextStyle style=2 (version 5)');
+      expect(mockLogger.debug).toHaveBeenCalledWith('TestScreen setTextStyle style=2 -> currentStyles=2 (version 5)');
+    });
+
+    it('should accumulate non-zero styles (OR behavior)', () => {
+      screen.setTextStyle(v5Machine as any, TextStyle.Bold); // 2
+      screen.setTextStyle(v5Machine as any, TextStyle.Italic); // 4
+
+      // getWindowProperty for TextStyle should show combined styles
+      const style = screen.getWindowProperty(v5Machine as any, 0, 10); // WindowProperty.TextStyle = 10
+      expect(style).toBe(TextStyle.Bold | TextStyle.Italic); // 6
+    });
+
+    it('should reset all styles when style is 0', () => {
+      screen.setTextStyle(v5Machine as any, TextStyle.Bold); // 2
+      screen.setTextStyle(v5Machine as any, TextStyle.Italic); // 4
+      screen.setTextStyle(v5Machine as any, 0); // Roman - clear all
+
+      const style = screen.getWindowProperty(v5Machine as any, 0, 10);
+      expect(style).toBe(0);
     });
 
     it('should support setTextColors in V5', () => {
@@ -454,14 +496,25 @@ describe('BaseScreen', () => {
       expect(screen['cursorPosition']).toEqual({ line: 3, column: 100 });
     });
 
-    it('should clear cursor position when clearing any window in V5', () => {
+    it('should not reset upper window cursor when clearing lower window in V5', () => {
+      // Set cursor to non-default position (this is the upper window cursor)
+      screen['cursorPosition'] = { line: 5, column: 10 };
+
+      // Clear the lower window in V5
+      screen.clearWindow(v5Machine as any, 0);
+
+      // Upper window cursor should NOT be affected by lower window clear
+      expect(screen['cursorPosition']).toEqual({ line: 5, column: 10 });
+    });
+
+    it('should reset cursor when clearing upper window in V5', () => {
       // Set cursor to non-default position
       screen['cursorPosition'] = { line: 5, column: 10 };
 
-      // Clear a window in V5
-      screen.clearWindow(v5Machine as any, 0);
+      // Clear the upper window in V5
+      screen.clearWindow(v5Machine as any, 1);
 
-      // Cursor should reset to top-left
+      // Upper window cursor should reset to top-left
       expect(screen['cursorPosition']).toEqual({ line: 1, column: 1 });
     });
 
@@ -556,7 +609,7 @@ describe('BaseScreen', () => {
       expect(screen['windowManager']).toBeDefined();
 
       // WindowManager integration is used but falls back for basic properties
-      const result = screen.getWindowProperty(machine as any, 0, 0); // LineCount for lower window
+      const result = screen.getWindowProperty(machine as any, 0, 15); // LineCount for lower window
       expect(result).toBe(25); // Full screen height minus upper window height (0)
     });
 
@@ -618,14 +671,14 @@ describe('BaseScreen', () => {
       screen.splitWindow(machine as any, 5);
 
       // Lower window should have remaining rows
-      const result = screen.getWindowProperty(machine as any, 0, 0); // LineCount for lower window
+      const result = screen.getWindowProperty(machine as any, 0, 15); // LineCount (property 15) for lower window
       expect(result).toBe(20); // 25 - 5
     });
   });
 
   describe('getWindowProperty with no colors set', () => {
     it('should return 0 for ColorData when no colors are set for unknown window', () => {
-      const result = screen.getWindowProperty(machine as any, 99, 7); // ColorData for non-existent window
+      const result = screen.getWindowProperty(machine as any, 99, 11); // ColorData (property 11) for non-existent window
       expect(result).toBe(0);
     });
   });
@@ -1107,6 +1160,164 @@ describe('BaseScreen', () => {
 
       expect(testScreen.startFromBottom).toBe(beforeState.startFromBottom);
       expect(testScreen.hasReceivedFirstOutput).toBe(beforeState.hasReceivedFirstOutput);
+    });
+  });
+
+  describe('upper window color buffer', () => {
+    it('should populate color buffer when writing to upper window with active colors', () => {
+      const testScreen = screen as any;
+
+      // Set colors on the upper window
+      testScreen.outputWindowId = 1;
+      testScreen.windowColors.set(1, { foreground: Color.Blue, background: Color.Black });
+      testScreen.cursorPosition = { line: 1, column: 1 };
+
+      testScreen.writeToUpperWindowBuffer('AB', 80);
+
+      // Color buffer should have been populated
+      expect(testScreen.upperWindowColorBuffer.length).toBe(1);
+      expect(testScreen.upperWindowColorBuffer[0][0]).toEqual({ foreground: Color.Blue, background: Color.Black });
+      expect(testScreen.upperWindowColorBuffer[0][1]).toEqual({ foreground: Color.Blue, background: Color.Black });
+    });
+
+    it('should track color changes mid-text', () => {
+      const testScreen = screen as any;
+      testScreen.outputWindowId = 1;
+
+      // Write "AB" with red foreground
+      testScreen.windowColors.set(1, { foreground: Color.Red, background: Color.Black });
+      testScreen.cursorPosition = { line: 1, column: 1 };
+      testScreen.writeToUpperWindowBuffer('AB', 80);
+
+      // Change to blue and write "CD"
+      testScreen.windowColors.set(1, { foreground: Color.Blue, background: Color.Black });
+      testScreen.writeToUpperWindowBuffer('CD', 80);
+
+      expect(testScreen.upperWindowColorBuffer[0][0]).toEqual({ foreground: Color.Red, background: Color.Black });
+      expect(testScreen.upperWindowColorBuffer[0][1]).toEqual({ foreground: Color.Red, background: Color.Black });
+      expect(testScreen.upperWindowColorBuffer[0][2]).toEqual({ foreground: Color.Blue, background: Color.Black });
+      expect(testScreen.upperWindowColorBuffer[0][3]).toEqual({ foreground: Color.Blue, background: Color.Black });
+    });
+
+    it('should clear color buffer on clearWindow(-1)', () => {
+      const testScreen = screen as any;
+      testScreen.outputWindowId = 1;
+      testScreen.windowColors.set(1, { foreground: Color.Red, background: Color.Black });
+      testScreen.cursorPosition = { line: 1, column: 1 };
+      testScreen.writeToUpperWindowBuffer('Test', 80);
+
+      expect(testScreen.upperWindowColorBuffer.length).toBe(1);
+
+      screen.clearWindow(machine as any, -1);
+
+      expect(testScreen.upperWindowColorBuffer.length).toBe(0);
+    });
+
+    it('should clear color buffer on clearWindow(Upper)', () => {
+      const testScreen = screen as any;
+      testScreen.outputWindowId = 1;
+      testScreen.windowColors.set(1, { foreground: Color.Green, background: Color.Black });
+      testScreen.cursorPosition = { line: 1, column: 1 };
+      testScreen.writeToUpperWindowBuffer('Test', 80);
+
+      screen.clearWindow(machine as any, 1);
+
+      expect(testScreen.upperWindowColorBuffer.length).toBe(0);
+    });
+
+    it('should clear color buffer on clearWindow(-2)', () => {
+      const testScreen = screen as any;
+      testScreen.outputWindowId = 1;
+      testScreen.windowColors.set(1, { foreground: Color.Yellow, background: Color.Black });
+      testScreen.cursorPosition = { line: 1, column: 1 };
+      testScreen.writeToUpperWindowBuffer('Test', 80);
+
+      screen.clearWindow(machine as any, -2);
+
+      expect(testScreen.upperWindowColorBuffer.length).toBe(0);
+    });
+
+    it('should not clear color buffer when clearing lower window', () => {
+      const testScreen = screen as any;
+      testScreen.outputWindowId = 1;
+      testScreen.windowColors.set(1, { foreground: Color.Red, background: Color.Black });
+      testScreen.cursorPosition = { line: 1, column: 1 };
+      testScreen.writeToUpperWindowBuffer('Test', 80);
+
+      screen.clearWindow(machine as any, 0);
+
+      expect(testScreen.upperWindowColorBuffer.length).toBe(1);
+    });
+
+    it('should clear colors in clearLine from cursor to right edge', () => {
+      const testScreen = screen as any;
+      // clearLine requires V5+
+      const v5 = createMockZMachine();
+      v5.state.version = 5;
+
+      testScreen.outputWindowId = 1;
+      testScreen.windowColors.set(1, { foreground: Color.Red, background: Color.Blue });
+      testScreen.cursorPosition = { line: 1, column: 1 };
+      testScreen.writeToUpperWindowBuffer('ABCDE', 10);
+
+      // Position cursor at column 3 and clear
+      testScreen.cursorPosition = { line: 1, column: 3 };
+      screen.clearLine(v5 as any, 1);
+
+      // First two chars should retain their color
+      expect(testScreen.upperWindowColorBuffer[0][0]).toEqual({ foreground: Color.Red, background: Color.Blue });
+      expect(testScreen.upperWindowColorBuffer[0][1]).toEqual({ foreground: Color.Red, background: Color.Blue });
+      // Remaining should be reset to default
+      expect(testScreen.upperWindowColorBuffer[0][2]).toEqual({
+        foreground: Color.Default,
+        background: Color.Default,
+      });
+      expect(testScreen.upperWindowColorBuffer[0][4]).toEqual({
+        foreground: Color.Default,
+        background: Color.Default,
+      });
+    });
+
+    it('should initialize default colors for new buffer lines', () => {
+      const testScreen = screen as any;
+      testScreen.outputWindowId = 1;
+      // Don't set any explicit colors
+      testScreen.cursorPosition = { line: 1, column: 1 };
+      testScreen.writeToUpperWindowBuffer('A', 10);
+
+      // Should have default colors for all positions
+      expect(testScreen.upperWindowColorBuffer[0][0]).toEqual({
+        foreground: Color.Default,
+        background: Color.Default,
+      });
+      // Padding positions should also have defaults
+      expect(testScreen.upperWindowColorBuffer[0][5]).toEqual({
+        foreground: Color.Default,
+        background: Color.Default,
+      });
+    });
+
+    it('should resize color buffer when resizing upper window buffer', () => {
+      const testScreen = screen as any;
+      testScreen.outputWindowId = 1;
+      testScreen.windowColors.set(1, { foreground: Color.Red, background: Color.Black });
+      testScreen.cursorPosition = { line: 1, column: 1 };
+      testScreen.writeToUpperWindowBuffer('Test', 40);
+
+      // Resize wider
+      testScreen.resizeUpperWindowBuffer(80);
+      expect(testScreen.upperWindowColorBuffer[0].length).toBe(80);
+      // Original color preserved
+      expect(testScreen.upperWindowColorBuffer[0][0]).toEqual({ foreground: Color.Red, background: Color.Black });
+      // New positions have defaults
+      expect(testScreen.upperWindowColorBuffer[0][50]).toEqual({
+        foreground: Color.Default,
+        background: Color.Default,
+      });
+
+      // Resize narrower
+      testScreen.resizeUpperWindowBuffer(20);
+      expect(testScreen.upperWindowColorBuffer[0].length).toBe(20);
     });
   });
 });

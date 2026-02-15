@@ -20,16 +20,25 @@ export class TextParser {
 
   private getDictionary(dictAddr: Address = 0): Dictionary {
     // If no dictionary address provided, use the default
-    if (dictAddr === 0) {
+    const isDefault = dictAddr === 0;
+    if (isDefault) {
       dictAddr = this.memory.getWord(HeaderLocation.Dictionary);
     }
 
-    // Create a new dictionary instance if we haven't seen this one before
-    if (!this.dictionaries.has(dictAddr)) {
-      this.dictionaries.set(dictAddr, new Dictionary(this.memory, dictAddr, this.version));
+    // Only cache the default (static) dictionary. Non-default dictionaries
+    // (like Beyond Zork's VOCAB2) are dynamic — entries and counts change
+    // at runtime, so we must re-read the header on each access.
+    if (isDefault && this.dictionaries.has(dictAddr)) {
+      return this.dictionaries.get(dictAddr)!;
     }
 
-    return this.dictionaries.get(dictAddr)!;
+    const dict = new Dictionary(this.memory, dictAddr, this.version);
+
+    if (isDefault) {
+      this.dictionaries.set(dictAddr, dict);
+    }
+
+    return dict;
   }
 
   /**
@@ -47,12 +56,15 @@ export class TextParser {
     // Get the dictionary
     const dictionary = this.getDictionary(dict);
 
-    // Reset the token count to 0
-    this.memory.setByte(parseBuffer + 1, 0);
-
-    // NOTE: Do NOT clear the entire parse buffer area!
-    // The game may store other data in the unused token slots.
-    // Only the token count byte needs to be reset.
+    // When flag=false: reset the token count (normal tokenization).
+    // When flag=true: preserve existing entries from a previous tokenize call.
+    // Per Z-machine spec Section 15: "unrecognised words are not written into
+    // the parse-buffer and the corresponding entries are left unchanged."
+    // Beyond Zork uses two-pass tokenization: first LEX populates the parse buffer,
+    // second LEX with flag=true updates entries for words found in a dynamic dictionary.
+    if (!flag) {
+      this.memory.setByte(parseBuffer + 1, 0);
+    }
 
     // Skip the separators
     const separators = dictionary.getSeparators();
@@ -142,15 +154,6 @@ export class TextParser {
   ): void {
     this.logger.debug(`Processing word: "${word}" at position ${position}`);
 
-    // Check if we have room for more tokens
-    const maxTokens = this.memory.getByte(parseBuffer);
-    const tokenCount = this.memory.getByte(parseBuffer + 1);
-
-    if (tokenCount >= maxTokens) {
-      this.logger.debug('Parse buffer full, cannot add more tokens');
-      return;
-    }
-
     // Encode the word for dictionary lookup
     const encodedText = encodeZString(this.memory, word, this.version);
     const encodedWord = packZCharacters(encodedText, this.version);
@@ -158,29 +161,57 @@ export class TextParser {
     // Look up the word in the dictionary
     const dictEntry = dictionary.lookupToken(encodedWord);
 
-    // If found or if we're adding all words
-    if (dictEntry !== 0 || !flag) {
-      const tokenOffset = 2 + tokenCount * 4;
+    // Calculate the byte offset into the text buffer for this word
+    const bufferPosition = this.version >= 5 ? position + 2 : position + 1;
 
-      // Store dictionary address (or 0 if not found)
-      this.memory.setWord(parseBuffer + tokenOffset, dictEntry);
+    if (flag) {
+      // flag=true: Update existing entries in place.
+      // Only update if the word was found in this dictionary.
+      // If not found, leave the existing entry unchanged (per spec).
+      if (dictEntry !== 0) {
+        const existingCount = this.memory.getByte(parseBuffer + 1);
+        for (let i = 0; i < existingCount; i++) {
+          const entryOffset = 2 + i * 4;
+          const entryPosition = this.memory.getByte(parseBuffer + entryOffset + 3);
+          if (entryPosition === bufferPosition) {
+            this.memory.setWord(parseBuffer + entryOffset, dictEntry);
+            this.logger.debug(
+              `Token updated in-place: addr=0x${dictEntry.toString(16)}, position=${bufferPosition}`
+            );
+            break;
+          }
+        }
+      }
+    } else {
+      // flag=false: Append new entry (standard tokenization)
+      const maxTokens = this.memory.getByte(parseBuffer);
+      const tokenCount = this.memory.getByte(parseBuffer + 1);
 
-      // Store word length
-      this.memory.setByte(parseBuffer + tokenOffset + 2, word.length);
+      if (tokenCount >= maxTokens) {
+        this.logger.debug('Parse buffer full, cannot add more tokens');
+        return;
+      }
 
-      // Store word position - this should be the byte offset into the text buffer
-      // For V5+, text starts at textBuffer+2, so position in text buffer = position + 2
-      // For V1-4, text starts at textBuffer+1, so position in text buffer = position + 1
-      const bufferPosition = this.version >= 5 ? position + 2 : position + 1;
-      this.memory.setByte(parseBuffer + tokenOffset + 3, bufferPosition);
+      if (dictEntry !== 0 || !flag) {
+        const tokenOffset = 2 + tokenCount * 4;
 
-      // Increment token count
-      this.memory.setByte(parseBuffer + 1, tokenCount + 1);
+        // Store dictionary address (or 0 if not found)
+        this.memory.setWord(parseBuffer + tokenOffset, dictEntry);
 
-      this.logger.debug(
-        `Token stored: addr=${dictEntry !== 0 ? '0x' + dictEntry.toString(16) : 'not found'}, ` +
-          `length=${word.length}, position=${position + 1}`
-      );
+        // Store word length
+        this.memory.setByte(parseBuffer + tokenOffset + 2, word.length);
+
+        // Store word position - byte offset into the text buffer
+        this.memory.setByte(parseBuffer + tokenOffset + 3, bufferPosition);
+
+        // Increment token count
+        this.memory.setByte(parseBuffer + 1, tokenCount + 1);
+
+        this.logger.debug(
+          `Token stored: addr=${dictEntry !== 0 ? '0x' + dictEntry.toString(16) : 'not found'}, ` +
+            `length=${word.length}, position=${bufferPosition}`
+        );
+      }
     }
   }
 
@@ -211,11 +242,10 @@ export class TextParser {
   tokenizeString(text: string, parseBuffer: Address, dict: Address = 0, flag: boolean = false): void {
     this.logger.debug(`Tokenizing string: "${text}"`);
 
-    // Reset the token count to 0
-    this.memory.setByte(parseBuffer + 1, 0);
-
-    // NOTE: Do NOT clear the entire parse buffer area!
-    // The game may store other data in the unused token slots.
+    // Only reset when flag=false (see tokenizeLine for explanation)
+    if (!flag) {
+      this.memory.setByte(parseBuffer + 1, 0);
+    }
 
     // Get the dictionary
     const dictionary = this.getDictionary(dict);

@@ -713,6 +713,47 @@ describe('InputInterface', () => {
         expect(machine.state.memory.setByte).toHaveBeenCalledWith(0x1000 + 5, 116); // 't'
       });
 
+      it('should convert text to lowercase for V5+', () => {
+        // Set version to 5
+        machine.state.version = 5;
+
+        // Set up text buffer with max length 10
+        machine.state.memory.getByte.mockImplementation((addr) => {
+          if (addr === 0x1000) return 10; // Max length
+          return 0;
+        });
+
+        // Call with mixed-case input
+        inputProcessor.exposedStoreTextInput(machine, 'LOOK', 0x1000);
+
+        // Should store lowercase: 'l' = 108, 'o' = 111, 'o' = 111, 'k' = 107
+        expect(machine.state.memory.setByte).toHaveBeenCalledWith(0x1000 + 1, 4); // length
+        expect(machine.state.memory.setByte).toHaveBeenCalledWith(0x1000 + 2, 108); // 'l'
+        expect(machine.state.memory.setByte).toHaveBeenCalledWith(0x1000 + 3, 111); // 'o'
+        expect(machine.state.memory.setByte).toHaveBeenCalledWith(0x1000 + 4, 111); // 'o'
+        expect(machine.state.memory.setByte).toHaveBeenCalledWith(0x1000 + 5, 107); // 'k'
+      });
+
+      it('should not convert text to lowercase for V1-4', () => {
+        // Set version to 3
+        machine.state.version = 3;
+
+        // Set up text buffer with max length 10
+        machine.state.memory.getByte.mockImplementation((addr) => {
+          if (addr === 0x1000) return 10; // Max length
+          return 0;
+        });
+
+        // Call with mixed-case input
+        inputProcessor.exposedStoreTextInput(machine, 'LOOK', 0x1000);
+
+        // Should store uppercase: 'L' = 76, 'O' = 79, 'O' = 79, 'K' = 75
+        expect(machine.state.memory.setByte).toHaveBeenCalledWith(0x1000 + 1, 76); // 'L'
+        expect(machine.state.memory.setByte).toHaveBeenCalledWith(0x1000 + 2, 79); // 'O'
+        expect(machine.state.memory.setByte).toHaveBeenCalledWith(0x1000 + 3, 79); // 'O'
+        expect(machine.state.memory.setByte).toHaveBeenCalledWith(0x1000 + 4, 75); // 'K'
+      });
+
       it('should truncate input that exceeds max length', () => {
         // Set version to 3
         machine.state.version = 3;

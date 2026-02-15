@@ -270,7 +270,7 @@ describe('TextParser', () => {
       expect(mockMemory.setWord).toHaveBeenCalledWith(parseBuffer + 2, 0); // dict address = 0
     });
 
-    it('should only add recognized words when flag is true', () => {
+    it('should not reset parse buffer count when flag is true', () => {
       const textBuffer = 0x1000;
       const parseBuffer = 0x2000;
 
@@ -283,6 +283,7 @@ describe('TextParser', () => {
           return text.charCodeAt(addr - (textBuffer + 2));
         }
         if (addr === parseBuffer) return 10;
+        if (addr === parseBuffer + 1) return 2; // existing count from previous LEX call
         return 0;
       });
 
@@ -290,8 +291,262 @@ describe('TextParser', () => {
 
       textParser.tokenizeLine(textBuffer, parseBuffer, 0, true);
 
-      // Should not add word (not found and flag=true)
-      expect(mockMemory.setByte).toHaveBeenCalledWith(parseBuffer + 1, 0);
+      // Should NOT have reset the count to 0 (flag=true preserves existing entries)
+      const resetCalls = mockMemory.setByte.mock.calls.filter(
+        (call) => call[0] === parseBuffer + 1 && call[1] === 0
+      );
+      expect(resetCalls.length).toBe(0);
+    });
+
+    it('should update existing entry when flag=true and word found in new dictionary', () => {
+      const textBuffer = 0x1000;
+      const parseBuffer = 0x2000;
+      const newDictEntry = 0x0750;
+
+      const text = 'look';
+
+      // Create a V5 TextParser for correct position calculation (position + 2)
+      mockMemory.getByte.mockImplementation((addr: number) => {
+        if (addr === HeaderLocation.Version) return 5;
+        if (addr === defaultDictAddr) return 3;
+        if (addr === defaultDictAddr + 1) return 32;
+        if (addr === defaultDictAddr + 2) return 46;
+        if (addr === defaultDictAddr + 3) return 44;
+        if (addr === defaultDictAddr + 4) return 4;
+        return 0;
+      });
+      mockMemory.getWord.mockImplementation((addr: number) => {
+        if (addr === HeaderLocation.Dictionary) return defaultDictAddr;
+        if (addr === defaultDictAddr + 5) return 100;
+        return 0;
+      });
+      const v5Parser = new TextParser(mockMemory as unknown as Memory);
+
+      // Now set up the full mock for the test
+      mockMemory.getByte.mockImplementation((addr: number) => {
+        if (addr === HeaderLocation.Version) return 5;
+        if (addr === textBuffer) return 80;
+        if (addr === textBuffer + 1) return text.length;
+        if (addr >= textBuffer + 2 && addr < textBuffer + 2 + text.length) {
+          return text.charCodeAt(addr - (textBuffer + 2));
+        }
+        if (addr === defaultDictAddr) return 3;
+        if (addr === defaultDictAddr + 1) return 32;
+        if (addr === defaultDictAddr + 2) return 46;
+        if (addr === defaultDictAddr + 3) return 44;
+        if (addr === defaultDictAddr + 4) return 4;
+        if (addr === parseBuffer) return 10; // max tokens
+        if (addr === parseBuffer + 1) return 1; // 1 existing token
+        if (addr === parseBuffer + 4) return 4; // word length
+        if (addr === parseBuffer + 5) return 2; // position = textBuffer+2 for V5
+        return 0;
+      });
+
+      mockMemory.getWord.mockImplementation((addr: number) => {
+        if (addr === HeaderLocation.Dictionary) return defaultDictAddr;
+        if (addr === defaultDictAddr + 5) return 100;
+        if (addr === parseBuffer + 2) return 0x0600; // existing dict address
+        return 0;
+      });
+
+      const lookupSpy = vi.spyOn(Dictionary.prototype, 'lookupToken').mockReturnValue(newDictEntry);
+
+      v5Parser.tokenizeLine(textBuffer, parseBuffer, 0, true);
+
+      // Should have updated the existing entry's dictionary address
+      expect(mockMemory.setWord).toHaveBeenCalledWith(parseBuffer + 2, newDictEntry);
+    });
+
+    it('should leave entries unchanged when flag=true and word not found', () => {
+      const textBuffer = 0x1000;
+      const parseBuffer = 0x2000;
+
+      const text = 'look';
+
+      // Create a V5 TextParser for correct position calculation
+      mockMemory.getByte.mockImplementation((addr: number) => {
+        if (addr === HeaderLocation.Version) return 5;
+        if (addr === defaultDictAddr) return 3;
+        if (addr === defaultDictAddr + 1) return 32;
+        if (addr === defaultDictAddr + 2) return 46;
+        if (addr === defaultDictAddr + 3) return 44;
+        if (addr === defaultDictAddr + 4) return 4;
+        return 0;
+      });
+      mockMemory.getWord.mockImplementation((addr: number) => {
+        if (addr === HeaderLocation.Dictionary) return defaultDictAddr;
+        if (addr === defaultDictAddr + 5) return 100;
+        return 0;
+      });
+      const v5Parser = new TextParser(mockMemory as unknown as Memory);
+
+      // Set up full mock for the test
+      mockMemory.getByte.mockImplementation((addr: number) => {
+        if (addr === HeaderLocation.Version) return 5;
+        if (addr === textBuffer) return 80;
+        if (addr === textBuffer + 1) return text.length;
+        if (addr >= textBuffer + 2 && addr < textBuffer + 2 + text.length) {
+          return text.charCodeAt(addr - (textBuffer + 2));
+        }
+        if (addr === defaultDictAddr) return 3;
+        if (addr === defaultDictAddr + 1) return 32;
+        if (addr === defaultDictAddr + 2) return 46;
+        if (addr === defaultDictAddr + 3) return 44;
+        if (addr === defaultDictAddr + 4) return 4;
+        if (addr === parseBuffer) return 10;
+        if (addr === parseBuffer + 1) return 1; // 1 existing token
+        if (addr === parseBuffer + 4) return 4;
+        if (addr === parseBuffer + 5) return 2;
+        return 0;
+      });
+
+      const lookupSpy = vi.spyOn(Dictionary.prototype, 'lookupToken').mockReturnValue(0); // Not found
+
+      v5Parser.tokenizeLine(textBuffer, parseBuffer, 0, true);
+
+      // Should NOT have written any dictionary address to the parse buffer
+      const parseSetWordCalls = mockMemory.setWord.mock.calls.filter(
+        (call) => call[0] >= parseBuffer && call[0] < parseBuffer + 100
+      );
+      expect(parseSetWordCalls.length).toBe(0);
+    });
+
+    it('should handle Beyond Zork two-pass LEX pattern', () => {
+      const textBuffer = 0x1000;
+      const parseBuffer = 0x2000;
+      const mainDictEntry = 0x0550;
+
+      const text = 'look';
+
+      // Use a real backing store for memory so writes from pass 1 are visible to pass 2
+      const memStore = new Map<number, number>();
+      mockMemory.setByte.mockImplementation((addr: number, val: number) => {
+        memStore.set(addr, val);
+      });
+      mockMemory.setWord.mockImplementation((addr: number, val: number) => {
+        memStore.set(addr, (val >> 8) & 0xff);
+        memStore.set(addr + 1, val & 0xff);
+      });
+      mockMemory.getByte.mockImplementation((addr: number) => {
+        if (addr === HeaderLocation.Version) return 5;
+        if (addr === textBuffer) return 80;
+        if (addr === textBuffer + 1) return text.length;
+        if (addr >= textBuffer + 2 && addr < textBuffer + 2 + text.length) {
+          return text.charCodeAt(addr - (textBuffer + 2));
+        }
+        if (addr === defaultDictAddr) return 3;
+        if (addr === defaultDictAddr + 1) return 32;
+        if (addr === defaultDictAddr + 2) return 46;
+        if (addr === defaultDictAddr + 3) return 44;
+        if (addr === defaultDictAddr + 4) return 4;
+        if (addr === customDictAddr) return 3;
+        if (addr === customDictAddr + 1) return 32;
+        if (addr === customDictAddr + 2) return 46;
+        if (addr === customDictAddr + 3) return 44;
+        if (addr === customDictAddr + 4) return 4;
+        if (addr === parseBuffer) return 10; // max tokens
+        // Check our backing store for dynamic values
+        return memStore.get(addr) ?? 0;
+      });
+      mockMemory.getWord.mockImplementation((addr: number) => {
+        if (addr === HeaderLocation.Dictionary) return defaultDictAddr;
+        if (addr === defaultDictAddr + 5) return 100;
+        if (addr === customDictAddr + 5) return 5; // small VOCAB2
+        // Check backing store
+        const hi = memStore.get(addr) ?? 0;
+        const lo = memStore.get(addr + 1) ?? 0;
+        return (hi << 8) | lo;
+      });
+
+      // Pass 1: LEX against main dictionary (flag=false)
+      const lookupSpy = vi.spyOn(Dictionary.prototype, 'lookupToken').mockReturnValue(mainDictEntry);
+      textParser.tokenizeLine(textBuffer, parseBuffer, 0, false);
+
+      // Verify pass 1 worked: token count = 1, dict addr = mainDictEntry
+      expect(memStore.get(parseBuffer + 1)).toBe(1);
+
+      // Pass 2: LEX against VOCAB2 (flag=true), word NOT in VOCAB2
+      lookupSpy.mockReturnValue(0);
+      textParser.tokenizeLine(textBuffer, parseBuffer, customDictAddr, true);
+
+      // Token count should STILL be 1 (not reset to 0)
+      expect(memStore.get(parseBuffer + 1)).toBe(1);
+    });
+  });
+
+  describe('tokenizeLine - dynamic dictionary', () => {
+    it('should not cache non-default dictionaries so dynamic entries are visible', () => {
+      const textBuffer = 0x1000;
+      const parseBuffer = 0x2000;
+      const text = 'thumper';
+
+      // Create a V5 TextParser
+      mockMemory.getByte.mockImplementation((addr: number) => {
+        if (addr === HeaderLocation.Version) return 5;
+        if (addr === defaultDictAddr) return 3;
+        if (addr === defaultDictAddr + 1) return 32;
+        if (addr === defaultDictAddr + 2) return 46;
+        if (addr === defaultDictAddr + 3) return 44;
+        if (addr === defaultDictAddr + 4) return 4;
+        if (addr === customDictAddr) return 3;
+        if (addr === customDictAddr + 1) return 32;
+        if (addr === customDictAddr + 2) return 46;
+        if (addr === customDictAddr + 3) return 44;
+        if (addr === customDictAddr + 4) return 4;
+        return 0;
+      });
+      mockMemory.getWord.mockImplementation((addr: number) => {
+        if (addr === HeaderLocation.Dictionary) return defaultDictAddr;
+        if (addr === defaultDictAddr + 5) return 100;
+        if (addr === customDictAddr + 5) return 0; // Initially 0 entries
+        return 0;
+      });
+      const v5Parser = new TextParser(mockMemory as unknown as Memory);
+
+      // First call with customDict: Dictionary is created with 0 entries
+      const lookupSpy = vi.spyOn(Dictionary.prototype, 'lookupToken').mockReturnValue(0);
+      const constructorSpy = vi.spyOn(Dictionary.prototype, 'getNumEntries');
+
+      // Set up text buffer for tokenization
+      mockMemory.getByte.mockImplementation((addr: number) => {
+        if (addr === HeaderLocation.Version) return 5;
+        if (addr === textBuffer) return 80;
+        if (addr === textBuffer + 1) return text.length;
+        if (addr >= textBuffer + 2 && addr < textBuffer + 2 + text.length) {
+          return text.charCodeAt(addr - (textBuffer + 2));
+        }
+        if (addr === defaultDictAddr) return 3;
+        if (addr === defaultDictAddr + 1) return 32;
+        if (addr === defaultDictAddr + 2) return 46;
+        if (addr === defaultDictAddr + 3) return 44;
+        if (addr === defaultDictAddr + 4) return 4;
+        if (addr === customDictAddr) return 3;
+        if (addr === customDictAddr + 1) return 32;
+        if (addr === customDictAddr + 2) return 46;
+        if (addr === customDictAddr + 3) return 44;
+        if (addr === customDictAddr + 4) return 4;
+        if (addr === parseBuffer) return 10;
+        if (addr === parseBuffer + 1) return 1;
+        if (addr === parseBuffer + 5) return 2;
+        return 0;
+      });
+
+      v5Parser.tokenizeLine(textBuffer, parseBuffer, customDictAddr, true);
+
+      // Now simulate the game adding an entry to customDict (count changes to -1 = 0xFFFF)
+      mockMemory.getWord.mockImplementation((addr: number) => {
+        if (addr === HeaderLocation.Dictionary) return defaultDictAddr;
+        if (addr === defaultDictAddr + 5) return 100;
+        if (addr === customDictAddr + 5) return 0xffff; // Now -1 (1 unsorted entry)
+        return 0;
+      });
+
+      // Second call: should create a NEW Dictionary that sees the updated count
+      lookupSpy.mockReturnValue(0x0750); // Word found in updated VOCAB2
+      v5Parser.tokenizeLine(textBuffer, parseBuffer, customDictAddr, true);
+
+      // The lookup should have been called (Dictionary was recreated, saw 1 entry)
+      expect(lookupSpy).toHaveBeenCalled();
     });
   });
 
@@ -432,6 +687,7 @@ describe('TextParser', () => {
       mockMemory.getByte.mockImplementation((addr: number) => {
         if (addr === HeaderLocation.Version) return 3;
         if (addr === parseBuffer) return 10;
+        if (addr === parseBuffer + 1) return 0; // no existing tokens
         return 0;
       });
 
@@ -439,16 +695,20 @@ describe('TextParser', () => {
 
       textParser.tokenizeString('unknown', parseBuffer, 0, false);
 
-      // Should add word even though not found
-      expect(mockMemory.setByte).toHaveBeenCalledWith(parseBuffer + 1, 1);
+      // flag=false: should add word even though not found, resetting count first
+      expect(mockMemory.setByte).toHaveBeenCalledWith(parseBuffer + 1, 0); // reset
+      expect(mockMemory.setByte).toHaveBeenCalledWith(parseBuffer + 1, 1); // increment
 
       // Reset
       mockMemory.setByte.mockClear();
 
       textParser.tokenizeString('unknown', parseBuffer, 0, true);
 
-      // Should not add word (not found and flag=true)
-      expect(mockMemory.setByte).toHaveBeenCalledWith(parseBuffer + 1, 0);
+      // flag=true: should NOT reset count, and should not add unrecognized word
+      const resetCalls = mockMemory.setByte.mock.calls.filter(
+        (call) => call[0] === parseBuffer + 1 && call[1] === 0
+      );
+      expect(resetCalls.length).toBe(0);
     });
 
     it('should use custom dictionary address', () => {

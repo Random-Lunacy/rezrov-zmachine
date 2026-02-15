@@ -201,17 +201,22 @@ describe('String Opcodes', () => {
         return 0;
       });
 
-      // Act
+      // Act - default height=1, lower window (getOutputWindow returns 0)
       stringOpcodes.print_table.impl(machine, [], address, width);
 
       // Assert
       expect(mockMachine.memory.getByte).toHaveBeenCalledWith(address);
       expect(mockMachine.memory.getByte).toHaveBeenCalledWith(address + 1);
       expect(mockMachine.memory.getByte).toHaveBeenCalledWith(address + 2);
-      expect(machine.screen.print).toHaveBeenCalledWith(machine, 'ABC\n');
+      expect(machine.screen.print).toHaveBeenCalledWith(machine, 'ABC');
+      // Per spec: "There is no implicit new-line at the end."
+      // No trailing newline after the last row
+      const printCalls = (machine.screen.print as ReturnType<typeof vi.fn>).mock.calls;
+      const printArgs = printCalls.map((c: [unknown, string]) => c[1]);
+      expect(printArgs).not.toContain('\n');
     });
 
-    it('should print a table with multiple rows', () => {
+    it('should print a table with multiple rows in lower window', () => {
       // Arrange
       const address = 0x3000;
       const width = 2;
@@ -224,7 +229,7 @@ describe('String Opcodes', () => {
         return 0;
       });
 
-      // Act
+      // Act - lower window (getOutputWindow returns 0)
       stringOpcodes.print_table.impl(machine, [], address, width, height);
 
       // Assert
@@ -232,8 +237,9 @@ describe('String Opcodes', () => {
       expect(mockMachine.memory.getByte).toHaveBeenCalledWith(address + 1);
       expect(mockMachine.memory.getByte).toHaveBeenCalledWith(address + 2);
       expect(mockMachine.memory.getByte).toHaveBeenCalledWith(address + 3);
-      expect(machine.screen.print).toHaveBeenCalledWith(machine, 'AB\n');
-      expect(machine.screen.print).toHaveBeenCalledWith(machine, 'CD\n');
+      // Row 1 printed, then newline between rows, row 2 printed, then trailing newline
+      expect(machine.screen.print).toHaveBeenCalledWith(machine, 'AB');
+      expect(machine.screen.print).toHaveBeenCalledWith(machine, 'CD');
     });
 
     it('should handle skip parameter between rows', () => {
@@ -251,7 +257,7 @@ describe('String Opcodes', () => {
         return 0;
       });
 
-      // Act
+      // Act - lower window
       stringOpcodes.print_table.impl(machine, [], address, width, height, skip);
 
       // Assert
@@ -259,8 +265,56 @@ describe('String Opcodes', () => {
       expect(mockMachine.memory.getByte).toHaveBeenCalledWith(address + 1);
       expect(mockMachine.memory.getByte).toHaveBeenCalledWith(address + 3);
       expect(mockMachine.memory.getByte).toHaveBeenCalledWith(address + 4);
-      expect(machine.screen.print).toHaveBeenCalledWith(machine, 'AB\n');
-      expect(machine.screen.print).toHaveBeenCalledWith(machine, 'CD\n');
+      expect(machine.screen.print).toHaveBeenCalledWith(machine, 'AB');
+      expect(machine.screen.print).toHaveBeenCalledWith(machine, 'CD');
+    });
+
+    it('should replace control characters with spaces in table data', () => {
+      // Arrange - buffer contains control characters (e.g., stray LF/CR from captured text)
+      const address = 0x3000;
+      const width = 5;
+      mockMachine.memory.getByte = vi.fn().mockImplementation((addr) => {
+        if (addr === address) return 65; // A
+        if (addr === address + 1) return 10; // LF (control char)
+        if (addr === address + 2) return 13; // CR (control char)
+        if (addr === address + 3) return 0; // NUL (control char)
+        if (addr === address + 4) return 66; // B
+        return 0;
+      });
+
+      // Act
+      stringOpcodes.print_table.impl(machine, [], address, width);
+
+      // Assert - control chars (0-31) should be replaced with spaces
+      expect(machine.screen.print).toHaveBeenCalledWith(machine, 'A   B');
+    });
+
+    it('should use setCursorPosition for row positioning in upper window', () => {
+      // Arrange
+      const address = 0x3000;
+      const width = 2;
+      const height = 2;
+      mockMachine.screen.getOutputWindow = vi.fn().mockReturnValue(1); // Upper window
+      mockMachine.screen.getCursorPosition = vi.fn().mockReturnValue({ line: 3, column: 5 });
+      mockMachine.state.version = 5;
+      mockMachine.memory.getByte = vi.fn().mockImplementation((addr) => {
+        if (addr === address) return 65; // A
+        if (addr === address + 1) return 66; // B
+        if (addr === address + 2) return 67; // C
+        if (addr === address + 3) return 68; // D
+        return 0;
+      });
+
+      // Act
+      stringOpcodes.print_table.impl(machine, [], address, width, height);
+
+      // Assert - row 1 printed at current cursor, then setCursorPosition for row 2
+      expect(machine.screen.print).toHaveBeenCalledWith(machine, 'AB');
+      expect(machine.screen.setCursorPosition).toHaveBeenCalledWith(machine, 4, 5, 1); // line 3+1, col 5
+      expect(machine.screen.print).toHaveBeenCalledWith(machine, 'CD');
+      // Per spec: "There is no implicit new-line at the end."
+      // Cursor should NOT be positioned below the table after the last row
+      expect(machine.screen.setCursorPosition).toHaveBeenCalledTimes(1); // Only between rows, not after
     });
   });
 
@@ -366,15 +420,101 @@ describe('String Opcodes', () => {
   });
 
   describe('encode_text', () => {
-    it('should throw a not implemented error', () => {
+    it('should encode ZSCII text and write packed words to memory', () => {
       // Arrange
-      const text = 0x1000;
-      mockMachine.memory.getZString = vi.fn().mockReturnValue([65, 66, 67]);
+      const zsciiText = 0x1000;
+      const codedText = 0x2000;
+      const text = 'look';
 
-      // Act & Assert
-      expect(() => stringOpcodes.encode_text.impl(machine, [], text)).toThrow('Unimplemented opcode: encode_text');
-      expect(mockMachine.memory.getZString).toHaveBeenCalledWith(text);
-      expect(mockMachine.logger.debug).toHaveBeenCalled();
+      // Mock memory reads for ZSCII source text
+      mockMachine.memory.getByte = vi.fn().mockImplementation((addr: number) => {
+        const offset = addr - zsciiText;
+        if (offset >= 0 && offset < text.length) {
+          return text.charCodeAt(offset);
+        }
+        return 0;
+      });
+
+      // Mock version
+      mockMachine.state.version = 5;
+
+      // Mock encoding functions
+      const mockZChars = [17, 21, 21, 16, 5, 5, 5, 5, 5]; // "look" encoded
+      const mockPacked = [0x4ab5, 0xa0a5, 0xc0a5]; // 3 packed words for V5
+      vi.spyOn(ZString, 'encodeZString').mockReturnValue(mockZChars);
+      vi.spyOn(ZString, 'packZCharacters').mockReturnValue(mockPacked);
+
+      // Act
+      stringOpcodes.encode_text.impl(machine, [], zsciiText, text.length, 0, codedText);
+
+      // Assert - should read 4 bytes from source
+      expect(mockMachine.memory.getByte).toHaveBeenCalledWith(zsciiText + 0);
+      expect(mockMachine.memory.getByte).toHaveBeenCalledWith(zsciiText + 1);
+      expect(mockMachine.memory.getByte).toHaveBeenCalledWith(zsciiText + 2);
+      expect(mockMachine.memory.getByte).toHaveBeenCalledWith(zsciiText + 3);
+
+      // Assert - should write 3 packed words to destination
+      expect(mockMachine.memory.setWord).toHaveBeenCalledWith(codedText, mockPacked[0]);
+      expect(mockMachine.memory.setWord).toHaveBeenCalledWith(codedText + 2, mockPacked[1]);
+      expect(mockMachine.memory.setWord).toHaveBeenCalledWith(codedText + 4, mockPacked[2]);
+    });
+
+    it('should apply from offset when reading source text', () => {
+      // Arrange: buffer has length byte at offset 0, then text at offset 1
+      const zsciiText = 0x1000;
+      const codedText = 0x2000;
+      const from = 1;
+      const length = 4;
+
+      mockMachine.memory.getByte = vi.fn().mockImplementation((addr: number) => {
+        // Byte 0 = length (4), bytes 1-4 = "test"
+        const data = [4, 116, 101, 115, 116]; // length, t, e, s, t
+        const offset = addr - zsciiText;
+        return data[offset] ?? 0;
+      });
+
+      mockMachine.state.version = 5;
+
+      const mockZChars = [25, 10, 24, 25, 5, 5, 5, 5, 5];
+      const mockPacked = [0x6545, 0xc8a5, 0xc0a5];
+      vi.spyOn(ZString, 'encodeZString').mockReturnValue(mockZChars);
+      vi.spyOn(ZString, 'packZCharacters').mockReturnValue(mockPacked);
+
+      // Act
+      stringOpcodes.encode_text.impl(machine, [], zsciiText, length, from, codedText);
+
+      // Assert - should read starting at zsciiText + from
+      expect(mockMachine.memory.getByte).toHaveBeenCalledWith(zsciiText + 1);
+      expect(mockMachine.memory.getByte).toHaveBeenCalledWith(zsciiText + 2);
+      expect(mockMachine.memory.getByte).toHaveBeenCalledWith(zsciiText + 3);
+      expect(mockMachine.memory.getByte).toHaveBeenCalledWith(zsciiText + 4);
+
+      // Assert - encodeZString received the text starting after the from offset
+      expect(ZString.encodeZString).toHaveBeenCalledWith(mockMachine.memory, 'test', 5);
+    });
+
+    it('should pass text to encodeZString for encoding', () => {
+      // Arrange
+      const zsciiText = 0x1000;
+      const codedText = 0x2000;
+
+      mockMachine.memory.getByte = vi.fn().mockImplementation((addr: number) => {
+        // "hi" at offset 0
+        const data = [104, 105]; // h, i
+        return data[addr - zsciiText] ?? 0;
+      });
+
+      mockMachine.state.version = 5;
+
+      vi.spyOn(ZString, 'encodeZString').mockReturnValue([13, 14, 5, 5, 5, 5, 5, 5, 5]);
+      vi.spyOn(ZString, 'packZCharacters').mockReturnValue([0x3545, 0xa0a5, 0xc0a5]);
+
+      // Act
+      stringOpcodes.encode_text.impl(machine, [], zsciiText, 2, 0, codedText);
+
+      // Assert - should pass the decoded text string to encodeZString
+      expect(ZString.encodeZString).toHaveBeenCalledWith(mockMachine.memory, 'hi', 5);
+      expect(ZString.packZCharacters).toHaveBeenCalledWith([13, 14, 5, 5, 5, 5, 5, 5, 5], 5);
     });
   });
 });

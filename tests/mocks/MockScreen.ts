@@ -53,19 +53,22 @@ export class MockScreen implements Screen {
   getWindowTrueForeground = vi.fn().mockReturnValue(1); // Color.Default
   getWindowTrueBackground = vi.fn().mockReturnValue(1); // Color.Default
 
-  // Window property with proper implementation
-  getWindowProperty = vi.fn().mockImplementation((machine: any, window: number, property: number) => {
+  // Window property with Z-machine spec property numbers
+  getWindowProperty = vi.fn().mockImplementation((_machine: any, window: number, property: number) => {
     switch (property) {
-      case 0: return 0; // LineCount: upperWindowHeight
-      case 1: return 1; // CursorLine
-      case 2: return 1; // CursorColumn
-      case 3: return 1; // LeftMargin
-      case 4: return 80; // RightMargin
-      case 5: return 1; // Font
-      case 6: return 0; // TextStyle
-      case 7: return 257; // ColorData: (1 << 8) | 1 = 257
-      case 8: return 80; // Width
-      case 9: return window === 1 ? 0 : 25; // Height: upper window vs lower window
+      case 0: return window === 1 ? 1 : 1; // YCoordinate (1-based)
+      case 1: return 1; // XCoordinate (1-based)
+      case 2: return window === 1 ? 0 : 25; // YSize (height)
+      case 3: return 80; // XSize (width)
+      case 4: return 1; // YCursor
+      case 5: return 1; // XCursor
+      case 6: return 0; // LeftMargin (size)
+      case 7: return 0; // RightMargin (size)
+      case 10: return 0; // TextStyle
+      case 11: return 257; // ColorData: (1 << 8) | 1
+      case 12: return 1; // Font
+      case 13: return 257; // FontSize: (1 << 8) | 1
+      case 15: return window === 1 ? 0 : 25; // LineCount
       default: return 0;
     }
   });
