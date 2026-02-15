@@ -48,6 +48,15 @@ export type Capabilities = {
   hasPictures: boolean;
   hasSound: boolean;
   hasTimedKeyboardInput: boolean;
+
+  // Default colors for V5+ header bytes 0x2C/0x2D (Z-machine Color enum values)
+  defaultForeground?: number;
+  defaultBackground?: number;
+
+  // Interpreter number for header byte 0x1E (defaults to Amiga=4 for good color palette support)
+  // Some games like Beyond Zork use this to select color palettes.
+  // See Interpreter enum in constants.ts for valid values.
+  interpreterNumber?: number;
 };
 
 /**

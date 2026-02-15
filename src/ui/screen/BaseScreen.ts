@@ -37,6 +37,9 @@ export class BaseScreen implements Screen {
   // Parallel style buffer: stores the active TextStyle bitmask per character position
   protected upperWindowStyleBuffer: number[][] = [];
 
+  // Parallel color buffer: stores the active foreground/background per character position
+  protected upperWindowColorBuffer: Array<Array<{ foreground: number; background: number }>> = [];
+
   // Bottom-aligned output configuration
   // When true, initial output starts at bottom of screen and scrolls up
   protected startFromBottom: boolean = true;
@@ -269,12 +272,14 @@ export class BaseScreen implements Screen {
       this.windowCursors.set(WindowType.Upper, { line: 1, column: 1 });
       this.upperWindowBuffer = [];
       this.upperWindowStyleBuffer = [];
+      this.upperWindowColorBuffer = [];
       // Reset for bottom-aligned output on next print
       this.hasReceivedFirstOutput = false;
     } else if (windowId === -2) {
       // Per spec: clear all windows but don't unsplit, don't change active window
       this.upperWindowBuffer = [];
       this.upperWindowStyleBuffer = [];
+      this.upperWindowColorBuffer = [];
       this.cursorPosition = { line: 1, column: 1 };
       this.windowCursors.set(WindowType.Lower, { line: 1, column: 1 });
       this.windowCursors.set(WindowType.Upper, { line: 1, column: 1 });
@@ -282,6 +287,7 @@ export class BaseScreen implements Screen {
     } else if (windowId === WindowType.Upper) {
       this.upperWindowBuffer = [];
       this.upperWindowStyleBuffer = [];
+      this.upperWindowColorBuffer = [];
       if (version >= 5) {
         this.cursorPosition = { line: 1, column: 1 };
       }
@@ -331,6 +337,14 @@ export class BaseScreen implements Screen {
         const styleLine = this.upperWindowStyleBuffer[lineIdx];
         for (let i = colIdx; i < screenWidth && i < styleLine.length; i++) {
           styleLine[i] = TextStyle.Roman;
+        }
+      }
+
+      // Clear colors for those positions
+      if (lineIdx < this.upperWindowColorBuffer.length) {
+        const colorLine = this.upperWindowColorBuffer[lineIdx];
+        for (let i = colIdx; i < screenWidth && i < colorLine.length; i++) {
+          colorLine[i] = { foreground: Color.Default, background: Color.Default };
         }
       }
     }
@@ -535,10 +549,23 @@ export class BaseScreen implements Screen {
         this.upperWindowStyleBuffer.push(new Array(screenWidth).fill(TextStyle.Roman));
       }
 
+      // Ensure we have enough lines in the color buffer
+      while (this.upperWindowColorBuffer.length <= lineIdx) {
+        this.upperWindowColorBuffer.push(
+          Array.from({ length: screenWidth }, () => ({ foreground: Color.Default, background: Color.Default }))
+        );
+      }
+
       // Pad style buffer line if needed
       const styleLine = this.upperWindowStyleBuffer[lineIdx];
       while (styleLine.length < screenWidth) {
         styleLine.push(TextStyle.Roman);
+      }
+
+      // Pad color buffer line if needed
+      const colorLine = this.upperWindowColorBuffer[lineIdx];
+      while (colorLine.length < screenWidth) {
+        colorLine.push({ foreground: Color.Default, background: Color.Default });
       }
 
       // Get the current line and pad if needed
@@ -553,6 +580,13 @@ export class BaseScreen implements Screen {
 
       // Record the active style for this character position
       this.upperWindowStyleBuffer[lineIdx][colIdx] = this.currentStyles;
+
+      // Record the active colors for this character position
+      const currentWindowColors = this.windowColors.get(this.outputWindowId) || {
+        foreground: Color.Default,
+        background: Color.Default,
+      };
+      this.upperWindowColorBuffer[lineIdx][colIdx] = { ...currentWindowColors };
 
       // Advance cursor right (clamp at right edge)
       this.cursorPosition.column = Math.min(this.cursorPosition.column + 1, screenWidth + 1);
@@ -594,6 +628,20 @@ export class BaseScreen implements Screen {
         return styleLine.slice(0, newWidth);
       }
       return styleLine;
+    });
+
+    // Resize each line in the color buffer
+    this.upperWindowColorBuffer = this.upperWindowColorBuffer.map((colorLine) => {
+      if (colorLine.length < newWidth) {
+        const padded = [...colorLine];
+        while (padded.length < newWidth) {
+          padded.push({ foreground: Color.Default, background: Color.Default });
+        }
+        return padded;
+      } else if (colorLine.length > newWidth) {
+        return colorLine.slice(0, newWidth);
+      }
+      return colorLine;
     });
 
     return this.upperWindowBuffer.join('\n');

@@ -776,6 +776,52 @@ describe('ZMachine', () => {
       expect(zmachine.memory.getByte(HeaderLocation.FontHeightInUnits)).toBe(1);
     });
 
+    it('should write default colors to header for Version 5', () => {
+      // Create a Version 5 story
+      storyBuffer[0] = 5;
+
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+
+      // Default colors should be White (9) foreground and Black (2) background
+      expect(zmachine.memory.getByte(HeaderLocation.DefaultForegroundColor)).toBe(9); // Color.White
+      expect(zmachine.memory.getByte(HeaderLocation.DefaultBackgroundColor)).toBe(2); // Color.Black
+    });
+
+    it('should respect custom default colors from Capabilities for Version 5', () => {
+      storyBuffer[0] = 5;
+
+      const mockCapabilities = {
+        hasColors: true,
+        hasBold: true,
+        hasItalic: true,
+        hasReverseVideo: true,
+        hasFixedPitch: true,
+        hasSplitWindow: true,
+        hasDisplayStatusBar: true,
+        hasPictures: false,
+        hasSound: false,
+        hasTimedKeyboardInput: false,
+        defaultForeground: 8, // Color.Cyan
+        defaultBackground: 3, // Color.Red
+      };
+
+      vi.spyOn(screen, 'getCapabilities').mockReturnValue(mockCapabilities);
+
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+
+      expect(zmachine.memory.getByte(HeaderLocation.DefaultForegroundColor)).toBe(8); // Cyan
+      expect(zmachine.memory.getByte(HeaderLocation.DefaultBackgroundColor)).toBe(3); // Red
+    });
+
+    it('should not write default colors for Version 3', () => {
+      // Version 3 story (default storyBuffer[0] = 3)
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+
+      // Default colors should not be written for V3
+      expect(zmachine.memory.getByte(HeaderLocation.DefaultForegroundColor)).toBe(0);
+      expect(zmachine.memory.getByte(HeaderLocation.DefaultBackgroundColor)).toBe(0);
+    });
+
     it('should configure flags for Version 4+ with disabled capabilities', () => {
       // Create a Version 5 story
       storyBuffer[0] = 5;

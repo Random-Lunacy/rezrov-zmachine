@@ -60,21 +60,39 @@ npm install
 npm start path/to/story.z3
 ```
 
-## Debugging Features
+## Command-Line Options
 
-Both examples support debugging flags:
+Both examples support the following flags:
 
-- `--debug` or `-d`: Enable debug logging
-- `--header` or `-h`: Dump Z-Machine header information
-- `--objectTree` or `-o`: Dump object table structure
-- `--dict` or `-t`: Dump dictionary contents
-- `--dump`: Enable all debugging features without execution
-- `--noExec` or `-n`: Show debugging info without running the story
+| Flag | Short | Description |
+| ---- | ----- | ----------- |
+| `--debug` | `-d` | Enable debug logging |
+| `--interpreter <name>` | `-i` | Set interpreter type (default: `amiga`) |
+| `--header` | `-h` | Dump Z-Machine header information |
+| `--objectTree` | `-o` | Dump object table structure |
+| `--dict` | `-t` | Dump dictionary contents |
+| `--dump` | | Enable all debugging features without execution |
+| `--noExec` | `-n` | Show debugging info without running the story |
 
-Example:
+### Interpreter Types
+
+The `--interpreter` flag controls which platform the Z-Machine reports to the game. Some games (notably Beyond Zork) use this to select color palettes and platform-specific behavior.
+
+Valid interpreter names: `dec20`, `apple-iie`, `mac`, `amiga`, `atari`, `ibm`, `c128`, `c64`, `apple-iic`, `apple-iigs`, `tandy`
+
+The default is `amiga`, which provides good color palette support out of the box. Use `--interpreter ibm` to emulate an IBM PC, though note that some games (like Beyond Zork) start with a colorless default palette on IBM.
+
+### Usage Examples
 
 ```bash
-npm start story.z3 --debug --header
+# Basic usage
+npm start -- path/to/story.z3
+
+# With debug output
+npm start -- -d -h path/to/story.z3
+
+# Set interpreter to IBM PC
+npm start -- -i ibm ~/infocom/Beyond\ Zork.z5
 ```
 
 ## Creating Your Own Implementation

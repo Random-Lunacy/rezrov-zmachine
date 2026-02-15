@@ -1162,4 +1162,162 @@ describe('BaseScreen', () => {
       expect(testScreen.hasReceivedFirstOutput).toBe(beforeState.hasReceivedFirstOutput);
     });
   });
+
+  describe('upper window color buffer', () => {
+    it('should populate color buffer when writing to upper window with active colors', () => {
+      const testScreen = screen as any;
+
+      // Set colors on the upper window
+      testScreen.outputWindowId = 1;
+      testScreen.windowColors.set(1, { foreground: Color.Blue, background: Color.Black });
+      testScreen.cursorPosition = { line: 1, column: 1 };
+
+      testScreen.writeToUpperWindowBuffer('AB', 80);
+
+      // Color buffer should have been populated
+      expect(testScreen.upperWindowColorBuffer.length).toBe(1);
+      expect(testScreen.upperWindowColorBuffer[0][0]).toEqual({ foreground: Color.Blue, background: Color.Black });
+      expect(testScreen.upperWindowColorBuffer[0][1]).toEqual({ foreground: Color.Blue, background: Color.Black });
+    });
+
+    it('should track color changes mid-text', () => {
+      const testScreen = screen as any;
+      testScreen.outputWindowId = 1;
+
+      // Write "AB" with red foreground
+      testScreen.windowColors.set(1, { foreground: Color.Red, background: Color.Black });
+      testScreen.cursorPosition = { line: 1, column: 1 };
+      testScreen.writeToUpperWindowBuffer('AB', 80);
+
+      // Change to blue and write "CD"
+      testScreen.windowColors.set(1, { foreground: Color.Blue, background: Color.Black });
+      testScreen.writeToUpperWindowBuffer('CD', 80);
+
+      expect(testScreen.upperWindowColorBuffer[0][0]).toEqual({ foreground: Color.Red, background: Color.Black });
+      expect(testScreen.upperWindowColorBuffer[0][1]).toEqual({ foreground: Color.Red, background: Color.Black });
+      expect(testScreen.upperWindowColorBuffer[0][2]).toEqual({ foreground: Color.Blue, background: Color.Black });
+      expect(testScreen.upperWindowColorBuffer[0][3]).toEqual({ foreground: Color.Blue, background: Color.Black });
+    });
+
+    it('should clear color buffer on clearWindow(-1)', () => {
+      const testScreen = screen as any;
+      testScreen.outputWindowId = 1;
+      testScreen.windowColors.set(1, { foreground: Color.Red, background: Color.Black });
+      testScreen.cursorPosition = { line: 1, column: 1 };
+      testScreen.writeToUpperWindowBuffer('Test', 80);
+
+      expect(testScreen.upperWindowColorBuffer.length).toBe(1);
+
+      screen.clearWindow(machine as any, -1);
+
+      expect(testScreen.upperWindowColorBuffer.length).toBe(0);
+    });
+
+    it('should clear color buffer on clearWindow(Upper)', () => {
+      const testScreen = screen as any;
+      testScreen.outputWindowId = 1;
+      testScreen.windowColors.set(1, { foreground: Color.Green, background: Color.Black });
+      testScreen.cursorPosition = { line: 1, column: 1 };
+      testScreen.writeToUpperWindowBuffer('Test', 80);
+
+      screen.clearWindow(machine as any, 1);
+
+      expect(testScreen.upperWindowColorBuffer.length).toBe(0);
+    });
+
+    it('should clear color buffer on clearWindow(-2)', () => {
+      const testScreen = screen as any;
+      testScreen.outputWindowId = 1;
+      testScreen.windowColors.set(1, { foreground: Color.Yellow, background: Color.Black });
+      testScreen.cursorPosition = { line: 1, column: 1 };
+      testScreen.writeToUpperWindowBuffer('Test', 80);
+
+      screen.clearWindow(machine as any, -2);
+
+      expect(testScreen.upperWindowColorBuffer.length).toBe(0);
+    });
+
+    it('should not clear color buffer when clearing lower window', () => {
+      const testScreen = screen as any;
+      testScreen.outputWindowId = 1;
+      testScreen.windowColors.set(1, { foreground: Color.Red, background: Color.Black });
+      testScreen.cursorPosition = { line: 1, column: 1 };
+      testScreen.writeToUpperWindowBuffer('Test', 80);
+
+      screen.clearWindow(machine as any, 0);
+
+      expect(testScreen.upperWindowColorBuffer.length).toBe(1);
+    });
+
+    it('should clear colors in clearLine from cursor to right edge', () => {
+      const testScreen = screen as any;
+      // clearLine requires V5+
+      const v5 = createMockZMachine();
+      v5.state.version = 5;
+
+      testScreen.outputWindowId = 1;
+      testScreen.windowColors.set(1, { foreground: Color.Red, background: Color.Blue });
+      testScreen.cursorPosition = { line: 1, column: 1 };
+      testScreen.writeToUpperWindowBuffer('ABCDE', 10);
+
+      // Position cursor at column 3 and clear
+      testScreen.cursorPosition = { line: 1, column: 3 };
+      screen.clearLine(v5 as any, 1);
+
+      // First two chars should retain their color
+      expect(testScreen.upperWindowColorBuffer[0][0]).toEqual({ foreground: Color.Red, background: Color.Blue });
+      expect(testScreen.upperWindowColorBuffer[0][1]).toEqual({ foreground: Color.Red, background: Color.Blue });
+      // Remaining should be reset to default
+      expect(testScreen.upperWindowColorBuffer[0][2]).toEqual({
+        foreground: Color.Default,
+        background: Color.Default,
+      });
+      expect(testScreen.upperWindowColorBuffer[0][4]).toEqual({
+        foreground: Color.Default,
+        background: Color.Default,
+      });
+    });
+
+    it('should initialize default colors for new buffer lines', () => {
+      const testScreen = screen as any;
+      testScreen.outputWindowId = 1;
+      // Don't set any explicit colors
+      testScreen.cursorPosition = { line: 1, column: 1 };
+      testScreen.writeToUpperWindowBuffer('A', 10);
+
+      // Should have default colors for all positions
+      expect(testScreen.upperWindowColorBuffer[0][0]).toEqual({
+        foreground: Color.Default,
+        background: Color.Default,
+      });
+      // Padding positions should also have defaults
+      expect(testScreen.upperWindowColorBuffer[0][5]).toEqual({
+        foreground: Color.Default,
+        background: Color.Default,
+      });
+    });
+
+    it('should resize color buffer when resizing upper window buffer', () => {
+      const testScreen = screen as any;
+      testScreen.outputWindowId = 1;
+      testScreen.windowColors.set(1, { foreground: Color.Red, background: Color.Black });
+      testScreen.cursorPosition = { line: 1, column: 1 };
+      testScreen.writeToUpperWindowBuffer('Test', 40);
+
+      // Resize wider
+      testScreen.resizeUpperWindowBuffer(80);
+      expect(testScreen.upperWindowColorBuffer[0].length).toBe(80);
+      // Original color preserved
+      expect(testScreen.upperWindowColorBuffer[0][0]).toEqual({ foreground: Color.Red, background: Color.Black });
+      // New positions have defaults
+      expect(testScreen.upperWindowColorBuffer[0][50]).toEqual({
+        foreground: Color.Default,
+        background: Color.Default,
+      });
+
+      // Resize narrower
+      testScreen.resizeUpperWindowBuffer(20);
+      expect(testScreen.upperWindowColorBuffer[0].length).toBe(20);
+    });
+  });
 });

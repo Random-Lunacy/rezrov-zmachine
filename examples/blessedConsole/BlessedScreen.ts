@@ -34,8 +34,12 @@ export class BlessedScreen extends BaseScreen {
   // rendered text without tags, so we can't append new tagged content to it
   private mainWindowContent: string = '';
 
-  constructor() {
+  // Interpreter number for header (determines color palette in some games)
+  private interpreterNum: number | undefined;
+
+  constructor(interpreterNumber?: number) {
     super('BlessedScreen', { logger: undefined });
+    this.interpreterNum = interpreterNumber;
 
     this.screen = blessed.screen({
       smartCSR: true,
@@ -196,6 +200,7 @@ export class BlessedScreen extends BaseScreen {
       hasPictures: false,
       hasSound: false,
       hasTimedKeyboardInput: true,
+      interpreterNumber: this.interpreterNum,
     };
   }
 
@@ -302,11 +307,11 @@ export class BlessedScreen extends BaseScreen {
       result = `{inverse}${result}{/inverse}`;
     }
 
-    // Apply colors
+    // Apply colors (resolve Color.Default to actual terminal defaults)
     const windowColors = this.windowColors.get(this.outputWindowId);
     if (windowColors) {
-      const fgColor = this.mapZMachineColor(windowColors.foreground);
-      const bgColor = this.mapZMachineColor(windowColors.background);
+      const fgColor = this.mapZMachineColorWithDefault(windowColors.foreground, false);
+      const bgColor = this.mapZMachineColorWithDefault(windowColors.background, true);
 
       if (fgColor && bgColor) {
         result = `{${fgColor}-fg}{${bgColor}-bg}${result}{/}`;
@@ -321,50 +326,67 @@ export class BlessedScreen extends BaseScreen {
   }
 
   /**
-   * Render the upper window buffer with per-character style tags for blessed.
-   * Groups consecutive characters with the same style and wraps each run
+   * Render the upper window buffer with per-character style and color tags for blessed.
+   * Groups consecutive characters with the same style AND color, wrapping each run
    * in the appropriate blessed tags.
    */
   private renderStyledUpperWindow(): string {
+    const defaultColor = { foreground: Color.Default, background: Color.Default };
     const lines: string[] = [];
 
     for (let lineIdx = 0; lineIdx < this.upperWindowBuffer.length; lineIdx++) {
       const textLine = this.upperWindowBuffer[lineIdx];
       const styleLine = lineIdx < this.upperWindowStyleBuffer.length ? this.upperWindowStyleBuffer[lineIdx] : [];
+      const colorLine = lineIdx < this.upperWindowColorBuffer.length ? this.upperWindowColorBuffer[lineIdx] : [];
 
       let result = '';
       let runStart = 0;
 
       while (runStart < textLine.length) {
         const runStyle = runStart < styleLine.length ? styleLine[runStart] : 0;
+        const runColor = runStart < colorLine.length ? colorLine[runStart] : defaultColor;
 
-        // Find the end of this style run
+        // Find the end of this style+color run
         let runEnd = runStart + 1;
         while (runEnd < textLine.length) {
           const nextStyle = runEnd < styleLine.length ? styleLine[runEnd] : 0;
-          if (nextStyle !== runStyle) break;
+          const nextColor = runEnd < colorLine.length ? colorLine[runEnd] : defaultColor;
+          if (
+            nextStyle !== runStyle ||
+            nextColor.foreground !== runColor.foreground ||
+            nextColor.background !== runColor.background
+          ) {
+            break;
+          }
           runEnd++;
         }
 
-        const runText = textLine.substring(runStart, runEnd);
+        let runText = textLine.substring(runStart, runEnd);
 
-        // Apply blessed tags for non-Roman styles
-        if (runStyle === 0) {
-          result += runText;
-        } else {
-          let styled = runText;
-          if (runStyle & TextStyle.ReverseVideo) {
-            styled = `{inverse}${styled}{/inverse}`;
-          }
-          if (runStyle & TextStyle.Bold) {
-            styled = `{bold}${styled}{/bold}`;
-          }
-          if (runStyle & TextStyle.Italic) {
-            styled = `{underline}${styled}{/underline}`;
-          }
-          result += styled;
+        // Apply style tags
+        if (runStyle & TextStyle.ReverseVideo) {
+          runText = `{inverse}${runText}{/inverse}`;
+        }
+        if (runStyle & TextStyle.Bold) {
+          runText = `{bold}${runText}{/bold}`;
+        }
+        if (runStyle & TextStyle.Italic) {
+          runText = `{underline}${runText}{/underline}`;
         }
 
+        // Apply color tags (resolve Color.Default to actual defaults)
+        const fgColor = this.mapZMachineColorWithDefault(runColor.foreground, false);
+        const bgColor = this.mapZMachineColorWithDefault(runColor.background, true);
+
+        if (fgColor && bgColor) {
+          runText = `{${fgColor}-fg}{${bgColor}-bg}${runText}{/}`;
+        } else if (fgColor) {
+          runText = `{${fgColor}-fg}${runText}{/}`;
+        } else if (bgColor) {
+          runText = `{${bgColor}-bg}${runText}{/}`;
+        }
+
+        result += runText;
         runStart = runEnd;
       }
 
@@ -413,6 +435,20 @@ export class BlessedScreen extends BaseScreen {
   }
 
   /**
+   * Map Z-machine color to blessed color string, resolving Color.Default
+   * to the actual terminal default color instead of returning null.
+   */
+  private mapZMachineColorWithDefault(color: number, isBackground: boolean): string | null {
+    if (color === Color.Default) {
+      return isBackground ? 'black' : 'white';
+    }
+    if (color === Color.Current) {
+      return null;
+    }
+    return this.mapZMachineColor(color);
+  }
+
+  /**
    * Resize the status bar buffer to match new screen width and redraw.
    * Called when terminal is resized to immediately update the display.
    */
@@ -439,16 +475,18 @@ export class BlessedScreen extends BaseScreen {
     const resolvedColors = this.windowColors.get(window);
     if (!resolvedColors) return;
 
-    // Apply colors to the window immediately
+    // Apply colors to the window immediately (resolve defaults for widget styling)
     const targetWindow = window === 0 ? this.mainWindow : this.statusWindow;
-    const fgColor = this.mapZMachineColor(resolvedColors.foreground);
-    const bgColor = this.mapZMachineColor(resolvedColors.background);
+    const fgColor = this.mapZMachineColorWithDefault(resolvedColors.foreground, false);
+    const bgColor = this.mapZMachineColorWithDefault(resolvedColors.background, true);
 
-    if (fgColor || bgColor) {
-      targetWindow.style.fg = fgColor || targetWindow.style.fg;
-      targetWindow.style.bg = bgColor || targetWindow.style.bg;
-      this.screen.render();
+    if (fgColor) {
+      targetWindow.style.fg = fgColor;
     }
+    if (bgColor) {
+      targetWindow.style.bg = bgColor;
+    }
+    this.screen.render();
   }
 
   // Override splitWindow to use BaseScreen's v5 logic and update blessed windows

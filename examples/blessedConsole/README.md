@@ -52,32 +52,65 @@ The built files will be placed in the `dist/` directory.
 npm start path/to/story.z3
 ```
 
+**Note:** When passing flags (like `-d` or `-i`), use a `--` separator so npm passes them to the script (e.g., `npm start -- -d path/to/story.z3`).
+
 ### With Debugging
 
 ```bash
-npm start story.z3 --debug
+npm start -- -d path/to/story.z3
 ```
 
-### Debugging Options
+### Command-Line Options
 
-- `--debug` or `-d`: Enable debug logging
-- `--header` or `-h`: Dump Z-Machine header information
-- `--objectTree` or `-o`: Dump object table structure
-- `--dict` or `-t`: Dump dictionary contents
-- `--dump`: Enable all debugging features without execution
-- `--noExec` or `-n`: Show debugging info without running the story
+| Flag | Short | Description |
+| ---- | ----- | ----------- |
+| `--debug` | `-d` | Enable debug logging (writes to `zmachine-debug.log`) |
+| `--interpreter <name>` | `-i` | Set interpreter type (default: `amiga`) |
+| `--header` | `-h` | Dump Z-Machine header information |
+| `--objectTree` | `-o` | Dump object table structure |
+| `--dict` | `-t` | Dump dictionary contents |
+| `--dump` | | Enable all debugging features without execution |
+| `--noExec` | `-n` | Show debugging info without running the story |
 
-### Examples
+### Interpreter Types and Color Palettes
+
+The `--interpreter` flag sets which platform the Z-Machine reports to the game. Some games (notably Beyond Zork) use this to select color palettes and platform-specific behavior.
+
+Valid interpreter names: `dec20`, `apple-iie`, `mac`, `amiga`, `atari`, `ibm`, `c128`, `c64`, `apple-iic`, `apple-iigs`, `tandy`
+
+The default is `amiga`, which provides good color support. Beyond Zork's default color palettes by interpreter:
+
+| Interpreter | Default Palette | Colors (BG / FG / Title / Status) |
+| ----------- | --------------- | --------------------------------- |
+| `amiga` | BWCR | Black / White / Cyan / Red |
+| `atari` | BWCR | Black / White / Cyan / Red |
+| `apple-iigs` | BWCR | Black / White / Cyan / Red |
+| `tandy` | BWCR | Black / White / Cyan / Red |
+| `ibm` | DEFCOLORS | Default / Default / Default / Default |
+| `c128` | Custom | Black / White / Yellow / Cyan |
+
+Games that support color palettes (like Beyond Zork) typically allow cycling through palettes in-game. In Beyond Zork, type `COLOR ROOMS` to cycle through available color schemes.
+
+### Usage Examples
 
 ```bash
 # Run Zork with enhanced UI
-npm start zork1.z3
+npm start -- path/to/zork1.z3
+
+# Run Beyond Zork (colors enabled by default with amiga interpreter)
+npm start -- ~/infocom/Beyond\ Zork.z5
+
+# Run with Commodore 128 interpreter (yellow/cyan color scheme)
+npm start -- -i c128 ~/infocom/Beyond\ Zork.z5
+
+# Run with IBM interpreter (starts with default/colorless palette)
+npm start -- -i ibm ~/infocom/Beyond\ Zork.z5
 
 # Debug mode with full logging
-npm start adventure.z5 --debug
+npm start -- -d path/to/adventure.z5
 
 # Examine story structure without running
-npm start mystery.z8 --dump
+npm start -- --dump path/to/mystery.z8
 ```
 
 ## Project Structure
@@ -136,8 +169,8 @@ The `BlessedInputProcessor` class extends `BaseInputProcessor` with blessed-spec
 The main file demonstrates the integration pattern:
 
 ```typescript
-// Create the screen implementation
-const screen = new BlessedScreen();
+// Create the screen implementation (optional: pass interpreter number)
+const screen = new BlessedScreen(); // defaults to Amiga for good color support
 
 // Create input processor with access to blessed screen
 const inputProcessor = new BlessedInputProcessor(screen);

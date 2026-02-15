@@ -50,32 +50,42 @@ The built files will be placed in the `dist/` directory.
 npm start path/to/story.z3
 ```
 
+**Note:** When passing flags (like `-d` or `-i`), use a `--` separator so npm passes them to the script (e.g., `npm start -- -d path/to/story.z3`).
+
 ### With Debugging
 
 ```bash
-npm start story.z3 --debug
+npm start -- -d path/to/story.z3
 ```
 
-### Debugging Options
+### Command-Line Options
 
-- `--debug` or `-d`: Enable debug logging
-- `--header` or `-h`: Dump Z-Machine header information
-- `--objectTree` or `-o`: Dump object table structure
-- `--dict` or `-t`: Dump dictionary contents
-- `--dump`: Enable all debugging features without execution
-- `--noExec` or `-n`: Show debugging info without running the story
+| Flag | Short | Description |
+| ---- | ----- | ----------- |
+| `--debug` | `-d` | Enable debug logging |
+| `--interpreter <name>` | `-i` | Set interpreter type (default: `amiga`) |
+| `--header` | `-h` | Dump Z-Machine header information |
+| `--objectTree` | `-o` | Dump object table structure |
+| `--dict` | `-t` | Dump dictionary contents |
+| `--dump` | | Enable all debugging features without execution |
+| `--noExec` | `-n` | Show debugging info without running the story |
 
-### Examples
+The `--interpreter` flag sets which platform the Z-Machine reports to the game. Some games (notably Beyond Zork) use this to select color palettes. Valid names: `dec20`, `apple-iie`, `mac`, `amiga`, `atari`, `ibm`, `c128`, `c64`, `apple-iic`, `apple-iigs`, `tandy`. Default is `amiga`.
+
+### Usage Examples
 
 ```bash
 # Run a story with debug output
-npm start zork1.z3 --debug
+npm start -- -d path/to/zork1.z3
 
 # Show header info only
-npm start zork1.z3 --header --noExec
+npm start -- -h -n path/to/zork1.z3
 
 # Show all debugging info without running
-npm start zork1.z3 --dump
+npm start -- --dump path/to/zork1.z3
+
+# Run Beyond Zork with IBM interpreter
+npm start -- -i ibm ~/infocom/Beyond\ Zork.z5
 ```
 
 ## Project Structure
@@ -130,8 +140,8 @@ The `StdioInputProcessor` class extends `BaseInputProcessor` and handles user in
 The main file shows how to wire everything together:
 
 ```typescript
-// Create implementations
-const screen = new StdioScreen();
+// Create implementations (optional: pass interpreter number for color palette control)
+const screen = new StdioScreen(); // defaults to Amiga for good color support
 const inputProcessor = new StdioInputProcessor();
 
 // Create Z-Machine with your implementations

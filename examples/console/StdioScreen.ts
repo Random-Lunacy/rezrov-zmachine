@@ -12,9 +12,11 @@ import {
 
 export class StdioScreen extends BaseScreen {
   private textStyle: number = TextStyle.Roman;
+  private interpreterNum: number | undefined;
 
-  constructor() {
+  constructor(interpreterNumber?: number) {
     super('StdioScreen');
+    this.interpreterNum = interpreterNumber;
   }
 
   getCapabilities(): Capabilities {
@@ -29,6 +31,7 @@ export class StdioScreen extends BaseScreen {
       hasPictures: false,
       hasSound: false,
       hasTimedKeyboardInput: true,
+      interpreterNumber: this.interpreterNum,
     };
   }
 
@@ -90,12 +93,14 @@ export class StdioScreen extends BaseScreen {
   /**
    * Render the upper window buffer to the terminal.
    * Used by V4+ games that write their own status bar content.
+   * Renders per-character styles and colors from the style/color buffers.
    */
   private renderUpperWindow(): void {
     if (this.upperWindowBuffer.length === 0) return;
 
     const { rows } = this.getSize();
     const screenWidth = this.getSize().cols;
+    const defaultColor = { foreground: Color.Default, background: Color.Default };
 
     // Save cursor position
     process.stdout.write('\x1b7');
@@ -111,11 +116,38 @@ export class StdioScreen extends BaseScreen {
       process.stdout.write('\x1b[K');
 
       // Get the line content and pad to screen width
-      let lineContent = this.upperWindowBuffer[i] || '';
-      lineContent = lineContent.padEnd(screenWidth, ' ');
+      const lineContent = (this.upperWindowBuffer[i] || '').padEnd(screenWidth, ' ');
+      const styleLine = i < this.upperWindowStyleBuffer.length ? this.upperWindowStyleBuffer[i] : [];
+      const colorLine = i < this.upperWindowColorBuffer.length ? this.upperWindowColorBuffer[i] : [];
 
-      // Apply inverse video for status bar effect
-      process.stdout.write(chalk.inverse(lineContent));
+      // Render per-character style and color runs
+      let runStart = 0;
+      while (runStart < lineContent.length) {
+        const runStyle = runStart < styleLine.length ? styleLine[runStart] : 0;
+        const runColor = runStart < colorLine.length ? colorLine[runStart] : defaultColor;
+
+        // Find the end of this style+color run
+        let runEnd = runStart + 1;
+        while (runEnd < lineContent.length) {
+          const nextStyle = runEnd < styleLine.length ? styleLine[runEnd] : 0;
+          const nextColor = runEnd < colorLine.length ? colorLine[runEnd] : defaultColor;
+          if (
+            nextStyle !== runStyle ||
+            nextColor.foreground !== runColor.foreground ||
+            nextColor.background !== runColor.background
+          ) {
+            break;
+          }
+          runEnd++;
+        }
+
+        let runText = lineContent.substring(runStart, runEnd);
+        runText = this.applyChalkStyle(runText, runStyle);
+        runText = this.applyChalkColors(runText, runColor);
+        process.stdout.write(runText);
+
+        runStart = runEnd;
+      }
     }
 
     // Restore scroll region to exclude upper window
@@ -126,6 +158,68 @@ export class StdioScreen extends BaseScreen {
 
     // Restore cursor position
     process.stdout.write('\x1b8');
+  }
+
+  /**
+   * Apply chalk text styles (bold, italic, reverse video) to a text run.
+   */
+  private applyChalkStyle(text: string, style: number): string {
+    if (style & TextStyle.ReverseVideo) {
+      text = chalk.inverse(text);
+    }
+    if (style & TextStyle.Bold) {
+      text = chalk.bold(text);
+    }
+    if (style & TextStyle.Italic) {
+      text = chalk.italic(text);
+    }
+    return text;
+  }
+
+  /**
+   * Apply chalk foreground/background colors to a text run.
+   * Resolves Color.Default to white/black terminal defaults.
+   */
+  private applyChalkColors(text: string, colors: { foreground: number; background: number }): string {
+    // Resolve Color.Default to actual terminal defaults
+    const fg = colors.foreground === Color.Default ? Color.White : colors.foreground;
+    const bg = colors.background === Color.Default ? Color.Black : colors.background;
+
+    if (bg !== Color.Current) {
+      text = this.chalkedString(text, bg, true);
+    }
+    if (fg !== Color.Current) {
+      text = this.chalkedString(text, fg, false);
+    }
+    return text;
+  }
+
+  /**
+   * Apply a single chalk color (foreground or background) to text.
+   */
+  private chalkedString(text: string, color: number, isBg: boolean): string {
+    switch (color) {
+      case Color.Black:
+        return isBg ? chalk.bgBlack(text) : chalk.black(text);
+      case Color.Red:
+        return isBg ? chalk.bgRed(text) : chalk.red(text);
+      case Color.Green:
+        return isBg ? chalk.bgGreen(text) : chalk.green(text);
+      case Color.Yellow:
+        return isBg ? chalk.bgYellow(text) : chalk.yellow(text);
+      case Color.Blue:
+        return isBg ? chalk.bgBlue(text) : chalk.blue(text);
+      case Color.Magenta:
+        return isBg ? chalk.bgMagenta(text) : chalk.magenta(text);
+      case Color.Cyan:
+        return isBg ? chalk.bgCyan(text) : chalk.cyan(text);
+      case Color.White:
+        return isBg ? chalk.bgWhite(text) : chalk.white(text);
+      case Color.Gray:
+        return isBg ? chalk.bgBlackBright(text) : chalk.gray(text);
+      default:
+        return text;
+    }
   }
 
   applyStyles(str: string): string {
