@@ -45,7 +45,8 @@ function div(machine: ZMachine, _operandTypes: OperandType[], a: number, b: numb
     throw new Error('Division by zero');
   }
   machine.logger.debug(`div ${a} ${b}`);
-  machine.state.storeVariable(machine.state.readByte(), toU16(Math.floor(toI16(a) / toI16(b))));
+  // Z-spec §15: division rounds toward zero (Math.trunc), not toward -infinity (Math.floor)
+  machine.state.storeVariable(machine.state.readByte(), toU16(Math.trunc(toI16(a) / toI16(b))));
 }
 
 /**
