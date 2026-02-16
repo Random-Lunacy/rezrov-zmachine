@@ -156,6 +156,27 @@ describe('Stack Opcodes', () => {
       expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(resultVar, value);
       expect(mockMachine.logger.debug).toHaveBeenCalledWith(`1234 load ${variable} -> (${resultVar})`);
     });
+
+    it('should peek stack top in place for direct var=0 (Z-spec §6.3.4)', () => {
+      // Arrange: stack has [99, 88], load from variable 0 (stack)
+      mockMachine.state.stack = [99, 88];
+
+      // Act
+      stackOpcodes.load.impl(machine, [], 0);
+
+      // Assert: should read stack top (88) without popping
+      expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(42, 88);
+      expect(mockMachine.state.stack).toEqual([99, 88]); // Stack unchanged
+      expect(mockMachine.state.popStack).not.toHaveBeenCalled();
+    });
+
+    it('should throw error for direct var=0 when stack empty', () => {
+      mockMachine.state.stack = [];
+
+      expect(() => {
+        stackOpcodes.load.impl(machine, [], 0);
+      }).toThrow('Illegal operation: load from stack pointer when stack is empty');
+    });
   });
 
   describe('store', () => {
@@ -170,6 +191,27 @@ describe('Stack Opcodes', () => {
       // Assert
       expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(variable, value);
       expect(mockMachine.logger.debug).toHaveBeenCalledWith(`1234 store ${variable} ${value}`);
+    });
+
+    it('should overwrite stack top in place for direct var=0 (Z-spec §6.3.4)', () => {
+      // Arrange: stack has [99, 88], store 77 to variable 0 (stack)
+      mockMachine.state.stack = [99, 88];
+
+      // Act
+      stackOpcodes.store.impl(machine, [], 0, 77);
+
+      // Assert: should overwrite stack top without pushing
+      expect(mockMachine.state.stack).toEqual([99, 77]); // Top replaced, size unchanged
+      expect(mockMachine.state.pushStack).not.toHaveBeenCalled();
+      expect(mockMachine.state.storeVariable).not.toHaveBeenCalled();
+    });
+
+    it('should throw error for direct var=0 when stack empty', () => {
+      mockMachine.state.stack = [];
+
+      expect(() => {
+        stackOpcodes.store.impl(machine, [], 0, 77);
+      }).toThrow('Illegal operation: store to stack pointer when stack is empty');
     });
   });
 
@@ -487,7 +529,7 @@ describe('Stack Opcodes', () => {
 
         expect(() => {
           stackOpcodes.load.impl(machine, [OperandType.Variable], 6);
-        }).toThrow('Illegal operation: indirect load from stack pointer when stack is empty');
+        }).toThrow('Illegal operation: load from stack pointer when stack is empty');
       });
     });
 
@@ -518,7 +560,7 @@ describe('Stack Opcodes', () => {
 
         expect(() => {
           stackOpcodes.store.impl(machine, [OperandType.Variable], 6, 123);
-        }).toThrow('Illegal operation: indirect store to stack pointer when stack is empty');
+        }).toThrow('Illegal operation: store to stack pointer when stack is empty');
       });
     });
 
