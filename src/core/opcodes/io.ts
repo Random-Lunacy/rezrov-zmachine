@@ -74,7 +74,10 @@ function erase_window(machine: ZMachine, _operandTypes: OperandType[], window: n
  */
 function erase_line(machine: ZMachine, _operandTypes: OperandType[], value: number): void {
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} erase_line ${value}`);
-  machine.screen.clearLine(machine, value);
+  // Per Z-spec §8.7.2.1 and Infocom: only erase when argument is 1
+  if (value === 1) {
+    machine.screen.clearLine(machine, value);
+  }
 }
 
 /**
@@ -209,6 +212,11 @@ function sread(
 
   machine.logger.debug(`sread/aread: text=${textBuffer}, parse=${parseBuffer}, time=${time}, routine=${routine}`);
 
+  // Z-spec §8.4: In V1-3, update the status line before reading input
+  if (version <= 3) {
+    machine.updateStatusBar();
+  }
+
   // Suspend for text input
   throw new SuspendState({
     keyPress: false,
@@ -227,31 +235,35 @@ function sound_effect(
   machine: ZMachine,
   _operandTypes: OperandType[],
   number: number,
-  effect: number = 0,
-  volume: number = 0,
-  routine: number = 0
+  effect: number = 2,
+  volumeAndRepeats: number = 0x00ff,
+  _routine: number = 0
 ): void {
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} sound_effect ${number} ${effect} ${volume} ${routine}`);
+  // Infocom ARG3 packs count (high byte) and volume (low byte)
+  // Default $00FF = count 0 (use default), volume 255 (use MIDI/max)
+  const volume = volumeAndRepeats & 0xff;
+  const rawRepeats = (volumeAndRepeats >> 8) & 0xff;
+  // 0xFF = infinite (-1 signed), 0 = use default (1), 1-254 = finite count
+  const repeats = rawRepeats === 0xff ? -1 : rawRepeats || 1;
 
-  // Check if sound is supported for this version
-  const version = machine.state.version;
-  if (version < 5) {
-    machine.logger.warn(`sound_effect not supported in version ${version}`);
-    return;
-  }
+  machine.logger.debug(
+    `${machine.executor.op_pc.toString(16)} sound_effect ${number} effect=${effect} vol=${volume} repeats=${repeats}`
+  );
 
   try {
-    // Use the multimedia handler to play the sound
-    const status = machine.multimediaHandler.playSound(number, effect, volume, 1); // Default to 1 repeat
+    const status = machine.multimediaHandler.playSound(number, effect, volume, repeats);
 
     if (status === 0) {
-      // ResourceStatus.Available
       machine.logger.debug(`Sound effect ${number} started successfully`);
     } else {
       machine.logger.warn(`Sound effect ${number} failed to start, status: ${status}`);
     }
-  } catch (error) {
-    machine.logger.error(`Error playing sound effect ${number}: ${error}`);
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      machine.logger.error(`Error playing sound effect ${number}: ${error.message}`);
+    } else {
+      machine.logger.error(`Error playing sound effect ${number}: ${error}`);
+    }
   }
 }
 
