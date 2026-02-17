@@ -136,7 +136,7 @@ export interface Screen {
 
   // Font 3 specific methods
   isCurrentFontFont3(): boolean;
-  getFont3Character(code: number): any;
+  getFont3Character(code: number): unknown;
   isFont3Character(code: number): boolean;
   getCurrentFontDimensions(): { width: number; height: number };
 

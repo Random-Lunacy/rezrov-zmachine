@@ -348,12 +348,7 @@ export class ZMachine {
    * @param shouldPrompt Whether to prompt the user for a filename
    * @returns True if the save was successful
    */
-  async saveAuxiliary(
-    table: number,
-    bytes: number,
-    name: number = 0,
-    shouldPrompt: boolean = true
-  ): Promise<boolean> {
+  async saveAuxiliary(table: number, bytes: number, name: number = 0, shouldPrompt: boolean = true): Promise<boolean> {
     try {
       let filename = '';
 

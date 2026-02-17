@@ -167,7 +167,7 @@ function handleZChar1ForV1V2(
       try {
         const abbrevText = decodeZString(memory, memory.getZString(abbrevAddr), false);
         result.push(abbrevText);
-      } catch (e) {
+      } catch (_e) {
         result.push('?'); // Error during abbreviation resolution
       }
 

@@ -417,7 +417,9 @@ export class BaseScreen implements Screen {
     } else {
       this.currentStyles |= style;
     }
-    this.logger.debug(`${this.id} setTextStyle style=${style} -> currentStyles=${this.currentStyles} (version ${version})`);
+    this.logger.debug(
+      `${this.id} setTextStyle style=${style} -> currentStyles=${this.currentStyles} (version ${version})`
+    );
   }
 
   /**

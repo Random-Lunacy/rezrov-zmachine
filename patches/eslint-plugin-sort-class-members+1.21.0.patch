@@ -1,0 +1,22 @@
+diff --git a/node_modules/eslint-plugin-sort-class-members/dist/rules/sort-class-members.js b/node_modules/eslint-plugin-sort-class-members/dist/rules/sort-class-members.js
+index b3cd202..ca1afc8 100644
+--- a/node_modules/eslint-plugin-sort-class-members/dist/rules/sort-class-members.js
++++ b/node_modules/eslint-plugin-sort-class-members/dist/rules/sort-class-members.js
+@@ -61,7 +61,7 @@ var sortClassMembersRule = {
+     var locale = options.locale || 'en-US';
+     var rules = {
+       ClassDeclaration: function ClassDeclaration(node) {
+-        var members = getClassMemberInfos(node, context.getSourceCode(), orderedSlots); // check for out-of-order and separated get/set pairs
++        var members = getClassMemberInfos(node, context.sourceCode, orderedSlots); // check for out-of-order and separated get/set pairs
+ 
+         var accessorPairProblems = findAccessorPairProblems(members, accessorPairPositioning);
+ 
+@@ -178,7 +178,7 @@ function reportProblem(_ref) {
+         return fixes; // after almost never occurs, and when it does it causes conflicts
+       }
+ 
+-      var sourceCode = context.getSourceCode();
++      var sourceCode = context.sourceCode;
+       var sourceAfterToken = sourceCode.getTokenAfter(source.node);
+       var sourceJSDoc = sourceCode.getCommentsBefore(source.node).slice(-1).pop();
+       var targetJSDoc = sourceCode.getCommentsBefore(target.node).slice(-1).pop();

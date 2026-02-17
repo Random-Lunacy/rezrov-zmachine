@@ -85,7 +85,7 @@ export enum WindowEventType {
 export interface WindowEvent {
   type: WindowEventType;
   windowId: number;
-  data?: any;
+  data?: unknown;
   timestamp: number;
 }
 
@@ -559,7 +559,7 @@ export class WindowManager {
   /**
    * Emit window event
    */
-  private emitEvent(eventType: WindowEventType, windowId: number, data?: any): void {
+  private emitEvent(eventType: WindowEventType, windowId: number, data?: unknown): void {
     const event: WindowEvent = {
       type: eventType,
       windowId,
