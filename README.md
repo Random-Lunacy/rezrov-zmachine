@@ -54,13 +54,13 @@ This project is a port/refactoring of the [ebozz](https://github.com/toshok/eboz
 
 ### Z-Machine Version Support
 
-| Version | Status | Notes |
-|---------|--------|-------|
-| V1-V3 | **Complete** | Fully tested with classic Infocom titles |
-| V4 | **Complete** | Extended opcodes and expanded object table |
-| V5 | **Mostly complete** | Core support working; advanced screen features still being validated against Beyond Zork |
-| V6 | **Partial** | Architecture present, basic graphics opcodes delegate to multimedia handler; ~11 windowing opcodes not yet implemented |
-| V7-V8 | **Partial** | Version detection and address calculations defined; not yet tested with story files |
+| Version | Status              | Notes                                                                                                                  |
+| ------- | ------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| V1-V3   | **Complete**        | Fully tested with classic Infocom titles                                                                               |
+| V4      | **Complete**        | Extended opcodes and expanded object table                                                                             |
+| V5      | **Mostly complete** | Core support working; advanced screen features still being validated against Beyond Zork                               |
+| V6      | **Partial**         | Architecture present, basic graphics opcodes delegate to multimedia handler; ~11 windowing opcodes not yet implemented |
+| V7-V8   | **Partial**         | Version detection and address calculations defined; not yet tested with story files                                    |
 
 ### UI and Examples
 
@@ -239,11 +239,7 @@ Then use it with a format provider when creating the storage system:
 ```typescript
 import { ZMachine, Storage, QuetzalFormat } from 'rezrov-zmachine';
 
-const storage = new Storage(
-  new QuetzalFormat(),
-  new MyStorageProvider(),
-  storyBuffer
-);
+const storage = new Storage(new QuetzalFormat(), new MyStorageProvider(), storyBuffer);
 const machine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, storage);
 ```
 

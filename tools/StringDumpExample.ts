@@ -97,7 +97,7 @@ async function runStringDumpExample(storyFilePath: string): Promise<void> {
             logger.info(`Dictionary[${i}]: "${decodedWord}"`);
             dictionaryStrings++;
           }
-        } catch (e) {
+        } catch (_e) {
           // Skip failed dictionary entries
         }
       }
@@ -182,7 +182,7 @@ async function runStringDumpExample(storyFilePath: string): Promise<void> {
             }
           }
         }
-      } catch (error) {
+      } catch (_error) {
         // Skip addresses that cause errors when trying to decode
         continue;
       }

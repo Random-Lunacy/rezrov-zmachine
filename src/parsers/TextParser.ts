@@ -175,9 +175,7 @@ export class TextParser {
           const entryPosition = this.memory.getByte(parseBuffer + entryOffset + 3);
           if (entryPosition === bufferPosition) {
             this.memory.setWord(parseBuffer + entryOffset, dictEntry);
-            this.logger.debug(
-              `Token updated in-place: addr=0x${dictEntry.toString(16)}, position=${bufferPosition}`
-            );
+            this.logger.debug(`Token updated in-place: addr=0x${dictEntry.toString(16)}, position=${bufferPosition}`);
             break;
           }
         }
