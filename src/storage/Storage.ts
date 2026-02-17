@@ -114,6 +114,14 @@ export class Storage implements StorageInterface {
     this.options = { ...this.options, ...options };
   }
 
+  async writeRaw(filename: string, data: Buffer): Promise<void> {
+    await this.storageProvider.write(filename, data);
+  }
+
+  async readRaw(filename: string): Promise<Buffer | null> {
+    return this.storageProvider.read(filename);
+  }
+
   private getStorageLocation(): string {
     return this.options.filename || 'save.dat';
   }

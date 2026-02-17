@@ -80,7 +80,7 @@ describe('I/O Opcodes', () => {
   });
 
   describe('erase_line', () => {
-    it('should call screen.clearLine with the correct value', () => {
+    it('should call screen.clearLine when value is 1', () => {
       // Arrange
       const value = 1;
 
@@ -90,6 +90,18 @@ describe('I/O Opcodes', () => {
       // Assert
       expect(machine.screen.clearLine).toHaveBeenCalledWith(machine, value);
       expect(machine.logger.debug).toHaveBeenCalledWith('1234 erase_line 1');
+    });
+
+    it('should ignore erase_line when value is not 1', () => {
+      // Per Z-spec §8.7.2.1 and Infocom: only erase when argument is 1
+      ioOpcodes.erase_line.impl(machine, [], 0);
+      expect(machine.screen.clearLine).not.toHaveBeenCalled();
+
+      ioOpcodes.erase_line.impl(machine, [], 2);
+      expect(machine.screen.clearLine).not.toHaveBeenCalled();
+
+      ioOpcodes.erase_line.impl(machine, [], 255);
+      expect(machine.screen.clearLine).not.toHaveBeenCalled();
     });
   });
 
@@ -350,40 +362,128 @@ describe('I/O Opcodes', () => {
         }
       }
     });
+
+    it('should update status bar before input in V3', () => {
+      // Z-spec §8.4: In V1-3, status line is updated before reading input
+      mockMachine.state.version = 3;
+      mockMachine.updateStatusBar = vi.fn();
+      const textBuffer = 0x1000;
+      const parseBuffer = 0x1100;
+
+      try {
+        ioOpcodes.sread.impl(machine, [], textBuffer, parseBuffer);
+      } catch (e) {
+        // Expected SuspendState
+      }
+
+      expect(mockMachine.updateStatusBar).toHaveBeenCalled();
+    });
+
+    it('should not update status bar before input in V5', () => {
+      mockMachine.state.version = 5;
+      mockMachine.state.readByte.mockReturnValue(42);
+      mockMachine.updateStatusBar = vi.fn();
+      const textBuffer = 0x1000;
+      const parseBuffer = 0x1100;
+
+      try {
+        ioOpcodes.sread.impl(machine, [], textBuffer, parseBuffer);
+      } catch (e) {
+        // Expected SuspendState
+      }
+
+      expect(mockMachine.updateStatusBar).not.toHaveBeenCalled();
+    });
   });
 
   describe('sound_effect', () => {
-    it('should call multimedia handler for V5+ games', () => {
+    it('should call multimedia handler with unpacked volume and repeats', () => {
       // Arrange
       mockMachine.state.version = 5;
-      const number = 1;
-      const effect = 2;
-      const volume = 128;
-      const routine = 0x1000;
+      const number = 3;
+      const effect = 2; // START
+      // ARG3 packed: count=5 (high byte), volume=8 (low byte) = 0x0508
+      const volumeAndRepeats = 0x0508;
 
-      // Mock multimedia handler
       machine.multimediaHandler = {
-        playSound: vi.fn().mockReturnValue(0), // ResourceStatus.Available
+        playSound: vi.fn().mockReturnValue(0),
       } as any;
 
       // Act
-      ioOpcodes.sound_effect.impl(machine, [], number, effect, volume, routine);
+      ioOpcodes.sound_effect.impl(machine, [], number, effect, volumeAndRepeats);
 
-      // Assert
-      expect(machine.multimediaHandler.playSound).toHaveBeenCalledWith(number, effect, volume, 1);
-      expect(machine.logger.debug).toHaveBeenCalledWith(expect.stringContaining('sound_effect 1 2 128 4096'));
+      // Assert - volume=8 (low byte), repeats=5 (high byte)
+      expect(machine.multimediaHandler.playSound).toHaveBeenCalledWith(number, effect, 8, 5);
     });
 
-    it('should warn for V3 games', () => {
+    it('should handle infinite repeats (0xFF high byte)', () => {
       // Arrange
+      mockMachine.state.version = 5;
+      const number = 3;
+      const effect = 2;
+      // ARG3: count=0xFF (infinite), volume=8 = 0xFF08
+      const volumeAndRepeats = 0xff08;
+
+      machine.multimediaHandler = {
+        playSound: vi.fn().mockReturnValue(0),
+      } as any;
+
+      // Act
+      ioOpcodes.sound_effect.impl(machine, [], number, effect, volumeAndRepeats);
+
+      // Assert - repeats=-1 for infinite
+      expect(machine.multimediaHandler.playSound).toHaveBeenCalledWith(number, effect, 8, -1);
+    });
+
+    it('should default to 1 repeat when count is 0', () => {
+      // Arrange
+      mockMachine.state.version = 5;
+      const number = 3;
+      const effect = 2;
+      // ARG3: count=0 (use default), volume=8 = 0x0008
+      const volumeAndRepeats = 0x0008;
+
+      machine.multimediaHandler = {
+        playSound: vi.fn().mockReturnValue(0),
+      } as any;
+
+      // Act
+      ioOpcodes.sound_effect.impl(machine, [], number, effect, volumeAndRepeats);
+
+      // Assert - default repeat count is 1
+      expect(machine.multimediaHandler.playSound).toHaveBeenCalledWith(number, effect, 8, 1);
+    });
+
+    it('should use Infocom defaults when no optional args provided', () => {
+      // Arrange
+      mockMachine.state.version = 5;
+      const number = 1; // beep
+
+      machine.multimediaHandler = {
+        playSound: vi.fn().mockReturnValue(0),
+      } as any;
+
+      // Act - only required arg (number), defaults: effect=2 (START), volumeAndRepeats=0x00FF
+      ioOpcodes.sound_effect.impl(machine, [], number);
+
+      // Assert - default: effect=2, volume=0xFF (255), repeats=1 (from count=0)
+      expect(machine.multimediaHandler.playSound).toHaveBeenCalledWith(1, 2, 255, 1);
+    });
+
+    it('should work for V3 games (not blocked by version check)', () => {
+      // Infocom has OPSOUND in V3/EZIP code (zip2.asm:1592)
       mockMachine.state.version = 3;
-      const number = 1;
+      const number = 1; // beep
+
+      machine.multimediaHandler = {
+        playSound: vi.fn().mockReturnValue(0),
+      } as any;
 
       // Act
       ioOpcodes.sound_effect.impl(machine, [], number);
 
-      // Assert
-      expect(machine.logger.warn).toHaveBeenCalledWith('sound_effect not supported in version 3');
+      // Assert - should not be blocked
+      expect(machine.multimediaHandler.playSound).toHaveBeenCalled();
     });
   });
 

@@ -16,6 +16,8 @@ export enum HeaderLocation {
   StaticMemBase = 0x0e, // Base of static memory
   Flags2 = 0x10, // Flags 2
   AbbreviationsTable = 0x18, // Address of abbreviations table
+  FileLength = 0x1a, // Length of file (packed, see Z-spec §11.1.6)
+  Checksum = 0x1c, // Checksum of file
 
   InterpreterNumber = 0x1e, // Interpreter number
   InterpreterVersion = 0x1f, // Interpreter version

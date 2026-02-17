@@ -4,7 +4,7 @@ import { UserStackManager } from '../core/execution/UserStack';
 import { Memory } from '../core/memory/Memory';
 import { EnhancedDatFormat } from '../storage/formats/EnhancedDatFormat';
 import { FormatProvider } from '../storage/formats/FormatProvider';
-import { SaveInfo, StorageInterface } from '../storage/interfaces';
+import { StorageInterface } from '../storage/interfaces';
 import { MemoryStorageProvider } from '../storage/providers/MemoryStorageProvider';
 import { StorageProvider } from '../storage/providers/StorageProvider';
 import { Storage } from '../storage/Storage';
@@ -15,6 +15,9 @@ import { Capabilities, Screen } from '../ui/screen/interfaces';
 import { HeaderLocation, Interpreter } from '../utils/constants';
 import { Logger } from '../utils/log';
 import { GameState } from './GameState';
+
+/** Max length of suggested name header in auxiliary save files (matches Infocom's PSNLEN) */
+const AUXILIARY_NAME_LENGTH = 32;
 
 /**
  * Main Z-Machine interpreter class
@@ -332,179 +335,133 @@ export class ZMachine {
   }
 
   /**
-   * Save to an external file (V5+)
-   * @param table The table number
-   * @param bytes The number of bytes to save
-   * @param name The name of the file (optional)
-   * @param shouldPrompt Whether to prompt the user for a filename (optional)
+   * Save auxiliary data to a file (V5+ partial save).
+   * Writes raw memory bytes to a file, prefixed with a suggested name header.
+   * This does NOT save game state — just a memory region.
+   *
+   * File format (matching Infocom):
+   *   [32 bytes: suggested name (length-prefixed)] [N bytes: data from memory]
+   *
+   * @param table Memory address of data to save
+   * @param bytes Number of bytes to save
+   * @param name Memory address of length-prefixed suggested filename (0 if none)
+   * @param shouldPrompt Whether to prompt the user for a filename
    * @returns True if the save was successful
    */
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async saveToTable(table: number, bytes: number, name: number = 0, shouldPrompt: boolean = true): Promise<boolean> {
-    try {
-      let filename = '';
-
-      // If prompting is enabled, get filename from user
-      if (shouldPrompt) {
-        filename = await this._inputProcessor.promptForFilename(this, 'save');
-        if (!filename) return false;
-      }
-
-      // Set storage options
-      if (filename) {
-        this._storage.setOptions({ filename });
-      }
-
-      // Create snapshot and save
-      const state = this.getState();
-      await this._storage.saveSnapshot(state);
-
-      // Write save metadata to the table if specified
-      if (table !== 0 && bytes > 0) {
-        // Get metadata about the save file
-        const saveInfo = await this._storage.getSaveInfo();
-        this.writeMetadataToTable(table, bytes, saveInfo);
-      }
-
-      return true;
-    } catch (error) {
-      this._logger.error(`Failed to save to table: ${error}`);
-      return false;
-    }
-  }
-
-  /**
-   * Restores a game state from a memory table (Version 5+ only)
-   *
-   * @param table Memory address of the data table
-   * @param bytes Size of the data in bytes
-   * @param name Memory address to store the filename (0 if not used)
-   * @param shouldPrompt Whether to prompt the user for a filename
-   * @returns True if restore was successful
-   */
-  async restoreFromTable(
+  async saveAuxiliary(
     table: number,
     bytes: number,
     name: number = 0,
     shouldPrompt: boolean = true
   ): Promise<boolean> {
     try {
-      if (this._state.version < 5) {
-        this._logger.error('restoreFromTable only available in Version 5+');
-        return false;
-      }
-
       let filename = '';
 
-      // If prompting is enabled, get filename from user
       if (shouldPrompt) {
-        filename = await this._inputProcessor.promptForFilename(this, 'restore');
-        if (!filename) {
-          this._logger.debug('User canceled file selection');
-          return false;
+        filename = await this._inputProcessor.promptForFilename(this, 'save');
+        if (!filename) return false;
+      }
+
+      // Read the suggested name from memory (length-prefixed, max 32 bytes)
+      const nameHeader = Buffer.alloc(AUXILIARY_NAME_LENGTH);
+      if (name !== 0) {
+        const nameLen = Math.min(this._memory.getByte(name), AUXILIARY_NAME_LENGTH - 1);
+        nameHeader[0] = nameLen;
+        for (let i = 0; i < nameLen; i++) {
+          nameHeader[i + 1] = this._memory.getByte(name + 1 + i);
         }
       }
 
-      // Set storage options
-      if (filename) {
-        this._storage.setOptions({ filename });
+      // Read the data from memory
+      const data = this._memory.getBytes(table, bytes);
+
+      // Build the file: [name header (32 bytes)] + [data]
+      const fileBuffer = Buffer.concat([nameHeader, data]);
+
+      // Write using raw storage (bypasses format provider)
+      if (!filename) {
+        filename = 'auxiliary.dat';
       }
+      await this._storage.writeRaw(filename, fileBuffer);
 
-      // Check if save exists
-      const saveInfo = await this._storage.getSaveInfo();
-      if (!saveInfo.exists) {
-        this._logger.warn(`Save file not found: ${saveInfo.path}`);
-        return false;
-      }
-
-      // Load snapshot
-      const state = await this._storage.loadSnapshot();
-
-      // Store filename in specified buffer if requested
-      if (name !== 0) {
-        this.storeFilenameInMemory(name, filename);
-      }
-
-      // Update table with save metadata if requested
-      if (table !== 0 && bytes > 0) {
-        this.writeMetadataToTable(table, bytes, saveInfo);
-      }
-
-      // Restore state
-      this.setState(state);
-
-      this._logger.info('Game state restored successfully');
       return true;
     } catch (error) {
-      this._logger.error(`Failed to restore from table: ${error}`);
+      this._logger.error(`Failed to save auxiliary data: ${error}`);
       return false;
     }
   }
 
-  private writeMetadataToTable(table: number, maxBytes: number, saveInfo: SaveInfo): void {
-    const buffer = Buffer.alloc(maxBytes);
-    let offset = 0;
+  /**
+   * Restore auxiliary data from a file (V5+ partial restore).
+   * Reads raw memory bytes from a file, validating the suggested name header.
+   * This does NOT restore game state — just a memory region.
+   *
+   * @param table Memory address to write data into
+   * @param bytes Maximum number of bytes to restore
+   * @param name Memory address of length-prefixed suggested filename (0 if none)
+   * @param shouldPrompt Whether to prompt the user for a filename
+   * @returns Number of bytes actually read, or 0 on failure
+   */
+  async restoreAuxiliary(
+    table: number,
+    bytes: number,
+    name: number = 0,
+    shouldPrompt: boolean = true
+  ): Promise<number> {
+    try {
+      let filename = '';
 
-    // Write magic number and version
-    if (offset + 4 <= maxBytes) {
-      buffer.writeUInt16BE(0x5a4d, offset); // 'ZM' in ASCII
-      offset += 2;
-      buffer.writeUInt16BE(this._state.version, offset);
-      offset += 2;
-    }
-
-    // Write save file format
-    if (saveInfo.format && offset + 8 <= maxBytes) {
-      const formatStr = saveInfo.format.padEnd(8, ' ').substring(0, 8);
-      buffer.write(formatStr, offset, 'ascii');
-      offset += 8;
-    }
-
-    // Write save description if available
-    if (saveInfo.description && offset + saveInfo.description.length + 1 <= maxBytes) {
-      const desc = saveInfo.description;
-      const descLen = Math.min(desc.length, 255, maxBytes - offset - 1);
-
-      if (descLen > 0) {
-        buffer.writeUInt8(descLen, offset);
-        offset++;
-
-        buffer.write(desc.substring(0, descLen), offset, 'utf8');
-        offset += descLen;
+      if (shouldPrompt) {
+        filename = await this._inputProcessor.promptForFilename(this, 'restore');
+        if (!filename) return 0;
       }
-    }
 
-    // Write timestamp if available
-    if (saveInfo.lastModified && offset + 4 <= maxBytes) {
-      const timestamp = Math.floor(saveInfo.lastModified.getTime() / 1000);
-      buffer.writeUInt32BE(timestamp, offset);
-      offset += 4;
-    }
-
-    // Copy buffer to memory
-    for (let i = 0; i < maxBytes; i++) {
-      if (i < offset) {
-        this._memory.setByte(table + i, buffer[i]);
-      } else {
-        this._memory.setByte(table + i, 0);
+      if (!filename) {
+        filename = 'auxiliary.dat';
       }
-    }
-  }
 
-  private storeFilenameInMemory(address: number, filename: string): void {
-    const filenameBuffer = Buffer.from(filename);
+      const fileBuffer = await this._storage.readRaw(filename);
+      if (!fileBuffer) {
+        this._logger.warn(`Auxiliary file not found: ${filename}`);
+        return 0;
+      }
 
-    // Write length byte
-    this._memory.setByte(address, Math.min(filenameBuffer.length, 255));
+      if (fileBuffer.length < AUXILIARY_NAME_LENGTH) {
+        this._logger.error('Auxiliary file too small to contain name header');
+        return 0;
+      }
 
-    // Write filename
-    for (let i = 0; i < Math.min(filenameBuffer.length, 255); i++) {
-      this._memory.setByte(address + 1 + i, filenameBuffer[i]);
-    }
+      // Validate the suggested name matches
+      if (name !== 0) {
+        const currentNameLen = Math.min(this._memory.getByte(name), AUXILIARY_NAME_LENGTH - 1);
+        const fileNameLen = fileBuffer[0];
 
-    // Null terminate if there's room
-    if (filenameBuffer.length < 255) {
-      this._memory.setByte(address + 1 + filenameBuffer.length, 0);
+        if (currentNameLen !== fileNameLen) {
+          this._logger.error('Auxiliary file name length mismatch');
+          return 0;
+        }
+
+        for (let i = 0; i < currentNameLen; i++) {
+          if (this._memory.getByte(name + 1 + i) !== fileBuffer[1 + i]) {
+            this._logger.error('Auxiliary file name mismatch');
+            return 0;
+          }
+        }
+      }
+
+      // Read data after the name header
+      const dataStart = AUXILIARY_NAME_LENGTH;
+      const availableBytes = fileBuffer.length - dataStart;
+      const bytesToRead = Math.min(bytes, availableBytes);
+
+      // Copy data into Z-machine memory
+      const data = fileBuffer.subarray(dataStart, dataStart + bytesToRead);
+      this._memory.setBytes(table, Buffer.from(data));
+
+      return bytesToRead;
+    } catch (error) {
+      this._logger.error(`Failed to restore auxiliary data: ${error}`);
+      return 0;
     }
   }
 

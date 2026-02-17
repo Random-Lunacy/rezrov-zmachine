@@ -100,26 +100,24 @@ function load(machine: ZMachine, operandTypes: OperandType[], variableRef: numbe
   const varDisplay = isIndirect ? `(${variableRef})` : `${variableRef}`;
   const resultVar = machine.state.readByte();
 
-  let value: number;
+  let targetVariable: number;
 
   if (isIndirect) {
-    // Indirect: variableRef points to a variable containing the target variable number
-    const targetVariable = machine.state.loadVariable(variableRef);
-
-    // Handle special stack pointer indirection case
-    if (targetVariable === 0) {
-      // Indirect reference to stack pointer: read top value in place
-      if (machine.state.stack.length === 0) {
-        throw new Error('Illegal operation: indirect load from stack pointer when stack is empty');
-      }
-      // Read from top of stack in place (no push/pop)
-      value = machine.state.stack[machine.state.stack.length - 1];
-    } else {
-      value = machine.state.loadVariable(targetVariable);
-    }
+    targetVariable = machine.state.loadVariable(variableRef);
   } else {
-    // Direct: variableRef is the target variable
-    value = machine.state.loadVariable(variableRef);
+    targetVariable = variableRef;
+  }
+
+  let value: number;
+
+  // Z-spec §6.3.4: variable 0 (stack) is always read in place (no pop)
+  if (targetVariable === 0) {
+    if (machine.state.stack.length === 0) {
+      throw new Error('Illegal operation: load from stack pointer when stack is empty');
+    }
+    value = machine.state.stack[machine.state.stack.length - 1];
+  } else {
+    value = machine.state.loadVariable(targetVariable);
   }
 
   machine.state.storeVariable(resultVar, value);
@@ -130,8 +128,7 @@ function load(machine: ZMachine, operandTypes: OperandType[], variableRef: numbe
  * Stores a value in a variable.
  * If the variable is indirect, it points to a variable containing the target variable number.
  * If the variable is direct, it is the target variable.
- * If the variable is 0, it refers to the stack pointer. In this case, the value is written to the
- * top of the stack in place (no push/pop). If the stack is empty, an error is thrown.
+ * Z-spec §6.3.4: variable 0 (stack) is always written in place (no push/pop).
  */
 function store(machine: ZMachine, operandTypes: OperandType[], variableRef: number, value: number): void {
   const isIndirect = operandTypes[0] === OperandType.Variable;
@@ -141,28 +138,18 @@ function store(machine: ZMachine, operandTypes: OperandType[], variableRef: numb
 
   if (isIndirect) {
     targetVariable = machine.state.loadVariable(variableRef);
-
-    // Handle special stack pointer indirection case
-    if (targetVariable === 0) {
-      // Indirect reference to stack pointer: store to top value IN PLACE
-      if (machine.state.stack.length === 0) {
-        throw new Error('Illegal operation: indirect store to stack pointer when stack is empty');
-      }
-      // Store to top of stack in place (no push/pop)
-      machine.state.stack[machine.state.stack.length - 1] = value;
-
-      machine.logger.debug(`${machine.executor.op_pc.toString(16)} store ${varDisplay} ${value} (stack top in place)`);
-      return;
-    }
   } else {
     targetVariable = variableRef;
+  }
 
-    // Direct access to stack pointer: normal push semantics
-    if (targetVariable === 0) {
-      machine.state.pushStack(value);
-      machine.logger.debug(`${machine.executor.op_pc.toString(16)} store ${varDisplay} ${value} (pushed to stack)`);
-      return;
+  // Z-spec §6.3.4: indirect variable references to stack pointer (0) are in-place
+  if (targetVariable === 0) {
+    if (machine.state.stack.length === 0) {
+      throw new Error('Illegal operation: store to stack pointer when stack is empty');
     }
+    machine.state.stack[machine.state.stack.length - 1] = value;
+    machine.logger.debug(`${machine.executor.op_pc.toString(16)} store ${varDisplay} ${value} (stack top in place)`);
+    return;
   }
 
   machine.state.storeVariable(targetVariable, value);

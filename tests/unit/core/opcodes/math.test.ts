@@ -114,7 +114,7 @@ describe('Math Opcodes', () => {
       // Arrange
       const a = 20;
       const b = 4;
-      const expected = toU16(Math.floor(toI16(a) / toI16(b))); // 5
+      const expected = toU16(Math.trunc(toI16(a) / toI16(b))); // 5
 
       // Act
       mathOpcodes.div.impl(machine, [], a, b);
@@ -129,7 +129,7 @@ describe('Math Opcodes', () => {
       // Arrange
       const a = 21;
       const b = 4;
-      const expected = toU16(Math.floor(toI16(a) / toI16(b))); // 5
+      const expected = toU16(Math.trunc(toI16(a) / toI16(b))); // 5
 
       // Act
       mathOpcodes.div.impl(machine, [], a, b);
@@ -139,11 +139,22 @@ describe('Math Opcodes', () => {
       expect(expected).toBe(5);
     });
 
+    it('should truncate toward zero for negative dividends (Z-spec §15)', () => {
+      // Z-spec: -11 / 2 = -5 (truncate toward zero), NOT -6 (Math.floor)
+      // Infocom 68K DIVS instruction also truncates toward zero
+      const a = toU16(-11);
+      const b = 2;
+
+      mathOpcodes.div.impl(machine, [], a, b);
+
+      expect(toI16(mockMachine.state.storeVariable.mock.calls[0][1])).toBe(-5);
+    });
+
     it('should handle negative dividends', () => {
       // Arrange
       const a = toU16(-20);
       const b = 4;
-      const expected = toU16(Math.floor(toI16(a) / toI16(b))); // -5
+      const expected = toU16(Math.trunc(toI16(a) / toI16(b))); // -5
 
       // Act
       mathOpcodes.div.impl(machine, [], a, b);
@@ -157,7 +168,7 @@ describe('Math Opcodes', () => {
       // Arrange
       const a = 20;
       const b = toU16(-4);
-      const expected = toU16(Math.floor(toI16(a) / toI16(b))); // -5
+      const expected = toU16(Math.trunc(toI16(a) / toI16(b))); // -5
 
       // Act
       mathOpcodes.div.impl(machine, [], a, b);

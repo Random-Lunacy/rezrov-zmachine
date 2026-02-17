@@ -16,6 +16,7 @@
  */
 import { ZMachine } from '../../interpreter/ZMachine';
 import { OperandType } from '../../types';
+import { HeaderLocation } from '../../utils/constants';
 import { opcode } from './base';
 
 /**
@@ -59,22 +60,45 @@ function restart(machine: ZMachine, _operandTypes: OperandType[]): void {
 }
 
 /**
- * Verify the game file checksum
+ * Verify the game file checksum.
+ * Sums all bytes from offset 64 to the file length, then compares
+ * (mod 65536) against the checksum stored in the header at 0x1C.
  */
 function verify(machine: ZMachine, _operandTypes: OperandType[]): void {
   const [offset, branchOnFalse] = machine.state.readBranchOffset();
 
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} verify -> [${!branchOnFalse}] ${offset}`);
 
-  try {
-    // In a real implementation, we would compute the checksum
-    // For now, always return true
-    const verified = true;
-    machine.state.doBranch(verified, branchOnFalse, offset);
-  } catch (error) {
-    machine.logger.error(`Error verifying checksum: ${error}`);
-    machine.state.doBranch(false, branchOnFalse, offset);
+  const buffer = machine.originalStory;
+  const version = machine.state.version;
+
+  // File length from header at 0x1A is packed (Z-spec §11.1.6)
+  const rawLength = buffer.readUInt16BE(HeaderLocation.FileLength);
+  let fileLength: number;
+  if (version <= 3) {
+    fileLength = rawLength * 2;
+  } else if (version <= 5) {
+    fileLength = rawLength * 4;
+  } else {
+    fileLength = rawLength * 8;
   }
+
+  // Clamp to actual buffer size
+  const endByte = Math.min(fileLength, buffer.length);
+
+  // Sum all bytes from offset 64 to file length
+  let checksum = 0;
+  for (let i = 64; i < endByte; i++) {
+    checksum = (checksum + buffer[i]) & 0xffff;
+  }
+
+  const expectedChecksum = buffer.readUInt16BE(HeaderLocation.Checksum);
+  const verified = checksum === expectedChecksum;
+
+  machine.logger.debug(
+    `verify: computed=${checksum.toString(16)}, expected=${expectedChecksum.toString(16)}, match=${verified}`
+  );
+  machine.state.doBranch(verified, branchOnFalse, offset);
 }
 
 /**
@@ -91,7 +115,7 @@ function piracy(machine: ZMachine, _operandTypes: OperandType[]): void {
 
 async function save(
   machine: ZMachine,
-  _operandTypes: OperandType[],
+  operandTypes: OperandType[],
   table: number,
   bytes: number,
   name: number = 0,
@@ -99,15 +123,31 @@ async function save(
 ): Promise<void> {
   if (machine.state.version >= 5) {
     const resultVar = machine.state.readByte();
-    machine.logger.debug(`${machine.executor.op_pc.toString(16)} save (ext) ${table} ${bytes} ${name} ${prompt}`);
+    const shouldPrompt = prompt === -1 || prompt === 1;
+    const isPartial = operandTypes.length > 0;
 
-    try {
-      const shouldPrompt = prompt === -1 || prompt === 1;
-      const success = await machine.saveToTable(table, bytes, name, shouldPrompt);
-      machine.state.storeVariable(resultVar, success ? 1 : 0);
-    } catch (error) {
-      machine.logger.error(`Failed to save: ${error}`);
-      machine.state.storeVariable(resultVar, 0);
+    if (isPartial) {
+      // Partial save: write memory region to auxiliary file (no game state)
+      machine.logger.debug(
+        `${machine.executor.op_pc.toString(16)} save (partial) table=${table} bytes=${bytes} name=${name}`
+      );
+      try {
+        const success = await machine.saveAuxiliary(table, bytes, name, shouldPrompt);
+        machine.state.storeVariable(resultVar, success ? 1 : 0);
+      } catch (error) {
+        machine.logger.error(`Failed to save auxiliary data: ${error}`);
+        machine.state.storeVariable(resultVar, 0);
+      }
+    } else {
+      // Standard save: full game state
+      machine.logger.debug(`${machine.executor.op_pc.toString(16)} save (standard)`);
+      try {
+        const success = await machine.saveGame();
+        machine.state.storeVariable(resultVar, success ? 1 : 0);
+      } catch (error) {
+        machine.logger.error(`Failed to save: ${error}`);
+        machine.state.storeVariable(resultVar, 0);
+      }
     }
   } else {
     const [offset, branchOnFalse] = machine.state.readBranchOffset();
@@ -125,7 +165,7 @@ async function save(
 
 async function restore(
   machine: ZMachine,
-  _operandTypes: OperandType[],
+  operandTypes: OperandType[],
   table: number,
   bytes: number,
   name: number = 0,
@@ -133,15 +173,31 @@ async function restore(
 ): Promise<void> {
   if (machine.state.version >= 5) {
     const resultVar = machine.state.readByte();
-    machine.logger.debug(`${machine.executor.op_pc.toString(16)} restore (ext) ${table} ${bytes} ${name} ${prompt}`);
+    const shouldPrompt = prompt === -1 || prompt === 1;
+    const isPartial = operandTypes.length > 0;
 
-    try {
-      const shouldPrompt = prompt === -1 || prompt === 1;
-      const success = await machine.restoreFromTable(table, bytes, name, shouldPrompt);
-      machine.state.storeVariable(resultVar, success ? 2 : 0);
-    } catch (error) {
-      machine.logger.error(`Failed to restore: ${error}`);
-      machine.state.storeVariable(resultVar, 0);
+    if (isPartial) {
+      // Partial restore: read memory region from auxiliary file (no game state)
+      machine.logger.debug(
+        `${machine.executor.op_pc.toString(16)} restore (partial) table=${table} bytes=${bytes} name=${name}`
+      );
+      try {
+        const bytesRead = await machine.restoreAuxiliary(table, bytes, name, shouldPrompt);
+        machine.state.storeVariable(resultVar, bytesRead);
+      } catch (error) {
+        machine.logger.error(`Failed to restore auxiliary data: ${error}`);
+        machine.state.storeVariable(resultVar, 0);
+      }
+    } else {
+      // Standard restore: full game state
+      machine.logger.debug(`${machine.executor.op_pc.toString(16)} restore (standard)`);
+      try {
+        const success = await machine.restoreGame();
+        machine.state.storeVariable(resultVar, success ? 2 : 0);
+      } catch (error) {
+        machine.logger.error(`Failed to restore: ${error}`);
+        machine.state.storeVariable(resultVar, 0);
+      }
     }
   } else {
     const [offset, branchOnFalse] = machine.state.readBranchOffset();

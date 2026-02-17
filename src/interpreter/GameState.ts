@@ -298,6 +298,11 @@ export class GameState {
 
     // Arguments override the first locals
     const argCount = Math.min(args.length, numLocals);
+    if (args.length > numLocals) {
+      this.logger.warn(
+        `Routine at ${hex(routineAddress)}: ${args.length} arguments supplied but only ${numLocals} locals defined`
+      );
+    }
     for (let i = 0; i < argCount; i++) {
       locals[i] = args[i];
     }
@@ -478,7 +483,7 @@ export class GameState {
       }
     }
 
-    // Branch conditions: 0 in bit 7 means "branch on true"
+    // Bit 7 = 0 means "branch on false", bit 7 = 1 means "branch on true" (Z-spec §4.7)
     return [offset, (branchData & 0x80) === 0x00];
   }
 
