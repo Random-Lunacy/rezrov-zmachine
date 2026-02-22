@@ -1275,6 +1275,69 @@ describe('GameObject', () => {
       expect(v4Object.getNextProperty(10)).toBe(5);
       expect(v4Object.getNextProperty(5)).toBe(0);
     });
+
+    it('should navigate V4+ properties with 1-byte headers correctly (Infocom NXTPRP)', () => {
+      // This test catches a bug where _nextPropEntry always assumed 2-byte headers for V4+.
+      // Properties with bit 7 clear have 1-byte headers; overshooting by 1 reads data as prop numbers.
+      //
+      // Layout at propTable (0x200):
+      //   +0:  0x00  name length (0 = no name)
+      //   +1:  0x0F  prop 15, simple format (bit7=0, bit6=0), 1-byte data
+      //   +2:  0xAA  data for prop 15
+      //   +3:  0x4A  prop 10, simple format (bit7=0, bit6=1), 2-byte data
+      //   +4:  0xBB  data byte 1 for prop 10
+      //   +5:  0xCC  data byte 2 for prop 10
+      //   +6:  0x85  prop 5, long format (bit7=1)
+      //   +7:  0x03  length byte (3 bytes)
+      //   +8:  0xDD  data byte 1 for prop 5
+      //   +9:  0xEE  data byte 2 for prop 5
+      //   +10: 0xFF  data byte 3 for prop 5
+      //   +11: 0x00  terminator
+
+      mockMemory.getByte.mockReset();
+      mockMemory.getWord.mockReset();
+
+      const calculatedObjAddr = objTableAddr + 63 * 2 + (v4ObjNum - 1) * 14;
+
+      mockMemory.getByte.mockImplementation((addr: number) => {
+        if (addr >= calculatedObjAddr && addr < calculatedObjAddr + 6) return 0;
+        if (addr >= calculatedObjAddr + 6 && addr < calculatedObjAddr + 12) return 0;
+
+        const propBytes: Record<number, number> = {
+          [propTable]: 0x00, // no name
+          [propTable + 1]: 0x0f, // prop 15, simple, 1-byte data
+          [propTable + 2]: 0xaa, // data
+          [propTable + 3]: 0x4a, // prop 10, simple, 2-byte data
+          [propTable + 4]: 0xbb, // data byte 1
+          [propTable + 5]: 0xcc, // data byte 2
+          [propTable + 6]: 0x85, // prop 5, long format
+          [propTable + 7]: 0x03, // length = 3
+          [propTable + 8]: 0xdd, // data byte 1
+          [propTable + 9]: 0xee, // data byte 2
+          [propTable + 10]: 0xff, // data byte 3
+          [propTable + 11]: 0x00, // terminator
+        };
+        return propBytes[addr] ?? 0x42; // non-zero default to catch overshoots
+      });
+
+      mockMemory.getWord.mockImplementation((addr: number) => {
+        if (addr === calculatedObjAddr + 12) return propTable;
+        return 0;
+      });
+
+      const obj = new GameObject(mockMemory as any, v4Version, objTableAddr, v4ObjNum, { logger: mockLogger });
+      Object.defineProperty(obj, 'getObject', {
+        value: () => null,
+        configurable: true,
+      });
+
+      // With the bug, getNextProperty(15) would read propTable+4 (0xBB) as a prop number → 59
+      // With the fix, it correctly reads propTable+3 (0x4A) → prop 10
+      expect(obj.getNextProperty(0)).toBe(15);
+      expect(obj.getNextProperty(15)).toBe(10);
+      expect(obj.getNextProperty(10)).toBe(5);
+      expect(obj.getNextProperty(5)).toBe(0);
+    });
   });
 
   describe('Name getter', () => {

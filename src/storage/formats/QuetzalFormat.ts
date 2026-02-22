@@ -623,24 +623,10 @@ export class QuetzalFormat implements FormatProvider {
   }
 
   private getDynamicMemorySize(storyData: Buffer): number {
-    // Determine dynamic memory size based on version
-    const version = storyData[0];
-
-    switch (version) {
-      case 1:
-      case 2:
-      case 3:
-        return 0x10000; // 64K
-      case 4:
-      case 5:
-        return 0x10000; // 64K
-      case 6:
-      case 7:
-      case 8:
-        return 0x20000; // 128K
-      default:
-        throw new Error(`Unsupported Z-machine version: ${version}`);
-    }
+    // Per Z-spec §1.1 and Quetzal spec §3.1: dynamic memory extends from
+    // address 0 to static_memory_base - 1. The static memory base is stored
+    // as a word at header offset 0x0E.
+    return storyData.readUInt16BE(0x0e);
   }
 
   // Fix: V6/V7 fields validation

@@ -198,6 +198,7 @@ function decodeZStringV3Plus(memory: Memory, zStr: ZString, expandAbbreviations:
       switch (zChar) {
         case 0: // Space
           result.push(' ');
+          alphabet = 0;
           break;
 
         case 1: // Abbreviation
@@ -212,6 +213,7 @@ function decodeZStringV3Plus(memory: Memory, zStr: ZString, expandAbbreviations:
             const abbrevText = decodeZString(memory, memory.getZString(abbrevAddr), false);
             result.push(abbrevText);
           }
+          alphabet = 0;
           break;
 
         case 4: // Shift to A1 (temporary)
