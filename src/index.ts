@@ -63,6 +63,11 @@ export { TextParser } from './parsers/TextParser';
 export { decodeZString, encodeZString, packZCharacters } from './parsers/ZString';
 export type { ZString } from './parsers/ZString';
 
+// Resource handling (Blorb)
+export { BlorbChunkType, BlorbMetadataType, BlorbUsage } from './resources/BlorbData';
+export type { BlorbChunk, BlorbMap, BlorbResource } from './resources/BlorbData';
+export { BlorbParser } from './resources/BlorbParser';
+
 // Storage components
 export { createBrowserStorage, createFileSystemStorage, createMemoryStorage } from './storage/factory';
 export { EnhancedDatFormat } from './storage/formats/EnhancedDatFormat';
