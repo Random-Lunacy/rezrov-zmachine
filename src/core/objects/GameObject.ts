@@ -316,9 +316,18 @@ export class GameObject {
   }
 
   private _nextPropEntry(propAddr: Address): Address {
+    const sizeByte = this.memory.getByte(propAddr);
     const propLen = GameObject._propDataLen(this.memory, this.version, propAddr);
-    const entrySize = propLen + (this.version <= 3 ? 1 : 2);
-    return propAddr + entrySize;
+
+    // V3: always 1-byte header. V4+: 1-byte header (bit 7 clear) or 2-byte header (bit 7 set).
+    let headerSize: number;
+    if (this.version <= 3) {
+      headerSize = 1;
+    } else {
+      headerSize = sizeByte & 0x80 ? 2 : 1;
+    }
+
+    return propAddr + headerSize + propLen;
   }
 
   private _propEntryNum(entry: Address): number {

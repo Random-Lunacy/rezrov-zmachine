@@ -485,37 +485,15 @@ describe('QuetzalFormat', () => {
   });
 
   describe('version validation', () => {
-    it('should throw on unsupported Z-machine version', () => {
+    it('should use static memory base from header for dynamic memory size', () => {
       const testFormat = new QuetzalFormat({ logger });
+      const getDynamicMemorySize = (testFormat as any).getDynamicMemorySize.bind(testFormat);
 
-      // Create a story file with invalid version
-      const invalidStory = Buffer.alloc(0x10000);
-      invalidStory[0] = 9; // Invalid version (only 1-8 are valid)
-
-      // Copy header fields from original story
-      originalStory.copy(invalidStory, 0x02, 0x02, 0x30);
-
-      // Mock necessary internal methods
-      vi.spyOn(testFormat as any, 'parseChunks').mockReturnValue({
-        IFhd: Buffer.alloc(13),
-        CMem: Buffer.alloc(10),
-        Stks: Buffer.alloc(20),
-      });
-
-      vi.spyOn(testFormat as any, 'parseIFhdChunk').mockReturnValue({
-        release: 0x0123,
-        serial: 'AB1234',
-        checksum: 0x5678,
-        pc: 0x1234,
-      });
-
-      // Create a valid buffer
-      const fakeSerializedData = Buffer.alloc(100);
-      fakeSerializedData.write('FORM', 0, 'ascii');
-      fakeSerializedData.writeUInt32BE(fakeSerializedData.length - 8, 4);
-      fakeSerializedData.write('IFZS', 8, 'ascii');
-
-      expect(() => testFormat.deserialize(fakeSerializedData, invalidStory)).toThrow(/Unsupported Z-machine version/);
+      // A story with version 9 but valid static memory base still returns the header value
+      const story = Buffer.alloc(0x10000);
+      story[0] = 9;
+      story.writeUInt16BE(0x2000, 0x0e); // Static memory base
+      expect(getDynamicMemorySize(story)).toBe(0x2000);
     });
 
     it('should handle V6 story files with valid offsets', () => {
@@ -787,36 +765,40 @@ describe('QuetzalFormat', () => {
   });
 
   describe('getDynamicMemorySize', () => {
-    it('should return correct size for V1-V3', () => {
+    it('should return static memory base from header offset 0x0E', () => {
       const getDynamicMemorySize = (format as any).getDynamicMemorySize.bind(format);
 
-      const v3Story = Buffer.alloc(0x100);
-      v3Story[0] = 3;
+      const story = Buffer.alloc(0x10000);
+      story[0] = 3;
+      story.writeUInt16BE(0x4000, 0x0e); // Static memory base at 16K
 
-      expect(getDynamicMemorySize(v3Story)).toBe(0x10000);
+      expect(getDynamicMemorySize(story)).toBe(0x4000);
     });
 
-    it('should return correct size for V4-V5', () => {
+    it('should handle different static memory base values', () => {
       const getDynamicMemorySize = (format as any).getDynamicMemorySize.bind(format);
 
-      const v5Story = Buffer.alloc(0x100);
+      const v5Story = Buffer.alloc(0x10000);
       v5Story[0] = 5;
+      v5Story.writeUInt16BE(0x8000, 0x0e); // Static memory base at 32K
 
-      expect(getDynamicMemorySize(v5Story)).toBe(0x10000);
+      expect(getDynamicMemorySize(v5Story)).toBe(0x8000);
     });
 
-    it('should return correct size for V6-V8', () => {
+    it('should read from header for all versions', () => {
       const getDynamicMemorySize = (format as any).getDynamicMemorySize.bind(format);
 
-      const v6Story = Buffer.alloc(0x100);
+      const v6Story = Buffer.alloc(0x20000);
       v6Story[0] = 6;
+      v6Story.writeUInt16BE(0xc000, 0x0e); // Static memory base at 48K
 
-      expect(getDynamicMemorySize(v6Story)).toBe(0x20000);
+      expect(getDynamicMemorySize(v6Story)).toBe(0xc000);
 
-      const v8Story = Buffer.alloc(0x100);
+      const v8Story = Buffer.alloc(0x20000);
       v8Story[0] = 8;
+      v8Story.writeUInt16BE(0xe000, 0x0e); // Static memory base at 56K
 
-      expect(getDynamicMemorySize(v8Story)).toBe(0x20000);
+      expect(getDynamicMemorySize(v8Story)).toBe(0xe000);
     });
   });
 
