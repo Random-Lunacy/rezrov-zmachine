@@ -929,22 +929,166 @@ describe('I/O Opcodes', () => {
     });
   });
 
-  // Unimplemented opcodes should throw appropriate errors
-  describe('unimplemented opcodes', () => {
-    it.each([
-      'set_margins',
-      'move_window',
-      'window_size',
-      'window_style',
-      'read_mouse',
-      'mouse_window',
-      'make_menu',
-      'scroll_window',
-      'put_wind_prop',
-    ])('should throw an error for %s', (opcode) => {
-      expect(() => {
-        ioOpcodes[opcode].impl(machine);
-      }).toThrow(`Unimplemented opcode: ${opcode}`);
+  describe('V6 window opcodes', () => {
+    beforeEach(() => {
+      mockMachine.state.version = 6;
+      machine = mockMachine as unknown as ZMachine;
+    });
+
+    describe('set_margins', () => {
+      it('should call screen.setWindowMargins with left, right', () => {
+        ioOpcodes.set_margins.impl(machine, [], 5, 10);
+        expect(machine.screen.setWindowMargins).toHaveBeenCalledWith(machine, 5, 10, undefined);
+      });
+
+      it('should pass optional window parameter', () => {
+        ioOpcodes.set_margins.impl(machine, [], 5, 10, 2);
+        expect(machine.screen.setWindowMargins).toHaveBeenCalledWith(machine, 5, 10, 2);
+      });
+
+      it('should warn in V4 and earlier', () => {
+        mockMachine.state.version = 4;
+        machine = mockMachine as unknown as ZMachine;
+        ioOpcodes.set_margins.impl(machine, [], 5, 10);
+        expect(machine.logger.warn).toHaveBeenCalledWith('set_margins only supported in V5+');
+        expect(machine.screen.setWindowMargins).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('move_window', () => {
+      it('should call screen.moveWindow with correct param order (win, y, x)', () => {
+        ioOpcodes.move_window.impl(machine, [], 1, 10, 20);
+        expect(machine.screen.moveWindow).toHaveBeenCalledWith(machine, 1, 10, 20);
+      });
+
+      it('should warn in V5 and earlier', () => {
+        mockMachine.state.version = 5;
+        machine = mockMachine as unknown as ZMachine;
+        ioOpcodes.move_window.impl(machine, [], 1, 10, 20);
+        expect(machine.logger.warn).toHaveBeenCalledWith('move_window only supported in V6');
+        expect(machine.screen.moveWindow).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('window_size', () => {
+      it('should call screen.resizeWindow with correct param order (win, height, width)', () => {
+        ioOpcodes.window_size.impl(machine, [], 1, 15, 40);
+        expect(machine.screen.resizeWindow).toHaveBeenCalledWith(machine, 1, 15, 40);
+      });
+
+      it('should warn in V5 and earlier', () => {
+        mockMachine.state.version = 5;
+        machine = mockMachine as unknown as ZMachine;
+        ioOpcodes.window_size.impl(machine, [], 1, 15, 40);
+        expect(machine.logger.warn).toHaveBeenCalledWith('window_size only supported in V6');
+        expect(machine.screen.resizeWindow).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('window_style', () => {
+      it('should call screen.setWindowStyle with flags and operation', () => {
+        ioOpcodes.window_style.impl(machine, [], 0, 0b1011, 1);
+        expect(machine.screen.setWindowStyle).toHaveBeenCalledWith(machine, 0, 0b1011, 1);
+      });
+
+      it('should default operation to 0 (MOVE) when omitted', () => {
+        ioOpcodes.window_style.impl(machine, [], 0, 0b0011);
+        expect(machine.screen.setWindowStyle).toHaveBeenCalledWith(machine, 0, 0b0011, 0);
+      });
+
+      it('should warn in V5 and earlier', () => {
+        mockMachine.state.version = 5;
+        machine = mockMachine as unknown as ZMachine;
+        ioOpcodes.window_style.impl(machine, [], 0, 0b1011, 1);
+        expect(machine.logger.warn).toHaveBeenCalledWith('window_style only supported in V6');
+        expect(machine.screen.setWindowStyle).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('scroll_window', () => {
+      it('should call screen.scrollWindow with window and lines', () => {
+        ioOpcodes.scroll_window.impl(machine, [], 0, 3);
+        expect(machine.screen.scrollWindow).toHaveBeenCalledWith(machine, 0, 3);
+      });
+
+      it('should default to 1 line when lines omitted', () => {
+        ioOpcodes.scroll_window.impl(machine, [], 0);
+        expect(machine.screen.scrollWindow).toHaveBeenCalledWith(machine, 0, 1);
+      });
+
+      it('should warn in V5 and earlier', () => {
+        mockMachine.state.version = 5;
+        machine = mockMachine as unknown as ZMachine;
+        ioOpcodes.scroll_window.impl(machine, [], 0, 3);
+        expect(machine.logger.warn).toHaveBeenCalledWith('scroll_window only supported in V6');
+        expect(machine.screen.scrollWindow).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('put_wind_prop', () => {
+      it('should call screen.setWindowProperty with window, property, value', () => {
+        ioOpcodes.put_wind_prop.impl(machine, [], 0, 8, 42);
+        expect(machine.screen.setWindowProperty).toHaveBeenCalledWith(machine, 0, 8, 42);
+      });
+
+      it('should warn in V5 and earlier', () => {
+        mockMachine.state.version = 5;
+        machine = mockMachine as unknown as ZMachine;
+        ioOpcodes.put_wind_prop.impl(machine, [], 0, 8, 42);
+        expect(machine.logger.warn).toHaveBeenCalledWith('put_wind_prop only supported in V6');
+        expect(machine.screen.setWindowProperty).not.toHaveBeenCalled();
+      });
+    });
+  });
+
+  describe('V6 mouse and menu opcodes', () => {
+    beforeEach(() => {
+      mockMachine.state.version = 6;
+      mockMachine.state.readBranchOffset = vi.fn().mockReturnValue([10, false]);
+      mockMachine.state.doBranch = vi.fn();
+      mockMachine.memory = {
+        ...mockMachine.memory,
+        setWord: vi.fn(),
+      } as any;
+      machine = mockMachine as unknown as ZMachine;
+    });
+
+    describe('read_mouse', () => {
+      it('should call screen.readMouse with array address', () => {
+        ioOpcodes.read_mouse.impl(machine, [], 0x1000);
+        expect(machine.screen.readMouse).toHaveBeenCalledWith(machine, 0x1000);
+      });
+
+      it('should warn in V5 and earlier', () => {
+        mockMachine.state.version = 5;
+        machine = mockMachine as unknown as ZMachine;
+        ioOpcodes.read_mouse.impl(machine, [], 0x1000);
+        expect(machine.logger.warn).toHaveBeenCalledWith('read_mouse only supported in V6');
+        expect(machine.screen.readMouse).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('mouse_window', () => {
+      it('should call screen.setMouseWindow with window ID', () => {
+        ioOpcodes.mouse_window.impl(machine, [], 2);
+        expect(machine.screen.setMouseWindow).toHaveBeenCalledWith(machine, 2);
+      });
+
+      it('should warn in V5 and earlier', () => {
+        mockMachine.state.version = 5;
+        machine = mockMachine as unknown as ZMachine;
+        ioOpcodes.mouse_window.impl(machine, [], 2);
+        expect(machine.logger.warn).toHaveBeenCalledWith('mouse_window only supported in V6');
+        expect(machine.screen.setMouseWindow).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('make_menu', () => {
+      it('should always branch false (not implemented even by Infocom)', () => {
+        ioOpcodes.make_menu.impl(machine, [], 1, 0x2000);
+        expect(mockMachine.state.readBranchOffset).toHaveBeenCalled();
+        expect(mockMachine.state.doBranch).toHaveBeenCalledWith(false, false, 10);
+      });
     });
   });
 });

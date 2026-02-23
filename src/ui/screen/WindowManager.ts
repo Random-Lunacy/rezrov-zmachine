@@ -47,6 +47,12 @@ export interface WindowState {
   content: string[];
   dirty: boolean;
   lastRedraw: number;
+
+  // V6-specific fields (per Z-spec Table 8.8.3.1)
+  newlineInterrupt: number; // Property 8: routine address called on newline
+  interruptCountdown: number; // Property 9: lines remaining until interrupt fires
+  attributes: number; // Property 14: bit 0=wrap, 1=scroll, 2=script, 3=buffer
+  lineCount: number; // Property 15: lines output to this window
 }
 
 /**
@@ -139,6 +145,10 @@ export class WindowManager {
       content: [],
       dirty: false,
       lastRedraw: Date.now(),
+      newlineInterrupt: 0,
+      interruptCountdown: 0,
+      attributes: 0b1011, // wrap + scroll + buffer enabled
+      lineCount: 0,
     });
 
     // Upper window (status bar)
@@ -165,6 +175,10 @@ export class WindowManager {
       content: [],
       dirty: false,
       lastRedraw: Date.now(),
+      newlineInterrupt: 0,
+      interruptCountdown: 0,
+      attributes: 0, // No wrapping/scrolling/scripting/buffering
+      lineCount: 0,
     });
   }
 
@@ -197,6 +211,10 @@ export class WindowManager {
       content: [],
       dirty: false,
       lastRedraw: Date.now(),
+      newlineInterrupt: 0,
+      interruptCountdown: 0,
+      attributes: 0,
+      lineCount: 0,
     };
 
     this.windows.set(windowId, window);
@@ -304,6 +322,46 @@ export class WindowManager {
   }
 
   /**
+   * Set window attributes with bitwise operation (V6)
+   * @param flags The attribute flags to apply
+   * @param operation 0=MOVE(replace), 1=SET(OR), 2=CLEAR(AND-NOT), 3=COMP(XOR)
+   */
+  public setWindowAttributes(windowId: number, flags: number, operation: number): boolean {
+    const window = this.windows.get(windowId);
+    if (!window) {
+      this.logger.warn(`Window ${windowId} not found`);
+      return false;
+    }
+
+    const oldAttributes = window.attributes;
+
+    switch (operation) {
+      case 0: // MOVE (replace)
+        window.attributes = flags;
+        break;
+      case 1: // SET (OR)
+        window.attributes |= flags;
+        break;
+      case 2: // CLEAR (AND-NOT)
+        window.attributes &= ~flags;
+        break;
+      case 3: // COMP (XOR)
+        window.attributes ^= flags;
+        break;
+      default:
+        this.logger.warn(`Invalid window_style operation ${operation}`);
+        return false;
+    }
+
+    window.dirty = true;
+
+    this.logger.debug(
+      `Set window ${windowId} attributes: ${oldAttributes} -> ${window.attributes} (flags=${flags}, op=${operation})`
+    );
+    return true;
+  }
+
+  /**
    * Get window property
    */
   public getWindowProperty(windowId: number, property: WindowProperty): number {
@@ -338,10 +396,14 @@ export class WindowManager {
         return window.font;
       case WindowProperty.FontSize:
         return (1 << 8) | 1; // Default 1x1 font size
+      case WindowProperty.NewlineInterrupt:
+        return window.newlineInterrupt;
+      case WindowProperty.InterruptCountdown:
+        return window.interruptCountdown;
       case WindowProperty.Attributes:
-        return 0;
+        return window.attributes;
       case WindowProperty.LineCount:
-        return window.height;
+        return window.lineCount;
       default:
         this.logger.debug(`Unknown window property ${property}`);
         return 0;
@@ -382,6 +444,15 @@ export class WindowManager {
       case WindowProperty.ColorData:
         window.foreground = (value >> 8) & 0xff;
         window.background = value & 0xff;
+        break;
+      case WindowProperty.NewlineInterrupt:
+        window.newlineInterrupt = value;
+        break;
+      case WindowProperty.InterruptCountdown:
+        window.interruptCountdown = value;
+        break;
+      case WindowProperty.LineCount:
+        window.lineCount = value;
         break;
       default:
         this.logger.debug(`Cannot set window property ${property}`);

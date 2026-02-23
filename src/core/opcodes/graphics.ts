@@ -1,7 +1,6 @@
 /**
  * Graphics opcodes for ZMachine
  * These opcodes handle graphics-related operations in the ZMachine.
- * Currently, they are not implemented and will throw an error if called.
  *
  * Exported functions:
  * - draw_picture: Draw a picture at the given coordinates (V6)
@@ -11,28 +10,37 @@
  */
 import { ZMachine } from '../../interpreter/ZMachine';
 import { OperandType } from '../../types';
+import { ResourceType } from '../../ui/multimedia/MultimediaHandler';
 import { opcode } from './base';
 
 /**
  * Draw a picture at the given coordinates (V6)
+ * Z-spec: draw_picture picture-number y x
  */
-function draw_picture(machine: ZMachine, _operandTypes: OperandType[], picture: number, x: number, y: number): void {
-  machine.logger.debug(`draw_picture ${picture} ${x} ${y}`);
+function draw_picture(machine: ZMachine, _operandTypes: OperandType[], picture: number, y: number, x: number): void {
+  machine.logger.debug(`draw_picture ${picture} ${y} ${x}`);
 
-  // Check if pictures are supported for this version
   const version = machine.state.version;
   if (version < 6) {
     machine.logger.warn(`draw_picture not supported in version ${version}`);
     return;
   }
 
+  // Default position: current cursor position if y or x is 0
+  let finalY = y;
+  let finalX = x;
+
+  if (!finalY || !finalX) {
+    const cursorPos = machine.screen.getCursorPosition(machine);
+    if (!finalY) finalY = cursorPos.line;
+    if (!finalX) finalX = cursorPos.column;
+  }
+
   try {
-    // Use the multimedia handler to display the picture
-    const status = machine.multimediaHandler.displayPicture(picture, x, y, 100); // Default to 100% scale
+    const status = machine.multimediaHandler.displayPicture(picture, finalX, finalY, 100);
 
     if (status === 0) {
-      // ResourceStatus.Available
-      machine.logger.debug(`Picture ${picture} displayed successfully at (${x}, ${y})`);
+      machine.logger.debug(`Picture ${picture} displayed at (${finalX}, ${finalY})`);
     } else {
       machine.logger.warn(`Picture ${picture} failed to display, status: ${status}`);
     }
@@ -43,40 +51,54 @@ function draw_picture(machine: ZMachine, _operandTypes: OperandType[], picture: 
 
 /**
  * Get picture data, branch if available (V6)
+ * Z-spec: picture_data picture-number array ?(label)
+ * Stores height in array[0], width in array[1], branches if picture is available
  */
-function picture_data(machine: ZMachine, _operandTypes: OperandType[], picture: number): void {
-  machine.logger.debug(`picture_data ${picture}`);
+function picture_data(machine: ZMachine, _operandTypes: OperandType[], picture: number, array: number): void {
+  machine.logger.debug(`picture_data ${picture} ${array.toString(16)}`);
 
-  // Check if pictures are supported for this version
+  const [offset, branchOnFalse] = machine.state.readBranchOffset();
+
   const version = machine.state.version;
   if (version < 6) {
     machine.logger.warn(`picture_data not supported in version ${version}`);
+    machine.state.doBranch(false, branchOnFalse, offset);
     return;
   }
 
   try {
-    // Use the multimedia handler to get picture data
     const pictureData = machine.multimediaHandler.getPictureData(picture);
 
-    if (pictureData) {
-      machine.logger.debug(`Picture ${picture} data retrieved successfully`);
-      // TODO: Store picture data in variables for branching logic
-      // This would require additional implementation to handle the branching
+    if (pictureData && pictureData.height > 0 && pictureData.width > 0) {
+      // Store height and width in the array
+      machine.memory.setWord(array, pictureData.height);
+      machine.memory.setWord(array + 2, pictureData.width);
+
+      machine.logger.debug(`Picture ${picture}: ${pictureData.width}x${pictureData.height}`);
+      machine.state.doBranch(true, branchOnFalse, offset);
     } else {
-      machine.logger.warn(`Picture ${picture} data not available`);
+      machine.logger.debug(`Picture ${picture} not available`);
+      machine.state.doBranch(false, branchOnFalse, offset);
     }
   } catch (error) {
     machine.logger.error(`Error getting picture data for ${picture}: ${error}`);
+    machine.state.doBranch(false, branchOnFalse, offset);
   }
 }
 
 /**
  * Erase a picture (V6)
+ * Z-spec: erase_picture picture-number y x
  */
-function erase_picture(machine: ZMachine, _operandTypes: OperandType[], picture: number): void {
-  machine.logger.debug(`erase_picture ${picture}`);
+function erase_picture(
+  machine: ZMachine,
+  _operandTypes: OperandType[],
+  picture: number,
+  y: number = 0,
+  x: number = 0
+): void {
+  machine.logger.debug(`erase_picture ${picture} ${y} ${x}`);
 
-  // Check if pictures are supported for this version
   const version = machine.state.version;
   if (version < 6) {
     machine.logger.warn(`erase_picture not supported in version ${version}`);
@@ -84,12 +106,10 @@ function erase_picture(machine: ZMachine, _operandTypes: OperandType[], picture:
   }
 
   try {
-    // Use the multimedia handler to erase the picture
     const status = machine.multimediaHandler.erasePicture(picture);
 
     if (status === 0) {
-      // ResourceStatus.Available
-      machine.logger.debug(`Picture ${picture} erased successfully`);
+      machine.logger.debug(`Picture ${picture} erased`);
     } else {
       machine.logger.warn(`Picture ${picture} failed to erase, status: ${status}`);
     }
@@ -99,24 +119,43 @@ function erase_picture(machine: ZMachine, _operandTypes: OperandType[], picture:
 }
 
 /**
- * Give advance notice of pictures (V6)
+ * Give advance notice of pictures to preload (V6)
+ * Z-spec: picture_table table
+ * Table is an array of word-sized picture IDs, terminated by 0
  */
 function picture_table(machine: ZMachine, _operandTypes: OperandType[], table: number): void {
-  machine.logger.debug(`picture_table ${table}`);
+  machine.logger.debug(`picture_table ${table.toString(16)}`);
 
-  // Check if pictures are supported for this version
   const version = machine.state.version;
   if (version < 6) {
     machine.logger.warn(`picture_table not supported in version ${version}`);
     return;
   }
 
+  if (table === 0) {
+    machine.logger.debug('Picture preloading cancelled');
+    return;
+  }
+
   try {
-    // TODO: Parse the picture table and preload pictures
-    // This would require parsing the table structure and calling preloadResources
-    machine.logger.debug(`Picture table ${table} processed for preloading`);
+    // Parse table: array of word picture IDs, terminated by 0
+    const resources: Array<{ type: ResourceType; id: number }> = [];
+    let addr = table;
+
+    while (true) {
+      const pictureId = machine.memory.getWord(addr);
+      if (pictureId === 0) break;
+
+      resources.push({ type: ResourceType.Picture, id: pictureId });
+      addr += 2;
+    }
+
+    if (resources.length > 0) {
+      machine.multimediaHandler.preloadResources(resources);
+      machine.logger.debug(`Preloading ${resources.length} pictures`);
+    }
   } catch (error) {
-    machine.logger.error(`Error processing picture table ${table}: ${error}`);
+    machine.logger.error(`Error processing picture table: ${error}`);
   }
 }
 

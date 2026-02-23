@@ -830,6 +830,92 @@ export class BaseScreen implements Screen {
     return this.fontManager.getCurrentFontDimensions();
   }
 
+  // V6 window management methods
+
+  moveWindow(machine: ZMachine, windowId: number, y: number, x: number): void {
+    if (machine.state.version < 6) {
+      this.logger.warn('moveWindow only supported in V6');
+      return;
+    }
+
+    // Z-machine uses 1-based coordinates, WindowManager uses 0-based
+    this.windowManager.moveWindow(windowId, x - 1, y - 1);
+    this.logger.debug(`${this.id} moveWindow windowId=${windowId} y=${y} x=${x}`);
+  }
+
+  resizeWindow(machine: ZMachine, windowId: number, height: number, width: number): void {
+    if (machine.state.version < 6) {
+      this.logger.warn('resizeWindow only supported in V6');
+      return;
+    }
+
+    this.windowManager.resizeWindow(windowId, width, height);
+    this.logger.debug(`${this.id} resizeWindow windowId=${windowId} height=${height} width=${width}`);
+  }
+
+  setWindowStyle(machine: ZMachine, windowId: number, flags: number, operation: number): void {
+    if (machine.state.version < 6) {
+      this.logger.warn('setWindowStyle only supported in V6');
+      return;
+    }
+
+    this.windowManager.setWindowAttributes(windowId, flags, operation);
+    this.logger.debug(`${this.id} setWindowStyle windowId=${windowId} flags=${flags} operation=${operation}`);
+  }
+
+  scrollWindow(machine: ZMachine, windowId: number, lines: number): void {
+    if (machine.state.version < 6) {
+      this.logger.warn('scrollWindow only supported in V6');
+      return;
+    }
+
+    this.windowManager.scrollWindow(windowId, lines);
+    this.logger.debug(`${this.id} scrollWindow windowId=${windowId} lines=${lines}`);
+  }
+
+  setWindowMargins(machine: ZMachine, left: number, right: number, windowId?: number): void {
+    if (machine.state.version < 6) {
+      this.logger.warn('setWindowMargins only supported in V6');
+      return;
+    }
+
+    const targetWindow = windowId ?? this.outputWindowId;
+    this.windowManager.setWindowProperty(targetWindow, WindowProperty.LeftMargin, left);
+    this.windowManager.setWindowProperty(targetWindow, WindowProperty.RightMargin, right);
+    this.logger.debug(`${this.id} setWindowMargins left=${left} right=${right} windowId=${targetWindow}`);
+  }
+
+  setWindowProperty(machine: ZMachine, windowId: number, property: number, value: number): void {
+    if (machine.state.version < 6) {
+      this.logger.warn('setWindowProperty only supported in V6');
+      return;
+    }
+
+    // Per Infocom: only properties 8 (NewlineInterrupt), 9 (InterruptCountdown), 15 (LineCount) are writable
+    if (
+      property !== WindowProperty.NewlineInterrupt &&
+      property !== WindowProperty.InterruptCountdown &&
+      property !== WindowProperty.LineCount
+    ) {
+      this.logger.warn(`put_wind_prop: property ${property} should be set via dedicated opcodes, not put_wind_prop`);
+    }
+
+    this.windowManager.setWindowProperty(windowId, property, value);
+    this.logger.debug(`${this.id} setWindowProperty windowId=${windowId} property=${property} value=${value}`);
+  }
+
+  readMouse(_machine: ZMachine, array: number): void {
+    // Base implementation: no mouse activity (all zeros)
+    // Subclasses can override for actual mouse support
+    this.logger.debug(`${this.id} readMouse array=${array.toString(16)} (no mouse support)`);
+  }
+
+  setMouseWindow(_machine: ZMachine, windowId: number): void {
+    // Base implementation: just log (no mouse support)
+    // Subclasses can override for actual mouse constraint
+    this.logger.debug(`${this.id} setMouseWindow windowId=${windowId}`);
+  }
+
   quit(): void {
     this.logger.debug(`not implemented: ${this.id} quit`);
   }

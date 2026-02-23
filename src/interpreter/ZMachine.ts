@@ -11,6 +11,7 @@ import { StorageProvider } from '../storage/providers/StorageProvider';
 import { Storage } from '../storage/Storage';
 import { Color, ZMachineState } from '../types';
 import { InputProcessor, InputState } from '../ui/input/InputInterface';
+import { BlorbMultimediaHandler } from '../ui/multimedia/BlorbMultimediaHandler';
 import { BaseMultimediaHandler, MultimediaHandler } from '../ui/multimedia/MultimediaHandler';
 import { Capabilities, Screen } from '../ui/screen/interfaces';
 import { HeaderLocation, Interpreter } from '../utils/constants';
@@ -30,7 +31,7 @@ export class ZMachine {
   private readonly _state: GameState;
   private readonly _screen: Screen;
   private readonly _inputProcessor: InputProcessor;
-  private readonly _multimediaHandler: MultimediaHandler;
+  private _multimediaHandler: MultimediaHandler;
   private readonly _logger: Logger;
   private readonly _userStackManager: UserStackManager | null = null;
   private _storage: StorageInterface;
@@ -137,6 +138,8 @@ export class ZMachine {
   setBlorb(map: BlorbMap, data: Buffer): void {
     this._blorbMap = map;
     this._blorbData = data;
+    this._multimediaHandler = new BlorbMultimediaHandler(map, data, { logger: this._logger });
+    this._logger.info('Blorb resources attached, BlorbMultimediaHandler active');
   }
 
   /**

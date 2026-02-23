@@ -80,14 +80,15 @@ describe('Multimedia Opcodes', () => {
   });
 
   describe('draw_picture opcode', () => {
-    it('should call multimedia handler for V6+ games', () => {
+    it('should call multimedia handler for V6+ games with y, x param order', () => {
       machine.state.version = 6;
       mockMultimediaHandler.displayPicture.mockReturnValue(ResourceStatus.Available);
 
-      draw_picture(machine, [], 1, 100, 200);
+      draw_picture(machine, [], 1, 200, 100);
 
+      // displayPicture(picture, x, y, scale) — note x/y swap from opcode params
       expect(mockMultimediaHandler.displayPicture).toHaveBeenCalledWith(1, 100, 200, 100);
-      expect(machine.logger.debug).toHaveBeenCalledWith('draw_picture 1 100 200');
+      expect(machine.logger.debug).toHaveBeenCalledWith('draw_picture 1 200 100');
     });
 
     it('should warn for V5 games', () => {
@@ -114,9 +115,9 @@ describe('Multimedia Opcodes', () => {
       machine.state.version = 6;
       mockMultimediaHandler.displayPicture.mockReturnValue(ResourceStatus.Available);
 
-      draw_picture(machine, [], 1, 100, 200);
+      draw_picture(machine, [], 1, 200, 100);
 
-      expect(machine.logger.debug).toHaveBeenCalledWith('Picture 1 displayed successfully at (100, 200)');
+      expect(machine.logger.debug).toHaveBeenCalledWith('Picture 1 displayed at (100, 200)');
     });
 
     it('should log warning when picture fails to display', () => {
@@ -126,6 +127,17 @@ describe('Multimedia Opcodes', () => {
       draw_picture(machine, [], 1, 100, 200);
 
       expect(machine.logger.warn).toHaveBeenCalledWith('Picture 1 failed to display, status: 1');
+    });
+
+    it('should use cursor position when y or x is 0', () => {
+      machine.state.version = 6;
+      machine.screen.getCursorPosition.mockReturnValue({ line: 5, column: 10 });
+      mockMultimediaHandler.displayPicture.mockReturnValue(ResourceStatus.Available);
+
+      draw_picture(machine, [], 1, 0, 0);
+
+      expect(machine.screen.getCursorPosition).toHaveBeenCalled();
+      expect(mockMultimediaHandler.displayPicture).toHaveBeenCalledWith(1, 10, 5, 100);
     });
   });
 
@@ -137,7 +149,7 @@ describe('Multimedia Opcodes', () => {
       erase_picture(machine, [], 1);
 
       expect(mockMultimediaHandler.erasePicture).toHaveBeenCalledWith(1);
-      expect(machine.logger.debug).toHaveBeenCalledWith('erase_picture 1');
+      expect(machine.logger.debug).toHaveBeenCalledWith('erase_picture 1 0 0');
     });
 
     it('should warn for V5 games', () => {
@@ -166,7 +178,7 @@ describe('Multimedia Opcodes', () => {
 
       erase_picture(machine, [], 1);
 
-      expect(machine.logger.debug).toHaveBeenCalledWith('Picture 1 erased successfully');
+      expect(machine.logger.debug).toHaveBeenCalledWith('Picture 1 erased');
     });
 
     it('should log warning when picture fails to erase', () => {
@@ -180,63 +192,82 @@ describe('Multimedia Opcodes', () => {
   });
 
   describe('picture_data opcode', () => {
-    it('should call multimedia handler for V6+ games', () => {
-      machine.state.version = 6;
-      mockMultimediaHandler.getPictureData.mockReturnValue({ width: 100, height: 200, format: 'PNG', hasTransparency: false });
+    beforeEach(() => {
+      machine.state.readBranchOffset = vi.fn().mockReturnValue([10, false]);
+      machine.state.doBranch = vi.fn();
+      machine.memory.setWord = vi.fn();
+    });
 
-      picture_data(machine, [], 1);
+    it('should store height/width and branch true when picture available', () => {
+      machine.state.version = 6;
+      mockMultimediaHandler.getPictureData.mockReturnValue({
+        width: 100,
+        height: 200,
+        format: 'PNG',
+        hasTransparency: false,
+      });
+
+      picture_data(machine, [], 1, 0x2000);
 
       expect(mockMultimediaHandler.getPictureData).toHaveBeenCalledWith(1);
-      expect(machine.logger.debug).toHaveBeenCalledWith('picture_data 1');
+      expect(machine.memory.setWord).toHaveBeenCalledWith(0x2000, 200); // height
+      expect(machine.memory.setWord).toHaveBeenCalledWith(0x2002, 100); // width
+      expect(machine.state.doBranch).toHaveBeenCalledWith(true, false, 10);
     });
 
-    it('should warn for V5 games', () => {
+    it('should branch false for V5 games', () => {
       machine.state.version = 5;
 
-      picture_data(machine, [], 1);
+      picture_data(machine, [], 1, 0x2000);
 
       expect(mockMultimediaHandler.getPictureData).not.toHaveBeenCalled();
-      expect(machine.logger.warn).toHaveBeenCalledWith('picture_data not supported in version 5');
+      expect(machine.state.doBranch).toHaveBeenCalledWith(false, false, 10);
     });
 
-    it('should handle multimedia handler errors gracefully', () => {
+    it('should handle multimedia handler errors and branch false', () => {
       machine.state.version = 6;
       mockMultimediaHandler.getPictureData.mockImplementation(() => {
         throw new Error('Test error');
       });
 
-      picture_data(machine, [], 1);
+      picture_data(machine, [], 1, 0x2000);
 
-      expect(machine.logger.error).toHaveBeenCalledWith('Error getting picture data for 1: Error: Test error');
+      expect(machine.logger.error).toHaveBeenCalledWith(
+        'Error getting picture data for 1: Error: Test error'
+      );
+      expect(machine.state.doBranch).toHaveBeenCalledWith(false, false, 10);
     });
 
-    it('should log success when picture data is available', () => {
-      machine.state.version = 6;
-      mockMultimediaHandler.getPictureData.mockReturnValue({ width: 100, height: 200, format: 'PNG', hasTransparency: false });
-
-      picture_data(machine, [], 1);
-
-      expect(machine.logger.debug).toHaveBeenCalledWith('Picture 1 data retrieved successfully');
-    });
-
-    it('should log warning when picture data is not available', () => {
+    it('should branch false when picture data is not available', () => {
       machine.state.version = 6;
       mockMultimediaHandler.getPictureData.mockReturnValue(null);
 
-      picture_data(machine, [], 1);
+      picture_data(machine, [], 1, 0x2000);
 
-      expect(machine.logger.warn).toHaveBeenCalledWith('Picture 1 data not available');
+      expect(machine.state.doBranch).toHaveBeenCalledWith(false, false, 10);
     });
   });
 
   describe('picture_table opcode', () => {
-    it('should process picture table for V6+ games', () => {
+    beforeEach(() => {
+      mockMultimediaHandler.preloadResources = vi.fn();
+    });
+
+    it('should parse table and preload pictures for V6+ games', () => {
       machine.state.version = 6;
+      // Set up memory: table at 0x1000 with picture IDs 5, 10, 0 (terminator)
+      machine.memory.getWord = vi.fn().mockImplementation((addr: number) => {
+        if (addr === 0x1000) return 5;
+        if (addr === 0x1002) return 10;
+        return 0; // terminator
+      });
 
       picture_table(machine, [], 0x1000);
 
-      expect(machine.logger.debug).toHaveBeenCalledWith('picture_table 4096');
-      expect(machine.logger.debug).toHaveBeenCalledWith('Picture table 4096 processed for preloading');
+      expect(mockMultimediaHandler.preloadResources).toHaveBeenCalledWith([
+        { type: ResourceType.Picture, id: 5 },
+        { type: ResourceType.Picture, id: 10 },
+      ]);
     });
 
     it('should warn for V5 games', () => {
@@ -247,16 +278,27 @@ describe('Multimedia Opcodes', () => {
       expect(machine.logger.warn).toHaveBeenCalledWith('picture_table not supported in version 5');
     });
 
-    it('should handle errors gracefully', () => {
+    it('should cancel preloading when table is 0', () => {
       machine.state.version = 6;
 
-      // Test that the function executes without throwing errors
+      picture_table(machine, [], 0);
+
+      expect(machine.logger.debug).toHaveBeenCalledWith('Picture preloading cancelled');
+    });
+
+    it('should handle errors gracefully', () => {
+      machine.state.version = 6;
+      machine.memory.getWord = vi.fn().mockImplementation(() => {
+        throw new Error('Memory error');
+      });
+
       expect(() => {
         picture_table(machine, [], 0x1000);
       }).not.toThrow();
 
-      expect(machine.logger.debug).toHaveBeenCalledWith('picture_table 4096');
-      expect(machine.logger.debug).toHaveBeenCalledWith('Picture table 4096 processed for preloading');
+      expect(machine.logger.error).toHaveBeenCalledWith(
+        'Error processing picture table: Error: Memory error'
+      );
     });
   });
 });
