@@ -5,6 +5,17 @@
  * in text terminals. The printable range (32-126) uses the authoritative mapping
  * from Bocfel (unicode.cpp:build_zscii_to_character_graphics_table).
  *
+ * Per Z-machine spec section 16, the runic characters (codes 97-122, mapped to
+ * lowercase a-z) are taken from the late Anglian ("futhorc") runic alphabet.
+ * Most Latin letters map straightforwardly to their futhorc equivalents, with
+ * these exceptions (Amiga version):
+ *   C → Anglian eo (ᛇ eoh)
+ *   K → "other k" (ᛣ calc, formerly z sound)
+ *   Q → Anglian k (ᚳ cen)
+ *   V → ea (ᛠ ear)
+ *   X → z (ᛉ eolhx)
+ *   Z → oe (ᛟ ethel)
+ *
  * Font 3 Character Ranges:
  * - 0-31: Control characters (space)
  * - 32-126: Character graphics (box drawing, blocks, arrows, runes)
@@ -84,32 +95,32 @@ const FONT3_PRINTABLE_MAP: Record<number, string> = {
   94: '\u2195', // ↕ Up down arrow
   95: '\u2395', // ⎕ APL functional symbol quad
   96: '?', // Fallback
-  97: '\u16AA', // ᚪ Runic letter ac
-  98: '\u16D2', // ᛒ Runic letter berkanan
-  99: '\u16C7', // ᛇ Runic letter iwaz
-  100: '\u16DE', // ᛞ Runic letter dagaz
-  101: '\u16D6', // ᛖ Runic letter ehwaz
-  102: '\u16A0', // ᚠ Runic letter fehu
-  103: '\u16B7', // ᚷ Runic letter gebo
-  104: '\u16BB', // ᚻ Runic letter haegl
-  105: '\u16C1', // ᛁ Runic letter isaz
-  106: '\u16C4', // ᛄ Runic letter ger
-  107: '\u16E6', // ᛦ Runic letter long branch yr
-  108: '\u16DA', // ᛚ Runic letter laguz
-  109: '\u16D7', // ᛗ Runic letter mannaz
-  110: '\u16BE', // ᚾ Runic letter naudiz
-  111: '\u16A9', // ᚩ Runic letter os
-  112: '\u15BE', // ᖾ Canadian syllabics (peorth approximation)
-  113: '\u16B3', // ᚳ Runic letter cen
-  114: '\u16B1', // ᚱ Runic letter raido
-  115: '\u16CB', // ᛋ Runic letter sowilo
-  116: '\u16CF', // ᛏ Runic letter tiwaz
-  117: '\u16A2', // ᚢ Runic letter uruz
-  118: '\u16E0', // ᛠ Runic letter ear
-  119: '\u16B9', // ᚹ Runic letter wunjo
-  120: '\u16C9', // ᛉ Runic letter algiz
-  121: '\u16A5', // ᚥ Runic letter w
-  122: '\u16DF', // ᛟ Runic letter othala
+  97: '\u16AA', // ᚪ Runic letter ac (a)
+  98: '\u16D2', // ᛒ Runic letter beorc (b)
+  99: '\u16C7', // ᛇ Runic letter eoh (c → Anglian eo)
+  100: '\u16DE', // ᛞ Runic letter daeg (d)
+  101: '\u16D6', // ᛖ Runic letter eh (e)
+  102: '\u16A0', // ᚠ Runic letter feoh (f)
+  103: '\u16B7', // ᚷ Runic letter gyfu (g)
+  104: '\u16BB', // ᚻ Runic letter haegl (h)
+  105: '\u16C1', // ᛁ Runic letter is (i)
+  106: '\u16C4', // ᛄ Runic letter ger (j)
+  107: '\u16E3', // ᛣ Runic letter calc (k → "other k", formerly z sound)
+  108: '\u16DA', // ᛚ Runic letter lagu (l)
+  109: '\u16D7', // ᛗ Runic letter man (m)
+  110: '\u16BE', // ᚾ Runic letter nyd (n)
+  111: '\u16A9', // ᚩ Runic letter os (o)
+  112: '\u16C8', // ᛈ Runic letter peorth (p)
+  113: '\u16B3', // ᚳ Runic letter cen (q → Anglian k)
+  114: '\u16B1', // ᚱ Runic letter rad (r)
+  115: '\u16CB', // ᛋ Runic letter sigel (s)
+  116: '\u16CF', // ᛏ Runic letter tir (t)
+  117: '\u16A2', // ᚢ Runic letter ur (u)
+  118: '\u16E0', // ᛠ Runic letter ear (v → Anglian ea)
+  119: '\u16B9', // ᚹ Runic letter wynn (w)
+  120: '\u16C9', // ᛉ Runic letter eolhx (x → Anglian z)
+  121: '\u16A3', // ᚣ Runic letter yr (y)
+  122: '\u16DF', // ᛟ Runic letter ethel (z → Anglian oe)
   123: '\u2191', // ↑ Upwards arrow
   124: '\u2193', // ↓ Downwards arrow
   125: '\u2195', // ↕ Up down arrow
@@ -189,38 +200,38 @@ const ARROW_MAP: Record<number, string> = {
  * Beyond Zork uses runic characters for magical inscriptions
  */
 const RUNIC_MAP: Record<number, string> = {
-  176: '\u16A0', // ᚠ Runic Letter Fehu (feoh)
-  177: '\u16A2', // ᚢ Runic Letter Uruz (ur)
-  178: '\u16A6', // ᚦ Runic Letter Thurisaz Thurs (thorn)
-  179: '\u16A9', // ᚩ Runic Letter Os (os)
-  180: '\u16B1', // ᚱ Runic Letter Raido (rad)
-  181: '\u16B3', // ᚳ Runic Letter Cen (cen)
-  182: '\u16B7', // ᚷ Runic Letter Gebo (gyfu)
-  183: '\u16B9', // ᚹ Runic Letter Wunjo (wynn)
-  184: '\u16BB', // ᚻ Runic Letter Haegl (haegl)
-  185: '\u16BE', // ᚾ Runic Letter Naudiz (nyd)
-  186: '\u16C1', // ᛁ Runic Letter Isaz (is)
-  187: '\u16C4', // ᛄ Runic Letter Ger (ger)
-  188: '\u16C7', // ᛇ Runic Letter Iwaz (eoh)
-  189: '\u16C8', // ᛈ Runic Letter Pertho (peorth)
-  190: '\u16CB', // ᛋ Runic Letter Sowilo (sigel)
-  191: '\u16CF', // ᛏ Runic Letter Tiwaz (tir)
-  192: '\u16D2', // ᛒ Runic Letter Berkanan (beorc)
-  193: '\u16D6', // ᛖ Runic Letter Ehwaz (eh)
-  194: '\u16D7', // ᛗ Runic Letter Mannaz (man)
-  195: '\u16DA', // ᛚ Runic Letter Laguz (lagu)
-  196: '\u16DD', // ᛝ Runic Letter Ingwaz (ing)
-  197: '\u16DF', // ᛟ Runic Letter Othala (oe)
-  198: '\u16DE', // ᛞ Runic Letter Dagaz (daeg)
-  199: '\u16A0', // ᚠ Runic Letter (ac) - reuse fehu
-  200: '\u16AB', // ᚫ Runic Letter Aesc (aesc)
-  201: '\u16A3', // ᚣ Runic Letter Yr (yr)
-  202: '\u16E1', // ᛡ Runic Letter Ior (ior)
-  203: '\u16E2', // ᛢ Runic Letter Ear (ear)
-  204: '\u16E3', // ᛣ Runic Letter Cweorth (cweorth)
-  205: '\u16E4', // ᛤ Runic Letter Calc (calc)
-  206: '\u16E6', // ᛦ Runic Letter Stan (stan)
-  207: '\u16E8', // ᛨ Runic Letter Gar (gar)
+  176: '\u16A0', // ᚠ Runic Letter Feoh (f)
+  177: '\u16A2', // ᚢ Runic Letter Ur (u)
+  178: '\u16A6', // ᚦ Runic Letter Thorn (th)
+  179: '\u16A9', // ᚩ Runic Letter Os (o)
+  180: '\u16B1', // ᚱ Runic Letter Rad (r)
+  181: '\u16B3', // ᚳ Runic Letter Cen (c/k)
+  182: '\u16B7', // ᚷ Runic Letter Gyfu (g)
+  183: '\u16B9', // ᚹ Runic Letter Wynn (w)
+  184: '\u16BB', // ᚻ Runic Letter Haegl (h)
+  185: '\u16BE', // ᚾ Runic Letter Nyd (n)
+  186: '\u16C1', // ᛁ Runic Letter Is (i)
+  187: '\u16C4', // ᛄ Runic Letter Ger (j)
+  188: '\u16C7', // ᛇ Runic Letter Eoh (eo)
+  189: '\u16C8', // ᛈ Runic Letter Peorth (p)
+  190: '\u16CB', // ᛋ Runic Letter Sigel (s)
+  191: '\u16CF', // ᛏ Runic Letter Tir (t)
+  192: '\u16D2', // ᛒ Runic Letter Beorc (b)
+  193: '\u16D6', // ᛖ Runic Letter Eh (e)
+  194: '\u16D7', // ᛗ Runic Letter Man (m)
+  195: '\u16DA', // ᛚ Runic Letter Lagu (l)
+  196: '\u16DD', // ᛝ Runic Letter Ing (ng)
+  197: '\u16DF', // ᛟ Runic Letter Ethel (oe)
+  198: '\u16DE', // ᛞ Runic Letter Daeg (d)
+  199: '\u16AA', // ᚪ Runic Letter Ac (a)
+  200: '\u16AB', // ᚫ Runic Letter Aesc (ae)
+  201: '\u16A3', // ᚣ Runic Letter Yr (y)
+  202: '\u16E1', // ᛡ Runic Letter Ior (io)
+  203: '\u16E0', // ᛠ Runic Letter Ear (ea)
+  204: '\u16E2', // ᛢ Runic Letter Cweorth (q)
+  205: '\u16E3', // ᛣ Runic Letter Calc (k2)
+  206: '\u16E5', // ᛥ Runic Letter Stan (st)
+  207: '\u16E4', // ᛤ Runic Letter Gar (spear)
 };
 
 /**
