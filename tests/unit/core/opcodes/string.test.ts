@@ -407,15 +407,33 @@ describe('String Opcodes', () => {
   });
 
   describe('print_form', () => {
-    it('should throw a not implemented error', () => {
+    it('should decode and print Z-string at address in V6', () => {
       // Arrange
-      const form = 0x1000;
+      const address = 0x1000;
+      mockMachine.state.version = 6;
       mockMachine.memory.getZString = vi.fn().mockReturnValue([65, 66, 67]);
+      machine = mockMachine as unknown as any;
 
-      // Act & Assert
-      expect(() => stringOpcodes.print_form.impl(machine, [], form)).toThrow('Unimplemented opcode: print_form');
-      expect(mockMachine.memory.getZString).toHaveBeenCalledWith(form);
-      expect(mockMachine.logger.debug).toHaveBeenCalled();
+      // Act
+      stringOpcodes.print_form.impl(machine, [], address);
+
+      // Assert
+      expect(mockMachine.memory.getZString).toHaveBeenCalledWith(address);
+      expect(mockMachine.screen.print).toHaveBeenCalled();
+    });
+
+    it('should warn in V5 and earlier', () => {
+      // Arrange
+      const address = 0x1000;
+      mockMachine.state.version = 5;
+      machine = mockMachine as unknown as any;
+
+      // Act
+      stringOpcodes.print_form.impl(machine, [], address);
+
+      // Assert
+      expect(mockMachine.logger.warn).toHaveBeenCalledWith('print_form only supported in V6');
+      expect(mockMachine.screen.print).not.toHaveBeenCalled();
     });
   });
 

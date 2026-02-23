@@ -25,6 +25,7 @@ export { GameObjectFactory } from './core/objects/GameObjectFactory';
 export { BufferMode, Color, TextStyle } from './types';
 export { BaseInputProcessor } from './ui/input/InputInterface';
 export type { InputMode, InputProcessor, InputState } from './ui/input/InputInterface';
+export { BlorbMultimediaHandler } from './ui/multimedia/BlorbMultimediaHandler';
 export { ResourceStatus, ResourceType } from './ui/multimedia/MultimediaHandler';
 export type { MultimediaHandler, PictureData, ResourceInfo } from './ui/multimedia/MultimediaHandler';
 export { BaseScreen } from './ui/screen/BaseScreen';
@@ -62,6 +63,11 @@ export { Dictionary } from './parsers/Dictionary';
 export { TextParser } from './parsers/TextParser';
 export { decodeZString, encodeZString, packZCharacters } from './parsers/ZString';
 export type { ZString } from './parsers/ZString';
+
+// Resource handling (Blorb)
+export { BlorbChunkType, BlorbMetadataType, BlorbUsage } from './resources/BlorbData';
+export type { BlorbChunk, BlorbMap, BlorbResource } from './resources/BlorbData';
+export { BlorbParser } from './resources/BlorbParser';
 
 // Storage components
 export { createBrowserStorage, createFileSystemStorage, createMemoryStorage } from './storage/factory';

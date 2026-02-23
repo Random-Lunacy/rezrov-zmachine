@@ -148,6 +148,18 @@ export interface Screen {
   getWindowTrueForeground(machine: ZMachine, window: number): number;
   getWindowTrueBackground(machine: ZMachine, window: number): number;
 
+  // V6 window management (optional for backward compatibility)
+  moveWindow?(machine: ZMachine, windowId: number, y: number, x: number): void;
+  resizeWindow?(machine: ZMachine, windowId: number, height: number, width: number): void;
+  setWindowStyle?(machine: ZMachine, windowId: number, flags: number, operation: number): void;
+  scrollWindow?(machine: ZMachine, windowId: number, lines: number): void;
+  setWindowMargins?(machine: ZMachine, left: number, right: number, windowId?: number): void;
+  setWindowProperty?(machine: ZMachine, windowId: number, property: number, value: number): void;
+
+  // V6 mouse support (optional for backward compatibility)
+  readMouse?(machine: ZMachine, array: number): void;
+  setMouseWindow?(machine: ZMachine, windowId: number): void;
+
   // Lifecycle
   quit(): void;
 }

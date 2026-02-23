@@ -2,6 +2,7 @@ import { Executor } from '../core/execution/Executor';
 import { serializeStackFrame } from '../core/execution/StackFrame';
 import { UserStackManager } from '../core/execution/UserStack';
 import { Memory } from '../core/memory/Memory';
+import type { BlorbMap } from '../resources/BlorbData';
 import { EnhancedDatFormat } from '../storage/formats/EnhancedDatFormat';
 import { FormatProvider } from '../storage/formats/FormatProvider';
 import { StorageInterface } from '../storage/interfaces';
@@ -10,6 +11,7 @@ import { StorageProvider } from '../storage/providers/StorageProvider';
 import { Storage } from '../storage/Storage';
 import { Color, ZMachineState } from '../types';
 import { InputProcessor, InputState } from '../ui/input/InputInterface';
+import { BlorbMultimediaHandler } from '../ui/multimedia/BlorbMultimediaHandler';
 import { BaseMultimediaHandler, MultimediaHandler } from '../ui/multimedia/MultimediaHandler';
 import { Capabilities, Screen } from '../ui/screen/interfaces';
 import { HeaderLocation, Interpreter } from '../utils/constants';
@@ -29,13 +31,15 @@ export class ZMachine {
   private readonly _state: GameState;
   private readonly _screen: Screen;
   private readonly _inputProcessor: InputProcessor;
-  private readonly _multimediaHandler: MultimediaHandler;
+  private _multimediaHandler: MultimediaHandler;
   private readonly _logger: Logger;
   private readonly _userStackManager: UserStackManager | null = null;
   private _storage: StorageInterface;
   private _undoStack: ZMachineState[] = [];
   private readonly _maxUndoLevels = 10;
   private readonly _originalStory: Buffer;
+  private _blorbMap: BlorbMap | null = null;
+  private _blorbData: Buffer | null = null;
 
   /**
    * Creates a new Z-Machine interpreter
@@ -119,6 +123,23 @@ export class ZMachine {
   }
   public get originalStory(): Buffer {
     return this._originalStory;
+  }
+  public get blorbMap(): BlorbMap | null {
+    return this._blorbMap;
+  }
+  public get blorbData(): Buffer | null {
+    return this._blorbData;
+  }
+
+  /**
+   * Attach a parsed Blorb resource map to this Z-Machine instance.
+   * Call this after construction when a .blb file is available.
+   */
+  setBlorb(map: BlorbMap, data: Buffer): void {
+    this._blorbMap = map;
+    this._blorbData = data;
+    this._multimediaHandler = new BlorbMultimediaHandler(map, data, { logger: this._logger });
+    this._logger.info('Blorb resources attached, BlorbMultimediaHandler active');
   }
 
   /**

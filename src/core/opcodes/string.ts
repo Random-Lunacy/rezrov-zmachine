@@ -189,11 +189,17 @@ function check_unicode(machine: ZMachine, _operandTypes: OperandType[], charCode
   machine.state.storeVariable(resultVar, canDisplay ? 3 : 0);
 }
 
-function print_form(machine: ZMachine, _operandTypes: OperandType[], form: number): void {
-  const string = machine.memory.getZString(form);
-  const encoded_text = decodeZString(machine.memory, string, true);
-  machine.logger.debug(`print_form ${form} -> ${encoded_text}`);
-  throw new Error(`Unimplemented opcode: print_form`);
+function print_form(machine: ZMachine, _operandTypes: OperandType[], address: number): void {
+  machine.logger.debug(`${machine.executor.op_pc.toString(16)} print_form ${address.toString(16)}`);
+
+  if (machine.state.version < 6) {
+    machine.logger.warn('print_form only supported in V6');
+    return;
+  }
+
+  const string = machine.memory.getZString(address);
+  const text = decodeZString(machine.memory, string, true);
+  machine.screen.print(machine, text);
 }
 
 function encode_text(

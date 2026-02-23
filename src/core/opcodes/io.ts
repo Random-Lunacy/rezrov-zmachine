@@ -580,64 +580,146 @@ function storeWindowTrueColors(machine: ZMachine, window: number, foreground: nu
   machine.logger.debug(`Window ${window} true colors set to: fg=${foreground}, bg=${background}`);
 }
 
-function set_margins(machine: ZMachine, _operandTypes: OperandType[], left: number, right: number): void {
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} set_margins ${left} ${right}`);
-  machine.logger.warn(`set_margins ${left} ${right} -- not implemented`);
-  throw new Error(`Unimplemented opcode: set_margins`);
+function set_margins(
+  machine: ZMachine,
+  _operandTypes: OperandType[],
+  left: number,
+  right: number,
+  window?: number
+): void {
+  machine.logger.debug(`${machine.executor.op_pc.toString(16)} set_margins ${left} ${right} ${window ?? 'current'}`);
+
+  if (machine.state.version < 5) {
+    machine.logger.warn('set_margins only supported in V5+');
+    return;
+  }
+
+  if (machine.screen.setWindowMargins) {
+    machine.screen.setWindowMargins(machine, left, right, window);
+  }
 }
 
-function move_window(machine: ZMachine, _operandTypes: OperandType[], window: number, x: number, y: number): void {
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} move_window ${window} ${x} ${y}`);
-  machine.logger.warn(`move_window ${window} ${x} ${y} -- not implemented`);
-  throw new Error(`Unimplemented opcode: move_window`);
+function move_window(machine: ZMachine, _operandTypes: OperandType[], window: number, y: number, x: number): void {
+  machine.logger.debug(`${machine.executor.op_pc.toString(16)} move_window ${window} ${y} ${x}`);
+
+  if (machine.state.version < 6) {
+    machine.logger.warn('move_window only supported in V6');
+    return;
+  }
+
+  if (machine.screen.moveWindow) {
+    machine.screen.moveWindow(machine, window, y, x);
+  }
 }
 
 function window_size(
   machine: ZMachine,
   _operandTypes: OperandType[],
   window: number,
-  width: number,
-  height: number
+  height: number,
+  width: number
 ): void {
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} window_size ${window} ${width} ${height}`);
-  machine.logger.warn(`window_size ${window} ${width} ${height} -- not implemented`);
-  throw new Error(`Unimplemented opcode: window_size`);
+  machine.logger.debug(`${machine.executor.op_pc.toString(16)} window_size ${window} ${height} ${width}`);
+
+  if (machine.state.version < 6) {
+    machine.logger.warn('window_size only supported in V6');
+    return;
+  }
+
+  if (machine.screen.resizeWindow) {
+    machine.screen.resizeWindow(machine, window, height, width);
+  }
 }
 
-function window_style(machine: ZMachine, _operandTypes: OperandType[], window: number, style: number): void {
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} window_style ${window} ${style}`);
-  machine.logger.warn(`window_style ${window} ${style} -- not implemented`);
-  throw new Error(`Unimplemented opcode: window_style`);
+function window_style(
+  machine: ZMachine,
+  _operandTypes: OperandType[],
+  window: number,
+  flags: number,
+  operation: number = 0
+): void {
+  machine.logger.debug(`${machine.executor.op_pc.toString(16)} window_style ${window} ${flags} ${operation}`);
+
+  if (machine.state.version < 6) {
+    machine.logger.warn('window_style only supported in V6');
+    return;
+  }
+
+  if (machine.screen.setWindowStyle) {
+    machine.screen.setWindowStyle(machine, window, flags, operation);
+  }
 }
 
-function read_mouse(machine: ZMachine, _operandTypes: OperandType[], window: number): void {
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} read_mouse ${window}`);
-  machine.logger.warn(`read_mouse ${window} -- not implemented`);
-  throw new Error(`Unimplemented opcode: read_mouse`);
+function read_mouse(machine: ZMachine, _operandTypes: OperandType[], array: number): void {
+  machine.logger.debug(`${machine.executor.op_pc.toString(16)} read_mouse ${array.toString(16)}`);
+
+  if (machine.state.version < 6) {
+    machine.logger.warn('read_mouse only supported in V6');
+    return;
+  }
+
+  if (machine.screen.readMouse) {
+    machine.screen.readMouse(machine, array);
+  } else {
+    // Default: write zeros (no mouse activity)
+    machine.memory.setWord(array, 0); // y
+    machine.memory.setWord(array + 2, 0); // x
+    machine.memory.setWord(array + 4, 0); // buttons
+    machine.memory.setWord(array + 6, 0); // menu data
+  }
 }
 
 function mouse_window(machine: ZMachine, _operandTypes: OperandType[], window: number): void {
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} mouse_window ${window}`);
-  machine.logger.warn(`mouse_window ${window} -- not implemented`);
-  throw new Error(`Unimplemented opcode: mouse_window`);
+
+  if (machine.state.version < 6) {
+    machine.logger.warn('mouse_window only supported in V6');
+    return;
+  }
+
+  if (machine.screen.setMouseWindow) {
+    machine.screen.setMouseWindow(machine, window);
+  }
 }
 
-function make_menu(machine: ZMachine, _operandTypes: OperandType[], menu: number): void {
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} make_menu ${menu}`);
-  machine.logger.warn(`make_menu ${menu} -- not implemented`);
-  throw new Error(`Unimplemented opcode: make_menu`);
+function make_menu(machine: ZMachine, _operandTypes: OperandType[], _menu: number, _table: number): void {
+  machine.logger.debug(`${machine.executor.op_pc.toString(16)} make_menu ${_menu} ${_table}`);
+
+  // Not implemented even by Infocom's Mac interpreter (always branches false)
+  const [offset, branchOnFalse] = machine.state.readBranchOffset();
+  machine.state.doBranch(false, branchOnFalse, offset);
 }
 
-function scroll_window(machine: ZMachine, _operandTypes: OperandType[], window: number, lines: number): void {
+function scroll_window(machine: ZMachine, _operandTypes: OperandType[], window: number, lines: number = 1): void {
   machine.logger.debug(`${machine.executor.op_pc.toString(16)} scroll_window ${window} ${lines}`);
-  machine.logger.warn(`scroll_window ${window} ${lines} -- not implemented`);
-  throw new Error(`Unimplemented opcode: scroll_window`);
+
+  if (machine.state.version < 6) {
+    machine.logger.warn('scroll_window only supported in V6');
+    return;
+  }
+
+  if (machine.screen.scrollWindow) {
+    machine.screen.scrollWindow(machine, window, lines);
+  }
 }
 
-function put_wind_prop(machine: ZMachine, _operandTypes: OperandType[], window: number, property: number): void {
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} put_wind_prop ${window} ${property}`);
-  machine.logger.warn(`put_wind_prop ${window} ${property} -- not implemented`);
-  throw new Error(`Unimplemented opcode: put_wind_prop`);
+function put_wind_prop(
+  machine: ZMachine,
+  _operandTypes: OperandType[],
+  window: number,
+  property: number,
+  value: number
+): void {
+  machine.logger.debug(`${machine.executor.op_pc.toString(16)} put_wind_prop ${window} ${property} ${value}`);
+
+  if (machine.state.version < 6) {
+    machine.logger.warn('put_wind_prop only supported in V6');
+    return;
+  }
+
+  if (machine.screen.setWindowProperty) {
+    machine.screen.setWindowProperty(machine, window, property, value);
+  }
 }
 
 /**

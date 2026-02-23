@@ -86,5 +86,15 @@ export class MockScreen implements Screen {
     hasTimedKeyboardInput: false,
   } as Capabilities);
 
+  // V6 window management methods (optional)
+  moveWindow = vi.fn();
+  resizeWindow = vi.fn();
+  setWindowStyle = vi.fn();
+  scrollWindow = vi.fn();
+  setWindowMargins = vi.fn();
+  setWindowProperty = vi.fn();
+  readMouse = vi.fn();
+  setMouseWindow = vi.fn();
+
   quit = vi.fn();
 }
