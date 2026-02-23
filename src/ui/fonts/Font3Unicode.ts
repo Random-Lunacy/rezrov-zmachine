@@ -72,7 +72,12 @@ const FONT3_PRINTABLE_MAP: Record<number, string> = {
   68: '\u2597', // ▗ Quadrant lower right (default, non-alt)
   69: '\u2596', // ▖ Quadrant lower left (default, non-alt)
   70: '\u2598', // ▘ Quadrant upper left (default, non-alt)
-  // 71-74: Not assigned in Bocfel (replacement character)
+  // 71-74: Edge/corner indicators (Bocfel uses UNICODE_REPLACEMENT; mapped here
+  // based on Z-spec bitmaps showing edge dots used by Beyond Zork for map stubs)
+  71: '\u2595', // ▕ Right one eighth block (right-edge indicator)
+  72: '\u2597', // ▗ Quadrant lower right (bottom-right indicator)
+  73: '\u258F', // ▏ Left one eighth block (left-edge indicator)
+  74: '\u2598', // ▘ Quadrant upper left (top-left indicator)
   75: '\u2594', // ▔ Upper one eighth block
   76: '\u2581', // ▁ Lower one eighth block
   77: '\u258F', // ▏ Left one eighth block

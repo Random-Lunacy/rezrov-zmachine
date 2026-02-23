@@ -497,25 +497,43 @@ describe('BaseScreen', () => {
     });
 
     it('should not reset upper window cursor when clearing lower window in V5', () => {
-      // Set cursor to non-default position (this is the upper window cursor)
+      // Switch to upper window so cursorPosition tracks it
+      screen.setOutputWindow(v5Machine as any, 1);
       screen['cursorPosition'] = { line: 5, column: 10 };
 
       // Clear the lower window in V5
       screen.clearWindow(v5Machine as any, 0);
 
-      // Upper window cursor should NOT be affected by lower window clear
+      // Upper window cursor (live) should NOT be affected by lower window clear
       expect(screen['cursorPosition']).toEqual({ line: 5, column: 10 });
+      // Lower window's saved cursor SHOULD be reset per spec §8.7.2.4
+      expect(screen['windowCursors'].get(0)).toEqual({ line: 1, column: 1 });
     });
 
-    it('should reset cursor when clearing upper window in V5', () => {
-      // Set cursor to non-default position
+    it('should reset cursor when clearing upper window in V5 while upper window is active', () => {
+      // Switch to upper window so cursorPosition tracks it
+      screen.setOutputWindow(v5Machine as any, 1);
       screen['cursorPosition'] = { line: 5, column: 10 };
 
       // Clear the upper window in V5
       screen.clearWindow(v5Machine as any, 1);
 
-      // Upper window cursor should reset to top-left
+      // Upper window cursor (live) should reset to top-left
       expect(screen['cursorPosition']).toEqual({ line: 1, column: 1 });
+    });
+
+    it('should reset saved upper window cursor when clearing upper window from lower window in V5', () => {
+      // Stay in lower window (default), set upper window's saved cursor
+      screen['windowCursors'].set(1, { line: 5, column: 10 });
+      screen['cursorPosition'] = { line: 3, column: 7 }; // lower window cursor
+
+      // Clear the upper window while lower window is active
+      screen.clearWindow(v5Machine as any, 1);
+
+      // Lower window cursor (live) should NOT be affected
+      expect(screen['cursorPosition']).toEqual({ line: 3, column: 7 });
+      // Upper window's saved cursor SHOULD be reset per spec §8.7.2.4
+      expect(screen['windowCursors'].get(1)).toEqual({ line: 1, column: 1 });
     });
 
     it('should not clear upper window on split in V5', () => {

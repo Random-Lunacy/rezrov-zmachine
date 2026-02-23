@@ -289,12 +289,24 @@ export class BaseScreen implements Screen {
       this.upperWindowStyleBuffer = [];
       this.upperWindowColorBuffer = [];
       if (version >= 5) {
-        this.cursorPosition = { line: 1, column: 1 };
+        // Per spec §8.7.2.4: "the cursor for the window is moved to the top left"
+        // Must update the correct cursor: live cursorPosition if upper window is active,
+        // otherwise the saved cursor in windowCursors so it's restored on set_window(1).
+        if (this.outputWindowId === WindowType.Upper) {
+          this.cursorPosition = { line: 1, column: 1 };
+        } else {
+          this.windowCursors.set(WindowType.Upper, { line: 1, column: 1 });
+        }
       }
     } else if (windowId === WindowType.Lower) {
-      // V5: Cursor moves to top-left for the erased window.
-      // The lower window cursor is managed by the terminal (blessed appends text),
-      // so we do NOT reset cursorPosition here - that tracks the upper window cursor.
+      // Per spec §8.7.2.4: "the cursor for the window is moved to the top left"
+      if (version >= 5) {
+        if (this.outputWindowId === WindowType.Lower) {
+          this.cursorPosition = { line: 1, column: 1 };
+        } else {
+          this.windowCursors.set(WindowType.Lower, { line: 1, column: 1 });
+        }
+      }
       // Reset for bottom-aligned output on next print
       this.hasReceivedFirstOutput = false;
     }

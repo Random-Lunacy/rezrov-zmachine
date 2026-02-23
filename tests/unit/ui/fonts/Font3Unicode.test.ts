@@ -97,9 +97,15 @@ describe('Font3Unicode', () => {
     it('should return space for unmapped codes', () => {
       // Code 127 (DEL) has no Font 3 mapping
       expect(font3ToUnicode(127)).toBe(' ');
-      // Codes 71-74 are not assigned in Bocfel
-      expect(font3ToUnicode(71)).toBe(' ');
-      expect(font3ToUnicode(72)).toBe(' ');
+    });
+
+    it('should map edge indicator characters (71-74) to visible glyphs', () => {
+      // Codes 71-74: Edge/corner indicators used by Beyond Zork for map stubs
+      // (Bocfel leaves these as UNICODE_REPLACEMENT; we map to block elements)
+      expect(font3ToUnicode(71)).toBe('\u2595'); // ▕ Right edge
+      expect(font3ToUnicode(72)).toBe('\u2597'); // ▗ Lower right
+      expect(font3ToUnicode(73)).toBe('\u258F'); // ▏ Left edge
+      expect(font3ToUnicode(74)).toBe('\u2598'); // ▘ Upper left
     });
   });
 
