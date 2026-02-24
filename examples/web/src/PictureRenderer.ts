@@ -5,8 +5,8 @@
 export class PictureRenderer {
   private readonly canvas: HTMLCanvasElement;
   private readonly ctx: CanvasRenderingContext2D;
-  private readonly cellWidth: number;
-  private readonly cellHeight: number;
+  private cellWidth: number;
+  private cellHeight: number;
   private displayedPictures: Map<number, { x: number; y: number; width: number; height: number }> = new Map();
 
   constructor(canvas: HTMLCanvasElement, cellWidth: number, cellHeight: number) {
@@ -77,5 +77,13 @@ export class PictureRenderer {
   resize(width: number, height: number): void {
     this.canvas.width = width;
     this.canvas.height = height;
+  }
+
+  /**
+   * Update cell dimensions after a font size change.
+   */
+  updateCellDimensions(cellWidth: number, cellHeight: number): void {
+    this.cellWidth = cellWidth;
+    this.cellHeight = cellHeight;
   }
 }

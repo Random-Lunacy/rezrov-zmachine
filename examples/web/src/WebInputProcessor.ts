@@ -9,6 +9,9 @@ export class WebInputProcessor extends BaseInputProcessor {
   private isWaitingForInput = false;
   private inputHandler: ((e: KeyboardEvent) => void) | null = null;
 
+  // Flag to pause input handling during timeout routine execution
+  private isExecutingTimeoutRoutine = false;
+
   constructor(
     screen: WebScreen,
     inputEl: HTMLInputElement,
@@ -24,6 +27,14 @@ export class WebInputProcessor extends BaseInputProcessor {
 
   protected doStartTextInput(machine: ZMachine, _state: InputState): void {
     this.logger.debug('Starting text input');
+
+    // Clean up any existing input state (e.g. from a previous timeout-terminated input)
+    if (this.inputHandler) {
+      this.inputEl.removeEventListener('keydown', this.inputHandler);
+      this.inputHandler = null;
+    }
+    this.isExecutingTimeoutRoutine = false;
+
     this.isWaitingForInput = true;
     this.inputEl.value = '';
     this.inputEl.disabled = false;
@@ -32,7 +43,7 @@ export class WebInputProcessor extends BaseInputProcessor {
 
     const handleSubmit = (e: KeyboardEvent): void => {
       e.preventDefault();
-      if (!this.isWaitingForInput) return;
+      if (!this.isWaitingForInput || this.isExecutingTimeoutRoutine) return;
 
       const input = this.inputEl.value;
       this.inputEl.value = '';
@@ -80,13 +91,21 @@ export class WebInputProcessor extends BaseInputProcessor {
         Enter: 13,
         Escape: 27,
         Backspace: 8,
+        Delete: 8,
         ArrowUp: 129,
         ArrowDown: 130,
         ArrowLeft: 131,
         ArrowRight: 132,
       };
 
-      if (keyMap[e.key] !== undefined) {
+      // F1-F12 → ZSCII 133-144
+      const fMatch = e.key.match(/^F(\d+)$/);
+      if (fMatch) {
+        const fNum = parseInt(fMatch[1], 10);
+        if (fNum >= 1 && fNum <= 12) {
+          key = String.fromCharCode(132 + fNum);
+        }
+      } else if (keyMap[e.key] !== undefined) {
         key = String.fromCharCode(keyMap[e.key]);
       } else if (e.key === ' ') {
         key = ' ';
@@ -112,6 +131,40 @@ export class WebInputProcessor extends BaseInputProcessor {
     this.inputEl.addEventListener('keydown', handleKey);
   }
 
+  /**
+   * Override onInputTimeout to pass current input to the base class and
+   * pause input handling while the timeout routine executes.
+   */
+  onInputTimeout(machine: ZMachine, state: InputState): void {
+    if (!this.isWaitingForInput) {
+      this.logger.debug('onInputTimeout: not waiting for input, ignoring stale timeout');
+      return;
+    }
+
+    // Pass the current input buffer so the base class can use it if the routine terminates input
+    state.currentInput = this.inputEl.value;
+
+    // Pause input handling during routine execution
+    this.isExecutingTimeoutRoutine = true;
+
+    super.onInputTimeout(machine, state);
+  }
+
+  /**
+   * Called by base class after timeout routine completes and timer is restarted.
+   * Resume input handling.
+   */
+  handleTimedInput(machine: ZMachine, state: InputState): void {
+    if (this.isExecutingTimeoutRoutine && !this.isWaitingForInput) {
+      this.logger.debug('handleTimedInput: not waiting for input, ignoring');
+      this.isExecutingTimeoutRoutine = false;
+      return;
+    }
+
+    this.isExecutingTimeoutRoutine = false;
+    super.handleTimedInput(machine, state);
+  }
+
   cancelInput(machine: ZMachine): void {
     super.cancelInput(machine);
     if (this.inputHandler) {
@@ -119,10 +172,11 @@ export class WebInputProcessor extends BaseInputProcessor {
       this.inputHandler = null;
     }
     this.isWaitingForInput = false;
+    this.isExecutingTimeoutRoutine = false;
     this.inputEl.disabled = true;
   }
 
-  async promptForFilename(machine: ZMachine, operation: string): Promise<string> {
+  async promptForFilename(_machine: ZMachine, operation: string): Promise<string> {
     const filename = window.prompt(`Enter filename for ${operation}:`, 'save.dat');
     return filename || 'save.dat';
   }

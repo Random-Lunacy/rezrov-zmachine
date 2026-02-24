@@ -2,9 +2,10 @@
  * Plays Blorb sound resources using the Web Audio API.
  * Supports OGG Vorbis (OGGV). AIFF requires additional decoding.
  */
-import { ResourceStatus } from 'rezrov-zmachine';
+import { Logger, ResourceStatus } from 'rezrov-zmachine';
 
 export class SoundPlayer {
+  private readonly logger = new Logger('SoundPlayer');
   private readonly audioContext: AudioContext;
   private playingSources: Map<number, AudioBufferSourceNode> = new Map();
 
@@ -23,6 +24,7 @@ export class SoundPlayer {
 
     const fmt = format.trim();
     if (fmt !== 'OGGV' && fmt !== 'OGG') {
+      this.logger.debug(`Unsupported sound format: ${fmt}`);
       return ResourceStatus.NotAvailable;
     }
 
@@ -46,8 +48,9 @@ export class SoundPlayer {
         this.playingSources.set(resourceId, source);
         source.start(0);
       })
-      .catch(() => {
-        return ResourceStatus.Error;
+      .catch((error: unknown) => {
+        this.logger.warn(`Failed to decode sound resource ${resourceId}: ${error}`);
+        this.playingSources.delete(resourceId);
       });
 
     return ResourceStatus.Available;

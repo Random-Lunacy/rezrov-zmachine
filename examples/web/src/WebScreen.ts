@@ -1,8 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import { BaseScreen, Capabilities, Color, ScreenSize, TextStyle, translateFont3Text, ZMachine } from 'rezrov-zmachine';
-
-const DEFAULT_COLS = 80;
-const DEFAULT_ROWS = 25;
 
 /**
  * Map Z-machine color to CSS color.
@@ -77,8 +73,7 @@ export class WebScreen extends BaseScreen {
   private measureCellDimensions(): { width: number; height: number } {
     const measureEl = document.createElement('span');
     measureEl.textContent = 'M';
-    measureEl.style.cssText =
-      'position:absolute;visibility:hidden;pointer-events:none;white-space:pre;font:inherit;';
+    measureEl.style.cssText = 'position:absolute;visibility:hidden;pointer-events:none;white-space:pre;font:inherit;';
     this.mainEl.appendChild(measureEl);
     const width = measureEl.offsetWidth || 10;
     const height = measureEl.offsetHeight || 16;
@@ -225,6 +220,15 @@ export class WebScreen extends BaseScreen {
     } else {
       const screenWidth = this.getSize().cols;
       this.writeToUpperWindowBuffer(textToDisplay, screenWidth);
+
+      // Expand status bar if buffer lines exceed the current split height
+      // (Beyond Zork positions title page text beyond the split boundary)
+      const bufferLines = this.upperWindowBuffer.length;
+      const currentMinHeight = Math.round(parseFloat(this.statusEl.style.minHeight || '0') / this.cellHeight);
+      if (bufferLines > currentMinHeight) {
+        this.statusEl.style.minHeight = `${bufferLines * this.cellHeight}px`;
+      }
+
       this.statusEl.innerHTML = this.renderStyledUpperWindow();
     }
   }
@@ -243,7 +247,14 @@ export class WebScreen extends BaseScreen {
   clearWindow(machine: ZMachine, windowId: number): void {
     super.clearWindow(machine, windowId);
 
-    if (windowId === -1 || windowId === -2) {
+    if (windowId === -1) {
+      // Clear both windows and unsplit
+      this.mainEl.innerHTML = '';
+      this.statusEl.innerHTML = '';
+      this.statusEl.style.display = 'none';
+      this.statusEl.style.minHeight = '';
+    } else if (windowId === -2) {
+      // Clear both windows but preserve split state
       this.mainEl.innerHTML = '';
       this.statusEl.innerHTML = '';
     } else if (windowId === 0) {
@@ -266,10 +277,6 @@ export class WebScreen extends BaseScreen {
     this.statusEl.innerHTML = `<span style="color:#fff;background:#333;">${escapeHtml(line)}</span>`;
   }
 
-  updateDisplay(machine: ZMachine): void {
-    super.updateDisplay(machine);
-  }
-
   hideCursor(_machine: ZMachine, _windowId: number): void {
     // Cursor visibility handled by input processor
   }
@@ -288,5 +295,28 @@ export class WebScreen extends BaseScreen {
 
   getCellDimensions(): { width: number; height: number } {
     return { width: this.cellWidth, height: this.cellHeight };
+  }
+
+  /**
+   * Resize the upper window buffer for a new screen width and redraw.
+   * Called when the viewport size changes.
+   */
+  handleResize(): void {
+    const { cols } = this.getSize();
+    const resized = this.resizeUpperWindowBuffer(cols);
+    if (resized !== null) {
+      this.statusEl.innerHTML = this.renderStyledUpperWindow();
+    }
+  }
+
+  /**
+   * Remeasure cell dimensions after a font size change.
+   * Returns the new dimensions for callers that need to update (e.g. PictureRenderer).
+   */
+  remeasureCellDimensions(): { width: number; height: number } {
+    const { width, height } = this.measureCellDimensions();
+    this.cellWidth = width;
+    this.cellHeight = height;
+    return { width, height };
   }
 }

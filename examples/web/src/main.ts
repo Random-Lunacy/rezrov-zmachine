@@ -7,7 +7,9 @@ if (typeof (globalThis as unknown as { process?: unknown }).process === 'undefin
 }
 
 // Polyfill setImmediate for browser (Executor uses it to defer input setup)
-if (typeof (globalThis as typeof globalThis & { setImmediate?: (cb: () => void) => unknown }).setImmediate === 'undefined') {
+if (
+  typeof (globalThis as typeof globalThis & { setImmediate?: (cb: () => void) => unknown }).setImmediate === 'undefined'
+) {
   (globalThis as typeof globalThis & { setImmediate: (cb: () => void) => ReturnType<typeof setTimeout> }).setImmediate =
     (cb: () => void) => setTimeout(cb, 0);
 }
@@ -99,11 +101,12 @@ function setupGame(
   const soundPlayer = new SoundPlayer();
 
   let multimediaHandler: BlorbMultimediaHandler | undefined;
+  let blorbMap: ReturnType<typeof BlorbParser.parse> | null = null;
 
   if (blorbData && isBlorb(blorbData)) {
-    const map = BlorbParser.parse(blorbData);
+    blorbMap = BlorbParser.parse(blorbData);
 
-    multimediaHandler = new BlorbMultimediaHandler(map, blorbData, {
+    multimediaHandler = new BlorbMultimediaHandler(blorbMap, blorbData, {
       pictureRenderer: async (resourceId, data, format, x, y, scale) => {
         await pictureRenderer.displayPicture(resourceId, data, format, x, y, scale);
       },
@@ -117,9 +120,8 @@ function setupGame(
     typeof localStorage !== 'undefined' ? new BrowserStorageProvider() : new MemoryStorageProvider();
   const machine = new ZMachine(storyData, screen, inputProcessor, multimediaHandler, storageProvider);
 
-  if (blorbData && isBlorb(blorbData) && multimediaHandler) {
-    const map = BlorbParser.parse(blorbData);
-    machine.setBlorb(map, blorbData, multimediaHandler);
+  if (blorbMap && blorbData && multimediaHandler) {
+    machine.setBlorb(blorbMap, blorbData, multimediaHandler);
   }
 
   const resizeObserver = new ResizeObserver(() => {
@@ -131,6 +133,7 @@ function setupGame(
       machine.memory.setWord(HeaderLocation.ScreenWidthInUnits, cols);
       machine.memory.setWord(HeaderLocation.ScreenHeightInUnits, rows);
     }
+    screen.handleResize();
   });
 
   resizeObserver.observe(mainEl.parentElement!);
@@ -264,6 +267,28 @@ function init(): void {
   fontSizeSelect.addEventListener('change', () => {
     const size = fontSizeSelect.value + 'px';
     gameContainer.style.fontSize = size;
+
+    if (!currentSession) return;
+    const { machine, pictureRenderer } = currentSession;
+
+    // Recalculate cell dimensions after font size change
+    const screen = machine.screen as import('./WebScreen').WebScreen;
+    const { width: cellWidth, height: cellHeight } = screen.remeasureCellDimensions();
+    pictureRenderer.updateCellDimensions(cellWidth, cellHeight);
+
+    // Update header with new screen dimensions
+    const { rows, cols } = screen.getSize();
+    machine.memory.setByte(HeaderLocation.ScreenHeightInLines, rows);
+    machine.memory.setByte(HeaderLocation.ScreenWidthInChars, cols);
+    if (machine.state.version >= 5) {
+      machine.memory.setWord(HeaderLocation.ScreenWidthInUnits, cols);
+      machine.memory.setWord(HeaderLocation.ScreenHeightInUnits, rows);
+    }
+  });
+
+  // Clean up session when the tab/window is closed
+  window.addEventListener('beforeunload', () => {
+    stopSession();
   });
 }
 
