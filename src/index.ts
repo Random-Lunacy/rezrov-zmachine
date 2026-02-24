@@ -25,7 +25,13 @@ export { GameObjectFactory } from './core/objects/GameObjectFactory';
 export { BufferMode, Color, TextStyle } from './types';
 export { BaseInputProcessor } from './ui/input/InputInterface';
 export type { InputMode, InputProcessor, InputState } from './ui/input/InputInterface';
-export { BlorbMultimediaHandler } from './ui/multimedia/BlorbMultimediaHandler';
+export {
+  BlorbMultimediaHandler,
+  type BlorbMultimediaHandlerOptions,
+  type PictureEraserCallback,
+  type PictureRendererCallback,
+  type SoundPlayerCallback,
+} from './ui/multimedia/BlorbMultimediaHandler';
 export { ResourceStatus, ResourceType } from './ui/multimedia/MultimediaHandler';
 export type { MultimediaHandler, PictureData, ResourceInfo } from './ui/multimedia/MultimediaHandler';
 export { BaseScreen } from './ui/screen/BaseScreen';

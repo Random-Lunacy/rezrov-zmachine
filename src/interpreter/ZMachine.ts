@@ -134,11 +134,14 @@ export class ZMachine {
   /**
    * Attach a parsed Blorb resource map to this Z-Machine instance.
    * Call this after construction when a .blb file is available.
+   * @param map Parsed Blorb map
+   * @param data Raw Blorb file buffer
+   * @param handler Optional pre-configured MultimediaHandler (e.g., BlorbMultimediaHandler with render/play callbacks). If not provided, a default BlorbMultimediaHandler is created.
    */
-  setBlorb(map: BlorbMap, data: Buffer): void {
+  setBlorb(map: BlorbMap, data: Buffer, handler?: MultimediaHandler): void {
     this._blorbMap = map;
     this._blorbData = data;
-    this._multimediaHandler = new BlorbMultimediaHandler(map, data, { logger: this._logger });
+    this._multimediaHandler = handler ?? new BlorbMultimediaHandler(map, data, { logger: this._logger });
     this._logger.info('Blorb resources attached, BlorbMultimediaHandler active');
   }
 

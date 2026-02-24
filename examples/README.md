@@ -29,6 +29,26 @@ A basic command-line Z-Machine interpreter using standard input/output. This exa
 - Command-line flags for debugging
 - Uses readline-sync for user input
 
+### Web ([`web/`](web/))
+
+A browser-based Z-Machine interpreter with full V6 multimedia support (pictures and sound). This example demonstrates:
+
+- Canvas-based picture rendering from Blorb resources
+- Web Audio API for sound playback (OGG Vorbis)
+- Support for text-mode stories (V3–V5) and V6 games with graphics/sound
+- Self-contained Blorb files and companion Blorb (story + .blb in same folder)
+- Directory picker or multi-file picker for loading story + companion Blorb
+
+**Features:**
+
+- Load story via file picker (single file or folder)
+- Full text output with colors and styles
+- Picture display for V6 Blorb games
+- Sound effects via Web Audio API
+- Save/restore to browser localStorage
+
+**Usage:** Build the main library, then run `npm run dev` or `npm run build && npm run preview` from `examples/web/`.
+
 ### Blessed Console ([`blessedConsole/`](blessedConsole/))
 
 An enhanced terminal-based Z-Machine interpreter using the [blessed](https://www.npmjs.com/package/blessed) library for better terminal UI. This example demonstrates:
@@ -52,13 +72,25 @@ Each example is a self-contained project with its own dependencies. Navigate to 
 
 ## Usage Pattern
 
-All examples follow this general pattern:
+**Node.js examples** (console, blessedConsole):
 
 ```bash
 cd examples/[example-name]
 npm install
 npm start path/to/story.z3
 ```
+
+**Web example:**
+
+```bash
+cd examples/web
+npm install
+npm run dev   # Development server
+# or
+npm run build && npm run preview  # Production build
+```
+
+Then open the URL in a browser and load a story file via the file picker.
 
 ## Command-Line Options
 

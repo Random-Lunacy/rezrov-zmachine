@@ -87,28 +87,71 @@ function getPngDimensions(data: Buffer): { width: number; height: number } | nul
 }
 
 /**
+ * Callback for displaying a picture. Receives raw image data and display parameters.
+ */
+export type PictureRendererCallback = (
+  resourceId: number,
+  data: Buffer,
+  format: string,
+  x: number,
+  y: number,
+  scale: number
+) => void;
+
+/**
+ * Callback for erasing a displayed picture.
+ */
+export type PictureEraserCallback = (resourceId: number) => void;
+
+/**
+ * Callback for playing a sound. Returns ResourceStatus.
+ */
+export type SoundPlayerCallback = (
+  resourceId: number,
+  data: Buffer,
+  format: string,
+  volume: number,
+  repeats: number
+) => ResourceStatus;
+
+/**
+ * Options for BlorbMultimediaHandler constructor.
+ */
+export interface BlorbMultimediaHandlerOptions {
+  logger?: Logger;
+  pictureRenderer?: PictureRendererCallback;
+  pictureEraser?: PictureEraserCallback;
+  soundPlayer?: SoundPlayerCallback;
+}
+
+/**
  * MultimediaHandler backed by Blorb resources.
  *
  * Extends BaseMultimediaHandler to provide real picture metadata from Blorb
  * containers. Sound/music methods remain stubbed (delegated to base class)
  * since audio playback requires platform-specific backends.
  *
- * Display/erase operations are also delegated to base — actual rendering
- * requires a Screen implementation that supports image drawing. This handler
- * focuses on resource availability and metadata (dimensions), which is
- * sufficient for the picture_data opcode to branch correctly.
+ * When optional pictureRenderer and soundPlayer callbacks are provided,
+ * displayPicture and playSound invoke them with the raw resource data,
+ * enabling actual rendering and playback in the host environment.
  */
 export class BlorbMultimediaHandler extends BaseMultimediaHandler {
   private readonly _blorbMap: BlorbMap;
   private readonly _blorbData: Buffer;
   private readonly _logger: Logger;
   private readonly _dimensionCache: Map<number, PictureData> = new Map();
+  private readonly _pictureRenderer?: PictureRendererCallback;
+  private readonly _pictureEraser?: PictureEraserCallback;
+  private readonly _soundPlayer?: SoundPlayerCallback;
 
-  constructor(blorbMap: BlorbMap, blorbData: Buffer, options?: { logger?: Logger }) {
+  constructor(blorbMap: BlorbMap, blorbData: Buffer, options?: BlorbMultimediaHandlerOptions) {
     super(options);
     this._blorbMap = blorbMap;
     this._blorbData = blorbData;
     this._logger = options?.logger || new Logger('BlorbMultimediaHandler');
+    this._pictureRenderer = options?.pictureRenderer;
+    this._pictureEraser = options?.pictureEraser;
+    this._soundPlayer = options?.soundPlayer;
   }
 
   get blorbMap(): BlorbMap {
@@ -207,9 +250,22 @@ export class BlorbMultimediaHandler extends BaseMultimediaHandler {
       return ResourceStatus.NotAvailable;
     }
 
-    // Resource exists — actual rendering requires a Screen implementation
-    // that supports image drawing. Log and return Available so the opcode
-    // knows the resource was found.
+    if (this._pictureRenderer) {
+      const data = BlorbParser.getResource(this._blorbMap, this._blorbData, BlorbUsage.Pict, resourceId);
+      const chunkType = BlorbParser.getResourceChunkType(this._blorbMap, BlorbUsage.Pict, resourceId);
+      if (data && chunkType) {
+        const format =
+          chunkType === BlorbChunkType.PNG ? 'PNG' : chunkType === BlorbChunkType.JPEG ? 'JPEG' : chunkType;
+        try {
+          this._pictureRenderer(resourceId, data, format, x, y, scale);
+          return ResourceStatus.Available;
+        } catch (error) {
+          this._logger.error(`Picture ${resourceId} render failed: ${error}`);
+          return ResourceStatus.Error;
+        }
+      }
+    }
+
     this._logger.debug(`Picture ${resourceId} available at (${x},${y}) scale ${scale}%`);
     return ResourceStatus.Available;
   }
@@ -218,7 +274,33 @@ export class BlorbMultimediaHandler extends BaseMultimediaHandler {
     if (!this.isResourceAvailable(ResourceType.Picture, resourceId)) {
       return ResourceStatus.NotAvailable;
     }
+    if (this._pictureEraser) {
+      try {
+        this._pictureEraser(resourceId);
+      } catch (error) {
+        this._logger.error(`Picture ${resourceId} erase failed: ${error}`);
+        return ResourceStatus.Error;
+      }
+    }
     return ResourceStatus.Available;
+  }
+
+  playSound(resourceId: number, effect: number, volume: number, repeats: number): ResourceStatus {
+    if (this._soundPlayer && this.isResourceAvailable(ResourceType.Sound, resourceId)) {
+      const data = BlorbParser.getResource(this._blorbMap, this._blorbData, BlorbUsage.Snd, resourceId);
+      const chunkType = BlorbParser.getResourceChunkType(this._blorbMap, BlorbUsage.Snd, resourceId);
+      if (data && chunkType) {
+        const format =
+          chunkType === BlorbChunkType.OGGV ? 'OGGV' : chunkType === BlorbChunkType.AIFF ? 'AIFF' : chunkType;
+        try {
+          return this._soundPlayer(resourceId, data, format, volume, repeats);
+        } catch (error) {
+          this._logger.error(`Sound ${resourceId} play failed: ${error}`);
+          return ResourceStatus.Error;
+        }
+      }
+    }
+    return super.playSound(resourceId, effect, volume, repeats);
   }
 
   /**
