@@ -75,7 +75,7 @@ function stopSession(): void {
   machine.quit();
   inputProcessor.cancelInput(machine);
   resizeObserver.disconnect();
-  pictureRenderer.clear();
+  pictureRenderer.clear((machine.screen as import('./WebScreen').WebScreen).getBackgroundColor(0));
   soundPlayer.stopSound(0); // 0 = stop all sounds
 
   currentSession = null;
@@ -105,12 +105,13 @@ function setupGame(
 
   if (blorbData && isBlorb(blorbData)) {
     blorbMap = BlorbParser.parse(blorbData);
-
+    const webScreen = screen as import('./WebScreen').WebScreen;
     multimediaHandler = new BlorbMultimediaHandler(blorbMap, blorbData, {
       pictureRenderer: async (resourceId, data, format, x, y, scale) => {
         await pictureRenderer.displayPicture(resourceId, data, format, x, y, scale);
       },
-      pictureEraser: (resourceId) => pictureRenderer.erasePicture(resourceId),
+      pictureEraser: (resourceId) =>
+        pictureRenderer.erasePicture(resourceId, webScreen.getBackgroundColor(0)),
       soundPlayer: (resourceId, data, format, volume, repeats) =>
         soundPlayer.playSound(resourceId, data, format, volume, repeats),
     });

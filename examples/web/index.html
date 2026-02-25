@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -41,17 +41,33 @@
         position: relative;
         background: #0a0a0a;
         border: 1px solid #333;
-        border-radius: 4px;
+        border-radius: 0;
         overflow: hidden;
       }
       #status-bar {
-        padding: 0.25rem 0.5rem;
-        background: #2a2a2a;
+        background: #0a0a0a;
         color: #fff;
         border-bottom: 1px solid #333;
-        min-height: 1.5em;
+        min-height: 1em;
         white-space: pre;
         font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+        line-height: 1;
+        overflow: hidden;
+      }
+      #status-bar div {
+        white-space: pre;
+        line-height: 1;
+      }
+      #status-bar span {
+        line-height: 1;
+      }
+      #status-bar img {
+        display: inline-block;
+        vertical-align: top;
+        /* Prevent sub-pixel gaps/overlap that can make 1px borders disappear */
+        image-rendering: pixelated;
+        image-rendering: -moz-crisp-edges;
+        image-rendering: crisp-edges;
       }
       #main-content {
         position: relative;
@@ -126,7 +142,7 @@
           </select>
         </label>
       </div>
-      <div id="game-container" style="display: none;">
+      <div id="game-container" style="display: none">
         <div id="status-bar"></div>
         <div id="main-content">
           <div id="text-output"></div>

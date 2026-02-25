@@ -184,7 +184,7 @@ export class WebInputProcessor extends BaseInputProcessor {
   private echoInput(input: string): void {
     const span = document.createElement('span');
     span.textContent = input + '\n';
-    span.style.color = '#e0e0e0';
+    span.style.color = this.screen.getForegroundColor(0);
     this.textOutputEl.appendChild(span);
     this.textOutputEl.parentElement!.scrollTop = this.textOutputEl.parentElement!.scrollHeight;
   }
