@@ -579,6 +579,15 @@ describe('Stack Opcodes', () => {
       });
     });
 
+    it('should pop and discard when called with no operand in V1-V5', () => {
+      // This handles the 0-operand encoding edge case in V1-V5 (undefined variableRef)
+      mockMachine.state.version = 5;
+      stackOpcodes.pull.impl(machine, []);
+
+      expect(mockMachine.state.popStack).toHaveBeenCalled();
+      expect(mockMachine.state.storeVariable).not.toHaveBeenCalled();
+    });
+
     describe('pull indirect', () => {
       it('should throw error for indirect pull with stack pointer as target', () => {
         // Variable 6 contains 0 (stack pointer) - logical impossibility
@@ -652,6 +661,14 @@ describe('Stack Opcodes', () => {
         expect(mockMachine.state.stack).toEqual([99, 87]);
         expect(mockMachine.logger.debug).toHaveBeenCalledWith('1234 dec (6) 88 (stack top in place)');
       });
+
+      it('should throw error for indirect stack pointer decrement when stack empty', () => {
+        mockMachine.state.stack = [];
+
+        expect(() => {
+          stackOpcodes.dec.impl(machine, [OperandType.Variable], 6);
+        }).toThrow('Illegal operation: indirect decrement of stack pointer when stack is empty');
+      });
     });
 
     describe('inc_chk indirect', () => {
@@ -677,6 +694,14 @@ describe('Stack Opcodes', () => {
         expect(mockMachine.state.doBranch).toHaveBeenCalledWith(true, false, 10); // 6 > 3 = true
         expect(mockMachine.logger.debug).toHaveBeenCalledWith('1234 inc_chk (6) 5 > 3 = true (stack top in place)');
       });
+
+      it('should throw error for indirect stack pointer inc_chk when stack empty', () => {
+        mockMachine.state.stack = [];
+
+        expect(() => {
+          stackOpcodes.inc_chk.impl(machine, [OperandType.Variable], 6, 3);
+        }).toThrow('Illegal operation: indirect inc_chk of stack pointer when stack is empty');
+      });
     });
 
     describe('dec_chk indirect', () => {
@@ -701,6 +726,14 @@ describe('Stack Opcodes', () => {
         expect(mockMachine.state.stack).toEqual([99, 4]);
         expect(mockMachine.state.doBranch).toHaveBeenCalledWith(true, false, 10); // 4 < 7 = true
         expect(mockMachine.logger.debug).toHaveBeenCalledWith('1234 dec_chk (6) 5 < 7 = true (stack top in place)');
+      });
+
+      it('should throw error for indirect stack pointer dec_chk when stack empty', () => {
+        mockMachine.state.stack = [];
+
+        expect(() => {
+          stackOpcodes.dec_chk.impl(machine, [OperandType.Variable], 6, 7);
+        }).toThrow('Illegal operation: indirect dec_chk of stack pointer when stack is empty');
       });
     });
   });
