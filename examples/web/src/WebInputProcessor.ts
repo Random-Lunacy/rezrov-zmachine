@@ -25,7 +25,7 @@ export class WebInputProcessor extends BaseInputProcessor {
     this.textOutputEl = textOutputEl;
   }
 
-  protected doStartTextInput(machine: ZMachine, _state: InputState): void {
+  protected doStartTextInput(machine: ZMachine, state: InputState): void {
     this.logger.debug('Starting text input');
 
     // Clean up any existing input state (e.g. from a previous timeout-terminated input)
@@ -36,10 +36,16 @@ export class WebInputProcessor extends BaseInputProcessor {
     this.isExecutingTimeoutRoutine = false;
 
     this.isWaitingForInput = true;
-    this.inputEl.value = '';
+    // Z-spec §15.2: pre-loaded text must be displayed so the player can edit/append to it
+    const preloaded = state.preloadedText ?? '';
+    this.inputEl.value = preloaded;
     this.inputEl.disabled = false;
     this.inputEl.style.visibility = 'visible';
     this.inputEl.focus();
+    // Move cursor to end so the player appends after any pre-loaded text
+    if (preloaded.length > 0) {
+      this.inputEl.setSelectionRange(preloaded.length, preloaded.length);
+    }
 
     const handleSubmit = (e: KeyboardEvent): void => {
       e.preventDefault();

@@ -11,6 +11,7 @@ export class SuspendState extends Error {
     parseBuffer?: number;
     time?: number;
     routine?: number;
+    preloadedText?: string;
   };
 
   constructor(state: {
@@ -20,6 +21,7 @@ export class SuspendState extends Error {
     parseBuffer?: number;
     time?: number;
     routine?: number;
+    preloadedText?: string;
   }) {
     super('Execution suspended waiting for user input');
     Object.setPrototypeOf(this, SuspendState.prototype);
@@ -33,6 +35,7 @@ export class SuspendState extends Error {
     parseBuffer?: number;
     time?: number;
     routine?: number;
+    preloadedText?: string;
   } {
     return { ...this._state };
   }
@@ -51,6 +54,7 @@ export class SuspendState extends Error {
       parseBuffer: this._state.parseBuffer,
       time: this._state.time,
       routine: this._state.routine,
+      preloadedText: this._state.preloadedText,
     };
   }
 }

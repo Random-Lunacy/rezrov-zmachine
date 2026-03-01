@@ -20,11 +20,19 @@ import { HeaderLocation } from '../../utils/constants';
 import { opcode } from './base';
 
 /**
+ * Get the current PC safely for logging
+ */
+function getSafePcHex(machine: ZMachine): string {
+  const pc = machine.executor?.op_pc ?? machine.state.pc;
+  return typeof pc === 'number' ? pc.toString(16) : '0';
+}
+
+/**
  * Save the machine state to a given table
  */
 async function save_undo(machine: ZMachine, _operandTypes: OperandType[]): Promise<void> {
   const resultVar = machine.state.readByte();
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} save_undo ${resultVar}`);
+  machine.logger.debug(`${getSafePcHex(machine)} save_undo ${resultVar}`);
 
   try {
     const success = machine.saveUndo();
@@ -40,7 +48,7 @@ async function save_undo(machine: ZMachine, _operandTypes: OperandType[]): Promi
  */
 async function restore_undo(machine: ZMachine, _operandTypes: OperandType[]): Promise<void> {
   const resultVar = machine.state.readByte();
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} restore_undo ${resultVar}`);
+  machine.logger.debug(`${getSafePcHex(machine)} restore_undo ${resultVar}`);
 
   try {
     const success = machine.restoreUndo();
@@ -55,7 +63,7 @@ async function restore_undo(machine: ZMachine, _operandTypes: OperandType[]): Pr
  * Restart the game from the beginning
  */
 function restart(machine: ZMachine, _operandTypes: OperandType[]): void {
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} restart`);
+  machine.logger.debug(`${getSafePcHex(machine)} restart`);
   machine.restart();
 }
 
@@ -67,7 +75,7 @@ function restart(machine: ZMachine, _operandTypes: OperandType[]): void {
 function verify(machine: ZMachine, _operandTypes: OperandType[]): void {
   const [offset, branchOnFalse] = machine.state.readBranchOffset();
 
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} verify -> [${!branchOnFalse}] ${offset}`);
+  machine.logger.debug(`${getSafePcHex(machine)} verify -> [${!branchOnFalse}] ${offset}`);
 
   const buffer = machine.originalStory;
   const version = machine.state.version;
@@ -107,7 +115,7 @@ function verify(machine: ZMachine, _operandTypes: OperandType[]): void {
 function piracy(machine: ZMachine, _operandTypes: OperandType[]): void {
   const [offset, branchOnFalse] = machine.state.readBranchOffset();
 
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} piracy -> [${!branchOnFalse}] ${offset}`);
+  machine.logger.debug(`${getSafePcHex(machine)} piracy -> [${!branchOnFalse}] ${offset}`);
 
   // Always indicate the game is genuine
   machine.state.doBranch(true, branchOnFalse, offset);
@@ -128,9 +136,7 @@ async function save(
 
     if (isPartial) {
       // Partial save: write memory region to auxiliary file (no game state)
-      machine.logger.debug(
-        `${machine.executor.op_pc.toString(16)} save (partial) table=${table} bytes=${bytes} name=${name}`
-      );
+      machine.logger.debug(`${getSafePcHex(machine)} save (partial) table=${table} bytes=${bytes} name=${name}`);
       try {
         const success = await machine.saveAuxiliary(table, bytes, name, shouldPrompt);
         machine.state.storeVariable(resultVar, success ? 1 : 0);
@@ -140,7 +146,7 @@ async function save(
       }
     } else {
       // Standard save: full game state
-      machine.logger.debug(`${machine.executor.op_pc.toString(16)} save (standard)`);
+      machine.logger.debug(`${getSafePcHex(machine)} save (standard)`);
       try {
         const success = await machine.saveGame();
         machine.state.storeVariable(resultVar, success ? 1 : 0);
@@ -151,7 +157,7 @@ async function save(
     }
   } else {
     const [offset, branchOnFalse] = machine.state.readBranchOffset();
-    machine.logger.debug(`${machine.executor.op_pc.toString(16)} save -> [${!branchOnFalse}] ${offset}`);
+    machine.logger.debug(`${getSafePcHex(machine)} save -> [${!branchOnFalse}] ${offset}`);
 
     try {
       const saved = await machine.saveGame();
@@ -178,9 +184,7 @@ async function restore(
 
     if (isPartial) {
       // Partial restore: read memory region from auxiliary file (no game state)
-      machine.logger.debug(
-        `${machine.executor.op_pc.toString(16)} restore (partial) table=${table} bytes=${bytes} name=${name}`
-      );
+      machine.logger.debug(`${getSafePcHex(machine)} restore (partial) table=${table} bytes=${bytes} name=${name}`);
       try {
         const bytesRead = await machine.restoreAuxiliary(table, bytes, name, shouldPrompt);
         machine.state.storeVariable(resultVar, bytesRead);
@@ -190,7 +194,7 @@ async function restore(
       }
     } else {
       // Standard restore: full game state
-      machine.logger.debug(`${machine.executor.op_pc.toString(16)} restore (standard)`);
+      machine.logger.debug(`${getSafePcHex(machine)} restore (standard)`);
       try {
         const success = await machine.restoreGame();
         machine.state.storeVariable(resultVar, success ? 2 : 0);
@@ -201,7 +205,7 @@ async function restore(
     }
   } else {
     const [offset, branchOnFalse] = machine.state.readBranchOffset();
-    machine.logger.debug(`${machine.executor.op_pc.toString(16)} restore -> [${!branchOnFalse}] ${offset}`);
+    machine.logger.debug(`${getSafePcHex(machine)} restore -> [${!branchOnFalse}] ${offset}`);
 
     try {
       const restored = await machine.restoreGame();
@@ -217,7 +221,7 @@ async function restore(
  * Quit the game
  */
 function quit(machine: ZMachine, _operandTypes: OperandType[]): void {
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} quit`);
+  machine.logger.debug(`${getSafePcHex(machine)} quit`);
   machine.quit();
 }
 
@@ -225,7 +229,7 @@ function quit(machine: ZMachine, _operandTypes: OperandType[]): void {
  * Update the status bar (for versions <= 3)
  */
 function show_status(machine: ZMachine, _operandTypes: OperandType[]): void {
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} show_status`);
+  machine.logger.debug(`${getSafePcHex(machine)} show_status`);
   machine.updateStatusBar();
 }
 

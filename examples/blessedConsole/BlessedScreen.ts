@@ -253,6 +253,11 @@ export class BlessedScreen extends BaseScreen {
       return; // Don't output to screen when memory stream is active
     }
 
+    // Respect output_stream -1: when screen output is disabled, drop the text
+    if (!this.isScreenOutputEnabled()) {
+      return;
+    }
+
     // Translate Font 3 characters to Unicode if Font 3 is active
     let textToDisplay = str;
     if (this.isCurrentFontFont3()) {

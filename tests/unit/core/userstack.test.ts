@@ -124,51 +124,35 @@ describe('UserStackManager', () => {
   describe('pullStack', () => {
     it('should retrieve a value from the stack and update available slots', () => {
       const stackAddr = 0x1000;
+      const availableSlots = 3;
       const expectedValue = 100;
+      // valueAddr = stackAddr + 2 + availableSlots * 2 = 0x1000 + 2 + 6 = 0x1008
+      const expectedValueAddr = stackAddr + 2 + availableSlots * 2;
 
-      // Mock each getWord call with a specific implementation
       memory.getWord.mockImplementation((addr: Address) => {
-        // First getWord is for available slots
-        if (addr === stackAddr) return 3;
-
-        // Second getWord is for getInitialCapacity - return max non-zero value
-        if (addr === stackAddr + 2 + 1 * 2) return 100; // Value at first slot
-        if (addr === stackAddr + 2 + 2 * 2) return 0; // Value at second slot (end of used values)
-
-        // Value to pull - important for the test
-        if (addr === stackAddr + 2 + 3 * 2) return expectedValue;
-
-        // Default case
+        if (addr === stackAddr) return availableSlots;
+        if (addr === expectedValueAddr) return expectedValue;
         return 0;
       });
-
-      // Important: We need to explicitly mock the case where getInitialCapacity is called
-      // to check stack capacity. Set up the stack to have a capacity of 5.
-      vi.spyOn(userStackManager as any, 'getInitialCapacity').mockReturnValue(5);
 
       const result = userStackManager.pullStack(stackAddr);
 
       expect(result).toBe(expectedValue);
-      // Available slots should be incremented
-      expect(memory.setWord).toHaveBeenCalledWith(stackAddr, 4);
+      expect(memory.setWord).toHaveBeenCalledWith(stackAddr, availableSlots + 1);
       expect(mockLogger.debug).toHaveBeenCalledWith(expect.stringContaining('Pulled 100'));
     });
 
-    it('should return undefined when pulling from an empty stack', () => {
+    it('should return undefined when valueAddr is out of memory bounds', () => {
       const stackAddr = 0x1000;
-
-      // Mock getWord to return 5 available slots
-      memory.getWord.mockReturnValueOnce(5);
-
-      // Important: Mock getInitialCapacity to return 5 (full capacity = empty stack)
-      vi.spyOn(userStackManager as any, 'getInitialCapacity').mockReturnValue(5);
+      // A huge availableSlots value pushes valueAddr beyond memory.size (0x10000)
+      const hugeAvailable = 0x8000;
+      memory.getWord.mockReturnValueOnce(hugeAvailable);
 
       const result = userStackManager.pullStack(stackAddr);
 
       expect(result).toBeUndefined();
       expect(memory.setWord).not.toHaveBeenCalled();
-      expect(mockLogger.debug).toHaveBeenCalledWith(expect.stringContaining('User stack at'));
-      expect(mockLogger.debug).toHaveBeenCalledWith(expect.stringContaining('is empty'));
+      expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('underflowed'));
     });
 
     it('should return undefined when pulling from an invalid memory address', () => {
@@ -182,73 +166,44 @@ describe('UserStackManager', () => {
       expect(mockLogger.error).toHaveBeenCalledWith(expect.stringContaining('not in dynamic memory'));
     });
 
-    it('should handle errors during pull operation', () => {
+    it('should propagate errors thrown by memory.getWord', () => {
       const stackAddr = 0x1000;
+      const availableSlots = 3;
 
-      // Setup to pass initial checks
-      memory.isDynamicMemory.mockReturnValue(true);
-
-      // Mock calls to getWord
-      let getWordCallCount = 0;
       memory.getWord.mockImplementation((addr: Address) => {
-        getWordCallCount++;
-
-        if (getWordCallCount === 1) {
-          // First call - return available slots (3)
-          return 3;
-        }
-
-        // For any subsequent calls, throw an error
-        throw new Error('Mock error');
+        if (addr === stackAddr) return availableSlots;
+        throw new Error('Mock memory error');
       });
 
-      // We expect this to throw an error
-      let errorThrown = false;
-      try {
-        userStackManager.pullStack(stackAddr);
-      } catch (error: any) {
-        errorThrown = true;
-        expect(error.message).toContain('Error reading memory');
-      }
-
-      // Assert that an error was actually thrown
-      expect(errorThrown).toBe(true);
+      expect(() => userStackManager.pullStack(stackAddr)).toThrow('Mock memory error');
     });
   });
 
   describe('popStack', () => {
     it('should remove multiple items from the stack', () => {
       const stackAddr = 0x1000;
+      const availableSlots = 3;
       const itemsToPop = 2;
 
-      // Available slots
-      memory.getWord.mockReturnValueOnce(3);
-
-      // Mock getInitialCapacity to return 5
-      vi.spyOn(userStackManager as any, 'getInitialCapacity').mockReturnValue(5);
+      memory.getWord.mockReturnValueOnce(availableSlots);
 
       userStackManager.popStack(stackAddr, itemsToPop);
 
-      // Available slots should be incremented by 2 (to 5)
-      expect(memory.setWord).toHaveBeenCalledWith(stackAddr, 5);
+      // Available slots should be incremented by itemsToPop
+      expect(memory.setWord).toHaveBeenCalledWith(stackAddr, availableSlots + itemsToPop);
       expect(mockLogger.debug).toHaveBeenCalledWith(expect.stringContaining('Popped 2 items'));
     });
 
-    it('should handle popping more items than available', () => {
+    it('should pop exactly the requested number of items without capping', () => {
       const stackAddr = 0x1000;
+      const availableSlots = 3;
 
-      // Available slots
-      memory.getWord.mockReturnValueOnce(3);
+      memory.getWord.mockReturnValueOnce(availableSlots);
 
-      // Mock getInitialCapacity to return 5 (so 2 items are used)
-      vi.spyOn(userStackManager as any, 'getInitialCapacity').mockReturnValue(5);
+      // Pop 10 items — the implementation trusts the caller, no capping
+      userStackManager.popStack(stackAddr, 10);
 
-      // Try to pop 3 items when only 2 are available
-      userStackManager.popStack(stackAddr, 3);
-
-      // Should only pop 2 items (all available)
-      expect(memory.setWord).toHaveBeenCalledWith(stackAddr, 5);
-      expect(mockLogger.debug).toHaveBeenCalledWith(expect.stringContaining('Popped 2 items'));
+      expect(memory.setWord).toHaveBeenCalledWith(stackAddr, availableSlots + 10);
     });
 
     it('should handle popping from an invalid memory address', () => {
@@ -261,68 +216,15 @@ describe('UserStackManager', () => {
       expect(mockLogger.error).toHaveBeenCalledWith(expect.stringContaining('not in dynamic memory'));
     });
 
-    it('should handle errors during pop operation', () => {
+    it('should propagate errors thrown by memory.setWord', () => {
       const stackAddr = 0x1000;
 
-      // Available slots
       memory.getWord.mockReturnValueOnce(3);
-
-      // Mock getInitialCapacity to return 5
-      vi.spyOn(userStackManager as any, 'getInitialCapacity').mockReturnValue(5);
-
-      // Setup: setWord throws an error
       memory.setWord.mockImplementationOnce(() => {
-        throw new Error('Mock error');
+        throw new Error('Mock write error');
       });
 
-      userStackManager.popStack(stackAddr, 2);
-
-      expect(mockLogger.error).toHaveBeenCalledWith(expect.stringContaining('Error popping from user stack'));
-    });
-  });
-
-  describe('getInitialCapacity', () => {
-    it('should correctly calculate capacity based on non-zero slots', () => {
-      const stackAddr = 0x1000;
-
-      // Setup for available slots
-      memory.getWord.mockReturnValueOnce(3);
-
-      // Setup memory contents to have non-zero values in positions 1 and 2
-      memory.getWord.mockImplementation((addr: Address) => {
-        if (addr === stackAddr + 2 + 1 * 2) return 101; // Non-zero value
-        if (addr === stackAddr + 2 + 2 * 2) return 102; // Non-zero value
-        if (addr === stackAddr + 2 + 3 * 2) return 0; // Zero value
-        return 0;
-      });
-
-      // Call the private method directly using type casting
-      const capacity = (userStackManager as any).getInitialCapacity(stackAddr);
-
-      // Should find 2 non-zero values, which is less than available slots (3)
-      expect(capacity).toBe(3);
-    });
-
-    it('should throw an error when memory access fails', () => {
-      const stackAddr = 0x1000;
-
-      // Setup memory error during capacity checking
-      memory.getWord.mockImplementationOnce(() => {
-        throw new Error('Memory read error');
-      });
-
-      // We expect this to throw an error
-      let errorThrown = false;
-      try {
-        (userStackManager as any).getInitialCapacity(stackAddr);
-      } catch (error) {
-        errorThrown = true;
-        expect(error.message).toContain('Memory read error');
-        expect(error.message).toContain('Memory read error');
-      }
-
-      // Assert that an error was actually thrown
-      expect(errorThrown).toBe(true);
+      expect(() => userStackManager.popStack(stackAddr, 2)).toThrow('Mock write error');
     });
   });
 });

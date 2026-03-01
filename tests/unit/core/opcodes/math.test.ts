@@ -178,13 +178,17 @@ describe('Math Opcodes', () => {
       expect(toI16(expected)).toBe(-5);
     });
 
-    it('should throw an error when dividing by zero', () => {
+    it('should warn and return 0 when dividing by zero (for V6 compatibility)', () => {
       // Arrange
       const a = 20;
       const b = 0;
 
-      // Act & Assert
-      expect(() => mathOpcodes.div.impl(machine, [], a, b)).toThrow('Division by zero');
+      // Act
+      mathOpcodes.div.impl(machine, [], a, b);
+
+      // Assert - Z-spec says halt; we return 0 for games that hit this via interpreter edge cases
+      expect(mockMachine.logger.warn).toHaveBeenCalledWith('Division by zero; returning 0');
+      expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(42, 0);
     });
   });
 
@@ -232,13 +236,17 @@ describe('Math Opcodes', () => {
       expect(toI16(expected)).toBe(3);
     });
 
-    it('should throw an error when modulo by zero', () => {
+    it('should warn and return 0 when modulo by zero (for V6 compatibility)', () => {
       // Arrange
       const a = 23;
       const b = 0;
 
-      // Act & Assert
-      expect(() => mathOpcodes.mod.impl(machine, [], a, b)).toThrow('Modulo by zero');
+      // Act
+      mathOpcodes.mod.impl(machine, [], a, b);
+
+      // Assert - Z-spec says halt; we return 0 for games that hit this via interpreter edge cases
+      expect(mockMachine.logger.debug).toHaveBeenCalledWith('Modulo by zero; returning 0');
+      expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(42, 0);
     });
   });
 

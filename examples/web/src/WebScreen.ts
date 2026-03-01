@@ -819,6 +819,11 @@ export class WebScreen extends BaseScreen {
       return;
     }
 
+    // Respect output_stream -1: when screen output is disabled, drop the text
+    if (!this.isScreenOutputEnabled()) {
+      return;
+    }
+
     const isFont3 = this.isCurrentFontFont3();
 
     if (this.outputWindowId === 0) {

@@ -483,7 +483,7 @@ describe('BaseScreen', () => {
       screen.splitWindow(v5Machine as any, 5);
       screen.setCursorPosition(v5Machine as any, 0, 10, 1); // Line 0 is invalid
 
-      expect(mockLogger.warn).toHaveBeenCalledWith(
+      expect(mockLogger.debug).toHaveBeenCalledWith(
         'TestScreen setCursorPosition: invalid position (0, 10)'
       );
     });
@@ -617,7 +617,7 @@ describe('BaseScreen', () => {
     it('should warn when setCursorPosition is called for non-upper window', () => {
       screen.setCursorPosition(machine as any, 5, 10, 0); // Lower window
 
-      expect(mockLogger.warn).toHaveBeenCalledWith('TestScreen setCursorPosition only works in upper window');
+      expect(mockLogger.debug).toHaveBeenCalledWith('TestScreen setCursorPosition only works in upper window');
     });
   });
 

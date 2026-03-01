@@ -91,7 +91,7 @@ export class UserStackManager {
   /**
    * Pulls a value from a user stack (pop and return)
    * @param stackAddr Address of the user stack
-   * @returns The popped value, or undefined if stack is empty
+   * @returns The popped value, or undefined if the address is invalid
    */
   pullStack(stackAddr: Address): number | undefined {
     // Verify the stack is in dynamic memory to prevent errors
@@ -100,35 +100,22 @@ export class UserStackManager {
       return undefined;
     }
 
-    const initialCapacity = this.getInitialCapacity(stackAddr);
     const availableSlots = this.memory.getWord(stackAddr);
-    const usedSlots = initialCapacity - availableSlots;
 
-    if (usedSlots <= 0) {
-      this.logger.debug(`User stack at 0x${stackAddr.toString(16)} is empty`);
+    // The top item lives at: stackAddr + 2 + availableSlots * 2
+    // (stack grows downward; availableSlots tells us where the top item is)
+    const valueAddr = stackAddr + 2 + availableSlots * 2;
+
+    if (valueAddr + 1 >= this.memory.size) {
+      this.logger.warn(`User stack at 0x${stackAddr.toString(16)} underflowed (available: ${availableSlots})`);
       return undefined;
     }
 
-    // Calculate position of the value to pull
-    // We pull from the top of the stack (first used position)
-    const valueIndex = availableSlots + 1;
-    const valueAddr = stackAddr + 2 + (valueIndex - 1) * 2;
+    const value = this.memory.getWord(valueAddr);
+    this.memory.setWord(stackAddr, availableSlots + 1);
 
-    try {
-      // Get the value
-      const value = this.memory.getWord(valueAddr);
-
-      // Increase available slots
-      this.memory.setWord(stackAddr, availableSlots + 1);
-
-      this.logger.debug(
-        `Pulled ${value} from user stack at 0x${stackAddr.toString(16)}, new count: ${availableSlots + 1}`
-      );
-      return value;
-    } catch (e) {
-      this.logger.error(`Error pulling from user stack: ${e}`);
-      return undefined;
-    }
+    this.logger.debug(`Pulled ${value} from user stack at 0x${stackAddr.toString(16)}, new available: ${availableSlots + 1}`);
+    return value;
   }
 
   /**
@@ -144,57 +131,10 @@ export class UserStackManager {
     }
 
     const availableSlots = this.memory.getWord(stackAddr);
-    const initialCapacity = this.getInitialCapacity(stackAddr);
-    const usedSlots = initialCapacity - availableSlots;
-    const itemsToPop = Math.min(items, usedSlots);
-
-    try {
-      // Increase available slots by itemsToPop
-      this.memory.setWord(stackAddr, availableSlots + itemsToPop);
-      this.logger.debug(
-        `Popped ${itemsToPop} items from user stack at 0x${stackAddr.toString(16)}, new count: ${
-          availableSlots + itemsToPop
-        }`
-      );
-    } catch (e) {
-      this.logger.error(`Error popping from user stack: ${e}`);
-    }
-  }
-
-  /**
-   * Estimates the initial capacity of a user stack
-   * @param stackAddr Address of the user stack
-   * @returns Estimated initial capacity
-   * @private
-   */
-  private getInitialCapacity(stackAddr: Address): number {
-    // If we don't know the initial capacity, we can estimate
-    // based on the current available slots and checking for
-    // non-zero values beyond the currently used portion
-
-    const availableSlots = this.memory.getWord(stackAddr);
-
-    // Check for non-zero values beyond the current position
-    // to estimate how large the stack actually is
-    let maxNonZero = 0;
-
-    for (let i = 1; i <= 32; i++) {
-      // Arbitrary limit for search
-      const addr = stackAddr + 2 + i * 2;
-      if (addr < this.memory.size) {
-        try {
-          const value = this.memory.getWord(addr);
-          if (value !== 0) {
-            maxNonZero = i;
-          }
-        } catch (e) {
-          // Address out of bounds or in read-only memory
-          throw new Error(`Error reading memory at 0x${addr.toString(16)}: ${e}`);
-        }
-      }
-    }
-
-    return Math.max(availableSlots, maxNonZero);
+    this.memory.setWord(stackAddr, availableSlots + items);
+    this.logger.debug(
+      `Popped ${items} items from user stack at 0x${stackAddr.toString(16)}, new available: ${availableSlots + items}`
+    );
   }
 
   /**

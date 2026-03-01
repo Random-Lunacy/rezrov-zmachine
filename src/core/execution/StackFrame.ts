@@ -40,8 +40,9 @@ export function createStackFrame(
     throw new Error(`Invalid number of locals: ${numLocals}. Z-Machine allows 0-15 locals.`);
   }
 
-  // Create array for locals (16-bit values)
-  const locals = new Uint16Array(numLocals);
+  // Allocate 15 slots (Z-machine max). Some Infocom V6 games (e.g. Zork Zero) reference
+  // locals beyond their declared count; unused slots default to 0 per V5+.
+  const locals = new Uint16Array(15);
 
   return {
     returnPC,

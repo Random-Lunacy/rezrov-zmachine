@@ -241,7 +241,7 @@ describe('GameState', () => {
     it('should handle empty stack when popping', () => {
       // Empty stack should return 0 with a warning
       expect(gameState.popStack()).toBe(0);
-      expect(mockLogger.warn).toHaveBeenCalled();
+      expect(mockLogger.debug).toHaveBeenCalled();
     });
 
     it('should throw an error when peeking an empty stack', () => {
@@ -291,8 +291,9 @@ describe('GameState', () => {
       expect(gameState.loadVariable(3)).toBe(30);
     });
 
-    it('should throw when accessing locals outside range', () => {
-      expect(() => gameState.loadVariable(4)).toThrow();
+    it('should allow accessing locals 1-15 (unused default to 0)', () => {
+      // Frames allocate 15 slots for V6 compatibility; variable 4 is valid
+      expect(gameState.loadVariable(4)).toBe(0);
     });
 
     it('should load from globals (var 16+)', () => {
@@ -602,7 +603,7 @@ describe('GameState', () => {
       const serializedFrame = snapshot.callFrames[0];
       expect(serializedFrame.returnPC).toBe(0x5678);
       expect(serializedFrame.storeVariable).toBe(16);
-      expect(serializedFrame.locals.length).toBe(2);
+      expect(serializedFrame.locals.length).toBe(15); // Frames allocate 15 slots
       expect(serializedFrame.locals[0]).toBe(42);
       expect(serializedFrame.locals[1]).toBe(43);
 

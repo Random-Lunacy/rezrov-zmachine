@@ -24,11 +24,11 @@ describe('StackFrame', () => {
         routineAddress
       );
 
-      // Assert
+      // Assert - frames allocate 15 slots (Z-machine max)
       expect(stackFrame).toEqual({
         returnPC,
         previousSP,
-        locals: new Uint16Array(numLocals),
+        locals: new Uint16Array(15),
         resultVariable: resultVar,
         argumentCount,
         routineAddress,
@@ -56,11 +56,11 @@ describe('StackFrame', () => {
         routineAddress
       );
 
-      // Assert
+      // Assert - frames allocate 15 slots (Z-machine max)
       expect(stackFrame).toEqual({
         returnPC,
         previousSP,
-        locals: new Uint16Array(numLocals),
+        locals: new Uint16Array(15),
         resultVariable: null,
         argumentCount,
         routineAddress,
@@ -88,9 +88,9 @@ describe('StackFrame', () => {
         routineAddress
       );
 
-      // Assert
-      expect(stackFrame.locals).toEqual(new Uint16Array(0));
-      expect(stackFrame.locals.length).toBe(0);
+      // Assert - allocate 15 slots (Z-machine max) for V6 compatibility
+      expect(stackFrame.locals.length).toBe(15);
+      expect(stackFrame.locals).toEqual(new Uint16Array(15));
     });
 
     it('should throw an error when numLocals is invalid', () => {
@@ -164,7 +164,7 @@ describe('StackFrame', () => {
           discardResult: false,
           storeVariable: 5,
           argumentMask: [true, true],
-          locals: [42, 99, 0],
+          locals: [42, 99, 0, ...Array(12).fill(0)], // 15 slots
           stack: [10, 20, 30],
         });
       });
@@ -187,7 +187,7 @@ describe('StackFrame', () => {
           discardResult: true,
           storeVariable: 0,
           argumentMask: [],
-          locals: [],
+          locals: Array(15).fill(0), // Allocate 15 slots (Z-machine max)
           stack: [],
         });
       });

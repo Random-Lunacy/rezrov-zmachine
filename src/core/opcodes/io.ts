@@ -40,10 +40,18 @@ import { toI16 } from '../memory/cast16';
 import { opcode } from './base';
 
 /**
+ * Get the current PC safely for logging
+ */
+function getSafePcHex(machine: ZMachine): string {
+  const pc = machine.executor?.op_pc ?? machine.state.pc;
+  return typeof pc === 'number' ? pc.toString(16) : '0';
+}
+
+/**
  * Split the screen into two windows
  */
 function split_window(machine: ZMachine, _operandTypes: OperandType[], lines: number): void {
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} split_window ${lines}`);
+  machine.logger.debug(`${getSafePcHex(machine)} split_window ${lines}`);
   machine.screen.splitWindow(machine, lines);
 }
 
@@ -51,7 +59,7 @@ function split_window(machine: ZMachine, _operandTypes: OperandType[], lines: nu
  * Set the active output window
  */
 function set_window(machine: ZMachine, _operandTypes: OperandType[], window: number): void {
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} set_window ${window}`);
+  machine.logger.debug(`${getSafePcHex(machine)} set_window ${window}`);
   machine.screen.setOutputWindow(machine, window);
 }
 
@@ -65,7 +73,7 @@ function set_window(machine: ZMachine, _operandTypes: OperandType[], window: num
  */
 function erase_window(machine: ZMachine, _operandTypes: OperandType[], window: number): void {
   const signedWindow = toI16(window);
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} erase_window ${signedWindow}`);
+  machine.logger.debug(`${getSafePcHex(machine)} erase_window ${signedWindow}`);
   machine.screen.clearWindow(machine, signedWindow);
 }
 
@@ -73,7 +81,7 @@ function erase_window(machine: ZMachine, _operandTypes: OperandType[], window: n
  * Clear the current line
  */
 function erase_line(machine: ZMachine, _operandTypes: OperandType[], value: number): void {
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} erase_line ${value}`);
+  machine.logger.debug(`${getSafePcHex(machine)} erase_line ${value}`);
   // Per Z-spec §8.7.2.1 and Infocom: only erase when argument is 1
   if (value === 1) {
     machine.screen.clearLine(machine, value);
@@ -90,7 +98,7 @@ function set_cursor(
   column: number,
   window: number = 0
 ): void {
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} set_cursor ${line} ${column}`);
+  machine.logger.debug(`${getSafePcHex(machine)} set_cursor ${line} ${column}`);
 
   if (machine.state.version >= 6) {
     if (line === -1) {
@@ -116,7 +124,7 @@ function set_cursor(
  * Get the current cursor position
  */
 function get_cursor(machine: ZMachine, _operandTypes: OperandType[], array: number): void {
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} get_cursor ${array}`);
+  machine.logger.debug(`${getSafePcHex(machine)} get_cursor ${array}`);
 
   // Per spec: stores cursor position as two words at array address
   // array→0: current line (1-based)
@@ -130,7 +138,7 @@ function get_cursor(machine: ZMachine, _operandTypes: OperandType[], array: numb
  * Set the text style
  */
 function set_text_style(machine: ZMachine, _operandTypes: OperandType[], style: number): void {
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} set_text_style ${style}`);
+  machine.logger.debug(`${getSafePcHex(machine)} set_text_style ${style}`);
 
   // Style values:
   // 0 = Normal (clear all styles)
@@ -153,7 +161,7 @@ function set_text_style(machine: ZMachine, _operandTypes: OperandType[], style: 
  * Set buffer mode (buffered or unbuffered output)
  */
 function buffer_mode(machine: ZMachine, _operandTypes: OperandType[], flag: number): void {
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} buffer_mode ${flag}`);
+  machine.logger.debug(`${getSafePcHex(machine)} buffer_mode ${flag}`);
   machine.screen.setBufferMode(machine, flag);
 }
 
@@ -169,7 +177,7 @@ function output_stream(
 ): void {
   const streamNumber = toI16(streamNum);
 
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} output_stream ${streamNum} ${table} ${width}`);
+  machine.logger.debug(`${getSafePcHex(machine)} output_stream ${streamNum} ${table} ${width}`);
 
   if (streamNumber === 0) {
     // why emit this opcode at all?
@@ -186,7 +194,7 @@ function output_stream(
  * Select an input stream
  */
 function input_stream(machine: ZMachine, _operandTypes: OperandType[], streamNum: number): void {
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} input_stream ${streamNum}`);
+  machine.logger.debug(`${getSafePcHex(machine)} input_stream ${streamNum}`);
   machine.screen.selectInputStream(machine, toI16(streamNum));
 }
 
@@ -210,11 +218,31 @@ function sread(
     resultVar = machine.state.readByte();
   }
 
-  machine.logger.debug(`sread/aread: text=${textBuffer}, parse=${parseBuffer}, time=${time}, routine=${routine}`);
+  machine.logger.debug(
+    `sread/aread: text=0x${textBuffer.toString(16)}, parse=0x${parseBuffer.toString(16)}, time=${time}, routine=${routine}`
+  );
 
   // Z-spec §8.4: In V1-3, update the status line before reading input
   if (version <= 3) {
     machine.updateStatusBar();
+  }
+
+  // Z-spec §15.2: In V5+, the text buffer may contain pre-loaded text.
+  // Byte 0 = max length, Byte 1 = number of pre-existing characters,
+  // Bytes 2+ = the pre-existing characters.
+  let preloadedText: string | undefined;
+  if (version >= 5) {
+    const maxLen = machine.state.memory.getByte(textBuffer);
+    const preloadedLen = machine.state.memory.getByte(textBuffer + 1);
+    machine.logger.debug(`sread/aread: textBuffer maxLen=${maxLen}, preloadedLen=${preloadedLen}`);
+    if (preloadedLen > 0) {
+      let preloaded = '';
+      for (let i = 0; i < preloadedLen; i++) {
+        preloaded += String.fromCharCode(machine.state.memory.getByte(textBuffer + 2 + i));
+      }
+      machine.logger.debug(`sread/aread: preloaded text="${preloaded}"`);
+      preloadedText = preloaded;
+    }
   }
 
   // Suspend for text input
@@ -225,6 +253,7 @@ function sread(
     parseBuffer,
     time,
     routine,
+    preloadedText,
   });
 }
 
@@ -247,7 +276,7 @@ function sound_effect(
   const repeats = rawRepeats === 0xff ? -1 : rawRepeats || 1;
 
   machine.logger.debug(
-    `${machine.executor.op_pc.toString(16)} sound_effect ${number} effect=${effect} vol=${volume} repeats=${repeats}`
+    `${getSafePcHex(machine)} sound_effect ${number} effect=${effect} vol=${volume} repeats=${repeats}`
   );
 
   try {
@@ -279,7 +308,7 @@ function read_char(
 ): void {
   const resultVar = machine.state.readByte();
 
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} read_char ${device} ${time} ${routine}`);
+  machine.logger.debug(`${getSafePcHex(machine)} read_char ${device} ${time} ${routine}`);
 
   // Suspend for key input
   throw new SuspendState({
@@ -293,7 +322,7 @@ function read_char(
 function get_wind_prop(machine: ZMachine, _operandTypes: OperandType[], window: number, property: number): void {
   const resultVar = machine.state.readByte();
 
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} get_wind_prop ${window} ${property} -> (${resultVar})`);
+  machine.logger.debug(`${getSafePcHex(machine)} get_wind_prop ${window} ${property} -> (${resultVar})`);
 
   // Get the property value from the window
   let value = 0;
@@ -330,7 +359,7 @@ function get_wind_prop(machine: ZMachine, _operandTypes: OperandType[], window: 
 function set_font(machine: ZMachine, _operandTypes: OperandType[], font: number, window: number = -3): void {
   const resultVar = machine.state.readByte();
 
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} set_font ${font} ${window}`);
+  machine.logger.debug(`${getSafePcHex(machine)} set_font ${font} ${window}`);
 
   // Check if window parameter is valid for the current version
   if (window !== -3 && machine.state.version < 6) {
@@ -383,7 +412,7 @@ function buffer_screen(machine: ZMachine, _operandTypes: OperandType[], mode: nu
   // Get current buffer mode to return as the result
   const currentMode = machine.screen.getBufferMode(machine);
 
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} buffer_screen ${mode} -> (${resultVar})`);
+  machine.logger.debug(`${getSafePcHex(machine)} buffer_screen ${mode} -> (${resultVar})`);
 
   if (mode === -1) {
     // Force immediate update without changing buffer state
@@ -426,9 +455,7 @@ function set_colour(
     targetWindow = machine.screen.getOutputWindow(machine);
   }
 
-  machine.logger.debug(
-    `${machine.executor.op_pc.toString(16)} set_colour ${foreground} ${background} -> window ${targetWindow}`
-  );
+  machine.logger.debug(`${getSafePcHex(machine)} set_colour ${foreground} ${background} -> window ${targetWindow}`);
 
   if (machine.state.version === 6) {
     if (!handleTransparency(machine, foreground, background)) {
@@ -499,7 +526,7 @@ function set_true_colour(
   // -3 = color under cursor (V6 only)
   // -4 = transparent (V6 only)
 
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} set_true_colour ${foreground} ${background} ${window}`);
+  machine.logger.debug(`${getSafePcHex(machine)} set_true_colour ${foreground} ${background} ${window}`);
 
   // Check that windows parameter is only used in V6
   if (window !== -3 && machine.state.version < 6) {
@@ -587,7 +614,7 @@ function set_margins(
   right: number,
   window?: number
 ): void {
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} set_margins ${left} ${right} ${window ?? 'current'}`);
+  machine.logger.debug(`${getSafePcHex(machine)} set_margins ${left} ${right} ${window ?? 'current'}`);
 
   if (machine.state.version < 5) {
     machine.logger.warn('set_margins only supported in V5+');
@@ -600,7 +627,7 @@ function set_margins(
 }
 
 function move_window(machine: ZMachine, _operandTypes: OperandType[], window: number, y: number, x: number): void {
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} move_window ${window} ${y} ${x}`);
+  machine.logger.debug(`${getSafePcHex(machine)} move_window ${window} ${y} ${x}`);
 
   if (machine.state.version < 6) {
     machine.logger.warn('move_window only supported in V6');
@@ -619,7 +646,7 @@ function window_size(
   height: number,
   width: number
 ): void {
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} window_size ${window} ${height} ${width}`);
+  machine.logger.debug(`${getSafePcHex(machine)} window_size ${window} ${height} ${width}`);
 
   if (machine.state.version < 6) {
     machine.logger.warn('window_size only supported in V6');
@@ -638,7 +665,7 @@ function window_style(
   flags: number,
   operation: number = 0
 ): void {
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} window_style ${window} ${flags} ${operation}`);
+  machine.logger.debug(`${getSafePcHex(machine)} window_style ${window} ${flags} ${operation}`);
 
   if (machine.state.version < 6) {
     machine.logger.warn('window_style only supported in V6');
@@ -651,7 +678,7 @@ function window_style(
 }
 
 function read_mouse(machine: ZMachine, _operandTypes: OperandType[], array: number): void {
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} read_mouse ${array.toString(16)}`);
+  machine.logger.debug(`${getSafePcHex(machine)} read_mouse ${array.toString(16)}`);
 
   if (machine.state.version < 6) {
     machine.logger.warn('read_mouse only supported in V6');
@@ -670,7 +697,7 @@ function read_mouse(machine: ZMachine, _operandTypes: OperandType[], array: numb
 }
 
 function mouse_window(machine: ZMachine, _operandTypes: OperandType[], window: number): void {
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} mouse_window ${window}`);
+  machine.logger.debug(`${getSafePcHex(machine)} mouse_window ${window}`);
 
   if (machine.state.version < 6) {
     machine.logger.warn('mouse_window only supported in V6');
@@ -683,7 +710,7 @@ function mouse_window(machine: ZMachine, _operandTypes: OperandType[], window: n
 }
 
 function make_menu(machine: ZMachine, _operandTypes: OperandType[], _menu: number, _table: number): void {
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} make_menu ${_menu} ${_table}`);
+  machine.logger.debug(`${getSafePcHex(machine)} make_menu ${_menu} ${_table}`);
 
   // Not implemented even by Infocom's Mac interpreter (always branches false)
   const [offset, branchOnFalse] = machine.state.readBranchOffset();
@@ -691,7 +718,7 @@ function make_menu(machine: ZMachine, _operandTypes: OperandType[], _menu: numbe
 }
 
 function scroll_window(machine: ZMachine, _operandTypes: OperandType[], window: number, lines: number = 1): void {
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} scroll_window ${window} ${lines}`);
+  machine.logger.debug(`${getSafePcHex(machine)} scroll_window ${window} ${lines}`);
 
   if (machine.state.version < 6) {
     machine.logger.warn('scroll_window only supported in V6');
@@ -710,7 +737,7 @@ function put_wind_prop(
   property: number,
   value: number
 ): void {
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} put_wind_prop ${window} ${property} ${value}`);
+  machine.logger.debug(`${getSafePcHex(machine)} put_wind_prop ${window} ${property} ${value}`);
 
   if (machine.state.version < 6) {
     machine.logger.warn('put_wind_prop only supported in V6');

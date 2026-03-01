@@ -29,19 +29,26 @@ import { GameObject } from '../objects/GameObject';
 import { opcode } from './base';
 
 /**
+ * Helper to safely get PC hex representation
+ * op_pc may not be initialized in some execution contexts (e.g., when called from other opcodes)
+ */
+function getSafePcHex(machine: ZMachine): string {
+  const pc = machine.executor?.op_pc ?? machine.state.pc;
+  return typeof pc === 'number' ? pc.toString(16) : '0';
+}
+
+/**
  * Tests if an object has a specific attribute set.
  */
 function test_attr(machine: ZMachine, _operandTypes: OperandType[], obj: number, attribute: number): void {
   const [offset, branchOnFalse] = machine.state.readBranchOffset();
   machine.logger.debug(
-    `${machine.executor.op_pc.toString(16)} test_attr ${obj} ${attribute} -> [${!branchOnFalse}] ${
-      machine.state.pc + offset - 2
-    }`
+    `${getSafePcHex(machine)} test_attr ${obj} ${attribute} -> [${!branchOnFalse}] ${machine.state.pc + offset - 2}`
   );
 
   const maxAttributes = machine.state.version <= 3 ? MAX_ATTRIBUTES_V3 : MAX_ATTRIBUTES_V4;
   if (attribute < 0 || attribute >= maxAttributes) {
-    const pc = machine.executor.op_pc;
+    const pc = machine.executor?.op_pc ?? machine.state.pc;
     machine.logger.error(`INVALID ATTRIBUTE: PC=${hex(pc)}, obj=${obj}, attr=${attribute}`);
 
     // Dump 16 bytes before and after the PC
@@ -76,7 +83,7 @@ function test_attr(machine: ZMachine, _operandTypes: OperandType[], obj: number,
  * Sets an attribute for an object.
  */
 function set_attr(machine: ZMachine, _operandTypes: OperandType[], obj: number, attribute: number): void {
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} set_attr ${obj} ${attribute}`);
+  machine.logger.debug(`${getSafePcHex(machine)} set_attr ${obj} ${attribute}`);
 
   const targetObj = machine.state.getObject(obj);
   if (targetObj === null) {
@@ -90,7 +97,7 @@ function set_attr(machine: ZMachine, _operandTypes: OperandType[], obj: number, 
  * Clears an attribute for an object.
  */
 function clear_attr(machine: ZMachine, _operandTypes: OperandType[], obj: number, attribute: number): void {
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} clear_attr ${obj} ${attribute}`);
+  machine.logger.debug(`${getSafePcHex(machine)} clear_attr ${obj} ${attribute}`);
 
   const targetObj = machine.state.getObject(obj);
   if (targetObj === null) {
@@ -106,7 +113,7 @@ function clear_attr(machine: ZMachine, _operandTypes: OperandType[], obj: number
 function jin(machine: ZMachine, _operandTypes: OperandType[], obj1: number, obj2: number): void {
   const [offset, branchOnFalse] = machine.state.readBranchOffset();
   machine.logger.debug(
-    `${machine.executor.op_pc.toString(16)} jin ${obj1} ${obj2} -> [${!branchOnFalse}] ${machine.state.pc + offset - 2}`
+    `${getSafePcHex(machine)} jin ${obj1} ${obj2} -> [${!branchOnFalse}] ${machine.state.pc + offset - 2}`
   );
 
   const o1 = machine.state.getObject(obj1);
@@ -123,7 +130,7 @@ function jin(machine: ZMachine, _operandTypes: OperandType[], obj1: number, obj2
  * Inserts an object into another object.
  */
 function insert_obj(machine: ZMachine, _operandTypes: OperandType[], obj: number, destination: number): void {
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} insert_obj ${obj} ${destination}`);
+  machine.logger.debug(`${getSafePcHex(machine)} insert_obj ${obj} ${destination}`);
 
   const targetObj = machine.state.getObject(obj);
   if (targetObj === null) {
@@ -153,7 +160,7 @@ function insert_obj(machine: ZMachine, _operandTypes: OperandType[], obj: number
  */
 function get_prop(machine: ZMachine, _operandTypes: OperandType[], obj: number, property: number): void {
   const resultVar = machine.state.readByte();
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} get_prop ${obj} ${property} -> (${resultVar})`);
+  machine.logger.debug(`${getSafePcHex(machine)} get_prop ${obj} ${property} -> (${resultVar})`);
 
   const targetObj = machine.state.getObject(obj);
   if (targetObj === null) {
@@ -170,7 +177,7 @@ function get_prop(machine: ZMachine, _operandTypes: OperandType[], obj: number, 
  */
 function get_prop_addr(machine: ZMachine, _operandTypes: OperandType[], obj: number, property: number): void {
   const resultVar = machine.state.readByte();
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} get_prop_addr ${obj} ${property} -> (${resultVar})`);
+  machine.logger.debug(`${getSafePcHex(machine)} get_prop_addr ${obj} ${property} -> (${resultVar})`);
 
   const targetObj = machine.state.getObject(obj);
   if (targetObj === null) {
@@ -187,7 +194,7 @@ function get_prop_addr(machine: ZMachine, _operandTypes: OperandType[], obj: num
  */
 function get_next_prop(machine: ZMachine, _operandTypes: OperandType[], obj: number, property: number): void {
   const resultVar = machine.state.readByte();
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} get_next_prop ${obj} ${property} -> (${resultVar})`);
+  machine.logger.debug(`${getSafePcHex(machine)} get_next_prop ${obj} ${property} -> (${resultVar})`);
 
   const targetObj = machine.state.getObject(obj);
   if (targetObj === null) {
@@ -205,9 +212,7 @@ function get_next_prop(machine: ZMachine, _operandTypes: OperandType[], obj: num
 function get_sibling(machine: ZMachine, _operandTypes: OperandType[], obj: number): void {
   const resultVar = machine.state.readByte();
   const [offset, branchOnFalse] = machine.state.readBranchOffset();
-  machine.logger.debug(
-    `${machine.executor.op_pc.toString(16)} get_sibling ${obj} -> (${resultVar}) ?[${!branchOnFalse}] ${offset}`
-  );
+  machine.logger.debug(`${getSafePcHex(machine)} get_sibling ${obj} -> (${resultVar}) ?[${!branchOnFalse}] ${offset}`);
 
   const targetObj = machine.state.getObject(obj);
   let sibling: GameObject | null = null;
@@ -229,9 +234,7 @@ function get_sibling(machine: ZMachine, _operandTypes: OperandType[], obj: numbe
 function get_child(machine: ZMachine, _operandTypes: OperandType[], obj: number): void {
   const resultVar = machine.state.readByte();
   const [offset, branchOnFalse] = machine.state.readBranchOffset();
-  machine.logger.debug(
-    `${machine.executor.op_pc.toString(16)} get_child ${obj} -> (${resultVar}) ?[${!branchOnFalse}] ${offset}`
-  );
+  machine.logger.debug(`${getSafePcHex(machine)} get_child ${obj} -> (${resultVar}) ?[${!branchOnFalse}] ${offset}`);
 
   const targetObj = machine.state.getObject(obj);
   if (targetObj === null) {
@@ -251,7 +254,7 @@ function get_child(machine: ZMachine, _operandTypes: OperandType[], obj: number)
  */
 function get_parent(machine: ZMachine, _operandTypes: OperandType[], obj: number): void {
   const resultVar = machine.state.readByte();
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} get_parent ${obj} -> (${resultVar})`);
+  machine.logger.debug(`${getSafePcHex(machine)} get_parent ${obj} -> (${resultVar})`);
 
   const targetObj = machine.state.getObject(obj);
   if (targetObj === null) {
@@ -268,7 +271,7 @@ function get_parent(machine: ZMachine, _operandTypes: OperandType[], obj: number
  * Removes an object from its parent.
  */
 function remove_obj(machine: ZMachine, _operandTypes: OperandType[], obj: number): void {
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} remove_obj ${obj}`);
+  machine.logger.debug(`${getSafePcHex(machine)} remove_obj ${obj}`);
 
   const targetObj = machine.state.getObject(obj);
   if (targetObj === null) {
@@ -299,7 +302,7 @@ function put_prop(machine: ZMachine, _operandTypes: OperandType[], obj: number, 
  */
 function get_prop_len(machine: ZMachine, _operandTypes: OperandType[], propDataAddr: number): void {
   const resultVar = machine.state.readByte();
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} get_prop_len ${propDataAddr} -> (${resultVar})`);
+  machine.logger.debug(`${getSafePcHex(machine)} get_prop_len ${propDataAddr} -> (${resultVar})`);
 
   const len = GameObject.getPropertyLength(machine.state.memory, machine.state.version, propDataAddr);
   machine.state.storeVariable(resultVar, len);
@@ -309,7 +312,7 @@ function get_prop_len(machine: ZMachine, _operandTypes: OperandType[], propDataA
  * Prints the name of an object.
  */
 function print_obj(machine: ZMachine, _operandTypes: OperandType[], obj: number): void {
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} print_obj ${obj}`);
+  machine.logger.debug(`${getSafePcHex(machine)} print_obj ${obj}`);
 
   const targetObj = machine.state.getObject(obj);
   if (targetObj === null) {

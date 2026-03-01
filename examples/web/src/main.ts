@@ -110,8 +110,7 @@ function setupGame(
       pictureRenderer: async (resourceId, data, format, x, y, scale) => {
         await pictureRenderer.displayPicture(resourceId, data, format, x, y, scale);
       },
-      pictureEraser: (resourceId) =>
-        pictureRenderer.erasePicture(resourceId, webScreen.getBackgroundColor(0)),
+      pictureEraser: (resourceId) => pictureRenderer.erasePicture(resourceId, webScreen.getBackgroundColor(0)),
       soundPlayer: (resourceId, data, format, volume, repeats) =>
         soundPlayer.playSound(resourceId, data, format, volume, repeats),
     });
@@ -161,7 +160,7 @@ function setupGame(
 }
 
 function findCompanionBlorb(files: File[]): { story: File; blorb: File } | null {
-  const storyExt = ['.z3', '.z5', '.z8'];
+  const storyExt = ['.z1', '.z2', '.z3', '.z4', '.z5', '.z6', '.z7', '.z8'];
   const blorbExt = ['.blb', '.blorb'];
 
   for (const file of files) {
@@ -185,7 +184,7 @@ function findStoryAndBlorb(files: File[]): { story: File; blorb: File | null } |
   const pair = findCompanionBlorb(files);
   if (pair) return pair;
 
-  const storyExt = ['.z3', '.z5', '.z8'];
+  const storyExt = ['.z1', '.z2', '.z3', '.z4', '.z5', '.z6', '.z7', '.z8'];
   const story = files.find((f) => {
     const ext = f.name.includes('.') ? '.' + f.name.split('.').pop()?.toLowerCase() : '';
     return storyExt.includes(ext);
@@ -238,7 +237,7 @@ async function handleFileSelect(files: FileList | null): Promise<void> {
   } else {
     const result = findStoryAndBlorb(Array.from(files));
     if (!result) {
-      alert('No story file found. Please select a .z3, .z5, or .z8 file, or a folder containing one.');
+      alert('No story file found. Please select a .z1-.z8 story file, or a folder containing one.');
       return;
     }
 

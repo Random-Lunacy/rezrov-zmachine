@@ -65,6 +65,11 @@ export class StdioScreen extends BaseScreen {
       return; // Don't output to screen when memory stream is active
     }
 
+    // Respect output_stream -1: when screen output is disabled, drop the text
+    if (!this.isScreenOutputEnabled()) {
+      return;
+    }
+
     // Translate Font 3 characters to Unicode if Font 3 is active
     let textToDisplay = str;
     if (this.isCurrentFontFont3()) {
@@ -257,8 +262,8 @@ export class StdioScreen extends BaseScreen {
         case Color.Gray:
           return bg ? chalk.bgBlackBright(str) : chalk.gray(str);
         default:
-          this.logger.warn(`Unrecognized color: ${color}`);
-          return str;
+          // V5/V6 extended colors (e.g. 205) - map to white; terminal lacks full palette
+          return chalkedString(str, Color.White, bg);
       }
     };
 
@@ -349,14 +354,22 @@ export class StdioScreen extends BaseScreen {
     if (windowId === -1) {
       // Clear all windows - reset scroll region first
       process.stdout.write('\x1b[r');
-      process.stdout.cursorTo(0, 0);
-      process.stdout.clearScreenDown();
+      if (process.stdout.isTTY) {
+        process.stdout.cursorTo(0, 0);
+        process.stdout.clearScreenDown();
+      } else {
+        process.stdout.write('\x1b[2J\x1b[H');
+      }
     } else if (windowId === 0) {
       // Clear main window (lower window)
       // Position at start of lower window (within scroll region) and clear
       const startRow = this.upperWindowHeight; // 0-indexed for cursorTo
-      process.stdout.cursorTo(0, startRow);
-      process.stdout.clearScreenDown();
+      if (process.stdout.isTTY) {
+        process.stdout.cursorTo(0, startRow);
+        process.stdout.clearScreenDown();
+      } else {
+        process.stdout.write(`\x1b[${startRow + 1};1H\x1b[J`);
+      }
     } else if (windowId === 1) {
       // Clear upper window
       // Save cursor position

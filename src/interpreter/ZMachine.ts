@@ -271,14 +271,29 @@ export class ZMachine {
 
   /**
    * Start executing the story file
+   *
+   * V1-5: Word 0x06 contains the byte address of the first instruction; we jump there.
+   * V6-7: Word 0x06 contains the packed address of the main routine; we must call it
+   * (Z-spec 6.4), creating a stack frame so catch/throw work correctly.
    */
   execute(): void {
-    // Set the program counter to the initial PC from the header
-    this._state.pc = this._memory.getWord(HeaderLocation.InitialPC);
+    if (this._state.version >= 6) {
+      const packedMain = this._memory.getWord(HeaderLocation.InitialPC);
+      const mainAddr = this._memory.unpackRoutineAddress(packedMain);
+      this._state.callRoutine(mainAddr, null);
+    } else {
+      this._state.pc = this._memory.getWord(HeaderLocation.InitialPC);
+    }
 
     // Start execution
     this._executor.executeLoop().catch((error) => {
+      const msg = error instanceof Error ? error.message : String(error);
       this._logger.error(`Execution error: ${error}`);
+      try {
+        this._screen.print(this, `\n\n*** Fatal error: ${msg} ***\n[Game has halted. Please restart.]\n`);
+      } catch {
+        // If printing fails, the error is already logged above
+      }
     });
   }
 
@@ -593,8 +608,14 @@ export class ZMachine {
     // This must be done after restoring memory to ensure header is properly initialized
     this.configureScreenCapabilities();
 
-    // Reset the program counter to the initial PC from the (now restored) header
-    this._state.pc = this._memory.getWord(HeaderLocation.InitialPC);
+    // Reset execution start: V6-7 call main routine; V1-5 jump to initial PC
+    if (this._state.version >= 6) {
+      const packedMain = this._memory.getWord(HeaderLocation.InitialPC);
+      const mainAddr = this._memory.unpackRoutineAddress(packedMain);
+      this._state.callRoutine(mainAddr, null);
+    } else {
+      this._state.pc = this._memory.getWord(HeaderLocation.InitialPC);
+    }
 
     // Reset object factory cache to clear any cached object state
     if (this._state['_objectFactory'] && typeof this._state['_objectFactory'].resetCache === 'function') {
@@ -612,7 +633,13 @@ export class ZMachine {
 
       // Start fresh execution
       this._executor.executeLoop().catch((error) => {
+        const msg = error instanceof Error ? error.message : String(error);
         this._logger.error(`Error during restart execution: ${error}`);
+        try {
+          this._screen.print(this, `\n\n*** Fatal error: ${msg} ***\n[Game has halted. Please restart.]\n`);
+        } catch {
+          // If printing fails, the error is already logged above
+        }
       });
     });
   }

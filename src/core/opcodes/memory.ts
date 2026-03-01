@@ -18,6 +18,15 @@ import { toI16 } from '../memory/cast16';
 import { opcode } from './base';
 
 /**
+ * Helper to safely get PC hex representation
+ * op_pc may not be initialized in some execution contexts (e.g., when called from other opcodes)
+ */
+function getSafePcHex(machine: ZMachine): string {
+  const pc = machine.executor?.op_pc ?? machine.state.pc;
+  return typeof pc === 'number' ? pc.toString(16) : '0';
+}
+
+/**
  * Copy a region of memory
  */
 function copy_table(
@@ -112,7 +121,7 @@ function scan_table(
  */
 function loadw(machine: ZMachine, _operandTypes: OperandType[], array: number, wordIndex: number): void {
   const resultVar = machine.state.readByte();
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} loadw ${array} ${wordIndex} -> (${resultVar})`);
+  machine.logger.debug(`${getSafePcHex(machine)} loadw ${array} ${wordIndex} -> (${resultVar})`);
 
   const address = (array + 2 * wordIndex) & 0xffff;
   machine.state.storeVariable(resultVar, machine.memory.getWord(address));
@@ -123,7 +132,7 @@ function loadw(machine: ZMachine, _operandTypes: OperandType[], array: number, w
  */
 function loadb(machine: ZMachine, _operandTypes: OperandType[], array: number, byteIndex: number): void {
   const resultVar = machine.state.readByte();
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} loadb ${array} ${byteIndex} -> (${resultVar})`);
+  machine.logger.debug(`${getSafePcHex(machine)} loadb ${array} ${byteIndex} -> (${resultVar})`);
 
   const address = (array + byteIndex) & 0xffff;
   machine.state.storeVariable(resultVar, machine.memory.getByte(address));
@@ -139,7 +148,7 @@ function storew(
   wordIndex: number,
   value: number
 ): void {
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} storew ${array} ${wordIndex} ${value}`);
+  machine.logger.debug(`${getSafePcHex(machine)} storew ${array} ${wordIndex} ${value}`);
 
   const address = (array + 2 * wordIndex) & 0xffff;
   machine.memory.setWord(address, value);
@@ -155,7 +164,7 @@ function storeb(
   byteIndex: number,
   value: number
 ): void {
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} storeb ${array} ${byteIndex} ${value}`);
+  machine.logger.debug(`${getSafePcHex(machine)} storeb ${array} ${byteIndex} ${value}`);
 
   const address = (array + byteIndex) & 0xffff;
   machine.memory.setByte(address, value & 0xff);

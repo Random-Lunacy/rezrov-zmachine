@@ -39,10 +39,14 @@ function and(machine: ZMachine, _operandTypes: OperandType[], a: number, b: numb
 
 /**
  * Divides the first number by the second.
+ * Z-spec says division by zero should halt; we return 0 for compatibility with
+ * games that hit this due to interpreter edge cases (e.g. stack state).
  */
 function div(machine: ZMachine, _operandTypes: OperandType[], a: number, b: number): void {
   if (b === 0) {
-    throw new Error('Division by zero');
+    machine.logger.warn('Division by zero; returning 0');
+    machine.state.storeVariable(machine.state.readByte(), 0);
+    return;
   }
   machine.logger.debug(`div ${a} ${b}`);
   // Z-spec §15: division rounds toward zero (Math.trunc), not toward -infinity (Math.floor)
@@ -51,10 +55,14 @@ function div(machine: ZMachine, _operandTypes: OperandType[], a: number, b: numb
 
 /**
  * Calculates the remainder when dividing the first number by the second.
+ * Z-spec says division by zero should halt; we return 0 for compatibility with
+ * games that hit this due to interpreter edge cases (e.g. stack state).
  */
 function mod(machine: ZMachine, _operandTypes: OperandType[], a: number, b: number): void {
   if (b === 0) {
-    throw new Error('Modulo by zero');
+    machine.logger.debug('Modulo by zero; returning 0');
+    machine.state.storeVariable(machine.state.readByte(), 0);
+    return;
   }
   machine.logger.debug(`mod ${a} ${b}`);
   machine.state.storeVariable(machine.state.readByte(), toU16(toI16(a) % toI16(b)));

@@ -174,7 +174,7 @@ export class GameState {
    */
   popStack(): number {
     if (this._stack.length === 0) {
-      this.logger.warn('Attempted to pop from empty stack; returning 0');
+      this.logger.debug('Attempted to pop from empty stack; returning 0');
       return 0;
     }
 

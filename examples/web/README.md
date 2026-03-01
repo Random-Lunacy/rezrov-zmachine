@@ -32,7 +32,7 @@ npm run preview
 
 **Single file:** Use the "Load story" file input to select:
 
-- A raw story file (`.z3`, `.z5`, `.z8`)
+- A raw story file (`.z1` through `.z8`)
 - A self-contained Blorb file (`.blb`) containing the story + pictures/sound
 
 **Companion Blorb:** Use the "Or folder" input to select a directory containing both:

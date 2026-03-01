@@ -23,6 +23,15 @@ import { toI16 } from '../memory/cast16';
 import { opcode } from './base';
 
 /**
+ * Helper to safely get PC hex representation
+ * op_pc may not be initialized in some execution contexts (e.g., when called from other opcodes)
+ */
+function getSafePcHex(machine: ZMachine): string {
+  const pc = machine.executor?.op_pc ?? machine.state.pc;
+  return typeof pc === 'number' ? pc.toString(16) : '0';
+}
+
+/**
  * Print the string at the given address
  */
 function print_addr(machine: ZMachine, _operandTypes: OperandType[], stringAddr: number): void {
@@ -190,7 +199,7 @@ function check_unicode(machine: ZMachine, _operandTypes: OperandType[], charCode
 }
 
 function print_form(machine: ZMachine, _operandTypes: OperandType[], address: number): void {
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} print_form ${address.toString(16)}`);
+  machine.logger.debug(`${getSafePcHex(machine)} print_form ${address.toString(16)}`);
 
   if (machine.state.version < 6) {
     machine.logger.warn('print_form only supported in V6');
