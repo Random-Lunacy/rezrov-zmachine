@@ -85,34 +85,50 @@ describe('Stack Opcodes', () => {
       // Assert
       expect(mockMachine.state.popStack).toHaveBeenCalled();
       expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(variable, stackValue);
-      expect(mockMachine.logger.debug).toHaveBeenCalledWith(`1234 pull ${variable} `);
+      expect(mockMachine.logger.debug).toHaveBeenCalledWith(`1234 pull ${variable}`);
     });
 
     it('should pull a value from a user stack in V6', () => {
-      // Arrange
-      const variable = 3;
+      // Arrange: in V6, first operand IS the user stack address; result var comes from readByte()
       const stackAddr = 0x2000;
-      const stackValue = 42;
+      const resultVar = 42; // readByte() returns 42 in mock setup
+      const stackValue = 42; // pullStack() returns 42 in mock setup
       mockMachine.state.version = 6;
 
       // Act
-      stackOpcodes.pull.impl(machine, [], variable, stackAddr);
+      stackOpcodes.pull.impl(machine, [], stackAddr);
 
       // Assert
+      expect(mockMachine.state.readByte).toHaveBeenCalled(); // reads result variable from bytecode
       expect(mockMachine.getUserStackManager).toHaveBeenCalled();
       expect(mockUserStackManager.pullStack).toHaveBeenCalledWith(stackAddr);
-      expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(variable, stackValue);
-      expect(mockMachine.logger.debug).toHaveBeenCalledWith(`1234 pull ${variable} ${stackAddr}`);
+      expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(resultVar, stackValue);
+      expect(mockMachine.logger.debug).toHaveBeenCalledWith(`1234 pull (0x${stackAddr.toString(16)}) -> (${resultVar}) = ${stackValue}`);
     });
 
-    it('should ignore stackAddr if not V6', () => {
+    it('should pull from game stack when user stack address is 0 in V6', () => {
+      // Arrange: user stack address 0 means use the game stack
+      const resultVar = 42; // readByte() returns 42 in mock setup
+      const stackValue = 99; // popStack() returns 99 in mock setup
+      mockMachine.state.version = 6;
+
+      // Act
+      stackOpcodes.pull.impl(machine, [], 0);
+
+      // Assert
+      expect(mockMachine.state.readByte).toHaveBeenCalled();
+      expect(mockMachine.getUserStackManager).not.toHaveBeenCalled();
+      expect(mockMachine.state.popStack).toHaveBeenCalled();
+      expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(resultVar, stackValue);
+    });
+
+    it('should ignore extra args and use game stack in V1-V5', () => {
       // Arrange
       const variable = 3;
-      const stackAddr = 0x2000;
       mockMachine.state.version = 5;
 
       // Act
-      stackOpcodes.pull.impl(machine, [], variable, stackAddr);
+      stackOpcodes.pull.impl(machine, [], variable);
 
       // Assert
       expect(mockMachine.getUserStackManager).not.toHaveBeenCalled();
@@ -120,19 +136,18 @@ describe('Stack Opcodes', () => {
       expect(mockMachine.state.popStack).toHaveBeenCalled();
     });
 
-    it('should throw error when user stack is empty', () => {
-      // Arrange
-      const variable = 3;
+    it('should throw error when user stack is empty in V6', () => {
+      // Arrange: in V6, first operand is user stack address
       const stackAddr = 0x2000;
       mockMachine.state.version = 6;
       mockUserStackManager.pullStack.mockReturnValue(undefined);
 
       // Act & Assert
       expect(() => {
-        stackOpcodes.pull.impl(machine, [], variable, stackAddr);
-      }).toThrow('User stack underflow at address 8192');
+        stackOpcodes.pull.impl(machine, [], stackAddr);
+      }).toThrow('User stack underflow at address 0x2000');
 
-      // Verify the user stack manager was called
+      // Verify the user stack manager was called with the stack address
       expect(mockUserStackManager.pullStack).toHaveBeenCalledWith(stackAddr);
 
       // Verify storeVariable was NOT called since we threw an error
@@ -564,6 +579,15 @@ describe('Stack Opcodes', () => {
       });
     });
 
+    it('should pop and discard when called with no operand in V1-V5', () => {
+      // This handles the 0-operand encoding edge case in V1-V5 (undefined variableRef)
+      mockMachine.state.version = 5;
+      stackOpcodes.pull.impl(machine, []);
+
+      expect(mockMachine.state.popStack).toHaveBeenCalled();
+      expect(mockMachine.state.storeVariable).not.toHaveBeenCalled();
+    });
+
     describe('pull indirect', () => {
       it('should throw error for indirect pull with stack pointer as target', () => {
         // Variable 6 contains 0 (stack pointer) - logical impossibility
@@ -579,7 +603,7 @@ describe('Stack Opcodes', () => {
         expect(mockMachine.state.loadVariable).toHaveBeenCalledWith(5); // Get target (10)
         expect(mockMachine.state.popStack).toHaveBeenCalled();
         expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(10, 99);
-        expect(mockMachine.logger.debug).toHaveBeenCalledWith('1234 pull (5) ');
+        expect(mockMachine.logger.debug).toHaveBeenCalledWith('1234 pull (5)');
       });
     });
 
@@ -637,6 +661,14 @@ describe('Stack Opcodes', () => {
         expect(mockMachine.state.stack).toEqual([99, 87]);
         expect(mockMachine.logger.debug).toHaveBeenCalledWith('1234 dec (6) 88 (stack top in place)');
       });
+
+      it('should throw error for indirect stack pointer decrement when stack empty', () => {
+        mockMachine.state.stack = [];
+
+        expect(() => {
+          stackOpcodes.dec.impl(machine, [OperandType.Variable], 6);
+        }).toThrow('Illegal operation: indirect decrement of stack pointer when stack is empty');
+      });
     });
 
     describe('inc_chk indirect', () => {
@@ -662,6 +694,14 @@ describe('Stack Opcodes', () => {
         expect(mockMachine.state.doBranch).toHaveBeenCalledWith(true, false, 10); // 6 > 3 = true
         expect(mockMachine.logger.debug).toHaveBeenCalledWith('1234 inc_chk (6) 5 > 3 = true (stack top in place)');
       });
+
+      it('should throw error for indirect stack pointer inc_chk when stack empty', () => {
+        mockMachine.state.stack = [];
+
+        expect(() => {
+          stackOpcodes.inc_chk.impl(machine, [OperandType.Variable], 6, 3);
+        }).toThrow('Illegal operation: indirect inc_chk of stack pointer when stack is empty');
+      });
     });
 
     describe('dec_chk indirect', () => {
@@ -686,6 +726,14 @@ describe('Stack Opcodes', () => {
         expect(mockMachine.state.stack).toEqual([99, 4]);
         expect(mockMachine.state.doBranch).toHaveBeenCalledWith(true, false, 10); // 4 < 7 = true
         expect(mockMachine.logger.debug).toHaveBeenCalledWith('1234 dec_chk (6) 5 < 7 = true (stack top in place)');
+      });
+
+      it('should throw error for indirect stack pointer dec_chk when stack empty', () => {
+        mockMachine.state.stack = [];
+
+        expect(() => {
+          stackOpcodes.dec_chk.impl(machine, [OperandType.Variable], 6, 7);
+        }).toThrow('Illegal operation: indirect dec_chk of stack pointer when stack is empty');
       });
     });
   });

@@ -3,7 +3,7 @@
  */
 import { ZMachine } from '../../interpreter/ZMachine';
 import { OperandType } from '../../types';
-import { Opcode, unimplementedOpcode } from './base';
+import { Opcode, opcode, unimplementedOpcode } from './base';
 import { callOpcodes } from './call';
 import { controlOpcodes } from './control';
 import { gameOpcodes } from './game';
@@ -98,6 +98,8 @@ op1[15] = {
 
 // Fill Two operand opcode array
 const op2: Array<Opcode> = new Array(32).fill(unimplementedOpcode('illegal_2OP'));
+// 2OP:0 is undefined in the standard but Infocom V6 games (e.g. Zork Zero) use it as je
+op2[0] = allOpcodes.je;
 op2[1] = allOpcodes.je;
 op2[2] = allOpcodes.jl;
 op2[3] = allOpcodes.jg;
@@ -126,6 +128,17 @@ op2[25] = allOpcodes.call_2s;
 op2[26] = allOpcodes.call_2n;
 op2[27] = allOpcodes.set_colour;
 op2[28] = allOpcodes.Throw; // 'throw' is a reserved word
+// 2OP:29-31 are undefined in the standard; Infocom V6 games (e.g. Zork Zero) use them.
+// Stub as no-op to allow execution to continue until proper semantics are documented.
+op2[29] = opcode('2OP:29_stub', (machine, _types, _a, _b) => {
+  machine.logger.debug('2OP:29 (undefined in Z-spec) - no-op stub');
+});
+op2[30] = opcode('2OP:30_stub', (machine, _types, _a, _b) => {
+  machine.logger.debug('2OP:30 (undefined in Z-spec) - no-op stub');
+});
+op2[31] = opcode('2OP:31_stub', (machine, _types, _a, _b) => {
+  machine.logger.debug('2OP:31 (undefined in Z-spec) - no-op stub');
+});
 
 // Fill Variable operand opcode array
 const opv: Array<Opcode> = new Array(32).fill(unimplementedOpcode('illegal_VAR'));

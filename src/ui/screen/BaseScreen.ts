@@ -30,6 +30,10 @@ export class BaseScreen implements Screen {
   // Output stream 3 (memory stream) state - can be nested up to 16 levels
   protected memoryStreamStack: Array<{ table: number; width: number }> = [];
 
+  // Output stream 1 (screen) enable/disable state.
+  // output_stream -1 disables the screen; output_stream 1 re-enables it.
+  protected screenOutputEnabled: boolean = true;
+
   // Upper window buffer for V5+ games that write directly using cursor positioning
   // Stores characters at specific positions, one string per line
   protected upperWindowBuffer: string[] = [];
@@ -374,13 +378,13 @@ export class BaseScreen implements Screen {
     const version = machine.state.version;
 
     if (windowId !== WindowType.Upper) {
-      this.logger.warn(`${this.id} setCursorPosition only works in upper window`);
+      this.logger.debug(`${this.id} setCursorPosition only works in upper window`);
       return;
     }
 
     // Basic sanity: coordinates must be positive
     if (line < 1 || column < 1) {
-      this.logger.warn(`${this.id} setCursorPosition: invalid position (${line}, ${column})`);
+      this.logger.debug(`${this.id} setCursorPosition: invalid position (${line}, ${column})`);
       return;
     }
 
@@ -462,20 +466,27 @@ export class BaseScreen implements Screen {
   enableOutputStream(machine: ZMachine, streamId: number, table: number, width: number): void {
     this.logger.debug(`${this.id} enableOutputStream streamId=${streamId} table=${table} width=${width}`);
 
-    if (streamId === 3) {
+    if (streamId === 1) {
+      // Re-enable screen output (Z-spec §8.7.3)
+      this.screenOutputEnabled = true;
+    } else if (streamId === 3) {
       // Memory stream - push table address onto stack
       // Initialize the length word to 0
       machine.memory.setWord(table, 0);
       this.memoryStreamStack.push({ table, width });
       this.logger.debug(`Memory stream enabled, stack depth: ${this.memoryStreamStack.length}`);
     }
-    // Other streams (1, 2, 4) are handled by subclasses or ignored
+    // Streams 2 and 4 are handled by subclasses or ignored
   }
 
   disableOutputStream(machine: ZMachine, streamId: number, table: number, width: number): void {
     this.logger.debug(`${this.id} disableOutputStream streamId=${streamId}`);
 
-    if (streamId === 3) {
+    if (streamId === 1) {
+      // Disable screen output (Z-spec §8.7.3)
+      // Per spec: disabling stream 1 is discouraged but legal
+      this.screenOutputEnabled = false;
+    } else if (streamId === 3) {
       // Memory stream - pop from stack
       if (this.memoryStreamStack.length > 0) {
         this.memoryStreamStack.pop();
@@ -484,7 +495,7 @@ export class BaseScreen implements Screen {
         this.logger.warn('Attempted to disable memory stream when none was active');
       }
     }
-    // Other streams handled by subclasses or ignored
+    // Streams 2 and 4 are handled by subclasses or ignored
   }
 
   /**
@@ -492,6 +503,15 @@ export class BaseScreen implements Screen {
    */
   isMemoryStreamActive(): boolean {
     return this.memoryStreamStack.length > 0;
+  }
+
+  /**
+   * Check if screen output (stream 1) is currently enabled.
+   * Games can disable the screen via output_stream -1 to suppress
+   * screen output while writing to other streams (e.g., transcript).
+   */
+  isScreenOutputEnabled(): boolean {
+    return this.screenOutputEnabled;
   }
 
   /**

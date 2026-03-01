@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Z-Machine Interpreter</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 0;
+        background: #1a1a1a;
+        color: #e0e0e0;
+        font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+        font-size: 16px;
+        line-height: 1.4;
+      }
+      #app {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 1rem;
+      }
+      #load-section {
+        margin-bottom: 1.5rem;
+      }
+      #load-section input[type='file'] {
+        margin-right: 0.5rem;
+      }
+      #load-section label {
+        display: inline-block;
+        margin-right: 1rem;
+        cursor: pointer;
+      }
+      #load-section select {
+        margin-left: 0.5rem;
+        padding: 0.25rem;
+      }
+      #game-container {
+        position: relative;
+        background: #0a0a0a;
+        border: 1px solid #333;
+        border-radius: 0;
+        overflow: hidden;
+      }
+      #status-bar {
+        background: #0a0a0a;
+        color: #fff;
+        border-bottom: 1px solid #333;
+        min-height: 1em;
+        white-space: pre;
+        font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+        line-height: 1;
+        overflow: hidden;
+      }
+      #status-bar div {
+        white-space: pre;
+        line-height: 1;
+      }
+      #status-bar span {
+        line-height: 1;
+      }
+      #status-bar img {
+        display: inline-block;
+        vertical-align: top;
+        /* Prevent sub-pixel gaps/overlap that can make 1px borders disappear */
+        image-rendering: pixelated;
+        image-rendering: -moz-crisp-edges;
+        image-rendering: crisp-edges;
+      }
+      #main-content {
+        position: relative;
+        padding: 0.5rem 1rem 1rem;
+        min-height: 400px;
+        max-height: 70vh;
+        overflow-x: hidden;
+        overflow-y: auto;
+      }
+      #text-output {
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        margin: 0;
+        min-height: 200px;
+      }
+      #text-output span {
+        white-space: pre-wrap;
+      }
+      #game-container {
+        font-size: 16px;
+      }
+      #picture-layer {
+        position: absolute;
+        top: 0;
+        left: 0;
+        pointer-events: none;
+      }
+      #input-line {
+        display: flex;
+        align-items: center;
+        padding: 0.5rem 1rem;
+        background: #1a1a1a;
+        border-top: 1px solid #333;
+      }
+      #input-line span {
+        margin-right: 0.5rem;
+      }
+      #input-field {
+        flex: 1;
+        background: #0a0a0a;
+        color: #e0e0e0;
+        border: 1px solid #444;
+        padding: 0.25rem 0.5rem;
+        font-family: inherit;
+        font-size: inherit;
+        outline: none;
+      }
+      #input-field:focus {
+        border-color: #666;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <div id="load-section">
+        <label>
+          <span>Load story (.z1-.z8, .blorb): </span>
+          <input type="file" id="file-input" accept=".z1,.z2,.z3,.z4,.z5,.z6,.z7,.z8,.blb,.blorb" />
+        </label>
+        <label>
+          <span>Or folder (story + companion Blorb): </span>
+          <input type="file" id="dir-input" webkitdirectory directory multiple />
+        </label>
+        <label>
+          <span>Font size: </span>
+          <select id="font-size">
+            <option value="14">14px</option>
+            <option value="16" selected>16px</option>
+            <option value="18">18px</option>
+            <option value="20">20px</option>
+            <option value="24">24px</option>
+          </select>
+        </label>
+      </div>
+      <div id="game-container" style="display: none">
+        <div id="status-bar"></div>
+        <div id="main-content">
+          <div id="text-output"></div>
+          <canvas id="picture-layer"></canvas>
+        </div>
+        <div id="input-line">
+          <span>&gt;</span>
+          <input type="text" id="input-field" autocomplete="off" />
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

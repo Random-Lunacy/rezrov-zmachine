@@ -39,53 +39,68 @@ function pop(machine: ZMachine): void {
 
 /**
  * Pops a value from the stack and stores it in a variable.
- * If a stack address is provided, it uses the user stack.
- * If no stack address is provided, it uses the normal stack.
- * The value is stored in the variable specified by the operand.
- * If the variable is indirect, it points to a variable containing the target variable number.
- * If the variable is direct, it is the target variable.
- * If the variable is 0, it refers to the stack pointer. In this case, an error is thrown.
+ *
+ * V1-V5: pull variable
+ *   - Pops from game stack, stores in the named variable.
+ *   - The operand is the target variable number (or indirect variable reference).
+ *   - Variable 0 (stack pointer) as indirect target is an error.
+ *
+ * V6: pull (user-stack) → (result)
+ *   - A stored opcode: reads a result variable byte from the bytecode after the operands.
+ *   - The operand is the user stack address. If 0 or omitted, pops from the game stack instead.
+ *   - Note: the operand may be absent (types byte 0xFF) when the game stack is intended.
  */
-function pull(machine: ZMachine, operandTypes: OperandType[], variableRef: number, stackAddr?: number): void {
+function pull(machine: ZMachine, operandTypes: OperandType[], variableRef?: number): void {
+  // V6: completely different semantics — stored opcode, operand is user stack address
+  if (machine.state.version >= 6) {
+    const resultVar = machine.state.readByte();
+    let value: number;
+    // Treat undefined (no operand) and 0 the same: pop from game stack
+    if (variableRef) {
+      const pulledValue = machine.getUserStackManager().pullStack(variableRef);
+      if (pulledValue === undefined) {
+        throw new Error(`User stack underflow at address 0x${variableRef.toString(16)}`);
+      }
+      value = pulledValue;
+    } else {
+      value = machine.state.popStack();
+    }
+    machine.state.storeVariable(resultVar, value);
+    const pcHex = (machine.executor?.op_pc ?? machine.state.pc).toString(16);
+    const addrDisplay = variableRef ? `0x${variableRef.toString(16)}` : 'game-stack';
+    machine.logger.debug(`${pcHex} pull (${addrDisplay}) -> (${resultVar}) = ${value}`);
+    return;
+  }
+
+  // V1-V5: pop game stack, store in named variable (no result byte in bytecode)
+  if (variableRef === undefined) {
+    // No operand — this shouldn't happen in well-formed V1-V5 stories, but handle gracefully
+    machine.state.popStack();
+    return;
+  }
+
   const isIndirect = operandTypes[0] === OperandType.Variable;
   const varDisplay = isIndirect ? `(${variableRef})` : `${variableRef}`;
 
-  // Determine the target variable to store the pulled value
   let targetVariable: number;
 
   if (isIndirect) {
     targetVariable = machine.state.loadVariable(variableRef);
 
-    // Handle special stack pointer indirection case
+    // This creates a logical impossibility: we'd need to read the stack pointer
+    // to know where to store the value, but pulling changes the stack pointer itself.
     if (targetVariable === 0) {
-      // This creates a logical impossibility as described in the documentation:
-      // We'd need to read the stack pointer to know where to store the value,
-      // but pulling changes the stack pointer itself
       throw new Error('Illegal operation: indirect pull with stack pointer as target creates logical impossibility');
     }
   } else {
     targetVariable = variableRef;
   }
 
-  // Pull value from appropriate stack (consolidated logic)
-  let value: number;
-
-  if (machine.state.version >= 6 && stackAddr !== undefined) {
-    // V6+ user stack support
-    const pulledValue = machine.getUserStackManager().pullStack(stackAddr);
-    if (pulledValue === undefined) {
-      throw new Error(`User stack underflow at address ${stackAddr}`);
-    }
-    value = pulledValue;
-  } else {
-    // Normal system stack
-    value = machine.state.popStack();
-  }
-
-  // Store the pulled value in the target variable
+  const value = machine.state.popStack();
   machine.state.storeVariable(targetVariable, value);
 
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} pull ${varDisplay} ${stackAddr || ''}`);
+  const pcHex = (machine.executor?.op_pc ?? machine.state.pc).toString(16);
+  machine.logger.debug(`${pcHex} pull ${varDisplay}`);
 }
 
 /**
@@ -121,7 +136,8 @@ function load(machine: ZMachine, operandTypes: OperandType[], variableRef: numbe
   }
 
   machine.state.storeVariable(resultVar, value);
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} load ${varDisplay} -> (${resultVar})`);
+  const pcHex = (machine.executor?.op_pc ?? machine.state.pc).toString(16);
+  machine.logger.debug(`${pcHex} load ${varDisplay} -> (${resultVar})`);
 }
 
 /**
@@ -148,12 +164,14 @@ function store(machine: ZMachine, operandTypes: OperandType[], variableRef: numb
       throw new Error('Illegal operation: store to stack pointer when stack is empty');
     }
     machine.state.stack[machine.state.stack.length - 1] = value;
-    machine.logger.debug(`${machine.executor.op_pc.toString(16)} store ${varDisplay} ${value} (stack top in place)`);
+    const pcHex = (machine.executor?.op_pc ?? machine.state.pc).toString(16);
+    machine.logger.debug(`${pcHex} store ${varDisplay} ${value} (stack top in place)`);
     return;
   }
 
   machine.state.storeVariable(targetVariable, value);
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} store ${varDisplay} ${value}`);
+  const pcHex = (machine.executor?.op_pc ?? machine.state.pc).toString(16);
+  machine.logger.debug(`${pcHex} store ${varDisplay} ${value}`);
 }
 
 /**
@@ -184,9 +202,8 @@ function inc(machine: ZMachine, operandTypes: OperandType[], variableRef: number
       const newValue = toU16(toI16(currentValue) + 1);
       machine.state.stack[machine.state.stack.length - 1] = newValue;
 
-      machine.logger.debug(
-        `${machine.executor.op_pc.toString(16)} inc ${varDisplay} ${currentValue} (stack top in place)`
-      );
+      const pcHex = (machine.executor?.op_pc ?? machine.state.pc).toString(16);
+      machine.logger.debug(`${pcHex} inc ${varDisplay} ${currentValue} (stack top in place)`);
       return;
     }
   } else {
@@ -197,7 +214,8 @@ function inc(machine: ZMachine, operandTypes: OperandType[], variableRef: number
   const newValue = toU16(toI16(currentValue) + 1);
   machine.state.storeVariable(targetVariable, newValue);
 
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} inc ${varDisplay} ${currentValue}`);
+  const pcHex = (machine.executor?.op_pc ?? machine.state.pc).toString(16);
+  machine.logger.debug(`${pcHex} inc ${varDisplay} ${currentValue}`);
 }
 
 /**
@@ -228,9 +246,8 @@ function dec(machine: ZMachine, operandTypes: OperandType[], variableRef: number
       const newValue = toU16(toI16(currentValue) - 1);
       machine.state.stack[machine.state.stack.length - 1] = newValue;
 
-      machine.logger.debug(
-        `${machine.executor.op_pc.toString(16)} dec ${varDisplay} ${currentValue} (stack top in place)`
-      );
+      const pcHex = (machine.executor?.op_pc ?? machine.state.pc).toString(16);
+      machine.logger.debug(`${pcHex} dec ${varDisplay} ${currentValue} (stack top in place)`);
       return;
     }
   } else {
@@ -241,7 +258,8 @@ function dec(machine: ZMachine, operandTypes: OperandType[], variableRef: number
   const newValue = toU16(toI16(currentValue) - 1);
   machine.state.storeVariable(targetVariable, newValue);
 
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} dec ${varDisplay} ${currentValue}`);
+  const pcHex = (machine.executor?.op_pc ?? machine.state.pc).toString(16);
+  machine.logger.debug(`${pcHex} dec ${varDisplay} ${currentValue}`);
 }
 
 /**
@@ -278,8 +296,9 @@ function inc_chk(machine: ZMachine, operandTypes: OperandType[], variableRef: nu
       const condition = toI16(newValue) > toI16(value);
       machine.state.doBranch(condition, branchOnFalse, offset);
 
+      const pcHex = (machine.executor?.op_pc ?? machine.state.pc).toString(16);
       machine.logger.debug(
-        `${machine.executor.op_pc.toString(16)} inc_chk ${varDisplay} ${currentValue} > ${value} = ${condition} (stack top in place)`
+        `${pcHex} inc_chk ${varDisplay} ${currentValue} > ${value} = ${condition} (stack top in place)`
       );
       return;
     }
@@ -294,9 +313,8 @@ function inc_chk(machine: ZMachine, operandTypes: OperandType[], variableRef: nu
   const condition = toI16(newValue) > toI16(value);
   machine.state.doBranch(condition, branchOnFalse, offset);
 
-  machine.logger.debug(
-    `${machine.executor.op_pc.toString(16)} inc_chk ${varDisplay} ${currentValue} > ${value} = ${condition}`
-  );
+  const pcHex = (machine.executor?.op_pc ?? machine.state.pc).toString(16);
+  machine.logger.debug(`${pcHex} inc_chk ${varDisplay} ${currentValue} > ${value} = ${condition}`);
 }
 
 /**
@@ -333,8 +351,9 @@ function dec_chk(machine: ZMachine, operandTypes: OperandType[], variableRef: nu
       const condition = toI16(newValue) < toI16(value);
       machine.state.doBranch(condition, branchOnFalse, offset);
 
+      const pcHex = (machine.executor?.op_pc ?? machine.state.pc).toString(16);
       machine.logger.debug(
-        `${machine.executor.op_pc.toString(16)} dec_chk ${varDisplay} ${currentValue} < ${value} = ${condition} (stack top in place)`
+        `${pcHex} dec_chk ${varDisplay} ${currentValue} < ${value} = ${condition} (stack top in place)`
       );
       return;
     }
@@ -349,16 +368,16 @@ function dec_chk(machine: ZMachine, operandTypes: OperandType[], variableRef: nu
   const condition = toI16(newValue) < toI16(value);
   machine.state.doBranch(condition, branchOnFalse, offset);
 
-  machine.logger.debug(
-    `${machine.executor.op_pc.toString(16)} dec_chk ${varDisplay} ${currentValue} < ${value} = ${condition}`
-  );
+  const pcHex = (machine.executor?.op_pc ?? machine.state.pc).toString(16);
+  machine.logger.debug(`${pcHex} dec_chk ${varDisplay} ${currentValue} < ${value} = ${condition}`);
 }
 
 /**
  * Remove items from a specified stack (V6)
  */
 function pop_stack(machine: ZMachine, _operandTypes: OperandType[], items: number, stackAddr?: number): void {
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} pop_stack ${items} ${stackAddr || ''}`);
+  const pcHex = (machine.executor?.op_pc ?? machine.state.pc).toString(16);
+  machine.logger.debug(`${pcHex} pop_stack ${items} ${stackAddr || ''}`);
 
   // Only valid in Version 6
   if (machine.state.version !== 6) {
@@ -382,7 +401,8 @@ function pop_stack(machine: ZMachine, _operandTypes: OperandType[], items: numbe
  */
 function push_stack(machine: ZMachine, _operandTypes: OperandType[], value: number, stackAddr: number): void {
   const [offset, branchOnFalse] = machine.state.readBranchOffset();
-  machine.logger.debug(`${machine.executor.op_pc.toString(16)} push_stack ${value} ${stackAddr}`);
+  const pcHex = (machine.executor?.op_pc ?? machine.state.pc).toString(16);
+  machine.logger.debug(`${pcHex} push_stack ${value} ${stackAddr}`);
 
   // Only valid in Version 6
   if (machine.state.version !== 6) {

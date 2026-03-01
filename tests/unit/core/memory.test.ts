@@ -144,7 +144,7 @@ describe('Memory', () => {
       // Writing to static memory should warn but not throw (games like Beyond Zork do this)
       memory.setByte(0x400, 0xcc);
       expect(memory.getByte(0x400)).toBe(0xcc);
-      expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('non-dynamic memory'));
+      expect(mockLogger.debug).toHaveBeenCalledWith(expect.stringContaining('non-dynamic memory'));
 
       // Test out-of-bounds access
       expect(() => memory.getByte(0x10000)).toThrow(/Memory access out of bounds/);
@@ -167,13 +167,13 @@ describe('Memory', () => {
       // Writing to static memory should warn but not throw
       memory.setWord(0x400, 0xeeff);
       expect(memory.getWord(0x400)).toBe(0xeeff);
-      expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('non-dynamic memory'));
+      expect(mockLogger.debug).toHaveBeenCalledWith(expect.stringContaining('non-dynamic memory'));
 
       // Straddling dynamic/static boundary should also warn
       mockLogger.warn = vi.fn();
       memory.setWord(0x3ff, 0x1122);
       expect(memory.getWord(0x3ff)).toBe(0x1122);
-      expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('non-dynamic memory'));
+      expect(mockLogger.debug).toHaveBeenCalledWith(expect.stringContaining('non-dynamic memory'));
 
       // Test out-of-bounds access
       expect(() => memory.getWord(0xffff)).toThrow(/Memory access out of bounds/);
@@ -207,7 +207,7 @@ describe('Memory', () => {
       // Copy to static memory should warn but not throw
       mockLogger.warn = vi.fn();
       memory.copyBlock(0x100, 0x400, 10);
-      expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('non-dynamic memory'));
+      expect(mockLogger.debug).toHaveBeenCalledWith(expect.stringContaining('non-dynamic memory'));
     });
 
     it('should compare memory blocks correctly', () => {
@@ -420,18 +420,19 @@ describe('Memory', () => {
 
     it('should pack and unpack addresses for V6/V7 with offsets', () => {
       mockBuffer[HeaderLocation.Version] = 6;
-      mockBuffer.writeUInt16BE(0x2000, HeaderLocation.RoutinesOffset);
-      mockBuffer.writeUInt16BE(0x3000, HeaderLocation.StaticStringsOffset);
+      // Header stores offset/8; 0x400 means actual offset 0x2000
+      mockBuffer.writeUInt16BE(0x400, HeaderLocation.RoutinesOffset);
+      mockBuffer.writeUInt16BE(0x600, HeaderLocation.StaticStringsOffset);
       memory = new Memory(mockBuffer, { logger: mockLogger });
 
-      // For V6/V7, addresses are relative to offsets
-      const byteAddr = 0x2004; // 4 bytes after routine offset
+      // For V6/V7, byte = 4*packed + offset*8
+      const byteAddr = 0x2004; // 4 bytes after routine offset 0x2000
       const packedAddr = 0x1; // (0x2004 - 0x2000) / 4
 
       expect(memory.byteToPackedAddress(byteAddr, true)).toBe(packedAddr);
       expect(memory.packedToByteAddress(packedAddr, true)).toBe(byteAddr);
 
-      // Test string addresses
+      // Test string addresses (offset 0x600*8 = 0x3000)
       const stringByteAddr = 0x3004;
       const stringPackedAddr = 0x1;
 
@@ -486,14 +487,14 @@ describe('Memory', () => {
       memory.setBytes(0x500, testData);
       expect(memory.getByte(0x500)).toBe(0xaa);
       expect(memory.getByte(0x501)).toBe(0xbb);
-      expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('non-dynamic memory'));
+      expect(mockLogger.debug).toHaveBeenCalledWith(expect.stringContaining('non-dynamic memory'));
     });
 
     it('should allow writes at 0x0400 with warning', () => {
       const testData = Buffer.from([0xaa]);
       memory.setBytes(0x0400, testData);
       expect(memory.getByte(0x0400)).toBe(0xaa);
-      expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('non-dynamic memory'));
+      expect(mockLogger.debug).toHaveBeenCalledWith(expect.stringContaining('non-dynamic memory'));
     });
 
     it('should throw error when setting bytes out of bounds', () => {
@@ -526,7 +527,7 @@ describe('Memory', () => {
       // With protection, writes to static memory should warn but succeed
       memory.setMemoryForTesting(0x500, testData, false);
       expect(memory.getByte(0x500)).toBe(0xaa);
-      expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('non-dynamic memory'));
+      expect(mockLogger.debug).toHaveBeenCalledWith(expect.stringContaining('non-dynamic memory'));
     });
 
     it('should set memory for testing without protection', () => {
@@ -865,16 +866,17 @@ describe('Memory', () => {
 
     it('should handle V6/V7 packed addresses with offsets', () => {
       mockBuffer[HeaderLocation.Version] = 6;
-      mockBuffer.writeUInt16BE(0x2000, HeaderLocation.RoutinesOffset);
-      mockBuffer.writeUInt16BE(0x3000, HeaderLocation.StaticStringsOffset);
+      // Header stores offset/8: 0x400 -> 0x2000, 0x600 -> 0x3000
+      mockBuffer.writeUInt16BE(0x400, HeaderLocation.RoutinesOffset);
+      mockBuffer.writeUInt16BE(0x600, HeaderLocation.StaticStringsOffset);
       const memory = new Memory(mockBuffer, { logger: mockLogger });
 
-      // Test routine address conversion
+      // Test routine address conversion: byte = 4*packed + 0x2000
       const byteAddr = 0x2004;
       const packedAddr = memory.byteToPackedAddress(byteAddr, true);
       expect(memory.packedToByteAddress(packedAddr, true)).toBe(byteAddr);
 
-      // Test string address conversion
+      // Test string address conversion: byte = 4*packed + 0x3000
       const stringByteAddr = 0x3004;
       const stringPackedAddr = memory.byteToPackedAddress(stringByteAddr, false);
       expect(memory.packedToByteAddress(stringPackedAddr, false)).toBe(stringByteAddr);
@@ -1048,7 +1050,7 @@ describe('Memory', () => {
       memory.setMemoryForTesting(0xa00, noTermData, true);
       const zstr3 = memory.getZString(0xa00);
       expect(zstr3).toBeInstanceOf(Array);
-      expect(mockLogger.warn).toHaveBeenCalled();
+      expect(mockLogger.debug).toHaveBeenCalled();
     });
 
     it('should handle dumpMemory with various sizes', () => {

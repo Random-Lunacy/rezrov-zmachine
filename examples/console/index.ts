@@ -1,5 +1,14 @@
 import * as fs from 'fs';
-import { dumpDictionary, dumpHeader, dumpObjectTable, Logger, LogLevel, ZMachine } from '../../dist/index.js';
+import * as path from 'path';
+import {
+  BlorbParser,
+  dumpDictionary,
+  dumpHeader,
+  dumpObjectTable,
+  Logger,
+  LogLevel,
+  ZMachine,
+} from '../../dist/index.js';
 import { StdioInputProcessor } from './StdioInputProcessor.js';
 import { StdioScreen } from './StdioScreen.js';
 import { INTERPRETER_NAMES, parseArguments } from './utils.js';
@@ -49,8 +58,30 @@ process.on('SIGINT', () => {
 
 try {
   // Load the story file
-  const storyData = fs.readFileSync(file);
+  let storyData = fs.readFileSync(file);
   logger.debug(`Loaded ${storyData.length} bytes from ${file}`);
+
+  let blorbMap: ReturnType<typeof BlorbParser.parse> | null = null;
+  let blorbData: Buffer | null = null;
+
+  if (BlorbParser.isBlorb(storyData)) {
+    blorbMap = BlorbParser.parse(storyData);
+    blorbData = storyData;
+    const exec = BlorbParser.getExecData(blorbMap, storyData);
+    if (exec) storyData = exec;
+  } else {
+    const dir = path.dirname(file);
+    const base = path.basename(file, path.extname(file));
+    const blorbPath = path.join(dir, `${base}.blb`);
+    if (fs.existsSync(blorbPath)) {
+      const data = fs.readFileSync(blorbPath);
+      if (BlorbParser.isBlorb(data)) {
+        blorbMap = BlorbParser.parse(data);
+        blorbData = data;
+        logger.debug(`Found companion Blorb: ${blorbPath}`);
+      }
+    }
+  }
 
   // Create the screen and input processor
   const interpreterNumber = parsed.interpreter ? INTERPRETER_NAMES[parsed.interpreter] : undefined;
@@ -59,6 +90,9 @@ try {
 
   // Create the Z-machine
   const machine = new ZMachine(storyData, screen, inputProcessor, undefined, undefined);
+  if (blorbMap && blorbData) {
+    machine.setBlorb(blorbMap, blorbData);
+  }
 
   // Show debugging info if requested
   if (parsed.header) {

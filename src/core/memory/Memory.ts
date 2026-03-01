@@ -209,15 +209,15 @@ export class Memory {
       );
     }
 
-    // For write operations, warn if writing outside dynamic memory.
+    // For write operations, debug if writing outside dynamic memory.
     // Per Z-machine spec remarks: "Infocom's interpreters do not check for writes to
     // static memory, so some games, e.g., Beyond Zork, write to it." Most interpreters
-    // allow this, so we warn rather than throw.
+    // allow this, so we debug rather than throw.
     if (isWrite) {
       for (let i = 0; i < length; i++) {
         if (!this.isDynamicMemory(addr + i)) {
-          this.logger.warn(`Writing to non-dynamic memory at address: 0x${(addr + i).toString(16)}`);
-          break; // Only warn once per operation
+          this.logger.debug(`Writing to non-dynamic memory at address: 0x${(addr + i).toString(16)}`);
+          break; // Only log once per operation
         }
       }
     }
@@ -490,12 +490,12 @@ export class Memory {
     // For V6/V7, we need to pass the offsets from memory
     const routineOffset =
       version === ZMachineVersion.V6 || version === ZMachineVersion.V7
-        ? this.getWord(HeaderLocation.RoutinesOffset)
+        ? this.getWord(HeaderLocation.RoutinesOffset) * 8
         : 0;
 
     const stringOffset =
       version === ZMachineVersion.V6 || version === ZMachineVersion.V7
-        ? this.getWord(HeaderLocation.StaticStringsOffset)
+        ? this.getWord(HeaderLocation.StaticStringsOffset) * 8
         : 0;
 
     return isAddressAligned(version, byteAddr, isRoutine, routineOffset, stringOffset);
@@ -512,11 +512,13 @@ export class Memory {
     const version = this._version as ZMachineVersion;
     let offset = 0;
 
-    // Only look up offsets from header for versions that need them
+    // Only look up offsets from header for versions that need them.
+    // V6/V7 header stores offset/8 (Z-spec 11.1); multiply by 8 for actual byte offset.
     if (version >= ZMachineVersion.V6 && version <= ZMachineVersion.V7) {
-      offset = isRoutine
+      const stored = isRoutine
         ? this.getWord(HeaderLocation.RoutinesOffset)
         : this.getWord(HeaderLocation.StaticStringsOffset);
+      offset = stored * 8;
     }
 
     // Use the Version module functions
@@ -545,12 +547,12 @@ export class Memory {
     // For V6/V7, we need to pass the offsets from memory
     const routineOffset =
       version === ZMachineVersion.V6 || version === ZMachineVersion.V7
-        ? this.getWord(HeaderLocation.RoutinesOffset)
+        ? this.getWord(HeaderLocation.RoutinesOffset) * 8
         : 0;
 
     const stringOffset =
       version === ZMachineVersion.V6 || version === ZMachineVersion.V7
-        ? this.getWord(HeaderLocation.StaticStringsOffset)
+        ? this.getWord(HeaderLocation.StaticStringsOffset) * 8
         : 0;
 
     return byteToPackedAddress(version, byteAddr, isRoutine, routineOffset, stringOffset);

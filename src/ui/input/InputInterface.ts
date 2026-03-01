@@ -49,6 +49,7 @@ export interface InputState {
   currentInput?: string; // Current input buffer
   terminating?: number; // Terminating character
   unicodeMode?: boolean; // V5+: Whether input should handle Unicode
+  preloadedText?: string; // V5+: Pre-existing text in the text buffer (Z-spec §15.2)
 }
 
 /**
