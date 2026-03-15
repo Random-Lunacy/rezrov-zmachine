@@ -1,9 +1,29 @@
 version: 2
 updates:
+  # GitHub Actions — keep CI dependencies current
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'friday'
+    open-pull-requests-limit: 5
+    labels:
+      - 'dependencies'
+      - 'github-actions'
+    commit-message:
+      prefix: 'chore'
+      include: 'scope'
+    groups:
+      github-actions:
+        patterns:
+          - 'actions/*'
+
+  # Root package — core library and all dev tooling
   - package-ecosystem: 'npm'
     directory: '/'
     schedule:
       interval: 'weekly'
+      day: 'friday'
     open-pull-requests-limit: 10
     versioning-strategy: auto
     labels:
@@ -13,16 +33,40 @@ updates:
       prefix: 'chore'
       include: 'scope'
     groups:
-      vitest-suite:
+      eslint:
         patterns:
-          - "vitest"
-          - "@vitest/*"
+          - 'eslint'
+          - '@eslint/*'
+          - 'eslint-*'
+      typescript-eslint:
+        patterns:
+          - '@typescript-eslint/*'
+          - 'typescript-eslint'
+      vitest:
+        patterns:
+          - 'vitest'
+          - '@vitest/*'
+      prettier:
+        patterns:
+          - 'prettier'
+          - 'prettier-*'
+      build-tools:
+        patterns:
+          - 'typescript'
+          - 'tsc-esm-fix'
+          - 'tsx'
+          - 'ts-node'
+          - 'vite'
+      types:
+        patterns:
+          - '@types/*'
 
+  # Console example
   - package-ecosystem: 'npm'
     directory: '/examples/console'
     schedule:
       interval: 'monthly'
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 5
     versioning-strategy: auto
     labels:
       - 'dependencies'
@@ -31,12 +75,36 @@ updates:
     commit-message:
       prefix: 'chore'
       include: 'scope'
+    groups:
+      types:
+        patterns:
+          - '@types/*'
 
+  # Blessed console example
   - package-ecosystem: 'npm'
     directory: '/examples/blessedConsole'
     schedule:
       interval: 'monthly'
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 5
+    versioning-strategy: auto
+    labels:
+      - 'dependencies'
+      - 'npm'
+      - 'examples'
+    commit-message:
+      prefix: 'chore'
+      include: 'scope'
+    groups:
+      types:
+        patterns:
+          - '@types/*'
+
+  # Web example (V6 graphics)
+  - package-ecosystem: 'npm'
+    directory: '/examples/web'
+    schedule:
+      interval: 'monthly'
+    open-pull-requests-limit: 5
     versioning-strategy: auto
     labels:
       - 'dependencies'
