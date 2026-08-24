@@ -18,8 +18,8 @@
     "readline-sync": "^1.4.10"
   },
   "devDependencies": {
-    "@types/node": "^25.5.0",
+    "@types/node": "^25.9.5",
     "@types/readline-sync": "^1.4.4",
-    "tsx": "^4.21.0"
+    "tsx": "^4.23.12"
   }
 }
