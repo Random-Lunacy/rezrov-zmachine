@@ -49,6 +49,14 @@ updates:
     versioning-strategy: increase
     allow:
       - dependency-type: 'development'
+    # TEMPORARY: TypeScript 7 is blocked upstream. typescript-eslint, even at its
+    # newest release, still declares `typescript: >=4.8.4 <6.1.0` as a peer range,
+    # so bumping to TS 7 breaks linting outright and the PR can never go green.
+    # Minor/patch TS updates still flow through; only the major is held back.
+    # Revisit once typescript-eslint ships TypeScript 7 support, then remove this.
+    ignore:
+      - dependency-name: 'typescript'
+        update-types: ['version-update:semver-major']
     labels:
       - 'dependencies'
       - 'npm'

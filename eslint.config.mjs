@@ -18,7 +18,18 @@ const compat = new FlatCompat({
 });
 
 export default defineConfig([
-  globalIgnores(['prettier.config.cjs', '**/dist/', '**/node_modules/', '**/coverage/**', '**/tests/']),
+  // '.vitest/' and 'html-report/' hold generated Vitest HTML reports (Vitest 5 writes
+  // to '.vitest/' by default). Without these entries ESLint walks megabytes of bundled
+  // report assets and appears to hang.
+  globalIgnores([
+    'prettier.config.cjs',
+    '**/dist/',
+    '**/node_modules/',
+    '**/coverage/**',
+    '**/tests/',
+    '**/.vitest/**',
+    '**/html-report/**',
+  ]),
   {
     extends: compat.extends(
       'eslint:recommended',
