@@ -11,6 +11,8 @@
 import { ZMachine } from '../../interpreter/ZMachine';
 import { OperandType } from '../../types';
 import { ResourceType } from '../../ui/multimedia/MultimediaHandler';
+import { WindowProperty } from '../../ui/screen/interfaces';
+import { HeaderLocation } from '../../utils/constants';
 import { opcode } from './base';
 
 /**
@@ -26,15 +28,38 @@ function draw_picture(machine: ZMachine, _operandTypes: OperandType[], picture: 
     return;
   }
 
-  // Default position: current cursor position if y or x is 0
+  const fontH = machine.memory.getByte(HeaderLocation.FontHeightInUnits) || 1;
+  const fontW = machine.memory.getByte(HeaderLocation.FontWidthInUnits) || 1;
+
+  // Default position: use current cursor when y or x is 0.
+  // In V6, BaseScreen.setCursorPosition() converts set_cursor's pixel args to char-cell
+  // indices for upper-window buffer addressing, so getCursorPosition() returns char cells.
+  // Reverse that conversion to get the 1-based pixel coordinate.
   let finalY = y;
   let finalX = x;
 
   if (!finalY || !finalX) {
     const cursorPos = machine.screen.getCursorPosition(machine);
-    if (!finalY) finalY = cursorPos.line;
-    if (!finalX) finalX = cursorPos.column;
+    if (!finalY) finalY = (cursorPos.line - 1) * fontH + 1;
+    if (!finalX) finalX = (cursorPos.column - 1) * fontW + 1;
   }
+
+  // V6: draw_picture coordinates are window-relative 1-based pixel positions (spec §8.8.3.1).
+  // Convert to screen-absolute by adding the current window's top-left pixel position.
+  // getWindowProperty(YCoordinate/XCoordinate) returns the 1-based canvas pixel position
+  // of the window's top-left corner (tracked by WindowManager via move_window/split_window).
+  const currentWindow = machine.screen.getOutputWindow(machine);
+  const windowY = machine.screen.getWindowProperty(machine, currentWindow, WindowProperty.YCoordinate);
+  const windowX = machine.screen.getWindowProperty(machine, currentWindow, WindowProperty.XCoordinate);
+  // Both windowY and finalY are 1-based; adding them and subtracting 1 gives the
+  // screen-absolute 1-based position (window_top + offset_within_window - 1).
+  finalY = windowY + finalY - 1;
+  finalX = windowX + finalX - 1;
+
+  machine.logger.debug(
+    `draw_picture pic=${picture} rawY=${y} rawX=${x} winY=${windowY} winX=${windowX} ` +
+      `finalY=${finalY} finalX=${finalX} window=${currentWindow}`
+  );
 
   try {
     const status = machine.multimediaHandler.displayPicture(picture, finalX, finalY, 100);
@@ -43,6 +68,13 @@ function draw_picture(machine: ZMachine, _operandTypes: OperandType[], picture: 
       machine.logger.debug(`Picture ${picture} displayed at (${finalX}, ${finalY})`);
     } else {
       machine.logger.warn(`Picture ${picture} failed to display, status: ${status}`);
+    }
+
+    // Notify the screen synchronously so it can reposition HTML text below the picture.
+    // getPictureData() reads dimensions from the Blorb header without decoding the image.
+    const picInfo = machine.multimediaHandler.getPictureData(picture);
+    if (picInfo) {
+      machine.screen.onWindowPictureDrawn?.(currentWindow, finalY, picInfo.height);
     }
   } catch (error) {
     machine.logger.error(`Error displaying picture ${picture}: ${error}`);

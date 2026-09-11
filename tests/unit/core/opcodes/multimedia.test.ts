@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { BaseMultimediaHandler, ResourceStatus, ResourceType } from '../../../../src/ui/multimedia/MultimediaHandler';
-import { createMockZMachine } from '../../../mocks';
-import { sound_effect } from '../../../../src/core/opcodes/io';
 import { draw_picture, erase_picture, picture_data, picture_table } from '../../../../src/core/opcodes/graphics';
+import { sound_effect } from '../../../../src/core/opcodes/io';
+import { ResourceStatus, ResourceType } from '../../../../src/ui/multimedia/MultimediaHandler';
+import { WindowProperty } from '../../../../src/ui/screen/interfaces';
+import { HeaderLocation } from '../../../../src/utils/constants';
+import { createMockZMachine } from '../../../mocks';
 
 describe('Multimedia Opcodes', () => {
   let machine: any;
@@ -141,6 +143,102 @@ describe('Multimedia Opcodes', () => {
     });
   });
 
+  /**
+   * Per spec §8.8.3.1 draw_picture's y/x are window-relative 1-based PIXEL positions,
+   * so the opcode converts them to screen-absolute using the current window's top-left.
+   *
+   * The default mock returns YCoordinate/XCoordinate = 1 and getByte = 0 (fontH/fontW
+   * fall back to 1), which makes both conversions the identity — so the tests above
+   * cannot distinguish correct arithmetic from none at all. These tests supply a
+   * non-trivial window origin and font size so the math is actually exercised.
+   */
+  describe('draw_picture V6 coordinate conversion', () => {
+    /** Place window 0's top-left at canvas pixel (winY, winX), both 1-based. */
+    function givenWindowOrigin(winY: number, winX: number): void {
+      machine.screen.getWindowProperty.mockImplementation((_m: unknown, _window: number, property: number) => {
+        if (property === WindowProperty.YCoordinate) return winY;
+        if (property === WindowProperty.XCoordinate) return winX;
+        return 0;
+      });
+    }
+
+    /** Report a square font of `size` screen units, as classic V6 games assume. */
+    function givenFontSize(size: number): void {
+      machine.memory.getByte.mockImplementation((addr: number) =>
+        addr === HeaderLocation.FontHeightInUnits || addr === HeaderLocation.FontWidthInUnits ? size : 0
+      );
+    }
+
+    beforeEach(() => {
+      machine.state.version = 6;
+      mockMultimediaHandler.displayPicture.mockReturnValue(ResourceStatus.Available);
+    });
+
+    it('should offset window-relative coordinates by the window origin', () => {
+      // Zork Zero's typical layout: move_window(0, y=6, x=6).
+      givenWindowOrigin(6, 6);
+
+      // (1,1) is the window's own top-left corner...
+      draw_picture(machine, [], 1, 1, 1);
+
+      // ...which sits at canvas (6,6), not (1,1). displayPicture takes (picture, x, y, scale).
+      expect(mockMultimediaHandler.displayPicture).toHaveBeenCalledWith(1, 6, 6, 100);
+    });
+
+    it('should add the window origin to a non-zero offset within the window', () => {
+      givenWindowOrigin(6, 6);
+
+      draw_picture(machine, [], 1, 10, 20);
+
+      // finalY = 6 + 10 - 1 = 15, finalX = 6 + 20 - 1 = 25
+      expect(mockMultimediaHandler.displayPicture).toHaveBeenCalledWith(1, 25, 15, 100);
+    });
+
+    it('should leave coordinates unchanged when the window sits at the screen origin', () => {
+      givenWindowOrigin(1, 1);
+
+      draw_picture(machine, [], 1, 40, 80);
+
+      // Guards the off-by-one: window_top + offset - 1 must be identity at origin 1.
+      expect(mockMultimediaHandler.displayPicture).toHaveBeenCalledWith(1, 80, 40, 100);
+    });
+
+    it('should convert a zero coordinate from cursor char cells back to pixels', () => {
+      givenWindowOrigin(1, 1);
+      givenFontSize(8);
+      // BaseScreen stores V6 cursor positions as char cells, so reverse that here.
+      machine.screen.getCursorPosition.mockReturnValue({ line: 3, column: 2 });
+
+      draw_picture(machine, [], 1, 0, 0);
+
+      // finalY = (3-1)*8 + 1 = 17, finalX = (2-1)*8 + 1 = 9
+      expect(mockMultimediaHandler.displayPicture).toHaveBeenCalledWith(1, 9, 17, 100);
+    });
+
+    it('should notify the screen of the drawn picture with absolute Y and height', () => {
+      givenWindowOrigin(6, 6);
+      machine.screen.getOutputWindow.mockReturnValue(0);
+      machine.screen.onWindowPictureDrawn = vi.fn();
+      mockMultimediaHandler.getPictureData.mockReturnValue({ height: 40, width: 100 });
+
+      draw_picture(machine, [], 1, 10, 20);
+
+      // Screen needs the absolute Y (15), not the raw window-relative 10,
+      // so it can flow HTML text below the picture.
+      expect(machine.screen.onWindowPictureDrawn).toHaveBeenCalledWith(0, 15, 40);
+    });
+
+    it('should not notify the screen when picture dimensions are unavailable', () => {
+      givenWindowOrigin(6, 6);
+      machine.screen.onWindowPictureDrawn = vi.fn();
+      mockMultimediaHandler.getPictureData.mockReturnValue(undefined);
+
+      draw_picture(machine, [], 1, 10, 20);
+
+      expect(machine.screen.onWindowPictureDrawn).not.toHaveBeenCalled();
+    });
+  });
+
   describe('erase_picture opcode', () => {
     it('should call multimedia handler for V6+ games', () => {
       machine.state.version = 6;
@@ -232,9 +330,7 @@ describe('Multimedia Opcodes', () => {
 
       picture_data(machine, [], 1, 0x2000);
 
-      expect(machine.logger.error).toHaveBeenCalledWith(
-        'Error getting picture data for 1: Error: Test error'
-      );
+      expect(machine.logger.error).toHaveBeenCalledWith('Error getting picture data for 1: Error: Test error');
       expect(machine.state.doBranch).toHaveBeenCalledWith(false, false, 10);
     });
 
@@ -296,9 +392,7 @@ describe('Multimedia Opcodes', () => {
         picture_table(machine, [], 0x1000);
       }).not.toThrow();
 
-      expect(machine.logger.error).toHaveBeenCalledWith(
-        'Error processing picture table: Error: Memory error'
-      );
+      expect(machine.logger.error).toHaveBeenCalledWith('Error processing picture table: Error: Memory error');
     });
   });
 });

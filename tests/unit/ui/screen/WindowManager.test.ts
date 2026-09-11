@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { WindowManager, WindowEventType, WindowEvent } from '../../../../src/ui/screen/WindowManager';
-import { WindowType, WindowProperty } from '../../../../src/ui/screen/interfaces';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Color, TextStyle } from '../../../../src/types';
+import { WindowEvent, WindowEventType, WindowManager } from '../../../../src/ui/screen/WindowManager';
+import { WindowProperty, WindowType } from '../../../../src/ui/screen/interfaces';
 
 describe('WindowManager', () => {
   let windowManager: WindowManager;
@@ -19,7 +19,7 @@ describe('WindowManager', () => {
   describe('initialization', () => {
     it('should initialize with default windows', () => {
       const windows = windowManager.getWindows();
-      expect(windows).toHaveLength(2);
+      expect(windows).toHaveLength(8); // Windows 0-7 all pre-initialised for V6 support
 
       const lowerWindow = windowManager.getWindow(WindowType.Lower);
       const upperWindow = windowManager.getWindow(WindowType.Upper);
@@ -59,7 +59,7 @@ describe('WindowManager', () => {
     it('should create a new window with default options', () => {
       const windowId = windowManager.createWindow();
 
-      expect(windowId).toBe(2); // First custom window ID
+      expect(windowId).toBe(8); // First dynamic window ID (0-7 are reserved for V6)
       expect(windowManager.hasWindow(windowId)).toBe(true);
 
       const window = windowManager.getWindow(windowId)!;
@@ -143,6 +143,46 @@ describe('WindowManager', () => {
       const window = windowManager.getWindow(windowId)!;
       expect(window.x).toBe(60); // 80 - 20 = 60
       expect(window.y).toBe(15); // 25 - 10 = 15
+    });
+
+    /**
+     * V6 games call move_window before resize_window, so window 0 is still full-screen
+     * at that point. A size-aware bound alone gives screenDim - dim = 0 there, pinning
+     * the window to (0,0) and discarding the requested position. These cover the
+     * dim-1 fallback that keeps such a move meaningful.
+     */
+    it('should still reposition a full-screen window before it has been resized', () => {
+      // Window 0 starts full-screen (80x25), matching V6 startup state.
+      const windowId = windowManager.createWindow({ x: 0, y: 0, width: 80, height: 25 });
+
+      // Zork Zero's opening layout: move_window(0, y=6, x=6).
+      windowManager.moveWindow(windowId, 6, 6);
+
+      const window = windowManager.getWindow(windowId)!;
+      expect(window.x).toBe(6);
+      expect(window.y).toBe(6);
+    });
+
+    it('should clamp a full-screen window to the last row/column', () => {
+      const windowId = windowManager.createWindow({ x: 0, y: 0, width: 80, height: 25 });
+
+      windowManager.moveWindow(windowId, 500, 500);
+
+      const window = windowManager.getWindow(windowId)!;
+      expect(window.x).toBe(79); // screenWidth - 1
+      expect(window.y).toBe(24); // screenHeight - 1
+    });
+
+    it('should keep the size-aware bound for a window smaller than the screen', () => {
+      // Regression guard: the dim-1 fallback must not let a smaller window slide
+      // off the right/bottom edge.
+      const windowId = windowManager.createWindow({ x: 0, y: 0, width: 20, height: 10 });
+
+      windowManager.moveWindow(windowId, 79, 24);
+
+      const window = windowManager.getWindow(windowId)!;
+      expect(window.x).toBe(60); // 80 - 20, not 79
+      expect(window.y).toBe(15); // 25 - 10, not 24
     });
 
     it('should resize a window', () => {
@@ -375,7 +415,7 @@ describe('WindowManager', () => {
     it('should get performance statistics', () => {
       const stats = windowManager.getStats();
 
-      expect(stats.totalWindows).toBe(2);
+      expect(stats.totalWindows).toBe(8); // Windows 0-7 all pre-initialised
       expect(stats.dirtyWindows).toBe(0);
       expect(stats.lastUpdate).toBeDefined();
       expect(stats.updateFrequency).toBeGreaterThanOrEqual(0); // Can be 0 if no time has passed
@@ -400,13 +440,13 @@ describe('WindowManager', () => {
       const window2 = windowManager.createWindow();
 
       const windows = windowManager.getWindows();
-      expect(windows).toHaveLength(4); // Lower, Upper, window1, window2
+      expect(windows).toHaveLength(10); // Windows 0-7 (V6 pre-init) + 2 dynamic windows
 
-      // Check z-order
+      // Check z-order: windows 0-7 come first, then dynamic windows 8 and 9
       expect(windows[0].id).toBe(WindowType.Lower);
       expect(windows[1].id).toBe(WindowType.Upper);
-      expect(windows[2].id).toBe(window1);
-      expect(windows[3].id).toBe(window2);
+      expect(windows[8].id).toBe(window1);
+      expect(windows[9].id).toBe(window2);
     });
   });
 
@@ -434,4 +474,3 @@ describe('WindowManager', () => {
     });
   });
 });
-

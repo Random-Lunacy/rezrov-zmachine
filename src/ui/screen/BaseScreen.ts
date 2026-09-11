@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { ZMachine } from '../../interpreter/ZMachine';
 import { BufferMode, Color, TextStyle } from '../../types';
+import { HeaderLocation } from '../../utils/constants';
 import { Logger } from '../../utils/log';
 import { FontManager, FontType } from '../fonts';
 import { InputState } from '../input/InputInterface';
@@ -105,16 +106,15 @@ export class BaseScreen implements Screen {
     const screenSize = this.getSize();
     switch (property) {
       case WindowProperty.YCoordinate:
-        // y-coordinate of top of window (1-based)
-        if (window === WindowType.Upper) {
-          return 1;
-        } else {
-          return this.upperWindowHeight + 1;
-        }
+        // Delegate to WindowManager which tracks actual pixel positions from move_window.
+        // For V3/V5 (no move_window calls): window 0 y = upperWindowHeight (from splitWindow),
+        // window 1 y = 0 — both matching the legacy upperWindowHeight+1 / 1 behaviour.
+        // For V6: move_window updates the WindowManager, so the correct pixel position is returned.
+        return this.windowManager.getWindowProperty(window, WindowProperty.YCoordinate);
 
       case WindowProperty.XCoordinate:
-        // x-coordinate of left of window (1-based)
-        return 1;
+        // Delegate to WindowManager (same reasoning as YCoordinate above).
+        return this.windowManager.getWindowProperty(window, WindowProperty.XCoordinate);
 
       case WindowProperty.YSize:
         // Height of window in units
@@ -377,7 +377,9 @@ export class BaseScreen implements Screen {
   setCursorPosition(machine: ZMachine, line: number, column: number, windowId: number): void {
     const version = machine.state.version;
 
-    if (windowId !== WindowType.Upper) {
+    // V4/V5: set_cursor always targets the upper window (spec §8.7.2).
+    // V6: set_cursor accepts an explicit window operand — any window is valid.
+    if (version < 6 && windowId !== WindowType.Upper) {
       this.logger.debug(`${this.id} setCursorPosition only works in upper window`);
       return;
     }
@@ -386,6 +388,16 @@ export class BaseScreen implements Screen {
     if (line < 1 || column < 1) {
       this.logger.debug(`${this.id} setCursorPosition: invalid position (${line}, ${column})`);
       return;
+    }
+
+    // In V6 set_cursor passes screen-unit (pixel) coordinates. Convert to
+    // 1-based character-cell indices using the font dimensions from the header.
+    // Formula matches Frotz: charRow = floor((pixelRow - 1) / fontH) + 1
+    if (version >= 6) {
+      const fontH = machine.memory.getByte(HeaderLocation.FontHeightInUnits) || 1;
+      const fontW = machine.memory.getByte(HeaderLocation.FontWidthInUnits) || 1;
+      line = Math.floor((line - 1) / fontH) + 1;
+      column = Math.floor((column - 1) / fontW) + 1;
     }
 
     this.cursorPosition = { line, column };
@@ -946,6 +958,10 @@ export class BaseScreen implements Screen {
     // Base implementation: just log (no mouse support)
     // Subclasses can override for actual mouse constraint
     this.logger.debug(`${this.id} setMouseWindow windowId=${windowId}`);
+  }
+
+  onWindowPictureDrawn(_windowId: number, _finalY: number, _height: number): void {
+    // Base: no-op. Override in platform screens for picture-aware text positioning.
   }
 
   quit(): void {
