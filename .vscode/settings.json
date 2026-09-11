@@ -76,5 +76,9 @@
       "pattern": "**/SkinDefinition.xml",
       "systemId": "/home/mitch/.cursor-server/extensions/lunarwtr.lotro-api-1.0.16/resources/xsds/lotro-skin.xsd"
     }
-  ]
+  ],
+  "sonarlint.connectedMode.project": {
+    "connectionId": "random-lunacy",
+    "projectKey": "Random-Lunacy_rezrov-zmachine"
+  }
 }
