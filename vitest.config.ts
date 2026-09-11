@@ -50,7 +50,7 @@ export default defineConfig({
     testTimeout: 10000,
     reporters: ['default', 'html'],
     outputFile: {
-      html: './coverage/test-report.html',
+      html: './html-report/test-report.html',
     },
   },
 });
