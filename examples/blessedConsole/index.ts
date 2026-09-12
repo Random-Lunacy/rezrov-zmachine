@@ -70,7 +70,7 @@ process.on('SIGINT', () => {
 
 try {
   // Load the story file
-  let storyData = fs.readFileSync(file);
+  let storyData: Buffer = fs.readFileSync(file);
   logger.debug(`Loaded ${storyData.length} bytes from ${file}`);
 
   let blorbMap: ReturnType<typeof BlorbParser.parse> | null = null;
