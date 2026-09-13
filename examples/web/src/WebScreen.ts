@@ -488,13 +488,6 @@ export class WebScreen extends BaseScreen {
   private _useCanvasBackground: boolean = false;
 
   /**
-   * Leftmost X (1-based, screen-absolute) of any right-side decorative picture drawn
-   * during V6 layout.  Used to cap the right text boundary so text does not flow under
-   * the right column/pillar picture.  -1 = not yet detected.
-   */
-  private _rightPillarX: number = -1;
-
-  /**
    * V6 window-0 pictures rendered as inline <img> elements (instead of drawn
    * onto the fixed picture canvas), keyed by resource ID so erase_picture
    * can find and remove them.
@@ -1234,20 +1227,6 @@ export class WebScreen extends BaseScreen {
     const targetWindow = windowId ?? this.outputWindowId;
     if (this._useCanvasBackground && targetWindow === 0) {
       this.applyLowerWindowMarginsCss(left, right);
-    }
-  }
-
-  /**
-   * Called from main.ts's pictureRenderer callback when a picture is drawn to the right
-   * of the canvas centre.  Tracks the leftmost such X position (1-based, screen-absolute)
-   * so that text does not flow under the decorative right-column picture.
-   */
-  trackRightPicture(screenX: number): void {
-    if (this._rightPillarX < 0 || screenX < this._rightPillarX) {
-      this._rightPillarX = screenX;
-      this.v6debug(`[trackRightPicture] rightPillarX=${this._rightPillarX}`);
-      // Re-apply margins with updated right boundary (margins values not re-fetched here;
-      // the next set_margins call will pick up the new boundary automatically).
     }
   }
 

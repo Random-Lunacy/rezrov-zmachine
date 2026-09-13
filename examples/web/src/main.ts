@@ -110,15 +110,6 @@ function setupGame(
             await webScreen.displayInlinePicture(resourceId, data, format, x, y, scale);
             return;
           }
-          // Track right-side pictures synchronously (before async image load) so that
-          // the right text boundary is set before any subsequent set_margins opcode runs.
-          // Only a tall picture (a real decorative side pillar/column) should narrow the
-          // text margin -- a small badge/icon drawn elsewhere on the right (e.g. a
-          // status-bar decoration) must not be mistaken for one.
-          const pictureHeight = multimediaHandler?.getPictureData(resourceId)?.height ?? 0;
-          if (x > pictureCanvas.width / 2 && pictureHeight > pictureCanvas.height / 4) {
-            webScreen.trackRightPicture(x);
-          }
           await pictureRenderer.displayPicture(resourceId, data, format, x, y, scale);
         } catch (error) {
           console.warn(`Picture ${resourceId} render failed:`, error);
