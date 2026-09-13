@@ -108,7 +108,8 @@ export type PictureRendererCallback = (
   format: string,
   x: number,
   y: number,
-  scale: number
+  scale: number,
+  window: number
 ) => void;
 
 /**
@@ -260,7 +261,7 @@ export class BlorbMultimediaHandler extends BaseMultimediaHandler {
     return pictureData;
   }
 
-  displayPicture(resourceId: number, x: number, y: number, scale: number): ResourceStatus {
+  displayPicture(resourceId: number, x: number, y: number, scale: number, window: number): ResourceStatus {
     if (!this.isResourceAvailable(ResourceType.Picture, resourceId)) {
       this._logger.debug(`Picture ${resourceId} not available for display`);
       return ResourceStatus.NotAvailable;
@@ -273,7 +274,7 @@ export class BlorbMultimediaHandler extends BaseMultimediaHandler {
         const format =
           chunkType === BlorbChunkType.PNG ? 'PNG' : chunkType === BlorbChunkType.JPEG ? 'JPEG' : chunkType;
         try {
-          this._pictureRenderer(resourceId, data, format, x, y, scale);
+          this._pictureRenderer(resourceId, data, format, x, y, scale, window);
           return ResourceStatus.Available;
         } catch (error) {
           this._logger.error(`Picture ${resourceId} render failed: ${error}`);
@@ -282,7 +283,7 @@ export class BlorbMultimediaHandler extends BaseMultimediaHandler {
       }
     }
 
-    this._logger.debug(`Picture ${resourceId} available at (${x},${y}) scale ${scale}%`);
+    this._logger.debug(`Picture ${resourceId} available at (${x},${y}) scale ${scale}% window=${window}`);
     return ResourceStatus.Available;
   }
 

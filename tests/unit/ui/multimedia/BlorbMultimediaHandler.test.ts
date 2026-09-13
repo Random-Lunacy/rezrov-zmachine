@@ -275,13 +275,22 @@ describe('BlorbMultimediaHandler', () => {
 
   describe('displayPicture', () => {
     it('should return Available for existing picture', () => {
-      const status = handler.displayPicture(1, 10, 20, 100);
+      const status = handler.displayPicture(1, 10, 20, 100, 0);
       expect(status).toBe(ResourceStatus.Available);
     });
 
     it('should return NotAvailable for missing picture', () => {
-      const status = handler.displayPicture(99, 10, 20, 100);
+      const status = handler.displayPicture(99, 10, 20, 100, 0);
       expect(status).toBe(ResourceStatus.NotAvailable);
+    });
+
+    it('should forward the target window to the pictureRenderer callback', () => {
+      const rendererSpy = vi.fn();
+      const h = new BlorbMultimediaHandler(blorbMap, blorbData, { logger: mockLogger, pictureRenderer: rendererSpy });
+
+      h.displayPicture(1, 10, 20, 100, 3);
+
+      expect(rendererSpy).toHaveBeenCalledWith(1, jpegData, 'JPEG', 10, 20, 100, 3);
     });
   });
 
