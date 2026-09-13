@@ -507,6 +507,13 @@ export class WebScreen extends BaseScreen {
   private _rightPillarX: number = -1;
 
   /**
+   * V6 window-0 pictures rendered as inline <img> elements (instead of drawn
+   * onto the fixed picture canvas), keyed by resource ID so erase_picture
+   * can find and remove them.
+   */
+  private inlinePictures: Map<number, HTMLImageElement> = new Map();
+
+  /**
    * V6 layout tracing. Off unless the page URL carries `?v6debug`, so the
    * coordinate diagnostics stay available for V6 work without spamming the
    * console during ordinary play.
@@ -1205,6 +1212,73 @@ export class WebScreen extends BaseScreen {
     }
   }
 
+  /**
+   * Insert a V6 window-0 picture as a real inline image in the scrolling
+   * text flow, instead of drawing it onto the fixed picture canvas. As real
+   * DOM content it scrolls with the surrounding text automatically. Floats
+   * within the column the game has already narrowed via set_margins (see
+   * applyLowerWindowMarginsCss), so text wraps around it the same way it
+   * already wraps around canvas-drawn pictures in other windows.
+   */
+  async displayInlinePicture(
+    resourceId: number,
+    data: Buffer,
+    format: string,
+    x: number,
+    _y: number,
+    scale: number
+  ): Promise<void> {
+    const blob = new Blob([new Uint8Array(data).buffer], {
+      type: format === 'PNG' ? 'image/png' : 'image/jpeg',
+    });
+    const bitmap = await createImageBitmap(blob);
+
+    const img = document.createElement('img');
+    img.src = URL.createObjectURL(blob);
+    img.onload = (): void => URL.revokeObjectURL(img.src);
+    img.style.imageRendering = 'pixelated';
+
+    const canvasW = this.pictureCanvas.width;
+    if (canvasW === 0) {
+      this.mainEl.appendChild(img);
+      this.inlinePictures.set(resourceId, img);
+      return;
+    }
+
+    const scaleFactor = scale / 100;
+    const widthPx = bitmap.width * scaleFactor;
+    img.style.width = `${(widthPx / canvasW) * 100}%`;
+    img.style.height = 'auto';
+
+    const columnLeft = this._window0BaseLeft;
+    const columnRight = this._window0BaseRight >= 0 ? this._window0BaseRight : canvasW;
+    const columnMid = (columnLeft + columnRight) / 2;
+
+    if (x <= columnMid) {
+      img.style.float = 'left';
+      img.style.marginLeft = `${(Math.max(0, x - columnLeft) / canvasW) * 100}%`;
+    } else {
+      img.style.float = 'right';
+      img.style.marginRight = `${(Math.max(0, columnRight - (x + widthPx)) / canvasW) * 100}%`;
+    }
+
+    this.mainEl.appendChild(img);
+    this.inlinePictures.set(resourceId, img);
+  }
+
+  /**
+   * Remove a previously inserted inline picture (erase_picture for window 0).
+   * Returns true if a matching inline picture was found and removed, so the
+   * caller can fall back to the canvas eraser for pictures drawn elsewhere.
+   */
+  eraseInlinePicture(resourceId: number): boolean {
+    const img = this.inlinePictures.get(resourceId);
+    if (!img) return false;
+    img.remove();
+    this.inlinePictures.delete(resourceId);
+    return true;
+  }
+
   private applyLowerWindowMarginsCss(leftInlinePx: number, rightInlinePx: number): void {
     const canvasW = this.pictureCanvas.width;
     if (canvasW === 0) return;
@@ -1230,24 +1304,6 @@ export class WebScreen extends BaseScreen {
     );
     this.mainEl.style.paddingLeft = `${leftPct.toFixed(2)}%`;
     this.mainEl.style.paddingRight = `${rightPct.toFixed(2)}%`;
-  }
-
-  onWindowPictureDrawn(windowId: number, finalY: number, height: number): void {
-    if (!this._useCanvasBackground || windowId !== 0) return;
-    // Clear any text rendered before this picture (picture covers it in the original interpreter).
-    this.mainEl.innerHTML = '';
-    // Position text start just below the picture's bottom edge.
-    // finalY is 1-based screen-absolute canvas pixel; picture occupies rows finalY..finalY+height-1.
-    // Row below picture (0-based) = finalY - 1 + height = finalY + height - 1.
-    const canvasAbsY = finalY - 1 + height;
-    const lineHeight = this.getStatusBarLineHeight(); // CSS pixels per canvas pixel
-    const cssY = canvasAbsY * lineHeight;
-    const statusBarCssH = parseFloat(this.statusEl.style.minHeight || '0');
-    const paddingTop = Math.max(0, cssY - statusBarCssH);
-    this.mainEl.style.paddingTop = `${paddingTop.toFixed(1)}px`;
-    this.v6debug(
-      `[onWindowPictureDrawn] window=${windowId} finalY=${finalY} h=${height} canvasAbsY=${canvasAbsY} paddingTop=${paddingTop.toFixed(1)}`
-    );
   }
 
   clearWindow(machine: ZMachine, windowId: number): void {
@@ -1281,6 +1337,7 @@ export class WebScreen extends BaseScreen {
       // Clear both windows and unsplit
       this.mainEl.innerHTML = '';
       this.mainEl.style.paddingTop = '';
+      this.inlinePictures.clear();
       this.statusEl.innerHTML = '';
       this.statusEl.style.display = 'none';
       this.statusEl.style.minHeight = '';
@@ -1289,11 +1346,13 @@ export class WebScreen extends BaseScreen {
       // Clear both windows but preserve split state
       this.mainEl.innerHTML = '';
       this.mainEl.style.paddingTop = '';
+      this.inlinePictures.clear();
       this.statusEl.innerHTML = '';
       this.upperWindowFontBuffer = [];
     } else if (windowId === 0) {
       this.mainEl.innerHTML = '';
       this.mainEl.style.paddingTop = '';
+      this.inlinePictures.clear();
     } else if (windowId === 1) {
       this.statusEl.innerHTML = '';
       this.upperWindowFontBuffer = [];
