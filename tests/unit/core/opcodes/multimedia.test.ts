@@ -90,7 +90,7 @@ describe('Multimedia Opcodes', () => {
       draw_picture(machine, [], 1, 200, 100);
 
       // displayPicture(picture, x, y, scale) — note x/y swap from opcode params
-      expect(mockMultimediaHandler.displayPicture).toHaveBeenCalledWith(1, 100, 200, 100);
+      expect(mockMultimediaHandler.displayPicture).toHaveBeenCalledWith(1, 100, 200, 100, 0);
       expect(machine.logger.debug).toHaveBeenCalledWith('draw_picture 1 200 100');
     });
 
@@ -140,7 +140,17 @@ describe('Multimedia Opcodes', () => {
       draw_picture(machine, [], 1, 0, 0);
 
       expect(machine.screen.getCursorPosition).toHaveBeenCalled();
-      expect(mockMultimediaHandler.displayPicture).toHaveBeenCalledWith(1, 10, 5, 100);
+      expect(mockMultimediaHandler.displayPicture).toHaveBeenCalledWith(1, 10, 5, 100, 0);
+    });
+
+    it('should pass the current output window to the multimedia handler', () => {
+      machine.state.version = 6;
+      machine.screen.getOutputWindow.mockReturnValue(3);
+      mockMultimediaHandler.displayPicture.mockReturnValue(ResourceStatus.Available);
+
+      draw_picture(machine, [], 1, 200, 100);
+
+      expect(mockMultimediaHandler.displayPicture).toHaveBeenCalledWith(1, 100, 200, 100, 3);
     });
   });
 
@@ -183,7 +193,7 @@ describe('Multimedia Opcodes', () => {
       draw_picture(machine, [], 1, 1, 1);
 
       // ...which sits at canvas (6,6), not (1,1). displayPicture takes (picture, x, y, scale).
-      expect(mockMultimediaHandler.displayPicture).toHaveBeenCalledWith(1, 6, 6, 100);
+      expect(mockMultimediaHandler.displayPicture).toHaveBeenCalledWith(1, 6, 6, 100, 0);
     });
 
     it('should add the window origin to a non-zero offset within the window', () => {
@@ -192,7 +202,7 @@ describe('Multimedia Opcodes', () => {
       draw_picture(machine, [], 1, 10, 20);
 
       // finalY = 6 + 10 - 1 = 15, finalX = 6 + 20 - 1 = 25
-      expect(mockMultimediaHandler.displayPicture).toHaveBeenCalledWith(1, 25, 15, 100);
+      expect(mockMultimediaHandler.displayPicture).toHaveBeenCalledWith(1, 25, 15, 100, 0);
     });
 
     it('should leave coordinates unchanged when the window sits at the screen origin', () => {
@@ -201,7 +211,7 @@ describe('Multimedia Opcodes', () => {
       draw_picture(machine, [], 1, 40, 80);
 
       // Guards the off-by-one: window_top + offset - 1 must be identity at origin 1.
-      expect(mockMultimediaHandler.displayPicture).toHaveBeenCalledWith(1, 80, 40, 100);
+      expect(mockMultimediaHandler.displayPicture).toHaveBeenCalledWith(1, 80, 40, 100, 0);
     });
 
     it('should convert a zero coordinate from cursor char cells back to pixels', () => {
@@ -213,7 +223,7 @@ describe('Multimedia Opcodes', () => {
       draw_picture(machine, [], 1, 0, 0);
 
       // finalY = (3-1)*8 + 1 = 17, finalX = (2-1)*8 + 1 = 9
-      expect(mockMultimediaHandler.displayPicture).toHaveBeenCalledWith(1, 9, 17, 100);
+      expect(mockMultimediaHandler.displayPicture).toHaveBeenCalledWith(1, 9, 17, 100, 0);
     });
 
     it('should notify the screen of the drawn picture with absolute Y and height', () => {
@@ -268,7 +278,7 @@ describe('Multimedia Opcodes', () => {
 
       // finalY = windowY(50) + y(10) - 1 = 59; finalX = windowX(200) + x(10) - 1 = 209.
       // Before the fix, WindowManager's stale 80x25 clamp corrupted this to (89, 34).
-      expect(mockMultimediaHandler.displayPicture).toHaveBeenCalledWith(1, 209, 59, 100);
+      expect(mockMultimediaHandler.displayPicture).toHaveBeenCalledWith(1, 209, 59, 100, 2);
     });
   });
 

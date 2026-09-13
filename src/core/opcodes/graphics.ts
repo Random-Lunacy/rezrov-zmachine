@@ -62,7 +62,7 @@ function draw_picture(machine: ZMachine, _operandTypes: OperandType[], picture: 
   );
 
   try {
-    const status = machine.multimediaHandler.displayPicture(picture, finalX, finalY, 100);
+    const status = machine.multimediaHandler.displayPicture(picture, finalX, finalY, 100, currentWindow);
 
     if (status === 0) {
       machine.logger.debug(`Picture ${picture} displayed at (${finalX}, ${finalY})`);
