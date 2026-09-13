@@ -1250,16 +1250,21 @@ export class WebScreen extends BaseScreen {
     img.style.width = `${(widthPx / canvasW) * 100}%`;
     img.style.height = 'auto';
 
+    // x is 1-based screen-absolute (see graphics.ts's finalX computation); convert to
+    // 0-based to compare against the 0-based _window0BaseLeft/_window0BaseRight bounds,
+    // matching the equivalent conversion in applyLowerWindowMarginsCss.
+    const pixelX = x - 1;
+
     const columnLeft = this._window0BaseLeft;
     const columnRight = this._window0BaseRight >= 0 ? this._window0BaseRight : canvasW;
     const columnMid = (columnLeft + columnRight) / 2;
 
-    if (x <= columnMid) {
+    if (pixelX <= columnMid) {
       img.style.float = 'left';
-      img.style.marginLeft = `${(Math.max(0, x - columnLeft) / canvasW) * 100}%`;
+      img.style.marginLeft = `${(Math.max(0, pixelX - columnLeft) / canvasW) * 100}%`;
     } else {
       img.style.float = 'right';
-      img.style.marginRight = `${(Math.max(0, columnRight - (x + widthPx)) / canvasW) * 100}%`;
+      img.style.marginRight = `${(Math.max(0, columnRight - (pixelX + widthPx)) / canvasW) * 100}%`;
     }
 
     this.mainEl.appendChild(img);
