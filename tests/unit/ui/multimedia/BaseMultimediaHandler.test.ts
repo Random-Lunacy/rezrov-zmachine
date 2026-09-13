@@ -139,7 +139,7 @@ describe('BaseMultimediaHandler', () => {
 
   describe('Picture Methods', () => {
     it('should display pictures', () => {
-      const result = handler.displayPicture(1, 100, 200, 150);
+      const result = handler.displayPicture(1, 100, 200, 150, 0);
 
       expect(result).toBe(ResourceStatus.NotAvailable);
       expect(mockLogger.debug).toHaveBeenCalledWith('Displaying picture 1 at (100,200) with scale 150%');
