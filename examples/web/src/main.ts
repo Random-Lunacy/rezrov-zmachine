@@ -7,11 +7,8 @@ if (typeof (globalThis as unknown as { process?: unknown }).process === 'undefin
 }
 
 // Polyfill setImmediate for browser (Executor uses it to defer input setup)
-if (
-  typeof (globalThis as typeof globalThis & { setImmediate?: (cb: () => void) => unknown }).setImmediate === 'undefined'
-) {
-  (globalThis as typeof globalThis & { setImmediate: (cb: () => void) => ReturnType<typeof setTimeout> }).setImmediate =
-    (cb: () => void) => setTimeout(cb, 0);
+if (typeof (globalThis as unknown as Record<string, unknown>).setImmediate === 'undefined') {
+  (globalThis as unknown as Record<string, unknown>).setImmediate = (cb: () => void) => setTimeout(cb, 0);
 }
 
 import {
@@ -96,8 +93,8 @@ function setupGame(
   });
   const inputProcessor = new WebInputProcessor(screen, inputEl, mainEl);
 
-  const { width: cellWidth, height: cellHeight } = screen.getCellDimensions();
-  const pictureRenderer = new PictureRenderer(pictureCanvas, cellWidth, cellHeight);
+  // PictureRenderer uses direct pixel coordinates; no cell dimensions needed.
+  const pictureRenderer = new PictureRenderer(pictureCanvas);
   const soundPlayer = new SoundPlayer();
 
   let multimediaHandler: BlorbMultimediaHandler | undefined;
@@ -107,10 +104,21 @@ function setupGame(
     blorbMap = BlorbParser.parse(blorbData);
     const webScreen = screen as import('./WebScreen').WebScreen;
     multimediaHandler = new BlorbMultimediaHandler(blorbMap, blorbData, {
-      pictureRenderer: async (resourceId, data, format, x, y, scale) => {
-        await pictureRenderer.displayPicture(resourceId, data, format, x, y, scale);
+      pictureRenderer: async (resourceId, data, format, x, y, scale, window) => {
+        try {
+          if (window === 0) {
+            await webScreen.displayInlinePicture(resourceId, data, format, x, y, scale);
+            return;
+          }
+          await pictureRenderer.displayPicture(resourceId, data, format, x, y, scale);
+        } catch (error) {
+          console.warn(`Picture ${resourceId} render failed:`, error);
+        }
       },
-      pictureEraser: (resourceId) => pictureRenderer.erasePicture(resourceId, webScreen.getBackgroundColor(0)),
+      pictureEraser: (resourceId) => {
+        if (webScreen.eraseInlinePicture(resourceId)) return;
+        pictureRenderer.erasePicture(resourceId, webScreen.getBackgroundColor(0));
+      },
       soundPlayer: (resourceId, data, format, volume, repeats) =>
         soundPlayer.playSound(resourceId, data, format, volume, repeats),
     });
@@ -124,28 +132,67 @@ function setupGame(
     machine.setBlorb(blorbMap, blorbData, multimediaHandler);
   }
 
+  // For V6 games the picture canvas (z-index 0) provides all visual backgrounds.
+  // Make the HTML text elements transparent so pictures show through them while
+  // their text content remains visible above via z-index 1.
+  if (machine.state.version >= 6) {
+    screen.enableCanvasBackground();
+  }
+
+  // After the HTML change the canvas is a direct child of #game-container.
+  const gameContainerEl = pictureCanvas.parentElement as HTMLElement;
+
   const resizeObserver = new ResizeObserver(() => {
     const { rows, cols } = screen.getSize();
     const version = machine.state.version;
     machine.memory.setByte(HeaderLocation.ScreenHeightInLines, rows);
     machine.memory.setByte(HeaderLocation.ScreenWidthInChars, cols);
     if (version >= 5) {
-      machine.memory.setWord(HeaderLocation.ScreenWidthInUnits, cols);
-      machine.memory.setWord(HeaderLocation.ScreenHeightInUnits, rows);
+      if (version < 6) {
+        // V5: units are character cells — update when char count changes.
+        machine.memory.setWord(HeaderLocation.ScreenWidthInUnits, cols);
+        machine.memory.setWord(HeaderLocation.ScreenHeightInUnits, rows);
+      }
+      // V6: pixel-based units stay fixed at the canvas's initial pixel dimensions.
+    }
+    if (version >= 6 && pictureCanvas.width > 0) {
+      const rect = gameContainerEl.getBoundingClientRect();
+      const aspectHeight = Math.round((rect.width * pictureCanvas.height) / pictureCanvas.width);
+      gameContainerEl.style.height = `${aspectHeight}px`;
+      screen.reapplyWindowFrames();
     }
     screen.handleResize();
   });
 
-  resizeObserver.observe(mainEl.parentElement!);
+  resizeObserver.observe(gameContainerEl);
 
   // Set initial dimensions in header before execution (ZMachine constructor may
-  // have run before layout; ResizeObserver callback is async)
+  // have run before layout; ResizeObserver callback is async).
   const { rows, cols } = screen.getSize();
+  const { width: cellWidth, height: cellHeight } = screen.getCellDimensions();
   machine.memory.setByte(HeaderLocation.ScreenHeightInLines, rows);
   machine.memory.setByte(HeaderLocation.ScreenWidthInChars, cols);
   if (machine.state.version >= 5) {
-    machine.memory.setWord(HeaderLocation.ScreenWidthInUnits, cols);
-    machine.memory.setWord(HeaderLocation.ScreenHeightInUnits, rows);
+    const isV6 = machine.state.version >= 6;
+    // V6: units are pixels — report the canvas's actual pixel dimensions.
+    // V5: units are character cells.
+    machine.memory.setWord(HeaderLocation.ScreenWidthInUnits, isV6 ? pictureCanvas.width : cols);
+    machine.memory.setWord(HeaderLocation.ScreenHeightInUnits, isV6 ? pictureCanvas.height : rows);
+    if (isV6) {
+      // V6: font dimensions are in canvas pixel units (screen units = pixels).
+      // fontH = canvas height / row count derived from CSS layout at the current font size.
+      // fontW = fontH (classic Infocom V6 games use a square 8×8 character grid, e.g. Zork Zero
+      // at 320×200 with 25 rows × 40 cols). This ensures set_cursor pixel coordinates convert
+      // to character cells correctly in BaseScreen.setCursorPosition().
+      const fontH = rows > 0 ? Math.max(1, Math.round(pictureCanvas.height / rows)) : 1;
+      const fontW = fontH; // Square font assumption for classic Infocom V6 games
+      machine.memory.setByte(HeaderLocation.FontWidthInUnits, Math.min(255, fontW));
+      machine.memory.setByte(HeaderLocation.FontHeightInUnits, Math.min(255, fontH));
+    } else {
+      // V5: font dimensions in CSS pixels (character cells).
+      machine.memory.setByte(HeaderLocation.FontWidthInUnits, Math.min(255, Math.round(cellWidth)));
+      machine.memory.setByte(HeaderLocation.FontHeightInUnits, Math.min(255, Math.round(cellHeight)));
+    }
   }
 
   currentSession = {
@@ -206,29 +253,29 @@ async function handleFileSelect(files: FileList | null): Promise<void> {
   const gameContainer = document.getElementById('game-container') as HTMLDivElement;
 
   gameContainer.style.display = 'block';
+  // Reset game container height (may have been set by a previous V6 game)
+  gameContainer.style.height = '';
   mainEl.innerHTML = '';
   statusEl.innerHTML = '';
   // Reset status bar styles from previous game (e.g. multi-line upper window)
   statusEl.style.minHeight = '';
   statusEl.style.display = '';
+  WebScreen.resetCanvasLayoutStyles(gameContainer);
   inputEl.value = '';
   inputEl.placeholder = '';
   inputEl.disabled = false;
 
-  const rect = mainEl.parentElement!.getBoundingClientRect();
-  pictureCanvas.width = rect.width;
-  pictureCanvas.height = rect.height;
-
   let storyData: Buffer;
   let blorbData: Buffer | null = null;
+  let blorbMap: ReturnType<typeof BlorbParser.parse> | null = null;
 
   if (files.length === 1) {
     const file = files[0];
     const data = await readFileAsBuffer(file);
 
     if (isBlorb(data)) {
-      const map = BlorbParser.parse(data);
-      const exec = BlorbParser.getExecData(map, data);
+      blorbMap = BlorbParser.parse(data);
+      const exec = BlorbParser.getExecData(blorbMap, data);
       storyData = exec ?? data;
       blorbData = data;
     } else {
@@ -243,6 +290,46 @@ async function handleFileSelect(files: FileList | null): Promise<void> {
 
     storyData = await readFileAsBuffer(result.story);
     blorbData = result.blorb ? await readFileAsBuffer(result.blorb) : null;
+    if (blorbData && isBlorb(blorbData)) {
+      blorbMap = BlorbParser.parse(blorbData);
+    }
+  }
+
+  // Check for a Blorb Reso chunk to determine the game's native pixel resolution.
+  // V6 games store their intended display resolution here. If found, size the canvas
+  // to the native resolution and use CSS to scale it to fill the container — this
+  // ensures draw_picture coordinates map 1:1 to canvas pixels at the correct scale.
+  let v6NativeWidth = 0;
+  let v6NativeHeight = 0;
+  if (blorbMap && blorbData) {
+    const resoData = BlorbParser.getChunkByType(blorbMap, blorbData, 'Reso');
+    if (resoData && resoData.length >= 8) {
+      v6NativeWidth = resoData.readUInt32BE(0);
+      v6NativeHeight = resoData.readUInt32BE(4);
+    }
+  }
+
+  const rect = gameContainer.getBoundingClientRect();
+
+  if (v6NativeWidth > 0 && v6NativeHeight > 0) {
+    // V6 native resolution: set canvas to game's pixel space; CSS scales it to fill container.
+    // The canvas draws at native resolution (e.g. 320×200); CSS scales it up to the container.
+    pictureCanvas.width = v6NativeWidth;
+    pictureCanvas.height = v6NativeHeight;
+    pictureCanvas.style.width = '100%';
+    pictureCanvas.style.height = '100%';
+    // Use pixelated rendering so scaled-up pixel art stays crisp rather than blurry.
+    pictureCanvas.style.imageRendering = 'pixelated';
+    // Force the container to maintain the game's native aspect ratio.
+    const aspectHeight = Math.round((rect.width * v6NativeHeight) / v6NativeWidth);
+    gameContainer.style.height = `${aspectHeight}px`;
+  } else {
+    // Non-V6 or no Reso chunk: size canvas to fit the container as-is.
+    pictureCanvas.width = rect.width;
+    pictureCanvas.height = rect.height;
+    pictureCanvas.style.width = '';
+    pictureCanvas.style.height = '';
+    pictureCanvas.style.imageRendering = '';
   }
 
   setupGame(storyData, blorbData, statusEl, mainEl, pictureCanvas, inputEl);
@@ -269,20 +356,34 @@ function init(): void {
     gameContainer.style.fontSize = size;
 
     if (!currentSession) return;
-    const { machine, pictureRenderer } = currentSession;
+    const { machine } = currentSession;
 
-    // Recalculate cell dimensions after font size change
+    // Recalculate cell dimensions after font size change.
     const screen = machine.screen as import('./WebScreen').WebScreen;
     const { width: cellWidth, height: cellHeight } = screen.remeasureCellDimensions();
-    pictureRenderer.updateCellDimensions(cellWidth, cellHeight);
 
-    // Update header with new screen dimensions
+    // Update character-count header fields (these change when font size changes).
     const { rows, cols } = screen.getSize();
     machine.memory.setByte(HeaderLocation.ScreenHeightInLines, rows);
     machine.memory.setByte(HeaderLocation.ScreenWidthInChars, cols);
     if (machine.state.version >= 5) {
-      machine.memory.setWord(HeaderLocation.ScreenWidthInUnits, cols);
-      machine.memory.setWord(HeaderLocation.ScreenHeightInUnits, rows);
+      if (machine.state.version < 6) {
+        // V5: units are character cells — update to new char counts.
+        machine.memory.setWord(HeaderLocation.ScreenWidthInUnits, cols);
+        machine.memory.setWord(HeaderLocation.ScreenHeightInUnits, rows);
+        // V5: font dimensions in CSS pixels.
+        machine.memory.setByte(HeaderLocation.FontWidthInUnits, Math.min(255, Math.round(cellWidth)));
+        machine.memory.setByte(HeaderLocation.FontHeightInUnits, Math.min(255, Math.round(cellHeight)));
+      } else {
+        // V6: pixel-based ScreenWidthInUnits/ScreenHeightInUnits are fixed to the canvas
+        // pixel dimensions and do not change when the font size changes.
+        // Font dimensions: fontH = canvasH / rows, fontW = fontH (square font assumption).
+        const pictureCanvas = (machine.screen as import('./WebScreen').WebScreen).getPictureCanvas();
+        const fontH = rows > 0 ? Math.max(1, Math.round(pictureCanvas.height / rows)) : 1;
+        const fontW = fontH; // Square font: Infocom V6 games use 8×8 pixel characters
+        machine.memory.setByte(HeaderLocation.FontWidthInUnits, Math.min(255, fontW));
+        machine.memory.setByte(HeaderLocation.FontHeightInUnits, Math.min(255, fontH));
+      }
     }
   });
 

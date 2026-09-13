@@ -65,10 +65,24 @@ function createPngBuffer(width: number, height: number): Buffer {
 }
 
 /**
- * Build a minimal Blorb container with given picture resources.
- * Each picture is stored as a raw chunk (JPEG or PNG) with an RIdx entry.
+ * Build a Blorb 'Rect' placeholder chunk: 4-byte width + 4-byte height, big-endian.
+ * Per the Blorb spec, this describes the legacy picture behavior of some V6
+ * Infocom games (Zork Zero, Shogun, Arthur) — a declared size with no pixel data.
  */
-function createBlorbWithPictures(pictures: Array<{ id: number; data: Buffer; type: 'JPEG' | 'PNG ' }>): Buffer {
+function createRectBuffer(width: number, height: number): Buffer {
+  const buf = Buffer.alloc(8);
+  buf.writeUInt32BE(width, 0);
+  buf.writeUInt32BE(height, 4);
+  return buf;
+}
+
+/**
+ * Build a minimal Blorb container with given picture resources.
+ * Each picture is stored as a raw chunk (JPEG, PNG, or Rect) with an RIdx entry.
+ */
+function createBlorbWithPictures(
+  pictures: Array<{ id: number; data: Buffer; type: 'JPEG' | 'PNG ' | 'Rect' }>
+): Buffer {
   // Calculate sizes
   const ridxDataSize = 4 + pictures.length * 12; // count + entries
   const ridxChunkSize = 8 + ridxDataSize; // type + length + data
@@ -261,13 +275,22 @@ describe('BlorbMultimediaHandler', () => {
 
   describe('displayPicture', () => {
     it('should return Available for existing picture', () => {
-      const status = handler.displayPicture(1, 10, 20, 100);
+      const status = handler.displayPicture(1, 10, 20, 100, 0);
       expect(status).toBe(ResourceStatus.Available);
     });
 
     it('should return NotAvailable for missing picture', () => {
-      const status = handler.displayPicture(99, 10, 20, 100);
+      const status = handler.displayPicture(99, 10, 20, 100, 0);
       expect(status).toBe(ResourceStatus.NotAvailable);
+    });
+
+    it('should forward the target window to the pictureRenderer callback', () => {
+      const rendererSpy = vi.fn();
+      const h = new BlorbMultimediaHandler(blorbMap, blorbData, { logger: mockLogger, pictureRenderer: rendererSpy });
+
+      h.displayPicture(1, 10, 20, 100, 3);
+
+      expect(rendererSpy).toHaveBeenCalledWith(1, jpegData, 'JPEG', 10, 20, 100, 3);
     });
   });
 
@@ -338,6 +361,29 @@ describe('BlorbMultimediaHandler', () => {
       const data = handler.getPictureData(42);
       expect(data).toBeNull();
       expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('unsupported chunk type'));
+    });
+  });
+
+  /**
+   * Per the Blorb spec, 'Rect' is a placeholder picture resource (declared size,
+   * no pixel data) "to describe the legacy behavior of some V6 Infocom games
+   * (Zork Zero, Shogun, and Arthur)". Zork Zero's own bytecode calls picture_data
+   * on Rect-typed resources and uses the returned width/height for layout
+   * (e.g. computing move_window's target position) — if picture_data fails for
+   * them, the game's own lookup table keeps whatever stale bytes were there
+   * before, corrupting later window placement.
+   */
+  describe('Rect placeholder pictures', () => {
+    it('should report the declared width/height instead of treating it as unsupported', () => {
+      const rectData = createRectBuffer(45, 40);
+      const blorb = createBlorbWithPictures([{ id: 387, data: rectData, type: 'Rect' }]);
+      const map = BlorbParser.parse(blorb);
+      const h = new BlorbMultimediaHandler(map, blorb, { logger: mockLogger });
+
+      const data = h.getPictureData(387);
+
+      expect(data).toEqual({ width: 45, height: 40, format: 'Rect', hasTransparency: false });
+      expect(mockLogger.warn).not.toHaveBeenCalled();
     });
   });
 

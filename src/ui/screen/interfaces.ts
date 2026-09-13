@@ -160,6 +160,11 @@ export interface Screen {
   readMouse?(machine: ZMachine, array: number): void;
   setMouseWindow?(machine: ZMachine, windowId: number): void;
 
+  // V6 picture notification (optional for backward compatibility)
+  // Called after draw_picture resolves final coordinates and picture dimensions.
+  // Allows the screen to reposition HTML text below the picture.
+  onWindowPictureDrawn?(windowId: number, finalY: number, height: number): void;
+
   // Lifecycle
   quit(): void;
 }

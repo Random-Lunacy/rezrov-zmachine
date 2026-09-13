@@ -106,7 +106,7 @@ export type WindowEventHandler = (event: WindowEvent) => void;
 export class WindowManager {
   private logger: Logger;
   private windows: Map<number, WindowState> = new Map();
-  private nextWindowId: number = 2; // 0 and 1 are reserved for Lower/Upper
+  private nextWindowId: number = 8; // 0-7 reserved for Z-machine V6 standard windows
   private eventHandlers: Map<WindowEventType, WindowEventHandler[]> = new Map();
   private screenWidth: number = 80;
   private screenHeight: number = 25;
@@ -180,6 +180,42 @@ export class WindowManager {
       attributes: 0, // No wrapping/scrolling/scripting/buffering
       lineCount: 0,
     });
+
+    // V6 auxiliary windows (2-7): pre-initialised per Z-machine spec.
+    // The spec reserves windows 0-7 for the interpreter; they are not created
+    // dynamically by the game.  Initialise them now so that V6 opcodes like
+    // set_window, move_window, resize_window etc. targeting windows 2-7 do not
+    // produce spurious "Window N not found" warnings.
+    for (let id = 2; id <= 7; id++) {
+      this.windows.set(id, {
+        id,
+        type: WindowType.Lower,
+        x: 0,
+        y: 0,
+        width: this.screenWidth,
+        height: this.screenHeight,
+        zOrder: id,
+        visible: false,
+        active: false,
+        font: 1,
+        textStyle: TextStyle.Roman,
+        foreground: Color.Default,
+        background: Color.Default,
+        cursorLine: 1,
+        cursorColumn: 1,
+        scrollTop: 0,
+        scrollBottom: this.screenHeight,
+        leftMargin: 1,
+        rightMargin: this.screenWidth,
+        content: [],
+        dirty: false,
+        lastRedraw: Date.now(),
+        newlineInterrupt: 0,
+        interruptCountdown: 0,
+        attributes: 0,
+        lineCount: 0,
+      });
+    }
   }
 
   /**
@@ -259,8 +295,15 @@ export class WindowManager {
     const oldX = window.x;
     const oldY = window.y;
 
-    window.x = Math.max(0, Math.min(x, this.screenWidth - window.width));
-    window.y = Math.max(0, Math.min(y, this.screenHeight - window.height));
+    // When a window fills the full screen dimension (e.g. V6 window-0 before resize_window is
+    // called), subtracting window.dim from screenDim yields 0, clamping any non-zero position
+    // to 0.  Use dim-1 as the fallback upper bound so move_window can reposition the window
+    // before the resize arrives.  For smaller windows the size-aware bound is kept so the
+    // window cannot be moved off the right/bottom edge.
+    const maxX = window.width < this.screenWidth ? this.screenWidth - window.width : this.screenWidth - 1;
+    const maxY = window.height < this.screenHeight ? this.screenHeight - window.height : this.screenHeight - 1;
+    window.x = Math.max(0, Math.min(x, maxX));
+    window.y = Math.max(0, Math.min(y, maxY));
     window.dirty = true;
 
     this.emitEvent(WindowEventType.MOVED, windowId, {

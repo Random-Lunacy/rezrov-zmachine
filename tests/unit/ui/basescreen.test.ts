@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BufferMode, Color, TextStyle } from '../../../src/types';
 import { InputMode, InputState } from '../../../src/ui/input/InputInterface';
 import { BaseScreen } from '../../../src/ui/screen/BaseScreen';
+import { WindowProperty } from '../../../src/ui/screen/interfaces';
+import { HeaderLocation } from '../../../src/utils/constants';
 import { Logger } from '../../../src/utils/log';
 import { MockZMachine, createMockZMachine } from '../../mocks';
 
@@ -483,9 +485,7 @@ describe('BaseScreen', () => {
       screen.splitWindow(v5Machine as any, 5);
       screen.setCursorPosition(v5Machine as any, 0, 10, 1); // Line 0 is invalid
 
-      expect(mockLogger.debug).toHaveBeenCalledWith(
-        'TestScreen setCursorPosition: invalid position (0, 10)'
-      );
+      expect(mockLogger.debug).toHaveBeenCalledWith('TestScreen setCursorPosition: invalid position (0, 10)');
     });
 
     it('should allow cursor position beyond screen width (games use screen-absolute coords)', () => {
@@ -618,6 +618,124 @@ describe('BaseScreen', () => {
       screen.setCursorPosition(machine as any, 5, 10, 0); // Lower window
 
       expect(mockLogger.debug).toHaveBeenCalledWith('TestScreen setCursorPosition only works in upper window');
+    });
+  });
+
+  describe('V6 cursor and window coordinates', () => {
+    /** Report a square font of `size` screen units via the header. */
+    function givenFontSize(size: number): void {
+      machine.memory.getByte.mockImplementation((addr: number) =>
+        addr === HeaderLocation.FontHeightInUnits || addr === HeaderLocation.FontWidthInUnits ? size : 0
+      );
+    }
+
+    beforeEach(() => {
+      machine.state.version = 6;
+    });
+
+    it('should convert V6 pixel cursor coordinates to character cells', () => {
+      givenFontSize(8);
+
+      // V6 set_cursor passes screen units (pixels), not character cells.
+      screen.setCursorPosition(machine as any, 17, 9, 1);
+
+      // charRow = floor((17-1)/8)+1 = 3, charCol = floor((9-1)/8)+1 = 2
+      expect(screen.getCursorPosition(machine as any)).toEqual({ line: 3, column: 2 });
+    });
+
+    it('should keep a pixel coordinate inside the same cell it falls in', () => {
+      givenFontSize(8);
+
+      // Pixel row 16 is the last row of char cell 2, not the first of cell 3.
+      screen.setCursorPosition(machine as any, 16, 8, 1);
+
+      expect(screen.getCursorPosition(machine as any)).toEqual({ line: 2, column: 1 });
+    });
+
+    it('should fall back to a font size of 1 when the header reports 0', () => {
+      // getByte defaults to 0; the `|| 1` guard must keep the conversion an identity
+      // rather than dividing by zero.
+      screen.setCursorPosition(machine as any, 5, 7, 1);
+
+      expect(screen.getCursorPosition(machine as any)).toEqual({ line: 5, column: 7 });
+    });
+
+    it('should accept a non-upper window in V6 where V5 rejects it', () => {
+      givenFontSize(8);
+
+      // V6's set_cursor takes an explicit window operand, so window 0 is valid.
+      screen.setCursorPosition(machine as any, 9, 9, 0);
+
+      expect(mockLogger.debug).not.toHaveBeenCalledWith('TestScreen setCursorPosition only works in upper window');
+      expect(screen.getCursorPosition(machine as any)).toEqual({ line: 2, column: 2 });
+    });
+
+    it('should still reject a non-upper window in V5', () => {
+      machine.state.version = 5;
+
+      screen.setCursorPosition(machine as any, 5, 10, 0);
+
+      expect(mockLogger.debug).toHaveBeenCalledWith('TestScreen setCursorPosition only works in upper window');
+    });
+
+  });
+
+  describe('V6 window move/resize with a real pixel screen size', () => {
+    beforeEach(() => {
+      machine.state.version = 6;
+    });
+
+    function givenScreenPixelSize(width: number, height: number): void {
+      machine.memory.getWord.mockImplementation((addr: number) =>
+        addr === HeaderLocation.ScreenWidthInUnits ? width : addr === HeaderLocation.ScreenHeightInUnits ? height : 0
+      );
+    }
+
+    it('should not clamp move_window to the legacy 80x25 default when the header reports a larger pixel screen', () => {
+      givenScreenPixelSize(320, 200);
+
+      // Zork Zero-style: move a window to real canvas-pixel coordinates beyond 80x25.
+      screen.moveWindow(machine as any, 2, 50, 200); // moveWindow(machine, windowId, y, x)
+
+      expect(screen.getWindowProperty(machine as any, 2, WindowProperty.XCoordinate)).toBe(200);
+      expect(screen.getWindowProperty(machine as any, 2, WindowProperty.YCoordinate)).toBe(50);
+    });
+
+    it('should not clamp resize_window to the legacy 80x25 default when the header reports a larger pixel screen', () => {
+      givenScreenPixelSize(320, 200);
+
+      screen.resizeWindow(machine as any, 2, 100, 300); // resizeWindow(machine, windowId, height, width)
+
+      // BaseScreen.getWindowProperty doesn't route XSize/YSize through WindowManager
+      // (a separate, pre-existing gap), so check WindowManager's own tracked state —
+      // the layer resize_window's clamp bounds actually live in.
+      expect(screen['windowManager'].getWindowProperty(2, WindowProperty.XSize)).toBe(300);
+      expect(screen['windowManager'].getWindowProperty(2, WindowProperty.YSize)).toBe(100);
+    });
+  });
+
+  /**
+   * getWindowProperty for Y/XCoordinate now delegates to WindowManager so that V6's
+   * move_window positions are reported. V3/V5 games never call move_window, so these
+   * guard that the delegation still yields the values the old inline calculation did.
+   */
+  describe('getWindowProperty delegation to WindowManager', () => {
+    it('should report legacy coordinates for an unsplit screen', () => {
+      expect(screen.getWindowProperty(machine as any, 1, WindowProperty.YCoordinate)).toBe(1);
+      expect(screen.getWindowProperty(machine as any, 0, WindowProperty.YCoordinate)).toBe(1);
+      expect(screen.getWindowProperty(machine as any, 1, WindowProperty.XCoordinate)).toBe(1);
+      expect(screen.getWindowProperty(machine as any, 0, WindowProperty.XCoordinate)).toBe(1);
+    });
+
+    it('should move the lower window down after a split, leaving the upper at row 1', () => {
+      screen.splitWindow(machine as any, 5);
+
+      // Legacy behaviour: upper window is always row 1, lower starts at upperHeight + 1.
+      expect(screen.getWindowProperty(machine as any, 1, WindowProperty.YCoordinate)).toBe(1);
+      expect(screen.getWindowProperty(machine as any, 0, WindowProperty.YCoordinate)).toBe(6);
+
+      // A split never shifts either window horizontally.
+      expect(screen.getWindowProperty(machine as any, 0, WindowProperty.XCoordinate)).toBe(1);
     });
   });
 

@@ -6,13 +6,13 @@ A modular Z-machine interpreter written in TypeScript that executes interactive 
 
 | Layer | Technology | Version | Purpose |
 |-------|------------|---------|---------|
-| Runtime | Node.js | 20.x/22.x | Modern JavaScript runtime with ESM support |
+| Runtime | Node.js | 22.x/24.x | Modern JavaScript runtime with ESM support |
 | Language | TypeScript | 5.x | Strict type safety with comprehensive compiler checks |
 | Build | tsc + tsc-esm-fix | - | Compiles to ESNext modules with proper .js extensions |
-| Testing | Vitest | 4.x | Fast unit/integration testing with V8 coverage |
+| Testing | Vitest | 5.x | Fast unit/integration testing with V8 coverage |
 | Linting | ESLint + TypeScript ESLint | 9.x/8.x | Code quality with automatic import organization |
 | Formatting | Prettier | 3.x | 120 char lines, single quotes, organized imports |
-| CI/CD | GitHub Actions | - | Automated testing on Node 20.x and 22.x |
+| CI/CD | GitHub Actions | - | Automated testing on Node 22.x and 24.x |
 
 **Key TypeScript Configuration:**
 - Strict mode enabled with `noImplicitReturns`, `noUnusedLocals`, `useUnknownInCatchVariables`
@@ -23,7 +23,7 @@ A modular Z-machine interpreter written in TypeScript that executes interactive 
 
 ```bash
 # Prerequisites
-Node.js 20.x or 22.x
+Node.js 22.12+ (22.x or 24.x)
 
 # Installation
 git clone https://github.com/yourusername/rezrov-zmachine.git
@@ -324,7 +324,7 @@ Example: `tests/unit/core/memory/Memory.test.ts`
 
 - **Main branch**: `main`
 - **CI/CD**: GitHub Actions run on push/PR to main
-  - Tested on Node.js 20.x and 22.x
+  - Tested on Node.js 22.x and 24.x
   - Build, then run full test suite with coverage
   - CodeQL security analysis
 - **Commit messages:** Clear, descriptive (no enforced format)

@@ -69,6 +69,12 @@ describe('InputInterface', () => {
   });
 
   afterEach(() => {
+    // Tests that spy call-through on handleTimedInput schedule a real setTimeout
+    // (state.time 10 => 1000ms). Left pending, it fires after the test has finished
+    // and calls onInputTimeout against a reset mock executor, where
+    // executeTimeoutRoutine() returns undefined and the .then() chain throws.
+    // cancelInput only clears timeoutHandle, so it is safe teardown.
+    inputProcessor.cancelInput(machine as unknown as ZMachine);
     vi.resetAllMocks();
   });
 

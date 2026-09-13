@@ -87,6 +87,19 @@ function getPngDimensions(data: Buffer): { width: number; height: number } | nul
 }
 
 /**
+ * Extract width and height from a Blorb 'Rect' placeholder chunk: 4-byte BE
+ * width followed by 4-byte BE height, no pixel data. Returns null if the
+ * buffer is too small.
+ */
+function getRectDimensions(data: Buffer): { width: number; height: number } | null {
+  if (data.length < 8) return null;
+
+  const width = data.readUInt32BE(0);
+  const height = data.readUInt32BE(4);
+  return { width, height };
+}
+
+/**
  * Callback for displaying a picture. Receives raw image data and display parameters.
  */
 export type PictureRendererCallback = (
@@ -95,7 +108,8 @@ export type PictureRendererCallback = (
   format: string,
   x: number,
   y: number,
-  scale: number
+  scale: number,
+  window: number
 ) => void;
 
 /**
@@ -222,6 +236,9 @@ export class BlorbMultimediaHandler extends BaseMultimediaHandler {
       dimensions = getPngDimensions(data);
       format = 'PNG';
       hasTransparency = true; // PNG supports alpha
+    } else if (chunkType === BlorbChunkType.Rect) {
+      dimensions = getRectDimensions(data);
+      format = 'Rect';
     } else {
       this._logger.warn(`Picture ${resourceId}: unsupported chunk type '${chunkType}'`);
       return null;
@@ -244,7 +261,7 @@ export class BlorbMultimediaHandler extends BaseMultimediaHandler {
     return pictureData;
   }
 
-  displayPicture(resourceId: number, x: number, y: number, scale: number): ResourceStatus {
+  displayPicture(resourceId: number, x: number, y: number, scale: number, window: number): ResourceStatus {
     if (!this.isResourceAvailable(ResourceType.Picture, resourceId)) {
       this._logger.debug(`Picture ${resourceId} not available for display`);
       return ResourceStatus.NotAvailable;
@@ -257,7 +274,7 @@ export class BlorbMultimediaHandler extends BaseMultimediaHandler {
         const format =
           chunkType === BlorbChunkType.PNG ? 'PNG' : chunkType === BlorbChunkType.JPEG ? 'JPEG' : chunkType;
         try {
-          this._pictureRenderer(resourceId, data, format, x, y, scale);
+          this._pictureRenderer(resourceId, data, format, x, y, scale, window);
           return ResourceStatus.Available;
         } catch (error) {
           this._logger.error(`Picture ${resourceId} render failed: ${error}`);
@@ -266,7 +283,7 @@ export class BlorbMultimediaHandler extends BaseMultimediaHandler {
       }
     }
 
-    this._logger.debug(`Picture ${resourceId} available at (${x},${y}) scale ${scale}%`);
+    this._logger.debug(`Picture ${resourceId} available at (${x},${y}) scale ${scale}% window=${window}`);
     return ResourceStatus.Available;
   }
 

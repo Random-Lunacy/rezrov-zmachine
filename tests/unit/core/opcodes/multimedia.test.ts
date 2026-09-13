@@ -1,8 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { BaseMultimediaHandler, ResourceStatus, ResourceType } from '../../../../src/ui/multimedia/MultimediaHandler';
-import { createMockZMachine } from '../../../mocks';
-import { sound_effect } from '../../../../src/core/opcodes/io';
 import { draw_picture, erase_picture, picture_data, picture_table } from '../../../../src/core/opcodes/graphics';
+import { sound_effect } from '../../../../src/core/opcodes/io';
+import { ResourceStatus, ResourceType } from '../../../../src/ui/multimedia/MultimediaHandler';
+import { BaseScreen } from '../../../../src/ui/screen/BaseScreen';
+import { WindowProperty } from '../../../../src/ui/screen/interfaces';
+import { HeaderLocation } from '../../../../src/utils/constants';
+import { createMockZMachine } from '../../../mocks';
 
 describe('Multimedia Opcodes', () => {
   let machine: any;
@@ -87,7 +90,7 @@ describe('Multimedia Opcodes', () => {
       draw_picture(machine, [], 1, 200, 100);
 
       // displayPicture(picture, x, y, scale) — note x/y swap from opcode params
-      expect(mockMultimediaHandler.displayPicture).toHaveBeenCalledWith(1, 100, 200, 100);
+      expect(mockMultimediaHandler.displayPicture).toHaveBeenCalledWith(1, 100, 200, 100, 0);
       expect(machine.logger.debug).toHaveBeenCalledWith('draw_picture 1 200 100');
     });
 
@@ -137,7 +140,145 @@ describe('Multimedia Opcodes', () => {
       draw_picture(machine, [], 1, 0, 0);
 
       expect(machine.screen.getCursorPosition).toHaveBeenCalled();
-      expect(mockMultimediaHandler.displayPicture).toHaveBeenCalledWith(1, 10, 5, 100);
+      expect(mockMultimediaHandler.displayPicture).toHaveBeenCalledWith(1, 10, 5, 100, 0);
+    });
+
+    it('should pass the current output window to the multimedia handler', () => {
+      machine.state.version = 6;
+      machine.screen.getOutputWindow.mockReturnValue(3);
+      mockMultimediaHandler.displayPicture.mockReturnValue(ResourceStatus.Available);
+
+      draw_picture(machine, [], 1, 200, 100);
+
+      expect(mockMultimediaHandler.displayPicture).toHaveBeenCalledWith(1, 100, 200, 100, 3);
+    });
+  });
+
+  /**
+   * Per spec §8.8.3.1 draw_picture's y/x are window-relative 1-based PIXEL positions,
+   * so the opcode converts them to screen-absolute using the current window's top-left.
+   *
+   * The default mock returns YCoordinate/XCoordinate = 1 and getByte = 0 (fontH/fontW
+   * fall back to 1), which makes both conversions the identity — so the tests above
+   * cannot distinguish correct arithmetic from none at all. These tests supply a
+   * non-trivial window origin and font size so the math is actually exercised.
+   */
+  describe('draw_picture V6 coordinate conversion', () => {
+    /** Place window 0's top-left at canvas pixel (winY, winX), both 1-based. */
+    function givenWindowOrigin(winY: number, winX: number): void {
+      machine.screen.getWindowProperty.mockImplementation((_m: unknown, _window: number, property: number) => {
+        if (property === WindowProperty.YCoordinate) return winY;
+        if (property === WindowProperty.XCoordinate) return winX;
+        return 0;
+      });
+    }
+
+    /** Report a square font of `size` screen units, as classic V6 games assume. */
+    function givenFontSize(size: number): void {
+      machine.memory.getByte.mockImplementation((addr: number) =>
+        addr === HeaderLocation.FontHeightInUnits || addr === HeaderLocation.FontWidthInUnits ? size : 0
+      );
+    }
+
+    beforeEach(() => {
+      machine.state.version = 6;
+      mockMultimediaHandler.displayPicture.mockReturnValue(ResourceStatus.Available);
+    });
+
+    it('should offset window-relative coordinates by the window origin', () => {
+      // Zork Zero's typical layout: move_window(0, y=6, x=6).
+      givenWindowOrigin(6, 6);
+
+      // (1,1) is the window's own top-left corner...
+      draw_picture(machine, [], 1, 1, 1);
+
+      // ...which sits at canvas (6,6), not (1,1). displayPicture takes (picture, x, y, scale).
+      expect(mockMultimediaHandler.displayPicture).toHaveBeenCalledWith(1, 6, 6, 100, 0);
+    });
+
+    it('should add the window origin to a non-zero offset within the window', () => {
+      givenWindowOrigin(6, 6);
+
+      draw_picture(machine, [], 1, 10, 20);
+
+      // finalY = 6 + 10 - 1 = 15, finalX = 6 + 20 - 1 = 25
+      expect(mockMultimediaHandler.displayPicture).toHaveBeenCalledWith(1, 25, 15, 100, 0);
+    });
+
+    it('should leave coordinates unchanged when the window sits at the screen origin', () => {
+      givenWindowOrigin(1, 1);
+
+      draw_picture(machine, [], 1, 40, 80);
+
+      // Guards the off-by-one: window_top + offset - 1 must be identity at origin 1.
+      expect(mockMultimediaHandler.displayPicture).toHaveBeenCalledWith(1, 80, 40, 100, 0);
+    });
+
+    it('should convert a zero coordinate from cursor char cells back to pixels', () => {
+      givenWindowOrigin(1, 1);
+      givenFontSize(8);
+      // BaseScreen stores V6 cursor positions as char cells, so reverse that here.
+      machine.screen.getCursorPosition.mockReturnValue({ line: 3, column: 2 });
+
+      draw_picture(machine, [], 1, 0, 0);
+
+      // finalY = (3-1)*8 + 1 = 17, finalX = (2-1)*8 + 1 = 9
+      expect(mockMultimediaHandler.displayPicture).toHaveBeenCalledWith(1, 9, 17, 100, 0);
+    });
+
+    it('should notify the screen of the drawn picture with absolute Y and height', () => {
+      givenWindowOrigin(6, 6);
+      machine.screen.getOutputWindow.mockReturnValue(0);
+      machine.screen.onWindowPictureDrawn = vi.fn();
+      mockMultimediaHandler.getPictureData.mockReturnValue({ height: 40, width: 100 });
+
+      draw_picture(machine, [], 1, 10, 20);
+
+      // Screen needs the absolute Y (15), not the raw window-relative 10,
+      // so it can flow HTML text below the picture.
+      expect(machine.screen.onWindowPictureDrawn).toHaveBeenCalledWith(0, 15, 40);
+    });
+
+    it('should not notify the screen when picture dimensions are unavailable', () => {
+      givenWindowOrigin(6, 6);
+      machine.screen.onWindowPictureDrawn = vi.fn();
+      mockMultimediaHandler.getPictureData.mockReturnValue(undefined);
+
+      draw_picture(machine, [], 1, 10, 20);
+
+      expect(machine.screen.onWindowPictureDrawn).not.toHaveBeenCalled();
+    });
+  });
+
+  /**
+   * The tests above mock machine.screen.getWindowProperty directly, so they can't
+   * catch a bug in how the window origin itself gets computed. This exercises the
+   * real pipeline end-to-end: move_window -> BaseScreen -> WindowManager (with its
+   * screen-size clamp) -> getWindowProperty -> draw_picture, using a realistic
+   * V6 pixel screen size (320x200, e.g. Zork Zero) instead of WindowManager's
+   * legacy 80x25 default.
+   */
+  describe('draw_picture end-to-end through a real BaseScreen/WindowManager', () => {
+    it('should not clamp a picture position when its window was moved to real V6 pixel coordinates', () => {
+      const realScreen = new BaseScreen('IntegrationScreen');
+      machine.screen = realScreen;
+      machine.state.version = 6;
+      machine.memory.getWord.mockImplementation((addr: number) =>
+        addr === HeaderLocation.ScreenWidthInUnits ? 320 : addr === HeaderLocation.ScreenHeightInUnits ? 200 : 0
+      );
+      mockMultimediaHandler.displayPicture.mockReturnValue(ResourceStatus.Available);
+      mockMultimediaHandler.getPictureData.mockReturnValue(null);
+
+      // Move window 2 to real canvas-pixel coordinates well beyond the legacy 80x25 clamp.
+      realScreen.moveWindow(machine, 2, 50, 200); // moveWindow(machine, windowId, y, x)
+      realScreen.setOutputWindow(machine, 2);
+
+      // draw_picture with an explicit window-relative offset (10,10) within window 2.
+      draw_picture(machine, [], 1, 10, 10); // draw_picture(machine, _, picture, y, x)
+
+      // finalY = windowY(50) + y(10) - 1 = 59; finalX = windowX(200) + x(10) - 1 = 209.
+      // Before the fix, WindowManager's stale 80x25 clamp corrupted this to (89, 34).
+      expect(mockMultimediaHandler.displayPicture).toHaveBeenCalledWith(1, 209, 59, 100, 2);
     });
   });
 
@@ -224,6 +365,26 @@ describe('Multimedia Opcodes', () => {
       expect(machine.state.doBranch).toHaveBeenCalledWith(false, false, 10);
     });
 
+    it('should store zero height/width and branch true for a Blorb Rect declared as 0x0', () => {
+      // Per the Blorb spec, a Rect placeholder's width and height "may be zero" --
+      // that's a valid declared size, not a missing resource. Per the Z-Machine
+      // spec, picture_data branches on "if the picture number is valid", not on
+      // whether the dimensions happen to be positive.
+      machine.state.version = 6;
+      mockMultimediaHandler.getPictureData.mockReturnValue({
+        width: 0,
+        height: 0,
+        format: 'Rect',
+        hasTransparency: false,
+      });
+
+      picture_data(machine, [], 478, 0x2000);
+
+      expect(machine.memory.setWord).toHaveBeenCalledWith(0x2000, 0); // height
+      expect(machine.memory.setWord).toHaveBeenCalledWith(0x2002, 0); // width
+      expect(machine.state.doBranch).toHaveBeenCalledWith(true, false, 10);
+    });
+
     it('should handle multimedia handler errors and branch false', () => {
       machine.state.version = 6;
       mockMultimediaHandler.getPictureData.mockImplementation(() => {
@@ -232,9 +393,7 @@ describe('Multimedia Opcodes', () => {
 
       picture_data(machine, [], 1, 0x2000);
 
-      expect(machine.logger.error).toHaveBeenCalledWith(
-        'Error getting picture data for 1: Error: Test error'
-      );
+      expect(machine.logger.error).toHaveBeenCalledWith('Error getting picture data for 1: Error: Test error');
       expect(machine.state.doBranch).toHaveBeenCalledWith(false, false, 10);
     });
 
@@ -296,9 +455,7 @@ describe('Multimedia Opcodes', () => {
         picture_table(machine, [], 0x1000);
       }).not.toThrow();
 
-      expect(machine.logger.error).toHaveBeenCalledWith(
-        'Error processing picture table: Error: Memory error'
-      );
+      expect(machine.logger.error).toHaveBeenCalledWith('Error processing picture table: Error: Memory error');
     });
   });
 });
