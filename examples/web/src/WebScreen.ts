@@ -488,18 +488,6 @@ export class WebScreen extends BaseScreen {
   private _useCanvasBackground: boolean = false;
 
   /**
-   * V6 window-0 boundary tracking (canvas pixels, 0-based).
-   * Updated by overridden resizeWindow/moveWindow; used to compute CSS padding so text
-   * flows within the correct visual area and does not overlap canvas pictures.
-   * _window0BaseLeft:  left  edge (default 0)
-   * _window0BaseRight: right edge (-1 = not yet configured → fall back to canvas width)
-   * _window0BaseTop:   top   edge (default 0); used to compute paddingTop from set_cursor
-   */
-  private _window0BaseLeft: number = 0;
-  private _window0BaseRight: number = -1;
-  private _window0BaseTop: number = 0;
-
-  /**
    * Leftmost X (1-based, screen-absolute) of any right-side decorative picture drawn
    * during V6 layout.  Used to cap the right text boundary so text does not flow under
    * the right column/pillar picture.  -1 = not yet detected.
@@ -568,49 +556,64 @@ export class WebScreen extends BaseScreen {
   enableCanvasBackground(): void {
     this._useCanvasBackground = true;
 
-    // Status bar: transparent, no border, initially hidden until split_window is called
+    // Status bar: transparent, no border, initially hidden until split_window/
+    // resize_window gives it a size. Positioned by applyWindowFrame, not flex.
     this.statusEl.style.backgroundColor = 'transparent';
     this.statusEl.style.borderBottom = 'none';
     this.statusEl.style.display = 'none';
+    this.statusEl.style.minHeight = '0';
 
     // Main text area: transparent, no default padding/height constraints
     this.mainEl.style.backgroundColor = 'transparent';
     this.mainEl.style.minHeight = '0';
 
-    const mainContent = this.mainEl.parentElement;
+    const mainContent = this.mainEl.parentElement as HTMLElement | null;
     if (mainContent) {
       mainContent.style.backgroundColor = 'transparent';
+      mainContent.style.padding = '0';
+      // Base CSS (index.html) declares #main-content { min-height: 400px; max-height: 70vh; }
+      // for the non-canvas fallback layout. Clear both here so they can't clamp the
+      // explicit height applyWindowFrame computes below (a min-height floor above that
+      // computed height would push the box past #input-line's top, defeating the cap
+      // applyWindowFrame exists to enforce).
       mainContent.style.minHeight = '0';
       mainContent.style.maxHeight = 'none';
-      mainContent.style.padding = '0';
-      mainContent.style.overflowY = 'auto';
-      // Take up all remaining vertical space between status bar and input line
-      mainContent.style.flex = '1';
+      // left/top/width/height/overflow are set by applyWindowFrame, from window 0's
+      // own move_window/resize_window box, once WindowManager has real bounds.
     }
 
     const gameContainer = this.statusEl.parentElement;
     if (gameContainer) {
       gameContainer.style.backgroundColor = 'transparent';
-      // Stack children vertically so status bar + text area + input fill the container
-      gameContainer.style.display = 'flex';
-      gameContainer.style.flexDirection = 'column';
       // Note: we intentionally do NOT override the CSS font size here. The default 16px
       // font with the body's line-height:1.4 gives cellHeight≈22px and rows≈25, which
       // maps exactly to Zork Zero's 320×200 canvas at fontH=8 (200/8=25 rows). Changing
       // the font size would misalign split_window heights and set_cursor coordinates.
     }
 
+    // #input-line is browser UI chrome, not part of the Z-machine window model --
+    // pin it to the bottom of #game-container directly rather than relying on
+    // flexbox (main-content/status-bar are no longer flex children, so flex
+    // layout can no longer reserve space for it).
     const inputLine = gameContainer?.querySelector('#input-line') as HTMLElement | null;
     if (inputLine) {
       inputLine.style.backgroundColor = 'transparent';
       inputLine.style.borderTop = 'none';
-      inputLine.style.flexShrink = '0';
+      inputLine.style.position = 'absolute';
+      inputLine.style.left = '0';
+      inputLine.style.right = '0';
+      inputLine.style.bottom = '0';
     }
     const inputField = gameContainer?.querySelector('#input-field') as HTMLInputElement | null;
     if (inputField) {
       inputField.style.backgroundColor = 'transparent';
       inputField.style.border = '1px solid rgba(255,255,255,0.3)';
     }
+
+    // Apply initial frames (no-ops if the canvas isn't sized yet — the later
+    // moveWindow/resizeWindow/splitWindow calls will apply them once it is).
+    if (mainContent) this.applyWindowFrame(mainContent, 0, true);
+    this.applyWindowFrame(this.statusEl, 1, false);
 
     // Remeasure cell dimensions with the new font size
     this.remeasureCellDimensions();
@@ -677,6 +680,53 @@ export class WebScreen extends BaseScreen {
     const cssContainerH = gameContainer?.clientHeight ?? 0;
     const canvasH = this.pictureCanvas.height;
     return canvasH > 0 && cssContainerH > 0 ? cssContainerH / canvasH : 0;
+  }
+
+  /**
+   * Compute a window's on-canvas box in CSS pixels, relative to #game-container's
+   * own content box. Pure function of WindowManager's tracked per-window state —
+   * works for any window ID the game has moved/resized, not just window 0/1.
+   */
+  private computeWindowFrame(windowId: number): { left: number; top: number; width: number; height: number } {
+    const scale = this.getCanvasScale();
+    const left = this.windowManager.getWindowProperty(windowId, WindowProperty.XCoordinate) - 1;
+    const top = this.windowManager.getWindowProperty(windowId, WindowProperty.YCoordinate) - 1;
+    const width = this.windowManager.getWindowProperty(windowId, WindowProperty.XSize);
+    const height = this.windowManager.getWindowProperty(windowId, WindowProperty.YSize);
+    return { left: left * scale, top: top * scale, width: width * scale, height: height * scale };
+  }
+
+  /**
+   * Position and size `el` as windowId's real on-canvas box (position: absolute,
+   * left/top/width/height in CSS px). `scroll` selects a scrolling viewport
+   * (window 0's text) vs. a clipped, non-scrolling box (a status/banner window).
+   *
+   * The computed height is capped so the box never extends below #input-line's
+   * top edge -- #input-line is browser UI chrome pinned to the bottom of
+   * #game-container, not part of the Z-machine window model, so no window's
+   * frame should be allowed to render under it.
+   */
+  private applyWindowFrame(el: HTMLElement, windowId: number, scroll: boolean): void {
+    if (this.pictureCanvas.width === 0) return;
+    const frame = this.computeWindowFrame(windowId);
+    const gameContainer = this.statusEl.parentElement;
+    const inputLine = gameContainer?.querySelector('#input-line') as HTMLElement | null;
+    const inputLineHeight = inputLine?.offsetHeight ?? 0;
+    const gameContainerHeight = gameContainer?.clientHeight ?? 0;
+    const inputLineTop = gameContainerHeight - inputLineHeight;
+    const height = Math.max(0, Math.min(frame.height, inputLineTop - frame.top));
+
+    el.style.position = 'absolute';
+    el.style.left = `${frame.left.toFixed(1)}px`;
+    el.style.top = `${frame.top.toFixed(1)}px`;
+    el.style.width = `${frame.width.toFixed(1)}px`;
+    el.style.height = `${height.toFixed(1)}px`;
+    if (scroll) {
+      el.style.overflowY = 'auto';
+      el.style.overflowX = 'hidden';
+    } else {
+      el.style.overflow = 'hidden';
+    }
   }
 
   /**
@@ -1079,14 +1129,16 @@ export class WebScreen extends BaseScreen {
       // Write raw (untranslated) text to the buffer
       this.writeToUpperWindowBuffer(str, screenWidth);
 
-      // Expand status bar if buffer lines exceed the current split height.
-      // In canvas mode, use the canvas-proportional line height so expansion
-      // doesn't break the coordinate alignment set by splitWindow().
-      const bufferLines = this.upperWindowBuffer.length;
-      const lineHeightPx = this._useCanvasBackground ? this.getCanvasScale() : this.cellHeight;
-      const currentMinHeight = Math.round(parseFloat(this.statusEl.style.minHeight || '0') / lineHeightPx);
-      if (bufferLines > currentMinHeight) {
-        this.statusEl.style.minHeight = `${Math.ceil(bufferLines * lineHeightPx)}px`;
+      // In canvas mode the status bar's box is authoritatively sized by
+      // applyWindowFrame from the window's own resize_window size -- it must
+      // not auto-grow past that (would render over whatever is below it).
+      // Non-canvas mode keeps the original auto-grow-on-overflow behavior.
+      if (!this._useCanvasBackground) {
+        const bufferLines = this.upperWindowBuffer.length;
+        const currentMinHeight = Math.round(parseFloat(this.statusEl.style.minHeight || '0') / this.cellHeight);
+        if (bufferLines > currentMinHeight) {
+          this.statusEl.style.minHeight = `${Math.ceil(bufferLines * this.cellHeight)}px`;
+        }
       }
 
       this.statusEl.innerHTML = this.renderStyledUpperWindow();
@@ -1100,13 +1152,17 @@ export class WebScreen extends BaseScreen {
       this.statusEl.style.display = 'none';
     } else {
       this.statusEl.style.display = 'block';
-      if (this._useCanvasBackground) {
-        // V6: map canvas-row count to CSS pixels proportionally to canvas scaling.
-        // Use Math.ceil so the status bar bottom edge is never below the canvas header boundary.
-        this.statusEl.style.minHeight = `${Math.ceil(lines * this.getCanvasScale())}px`;
-      } else {
+      if (!this._useCanvasBackground) {
         this.statusEl.style.minHeight = `${lines * this.cellHeight}px`;
       }
+    }
+
+    if (this._useCanvasBackground) {
+      // WindowManager.splitWindow also moves/resizes window 0 to fill the
+      // remaining space (see WindowManager.splitWindow), so reapply both frames.
+      this.applyWindowFrame(this.statusEl, 1, false);
+      const mainContent = this.mainEl.parentElement as HTMLElement | null;
+      if (mainContent) this.applyWindowFrame(mainContent, 0, true);
     }
   }
 
@@ -1114,17 +1170,15 @@ export class WebScreen extends BaseScreen {
     // In V6 canvas mode, set_cursor(row, col, 0) positions the HTML text start within window 0
     // (e.g. below the room illustration drawn at the top of the window).  Intercept the raw
     // pixel coordinates here before BaseScreen converts them to character-cell units.
+    //
+    // Per the Z-machine spec, set_cursor's line is already relative to the target
+    // window's own top-left corner. #main-content's own box top is now exactly
+    // window 0's top (see applyWindowFrame), so the padding needed is just the
+    // offset within the window -- no absolute-position bookkeeping required.
     if (this._useCanvasBackground && machine.state.version >= 6 && windowId === 0) {
-      // line is a 1-based canvas-pixel row within window 0; make it screen-absolute.
-      const canvasAbsY = this._window0BaseTop + line - 1;
-      const lineHeight = this.getCanvasScale();
-      const cssY = canvasAbsY * lineHeight;
-      const statusBarCssH = parseFloat(this.statusEl.style.minHeight || '0');
-      const paddingTop = Math.max(0, cssY - statusBarCssH);
+      const paddingTop = Math.max(0, (line - 1) * this.getCanvasScale());
       this.mainEl.style.paddingTop = `${paddingTop.toFixed(1)}px`;
-      this.v6debug(
-        `[set_cursor] window=0 line=${line} col=${column} canvasAbsY=${canvasAbsY} cssY=${cssY.toFixed(1)} paddingTop=${paddingTop.toFixed(1)}`
-      );
+      this.v6debug(`[set_cursor] window=0 line=${line} col=${column} paddingTop=${paddingTop.toFixed(1)}`);
       return;
     }
     super.setCursorPosition(machine, line, column, windowId);
@@ -1145,43 +1199,33 @@ export class WebScreen extends BaseScreen {
 
   override resizeWindow(machine: ZMachine, windowId: number, height: number, width: number): void {
     super.resizeWindow(machine, windowId, height, width);
-    if (this._useCanvasBackground && windowId === 0) {
-      const newRight = this._window0BaseLeft + width;
-      // Only advance the right boundary when the window grows wider.  V6 games
-      // (e.g. Zork Zero) sometimes shrink window 0 to a narrow inline-picture
-      // sub-region before drawing a floating picture, then restore it.  Using
-      // the maximum width ever set prevents that temporary narrowing from
-      // squeezing the text area.
-      if (this._window0BaseRight < 0 || newRight > this._window0BaseRight) {
-        this._window0BaseRight = newRight;
-        this.v6debug(`[resize_window] window=0 h=${height} w=${width} rightEdge=${this._window0BaseRight}`);
-        const left = this.windowManager.getWindowProperty(0, WindowProperty.LeftMargin);
-        const right = this.windowManager.getWindowProperty(0, WindowProperty.RightMargin);
-        this.applyLowerWindowMarginsCss(left, right);
-      } else {
-        this.v6debug(
-          `[resize_window] window=0 h=${height} w=${width} (ignored – would narrow from ${this._window0BaseRight})`
-        );
-      }
+    if (!this._useCanvasBackground) return;
+    if (windowId === 0) {
+      const mainContent = this.mainEl.parentElement as HTMLElement | null;
+      if (mainContent) this.applyWindowFrame(mainContent, 0, true);
+      this.v6debug(`[resize_window] window=0 h=${height} w=${width}`);
+      const left = this.windowManager.getWindowProperty(0, WindowProperty.LeftMargin);
+      const right = this.windowManager.getWindowProperty(0, WindowProperty.RightMargin);
+      this.applyLowerWindowMarginsCss(left, right);
+    } else {
+      this.applyWindowFrame(this.statusEl, windowId, false);
+      this.v6debug(`[resize_window] window=${windowId} h=${height} w=${width}`);
     }
   }
 
   override moveWindow(machine: ZMachine, windowId: number, y: number, x: number): void {
     super.moveWindow(machine, windowId, y, x);
-    if (this._useCanvasBackground && windowId === 0) {
-      // x and y are 1-based; convert to 0-based canvas pixels
-      const oldLeft = this._window0BaseLeft;
-      this._window0BaseLeft = x - 1;
-      this._window0BaseTop = y - 1;
-      if (this._window0BaseRight >= 0) {
-        this._window0BaseRight += this._window0BaseLeft - oldLeft;
-      }
-      this.v6debug(
-        `[move_window] window=0 y=${y} x=${x} top=${this._window0BaseTop} left=${this._window0BaseLeft} right=${this._window0BaseRight}`
-      );
+    if (!this._useCanvasBackground) return;
+    if (windowId === 0) {
+      const mainContent = this.mainEl.parentElement as HTMLElement | null;
+      if (mainContent) this.applyWindowFrame(mainContent, 0, true);
+      this.v6debug(`[move_window] window=0 y=${y} x=${x}`);
       const left = this.windowManager.getWindowProperty(0, WindowProperty.LeftMargin);
       const right = this.windowManager.getWindowProperty(0, WindowProperty.RightMargin);
       this.applyLowerWindowMarginsCss(left, right);
+    } else {
+      this.applyWindowFrame(this.statusEl, windowId, false);
+      this.v6debug(`[move_window] window=${windowId} y=${y} x=${x}`);
     }
   }
 
@@ -1258,7 +1302,7 @@ export class WebScreen extends BaseScreen {
     if (canvasW === 0) return;
 
     // x is 1-based screen-absolute (see graphics.ts's finalX computation); convert to
-    // 0-based to compare against the 0-based _window0BaseLeft/_window0BaseRight bounds,
+    // 0-based to compare against the 0-based windowLeft/windowWidth bounds,
     // matching the equivalent conversion in applyLowerWindowMarginsCss.
     const pixelX = x - 1;
 
@@ -1271,8 +1315,10 @@ export class WebScreen extends BaseScreen {
     // actually measure them against.
     const leftMargin = this.windowManager.getWindowProperty(0, WindowProperty.LeftMargin);
     const rightMargin = this.windowManager.getWindowProperty(0, WindowProperty.RightMargin);
-    const columnLeft = this._window0BaseLeft + leftMargin;
-    const columnRight = (this._window0BaseRight >= 0 ? this._window0BaseRight : canvasW) - rightMargin;
+    const windowLeft = this.windowManager.getWindowProperty(0, WindowProperty.XCoordinate) - 1;
+    const windowWidth = this.windowManager.getWindowProperty(0, WindowProperty.XSize);
+    const columnLeft = windowLeft + leftMargin;
+    const columnRight = windowLeft + windowWidth - rightMargin;
     const columnWidth = Math.max(1, columnRight - columnLeft);
     const columnMid = (columnLeft + columnRight) / 2;
 
@@ -1304,30 +1350,16 @@ export class WebScreen extends BaseScreen {
   }
 
   private applyLowerWindowMarginsCss(leftInlinePx: number, rightInlinePx: number): void {
-    const canvasW = this.pictureCanvas.width;
-    if (canvasW === 0) return;
-    // Combine the window's own left edge (from move_window) with any inline picture
-    // margin (from set_margins) to get the total left offset for text flow.
-    const effectiveLeftPx = this._window0BaseLeft + leftInlinePx;
-    // Right text boundary: use the window's configured right edge, but cap it at the
-    // left edge of any right-side decorative picture (e.g. the right column/pillar).
-    // In V6 layouts the window may be sized wider than the visual text column because
-    // the original interpreter drew the pillar on top; in CSS we need explicit padding.
-    const windowRight = this._window0BaseRight >= 0 ? this._window0BaseRight : canvasW;
-    // _rightPillarX is 1-based screen-absolute; convert to 0-based exclusive right limit.
-    const pillarRight = this._rightPillarX >= 0 ? this._rightPillarX - 1 : canvasW;
-    const effectiveRight = Math.min(windowRight, pillarRight);
-    const effectiveRightPx = canvasW - effectiveRight + rightInlinePx;
-    // Use percentage-based padding so margins scale with the container and work
-    // correctly even before the DOM has been laid out (clientWidth may be 0 during
-    // the synchronous execution that processes the first set_margins opcode).
-    const leftPct = (effectiveLeftPx / canvasW) * 100;
-    const rightPct = (effectiveRightPx / canvasW) * 100;
-    this.v6debug(
-      `[margins] left=${effectiveLeftPx}px (${leftPct.toFixed(1)}%) right=${effectiveRightPx}px (${rightPct.toFixed(1)}%) canvas=${canvasW}`
-    );
-    this.mainEl.style.paddingLeft = `${leftPct.toFixed(2)}%`;
-    this.mainEl.style.paddingRight = `${rightPct.toFixed(2)}%`;
+    // #main-content is now window 0's own box (see applyWindowFrame), so
+    // set_margins' values are the entire story -- no window-offset or pillar
+    // reconstruction needed. Margins are in canvas-pixel units; convert to CSS px.
+    const scale = this.getCanvasScale();
+    if (scale === 0) return;
+    const leftPx = leftInlinePx * scale;
+    const rightPx = rightInlinePx * scale;
+    this.v6debug(`[margins] left=${leftPx.toFixed(1)}px right=${rightPx.toFixed(1)}px`);
+    this.mainEl.style.paddingLeft = `${leftPx.toFixed(1)}px`;
+    this.mainEl.style.paddingRight = `${rightPx.toFixed(1)}px`;
   }
 
   clearWindow(machine: ZMachine, windowId: number): void {
