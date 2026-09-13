@@ -528,6 +528,17 @@ export class WebScreen extends BaseScreen {
   private _useCanvasBackground: boolean = false;
 
   /**
+   * Widest width (canvas pixels) ever assigned to window 0 via resize_window.
+   * V6 games (e.g. Zork Zero) sometimes temporarily narrow window 0 to compute
+   * a small inline-picture inset and never issue an explicit "restore" call --
+   * the narrow value is a transient computation aid, not the real persistent
+   * text-flow boundary (confirmed against the sfrotz reference: the narrow
+   * value, if honored, renders body text into a thin column with a large
+   * empty gap before the right pillar). -1 = not yet set.
+   */
+  private _window0MaxWidthPx: number = -1;
+
+  /**
    * V6 window-0 pictures rendered as inline <img> elements (instead of drawn
    * onto the fixed picture canvas), keyed by resource ID so erase_picture
    * can find and remove them.
@@ -1266,6 +1277,16 @@ export class WebScreen extends BaseScreen {
     super.resizeWindow(machine, windowId, height, width);
     if (!this._useCanvasBackground) return;
     if (windowId === 0) {
+      if (width > this._window0MaxWidthPx) {
+        this._window0MaxWidthPx = width;
+      } else if (width < this._window0MaxWidthPx) {
+        // This call would narrow window 0 below its widest-ever value -- treat it as
+        // the transient inline-picture-inset pattern (see _window0MaxWidthPx) and
+        // correct WindowManager's own tracked width back up, so computeWindowFrame(0)
+        // reflects the real column instead of the temporary narrow one.
+        this.windowManager.resizeWindow(0, this._window0MaxWidthPx, height);
+        this.v6debug(`[resize_window] window=0 w=${width} ignored -- restoring max width ${this._window0MaxWidthPx}`);
+      }
       const mainContent = this.mainEl.parentElement as HTMLElement | null;
       if (mainContent) this.applyWindowFrame(mainContent, 0, true);
       this.v6debug(`[resize_window] window=0 h=${height} w=${width}`);
