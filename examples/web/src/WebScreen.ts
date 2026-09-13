@@ -665,25 +665,18 @@ export class WebScreen extends BaseScreen {
   }
 
   /**
-   * Return the CSS pixel height per text row used for status bar sizing.
-   * In canvas mode this is proportional to the canvas scale (container height / rows)
-   * so that the status bar height matches the canvas picture coordinate space.
-   * In non-canvas mode it is the measured CSS cell height.
+   * Return CSS pixels per one native canvas pixel. `#game-container`'s height is
+   * forced to preserve the canvas's native aspect ratio (see `main.ts`) and the
+   * canvas is stretched 100%x100% into it, so this one scale factor is valid for
+   * both X and Y. Returns 0 before the canvas has a laid-out size (e.g. while
+   * `#game-container` is still `display: none`) — callers must treat 0 as "not
+   * ready yet" and skip applying it.
    */
-  private getStatusBarLineHeight(): number {
+  private getCanvasScale(): number {
     const gameContainer = this.statusEl.parentElement;
     const cssContainerH = gameContainer?.clientHeight ?? 0;
-    if (this._useCanvasBackground) {
-      // In V6, split_window uses pixel units (not character rows) per the Z-machine spec.
-      // Convert canvas pixels to CSS pixels so that split_window(n) → status bar is
-      // n canvas-pixels tall and the lower-window text aligns with its canvas position.
-      const canvasH = this.pictureCanvas.height;
-      if (canvasH > 0 && cssContainerH > 0) return cssContainerH / canvasH;
-    }
-    const { rows } = this.getSize();
-    // Return exact (non-floored) value so that Math.ceil(lines * lineHeight) aligns
-    // the status bar bottom with the canvas lower-window boundary without any gap.
-    return rows > 0 && cssContainerH > 0 ? cssContainerH / rows : this.cellHeight;
+    const canvasH = this.pictureCanvas.height;
+    return canvasH > 0 && cssContainerH > 0 ? cssContainerH / canvasH : 0;
   }
 
   /**
@@ -1088,7 +1081,7 @@ export class WebScreen extends BaseScreen {
       // In canvas mode, use the canvas-proportional line height so expansion
       // doesn't break the coordinate alignment set by splitWindow().
       const bufferLines = this.upperWindowBuffer.length;
-      const lineHeightPx = this._useCanvasBackground ? this.getStatusBarLineHeight() : this.cellHeight;
+      const lineHeightPx = this._useCanvasBackground ? this.getCanvasScale() : this.cellHeight;
       const currentMinHeight = Math.round(parseFloat(this.statusEl.style.minHeight || '0') / lineHeightPx);
       if (bufferLines > currentMinHeight) {
         this.statusEl.style.minHeight = `${Math.ceil(bufferLines * lineHeightPx)}px`;
@@ -1108,7 +1101,7 @@ export class WebScreen extends BaseScreen {
       if (this._useCanvasBackground) {
         // V6: map canvas-row count to CSS pixels proportionally to canvas scaling.
         // Use Math.ceil so the status bar bottom edge is never below the canvas header boundary.
-        this.statusEl.style.minHeight = `${Math.ceil(lines * this.getStatusBarLineHeight())}px`;
+        this.statusEl.style.minHeight = `${Math.ceil(lines * this.getCanvasScale())}px`;
       } else {
         this.statusEl.style.minHeight = `${lines * this.cellHeight}px`;
       }
@@ -1122,7 +1115,7 @@ export class WebScreen extends BaseScreen {
     if (this._useCanvasBackground && machine.state.version >= 6 && windowId === 0) {
       // line is a 1-based canvas-pixel row within window 0; make it screen-absolute.
       const canvasAbsY = this._window0BaseTop + line - 1;
-      const lineHeight = this.getStatusBarLineHeight(); // CSS pixels per canvas pixel
+      const lineHeight = this.getCanvasScale();
       const cssY = canvasAbsY * lineHeight;
       const statusBarCssH = parseFloat(this.statusEl.style.minHeight || '0');
       const paddingTop = Math.max(0, cssY - statusBarCssH);
