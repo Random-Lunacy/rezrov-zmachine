@@ -478,6 +478,46 @@ function escapeHtml(str: string): string {
 const DEFAULT_BG = '#0a0a0a';
 
 export class WebScreen extends BaseScreen {
+  /**
+   * Reset every inline style enableCanvasBackground()/applyWindowFrame() can set on
+   * #status-bar, #main-content, and #input-line, so a non-V6 game loaded after a V6
+   * game doesn't inherit position:absolute boxes from the previous session (V6-only
+   * enableCanvasBackground() never runs again to reset them, since it's gated on
+   * machine.state.version >= 6). Static because it must run before a WebScreen
+   * instance exists for the next game.
+   */
+  static resetCanvasLayoutStyles(gameContainer: HTMLElement): void {
+    const statusEl = gameContainer.querySelector('#status-bar') as HTMLElement | null;
+    const mainContent = gameContainer.querySelector('#main-content') as HTMLElement | null;
+    const inputLine = gameContainer.querySelector('#input-line') as HTMLElement | null;
+
+    for (const el of [statusEl, mainContent, inputLine]) {
+      if (!el) continue;
+      el.style.position = '';
+      el.style.left = '';
+      el.style.right = '';
+      el.style.top = '';
+      el.style.bottom = '';
+      el.style.width = '';
+      el.style.height = '';
+      el.style.backgroundColor = '';
+    }
+    if (statusEl) {
+      statusEl.style.overflow = '';
+      statusEl.style.borderBottom = '';
+    }
+    if (mainContent) {
+      mainContent.style.overflowY = '';
+      mainContent.style.overflowX = '';
+      mainContent.style.padding = '';
+      mainContent.style.minHeight = '';
+      mainContent.style.maxHeight = '';
+    }
+    if (inputLine) {
+      inputLine.style.borderTop = '';
+    }
+  }
+
   private statusEl: HTMLDivElement;
   private mainEl: HTMLDivElement;
   private pictureCanvas: HTMLCanvasElement;
@@ -603,6 +643,20 @@ export class WebScreen extends BaseScreen {
       inputField.style.border = '1px solid rgba(255,255,255,0.3)';
     }
 
+    // Seed WindowManager with the canvas's real pixel dimensions and window 0's
+    // initial box (full canvas), so any print() before the game's first
+    // move_window/resize_window call for window 0 -- per spec, window 0 initially
+    // occupies the entire screen -- renders into a correctly-sized frame instead of
+    // WindowManager's stale 80x25-character-grid default (read here as canvas pixels,
+    // which would be far too small).
+    const canvasW = this.pictureCanvas.width;
+    const canvasH = this.pictureCanvas.height;
+    if (canvasW > 0 && canvasH > 0) {
+      this.windowManager.setScreenSize(canvasW, canvasH);
+      this.windowManager.moveWindow(0, 0, 0);
+      this.windowManager.resizeWindow(0, canvasW, canvasH);
+    }
+
     // Apply initial frames (no-ops if the canvas isn't sized yet — the later
     // moveWindow/resizeWindow/splitWindow calls will apply them once it is).
     if (mainContent) this.applyWindowFrame(mainContent, 0, true);
@@ -700,7 +754,7 @@ export class WebScreen extends BaseScreen {
    * frame should be allowed to render under it.
    */
   private applyWindowFrame(el: HTMLElement, windowId: number, scroll: boolean): void {
-    if (this.pictureCanvas.width === 0) return;
+    if (this.getCanvasScale() === 0) return;
     const frame = this.computeWindowFrame(windowId);
     const gameContainer = this.statusEl.parentElement;
     const inputLine = gameContainer?.querySelector('#input-line') as HTMLElement | null;
@@ -720,6 +774,20 @@ export class WebScreen extends BaseScreen {
     } else {
       el.style.overflow = 'hidden';
     }
+  }
+
+  /**
+   * Recompute and reapply window 0's and window 1's CSS frames from their
+   * current WindowManager state and the canvas's current scale. Call this
+   * after #game-container's size changes (e.g. a browser resize) — the
+   * frames' inline left/top/width/height otherwise go stale, since nothing
+   * else re-derives them once applyWindowFrame has run.
+   */
+  reapplyWindowFrames(): void {
+    if (!this._useCanvasBackground) return;
+    const mainContent = this.mainEl.parentElement as HTMLElement | null;
+    if (mainContent) this.applyWindowFrame(mainContent, 0, true);
+    this.applyWindowFrame(this.statusEl, 1, false);
   }
 
   /**
@@ -1151,11 +1219,15 @@ export class WebScreen extends BaseScreen {
     }
 
     if (this._useCanvasBackground) {
-      // WindowManager.splitWindow also moves/resizes window 0 to fill the
-      // remaining space (see WindowManager.splitWindow), so reapply both frames.
       this.applyWindowFrame(this.statusEl, 1, false);
-      const mainContent = this.mainEl.parentElement as HTMLElement | null;
-      if (mainContent) this.applyWindowFrame(mainContent, 0, true);
+      // Deliberately NOT reapplying window 0's frame here: WindowManager.splitWindow
+      // (src/ui/screen/WindowManager.ts) also moves/resizes window 0 as a side effect,
+      // but using BaseScreen.splitWindow's character-row-clamped `lines` value, not
+      // V6's pixel semantics -- reapplying window 0's frame from that would size it
+      // from the wrong unit. Window 0's frame is driven exclusively by its own
+      // explicit move_window/resize_window calls (see the overrides below), which V6
+      // games use directly and which carry real pixel values. Fixing the underlying
+      // unit mismatch is a src/ change, out of scope for this plan.
     }
   }
 

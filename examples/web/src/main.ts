@@ -155,6 +155,12 @@ function setupGame(
       }
       // V6: pixel-based units stay fixed at the canvas's initial pixel dimensions.
     }
+    if (version >= 6 && pictureCanvas.width > 0) {
+      const rect = gameContainerEl.getBoundingClientRect();
+      const aspectHeight = Math.round((rect.width * pictureCanvas.height) / pictureCanvas.width);
+      gameContainerEl.style.height = `${aspectHeight}px`;
+      screen.reapplyWindowFrames();
+    }
     screen.handleResize();
   });
 
@@ -254,6 +260,7 @@ async function handleFileSelect(files: FileList | null): Promise<void> {
   // Reset status bar styles from previous game (e.g. multi-line upper window)
   statusEl.style.minHeight = '';
   statusEl.style.display = '';
+  WebScreen.resetCanvasLayoutStyles(gameContainer);
   inputEl.value = '';
   inputEl.placeholder = '';
   inputEl.disabled = false;
