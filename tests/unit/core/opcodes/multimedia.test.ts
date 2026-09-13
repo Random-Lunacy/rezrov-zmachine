@@ -365,6 +365,26 @@ describe('Multimedia Opcodes', () => {
       expect(machine.state.doBranch).toHaveBeenCalledWith(false, false, 10);
     });
 
+    it('should store zero height/width and branch true for a Blorb Rect declared as 0x0', () => {
+      // Per the Blorb spec, a Rect placeholder's width and height "may be zero" --
+      // that's a valid declared size, not a missing resource. Per the Z-Machine
+      // spec, picture_data branches on "if the picture number is valid", not on
+      // whether the dimensions happen to be positive.
+      machine.state.version = 6;
+      mockMultimediaHandler.getPictureData.mockReturnValue({
+        width: 0,
+        height: 0,
+        format: 'Rect',
+        hasTransparency: false,
+      });
+
+      picture_data(machine, [], 478, 0x2000);
+
+      expect(machine.memory.setWord).toHaveBeenCalledWith(0x2000, 0); // height
+      expect(machine.memory.setWord).toHaveBeenCalledWith(0x2002, 0); // width
+      expect(machine.state.doBranch).toHaveBeenCalledWith(true, false, 10);
+    });
+
     it('should handle multimedia handler errors and branch false', () => {
       machine.state.version = 6;
       mockMultimediaHandler.getPictureData.mockImplementation(() => {

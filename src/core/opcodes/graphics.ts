@@ -101,7 +101,13 @@ function picture_data(machine: ZMachine, _operandTypes: OperandType[], picture: 
   try {
     const pictureData = machine.multimediaHandler.getPictureData(picture);
 
-    if (pictureData && pictureData.height > 0 && pictureData.width > 0) {
+    // Per spec, the branch is taken "if the picture number is valid" -- i.e. the
+    // resource exists -- not based on whether its dimensions are positive. A Blorb
+    // Rect placeholder may legitimately declare 0x0 (the Blorb spec: "Either or
+    // both of the width and height may be zero"), and that must still branch true
+    // and write the (zero) dimensions; treating it as "unavailable" skips the
+    // write and leaves the array holding stale data from a previous call.
+    if (pictureData) {
       // Store height and width in the array
       machine.memory.setWord(array, pictureData.height);
       machine.memory.setWord(array + 2, pictureData.width);
