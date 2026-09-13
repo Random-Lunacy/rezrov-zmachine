@@ -96,10 +96,16 @@ number flows through correctly, following TDD as usual for `src/` changes.
 
 ## Error handling
 
-Mirrors the existing canvas path: if the image data fails to decode, the
-error propagates to `BlorbMultimediaHandler.displayPicture`'s existing
-try/catch, which logs via `this._logger.error` and returns
-`ResourceStatus.Error`. No new error-handling pattern is introduced.
+`displayInlinePicture` catches its own decode failures (`img.decode()`)
+directly: on failure it logs a warning, removes the partially-inserted
+`<img>` and its tracking-map entry, and returns. It does not rely on
+`BlorbMultimediaHandler.displayPicture`'s try/catch for this, since that
+only catches synchronous throws and both `pictureRenderer` callback
+implementations (canvas and inline) are async -- a rejection there would
+otherwise become an unhandled promise rejection. `main.ts`'s
+`pictureRenderer` callback also wraps its whole dispatch (both paths) in
+a try/catch that logs a warning, as a second line of defense for the
+canvas path, which has no internal handling of its own.
 
 ## Testing
 

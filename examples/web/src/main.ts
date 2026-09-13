@@ -105,16 +105,20 @@ function setupGame(
     const webScreen = screen as import('./WebScreen').WebScreen;
     multimediaHandler = new BlorbMultimediaHandler(blorbMap, blorbData, {
       pictureRenderer: async (resourceId, data, format, x, y, scale, window) => {
-        if (window === 0) {
-          await webScreen.displayInlinePicture(resourceId, data, format, x, y, scale);
-          return;
+        try {
+          if (window === 0) {
+            await webScreen.displayInlinePicture(resourceId, data, format, x, y, scale);
+            return;
+          }
+          // Track right-side pictures synchronously (before async image load) so that
+          // the right text boundary is set before any subsequent set_margins opcode runs.
+          if (x > pictureCanvas.width / 2) {
+            webScreen.trackRightPicture(x);
+          }
+          await pictureRenderer.displayPicture(resourceId, data, format, x, y, scale);
+        } catch (error) {
+          console.warn(`Picture ${resourceId} render failed:`, error);
         }
-        // Track right-side pictures synchronously (before async image load) so that
-        // the right text boundary is set before any subsequent set_margins opcode runs.
-        if (x > pictureCanvas.width / 2) {
-          webScreen.trackRightPicture(x);
-        }
-        await pictureRenderer.displayPicture(resourceId, data, format, x, y, scale);
       },
       pictureEraser: (resourceId) => {
         if (webScreen.eraseInlinePicture(resourceId)) return;

@@ -1219,6 +1219,10 @@ export class WebScreen extends BaseScreen {
    * within the column the game has already narrowed via set_margins (see
    * applyLowerWindowMarginsCss), so text wraps around it the same way it
    * already wraps around canvas-drawn pictures in other windows.
+   *
+   * The vertical position (the `_y` parameter, unused) comes from where the
+   * picture is inserted in the text flow, not from the game's own y offset --
+   * in a scrolling window there is no fixed absolute row for it to mean.
    */
   async displayInlinePicture(
     resourceId: number,
@@ -1231,44 +1235,64 @@ export class WebScreen extends BaseScreen {
     const blob = new Blob([new Uint8Array(data).buffer], {
       type: format === 'PNG' ? 'image/png' : 'image/jpeg',
     });
-    const bitmap = await createImageBitmap(blob);
 
     const img = document.createElement('img');
-    img.src = URL.createObjectURL(blob);
-    img.onload = (): void => URL.revokeObjectURL(img.src);
     img.style.imageRendering = 'pixelated';
+    img.src = URL.createObjectURL(blob);
 
-    const canvasW = this.pictureCanvas.width;
-    if (canvasW === 0) {
-      this.mainEl.appendChild(img);
-      this.inlinePictures.set(resourceId, img);
+    // Insert synchronously, at the current print position, BEFORE awaiting decode.
+    // The Z-machine keeps executing synchronously while this decodes, so appending
+    // after an await would place the image after whatever text printed in the
+    // meantime, and two pictures drawn back-to-back could resolve -- and thus
+    // append -- out of order.
+    this.mainEl.appendChild(img);
+    this.inlinePictures.set(resourceId, img);
+
+    try {
+      await img.decode();
+    } catch (error) {
+      this.logger.warn(`Inline picture ${resourceId} failed to decode: ${error}`);
+      img.remove();
+      this.inlinePictures.delete(resourceId);
+      URL.revokeObjectURL(img.src);
       return;
     }
+    URL.revokeObjectURL(img.src);
 
-    const scaleFactor = scale / 100;
-    const widthPx = bitmap.width * scaleFactor;
-    img.style.width = `${(widthPx / canvasW) * 100}%`;
-    img.style.height = 'auto';
+    const canvasW = this.pictureCanvas.width;
+    if (canvasW === 0) return;
 
     // x is 1-based screen-absolute (see graphics.ts's finalX computation); convert to
     // 0-based to compare against the 0-based _window0BaseLeft/_window0BaseRight bounds,
     // matching the equivalent conversion in applyLowerWindowMarginsCss.
     const pixelX = x - 1;
 
-    const columnLeft = this._window0BaseLeft;
-    const columnRight = this._window0BaseRight >= 0 ? this._window0BaseRight : canvasW;
+    // width/margin are percentages of the <img>'s CSS containing block, which is
+    // mainEl's CONTENT box (mainEl's own width minus the set_margins padding already
+    // applied to it via applyLowerWindowMarginsCss) -- not the full canvas width.
+    // Narrow the column by the current left/right margins (the same values
+    // applyLowerWindowMarginsCss/setOutputWindow already read from the
+    // WindowManager) so percentages resolve against the box the browser will
+    // actually measure them against.
+    const leftMargin = this.windowManager.getWindowProperty(0, WindowProperty.LeftMargin);
+    const rightMargin = this.windowManager.getWindowProperty(0, WindowProperty.RightMargin);
+    const columnLeft = this._window0BaseLeft + leftMargin;
+    const columnRight = (this._window0BaseRight >= 0 ? this._window0BaseRight : canvasW) - rightMargin;
+    const columnWidth = Math.max(1, columnRight - columnLeft);
     const columnMid = (columnLeft + columnRight) / 2;
+
+    const scaleFactor = scale / 100;
+    const widthPx = img.naturalWidth * scaleFactor;
+    img.style.width = `${(widthPx / columnWidth) * 100}%`;
+    img.style.height = 'auto';
 
     if (pixelX <= columnMid) {
       img.style.float = 'left';
-      img.style.marginLeft = `${(Math.max(0, pixelX - columnLeft) / canvasW) * 100}%`;
+      img.style.marginLeft = `${(Math.max(0, pixelX - columnLeft) / columnWidth) * 100}%`;
     } else {
       img.style.float = 'right';
-      img.style.marginRight = `${(Math.max(0, columnRight - (pixelX + widthPx)) / canvasW) * 100}%`;
+      img.style.marginRight = `${(Math.max(0, columnRight - (pixelX + widthPx)) / columnWidth) * 100}%`;
     }
-
-    this.mainEl.appendChild(img);
-    this.inlinePictures.set(resourceId, img);
   }
 
   /**
