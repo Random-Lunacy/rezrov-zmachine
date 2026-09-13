@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { draw_picture, erase_picture, picture_data, picture_table } from '../../../../src/core/opcodes/graphics';
 import { sound_effect } from '../../../../src/core/opcodes/io';
 import { ResourceStatus, ResourceType } from '../../../../src/ui/multimedia/MultimediaHandler';
+import { BaseScreen } from '../../../../src/ui/screen/BaseScreen';
 import { WindowProperty } from '../../../../src/ui/screen/interfaces';
 import { HeaderLocation } from '../../../../src/utils/constants';
 import { createMockZMachine } from '../../../mocks';
@@ -236,6 +237,38 @@ describe('Multimedia Opcodes', () => {
       draw_picture(machine, [], 1, 10, 20);
 
       expect(machine.screen.onWindowPictureDrawn).not.toHaveBeenCalled();
+    });
+  });
+
+  /**
+   * The tests above mock machine.screen.getWindowProperty directly, so they can't
+   * catch a bug in how the window origin itself gets computed. This exercises the
+   * real pipeline end-to-end: move_window -> BaseScreen -> WindowManager (with its
+   * screen-size clamp) -> getWindowProperty -> draw_picture, using a realistic
+   * V6 pixel screen size (320x200, e.g. Zork Zero) instead of WindowManager's
+   * legacy 80x25 default.
+   */
+  describe('draw_picture end-to-end through a real BaseScreen/WindowManager', () => {
+    it('should not clamp a picture position when its window was moved to real V6 pixel coordinates', () => {
+      const realScreen = new BaseScreen('IntegrationScreen');
+      machine.screen = realScreen;
+      machine.state.version = 6;
+      machine.memory.getWord.mockImplementation((addr: number) =>
+        addr === HeaderLocation.ScreenWidthInUnits ? 320 : addr === HeaderLocation.ScreenHeightInUnits ? 200 : 0
+      );
+      mockMultimediaHandler.displayPicture.mockReturnValue(ResourceStatus.Available);
+      mockMultimediaHandler.getPictureData.mockReturnValue(null);
+
+      // Move window 2 to real canvas-pixel coordinates well beyond the legacy 80x25 clamp.
+      realScreen.moveWindow(machine, 2, 50, 200); // moveWindow(machine, windowId, y, x)
+      realScreen.setOutputWindow(machine, 2);
+
+      // draw_picture with an explicit window-relative offset (10,10) within window 2.
+      draw_picture(machine, [], 1, 10, 10); // draw_picture(machine, _, picture, y, x)
+
+      // finalY = windowY(50) + y(10) - 1 = 59; finalX = windowX(200) + x(10) - 1 = 209.
+      // Before the fix, WindowManager's stale 80x25 clamp corrupted this to (89, 34).
+      expect(mockMultimediaHandler.displayPicture).toHaveBeenCalledWith(1, 209, 59, 100);
     });
   });
 

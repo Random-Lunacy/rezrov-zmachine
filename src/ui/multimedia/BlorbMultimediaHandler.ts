@@ -87,6 +87,19 @@ function getPngDimensions(data: Buffer): { width: number; height: number } | nul
 }
 
 /**
+ * Extract width and height from a Blorb 'Rect' placeholder chunk: 4-byte BE
+ * width followed by 4-byte BE height, no pixel data. Returns null if the
+ * buffer is too small.
+ */
+function getRectDimensions(data: Buffer): { width: number; height: number } | null {
+  if (data.length < 8) return null;
+
+  const width = data.readUInt32BE(0);
+  const height = data.readUInt32BE(4);
+  return { width, height };
+}
+
+/**
  * Callback for displaying a picture. Receives raw image data and display parameters.
  */
 export type PictureRendererCallback = (
@@ -222,6 +235,9 @@ export class BlorbMultimediaHandler extends BaseMultimediaHandler {
       dimensions = getPngDimensions(data);
       format = 'PNG';
       hasTransparency = true; // PNG supports alpha
+    } else if (chunkType === BlorbChunkType.Rect) {
+      dimensions = getRectDimensions(data);
+      format = 'Rect';
     } else {
       this._logger.warn(`Picture ${resourceId}: unsupported chunk type '${chunkType}'`);
       return null;

@@ -677,6 +677,41 @@ describe('BaseScreen', () => {
 
       expect(mockLogger.debug).toHaveBeenCalledWith('TestScreen setCursorPosition only works in upper window');
     });
+
+  });
+
+  describe('V6 window move/resize with a real pixel screen size', () => {
+    beforeEach(() => {
+      machine.state.version = 6;
+    });
+
+    function givenScreenPixelSize(width: number, height: number): void {
+      machine.memory.getWord.mockImplementation((addr: number) =>
+        addr === HeaderLocation.ScreenWidthInUnits ? width : addr === HeaderLocation.ScreenHeightInUnits ? height : 0
+      );
+    }
+
+    it('should not clamp move_window to the legacy 80x25 default when the header reports a larger pixel screen', () => {
+      givenScreenPixelSize(320, 200);
+
+      // Zork Zero-style: move a window to real canvas-pixel coordinates beyond 80x25.
+      screen.moveWindow(machine as any, 2, 50, 200); // moveWindow(machine, windowId, y, x)
+
+      expect(screen.getWindowProperty(machine as any, 2, WindowProperty.XCoordinate)).toBe(200);
+      expect(screen.getWindowProperty(machine as any, 2, WindowProperty.YCoordinate)).toBe(50);
+    });
+
+    it('should not clamp resize_window to the legacy 80x25 default when the header reports a larger pixel screen', () => {
+      givenScreenPixelSize(320, 200);
+
+      screen.resizeWindow(machine as any, 2, 100, 300); // resizeWindow(machine, windowId, height, width)
+
+      // BaseScreen.getWindowProperty doesn't route XSize/YSize through WindowManager
+      // (a separate, pre-existing gap), so check WindowManager's own tracked state —
+      // the layer resize_window's clamp bounds actually live in.
+      expect(screen['windowManager'].getWindowProperty(2, WindowProperty.XSize)).toBe(300);
+      expect(screen['windowManager'].getWindowProperty(2, WindowProperty.YSize)).toBe(100);
+    });
   });
 
   /**

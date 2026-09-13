@@ -882,6 +882,8 @@ export class BaseScreen implements Screen {
       return;
     }
 
+    this.syncWindowManagerScreenSize(machine);
+
     // Z-machine uses 1-based coordinates, WindowManager uses 0-based
     this.windowManager.moveWindow(windowId, x - 1, y - 1);
     this.logger.debug(`${this.id} moveWindow windowId=${windowId} y=${y} x=${x}`);
@@ -893,8 +895,25 @@ export class BaseScreen implements Screen {
       return;
     }
 
+    this.syncWindowManagerScreenSize(machine);
+
     this.windowManager.resizeWindow(windowId, width, height);
     this.logger.debug(`${this.id} resizeWindow windowId=${windowId} height=${height} width=${width}`);
+  }
+
+  /**
+   * Keep WindowManager's clamp bounds in sync with the real screen size.
+   * WindowManager defaults to an 80x25 text grid and is otherwise never told
+   * about a V6 game's true pixel dimensions, so move_window/resize_window calls
+   * using real pixel coordinates (e.g. a 320x200 canvas) would otherwise be
+   * silently clamped down to the stale default before being tracked.
+   */
+  private syncWindowManagerScreenSize(machine: ZMachine): void {
+    const width = machine.memory.getWord(HeaderLocation.ScreenWidthInUnits);
+    const height = machine.memory.getWord(HeaderLocation.ScreenHeightInUnits);
+    if (width > 0 && height > 0) {
+      this.windowManager.setScreenSize(width, height);
+    }
   }
 
   setWindowStyle(machine: ZMachine, windowId: number, flags: number, operation: number): void {
