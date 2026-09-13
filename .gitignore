@@ -155,3 +155,4 @@ rezrov-zmachine-output.xml
 .claude-cache/
 .claude-history/
 .claude-transcripts/
+.worktrees/
