@@ -839,14 +839,16 @@ export class WebScreen extends BaseScreen {
   }
 
   getSize(): ScreenSize {
-    // Use the scroll container (main-content) for dimensions so status bar and
-    // upper window use the same width. Fall back to mainEl if parent unavailable.
+    // Use the scroll container (main-content) for dimensions in non-canvas mode.
+    // In V6 canvas mode, use the full game container (status bar + main content +
+    // input area) for BOTH width and height, so row/col counts map the entire
+    // canvas coordinate space rather than window 0's own (possibly narrower) box —
+    // window 0's box no longer represents "the whole screen" once it has its own
+    // move_window/resize_window position (see computeWindowFrame).
     const container = this.mainEl.parentElement;
-    const width = (container?.clientWidth ?? this.mainEl.clientWidth) || 800;
-    // In V6 canvas mode, use the full game container height (includes status bar and
-    // input area) so that row count maps the entire canvas coordinate space.
-    const heightSource = this._useCanvasBackground ? this.statusEl.parentElement : container;
-    const height = (heightSource?.clientHeight ?? this.mainEl.clientHeight) || 400;
+    const source = this._useCanvasBackground ? this.statusEl.parentElement : container;
+    const width = (source?.clientWidth ?? this.mainEl.clientWidth) || 800;
+    const height = (source?.clientHeight ?? this.mainEl.clientHeight) || 400;
     const cols = Math.max(40, Math.floor(width / this.cellWidth));
     const rows = Math.max(10, Math.floor(height / this.cellHeight));
     return { rows, cols };
