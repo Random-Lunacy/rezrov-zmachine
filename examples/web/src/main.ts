@@ -104,7 +104,11 @@ function setupGame(
     blorbMap = BlorbParser.parse(blorbData);
     const webScreen = screen as import('./WebScreen').WebScreen;
     multimediaHandler = new BlorbMultimediaHandler(blorbMap, blorbData, {
-      pictureRenderer: async (resourceId, data, format, x, y, scale) => {
+      pictureRenderer: async (resourceId, data, format, x, y, scale, window) => {
+        if (window === 0) {
+          await webScreen.displayInlinePicture(resourceId, data, format, x, y, scale);
+          return;
+        }
         // Track right-side pictures synchronously (before async image load) so that
         // the right text boundary is set before any subsequent set_margins opcode runs.
         if (x > pictureCanvas.width / 2) {
@@ -112,7 +116,10 @@ function setupGame(
         }
         await pictureRenderer.displayPicture(resourceId, data, format, x, y, scale);
       },
-      pictureEraser: (resourceId) => pictureRenderer.erasePicture(resourceId, webScreen.getBackgroundColor(0)),
+      pictureEraser: (resourceId) => {
+        if (webScreen.eraseInlinePicture(resourceId)) return;
+        pictureRenderer.erasePicture(resourceId, webScreen.getBackgroundColor(0));
+      },
       soundPlayer: (resourceId, data, format, volume, repeats) =>
         soundPlayer.playSound(resourceId, data, format, volume, repeats),
     });
