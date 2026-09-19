@@ -2,6 +2,7 @@ import {
   BaseScreen,
   Capabilities,
   Color,
+  HeaderLocation,
   ScreenSize,
   TextStyle,
   WindowProperty,
@@ -477,6 +478,18 @@ function escapeHtml(str: string): string {
 
 const DEFAULT_BG = '#0a0a0a';
 
+/**
+ * Gap in canvas pixels between an inline (window-0) picture and the text that
+ * wraps beside and below it.
+ *
+ * One 8px character cell, which is also what the game itself implies: Zork Zero
+ * follows its 21px-wide room icon with set_margins(32, 0), reserving 11px beyond
+ * the icon. Since the float now reserves this gutter directly (see
+ * applyLowerWindowMarginsCss), this value alone sets where text sits beside an
+ * icon, so a cell-sized gap keeps the column on the same grid as the text.
+ */
+const INLINE_PICTURE_GAP_PX = 8;
+
 export class WebScreen extends BaseScreen {
   /**
    * Reset every inline style enableCanvasBackground()/applyWindowFrame() can set on
@@ -562,6 +575,40 @@ export class WebScreen extends BaseScreen {
   /** Cached status bar cell dimensions for bitmap rendering */
   private statusBarCellDims: { width: number; height: number } | null = null;
 
+  /**
+   * [MORE] pager state.
+   *
+   * Infocom's interpreters stop after each screenful and wait for a keypress.
+   * They can do that because their print routine blocks; here Screen.print() is
+   * synchronous and the executor runs opcodes straight through, so the VM cannot
+   * be suspended mid-output. Instead the text is allowed to accumulate in the DOM
+   * while the *view* is held back one screenful at a time, and the input prompt is
+   * gated until the player has paged to the end (see pagerDrained). The observable
+   * behaviour matches; only the mechanism differs.
+   *
+   * pagerUnreadPx is how much output has arrived since the player last saw a
+   * prompt; pagerLastHeight is the transcript height it was last measured at.
+   * Counting new output this way -- rather than tracking a scroll offset -- is
+   * what keeps a long transcript from raising [MORE] on every turn.
+   */
+  private pagerUnreadPx: number = 0;
+  private pagerLastHeight: number = 0;
+  private moreEl: HTMLElement | null = null;
+  private pagerWaiters: Array<() => void> = [];
+  private pagerKeyHandler: ((e: KeyboardEvent) => void) | null = null;
+
+  /**
+   * Row pitch for the upper window, in canvas pixels, from the header's
+   * FontHeightInUnits. Cached from the last cursor call so the grid helpers can
+   * read it without a ZMachine reference. 8 matches every classic Infocom V6 game.
+   */
+  private headerFontHeight: number = 8;
+
+  /** Click handler kept as a field so add/removeEventListener see the same reference. */
+  private readonly advancePageFromClick = (): void => {
+    this.advancePage();
+  };
+
   constructor(
     statusEl: HTMLDivElement,
     mainEl: HTMLDivElement,
@@ -577,6 +624,183 @@ export class WebScreen extends BaseScreen {
     this.cellWidth = cellWidth;
     this.cellHeight = cellHeight;
     this.applyWindowBackgrounds();
+  }
+
+  /** The scrolling viewport for window 0's text (#main-content). */
+  private get scrollEl(): HTMLElement | null {
+    return this.mainEl.parentElement;
+  }
+
+  /**
+   * How much text may be shown between pauses: a screenful less one line of
+   * carry-over context, matching Infocom's "screen height - 1" line count.
+   */
+  private pageHeight(): number {
+    const el = this.scrollEl;
+    if (!el || el.clientHeight === 0) return 0;
+    return Math.max(1, el.clientHeight - this.cellHeight);
+  }
+
+  /** True when unread output has piled up past a full page. */
+  private hasUnreadBelow(): boolean {
+    const page = this.pageHeight();
+    // 1px tolerance: sub-pixel line heights otherwise report a phantom extra row.
+    return page > 0 && this.pagerUnreadPx > page + 1;
+  }
+
+  /**
+   * Called after text is appended. Accumulates how much NEW output has arrived
+   * since the last prompt and pauses only once that exceeds a page.
+   *
+   * This deliberately measures the volume of new text rather than scroll
+   * position. Anchoring to a scroll offset looks equivalent but is not: once the
+   * transcript is long enough to scroll, the distance from the last page's top to
+   * the bottom is already a full screen, so any new text at all appears to
+   * overflow and every turn raises a spurious [MORE].
+   */
+  private updatePager(): void {
+    const el = this.scrollEl;
+    if (!el) return;
+
+    const grown = el.scrollHeight - this.pagerLastHeight;
+    if (grown > 0) this.pagerUnreadPx += grown;
+    this.pagerLastHeight = el.scrollHeight;
+
+    if (this.hasUnreadBelow()) {
+      // Park the view at the top of the unread block so the pause shows the text
+      // the player has not read, not the tail of it.
+      el.scrollTop = Math.max(0, el.scrollHeight - this.pagerUnreadPx);
+      this.showMorePrompt();
+      return;
+    }
+
+    el.scrollTop = el.scrollHeight;
+  }
+
+  /**
+   * Reveal the next screenful. Keeps one line of the previous page visible, as
+   * Infocom's interpreters do, so a sentence split across the boundary stays readable.
+   */
+  private advancePage(): void {
+    const el = this.scrollEl;
+    if (!el) return;
+
+    const page = this.pageHeight();
+    this.pagerUnreadPx = Math.max(0, this.pagerUnreadPx - page);
+
+    if (this.hasUnreadBelow()) {
+      el.scrollTop = Math.max(0, el.scrollHeight - this.pagerUnreadPx);
+      this.showMorePrompt();
+      return;
+    }
+
+    // What is left fits on one screen, so the bottom of the transcript shows it all.
+    this.hideMorePrompt();
+    el.scrollTop = el.scrollHeight;
+    this.releasePagerWaiters();
+  }
+
+  private releasePagerWaiters(): void {
+    const waiters = this.pagerWaiters;
+    this.pagerWaiters = [];
+    for (const resolve of waiters) resolve();
+  }
+
+  /** Show the [MORE] prompt and listen for the keypress/click that dismisses it. */
+  private showMorePrompt(): void {
+    const container = this.statusEl.parentElement as HTMLElement | null;
+    if (!container) return;
+
+    if (!this.moreEl) {
+      const el = document.createElement('div');
+      el.id = 'more-prompt';
+      el.textContent = '[MORE]';
+      container.appendChild(el);
+      this.moreEl = el;
+    }
+    this.positionMorePrompt(this.moreEl);
+    this.moreEl.style.display = '';
+
+    if (!this.pagerKeyHandler) {
+      const handler = (e: KeyboardEvent): void => {
+        // Swallow the keystroke: it pages, it is not story input.
+        e.preventDefault();
+        e.stopPropagation();
+        this.advancePage();
+      };
+      this.pagerKeyHandler = handler;
+      // Capture phase, so this runs before the input field's own key handling.
+      document.addEventListener('keydown', handler, true);
+      this.moreEl.addEventListener('click', this.advancePageFromClick);
+    }
+  }
+
+  private hideMorePrompt(): void {
+    if (this.moreEl) {
+      this.moreEl.style.display = 'none';
+      this.moreEl.removeEventListener('click', this.advancePageFromClick);
+    }
+    if (this.pagerKeyHandler) {
+      document.removeEventListener('keydown', this.pagerKeyHandler, true);
+      this.pagerKeyHandler = null;
+    }
+  }
+
+  /** Align the [MORE] prompt with the bottom line of the text viewport. */
+  private positionMorePrompt(el: HTMLElement): void {
+    const container = this.statusEl.parentElement as HTMLElement | null;
+    const scrollEl = this.scrollEl;
+    if (!container || !scrollEl) return;
+
+    // Measured rather than derived from computeWindowFrame, so this works for
+    // non-V6 games too, where #main-content is a plain flex child.
+    const containerRect = container.getBoundingClientRect();
+    const scrollRect = scrollEl.getBoundingClientRect();
+    const lineHeight = Math.max(this.cellHeight, 16);
+
+    el.style.position = 'absolute';
+    el.style.left = `${(scrollRect.left - containerRect.left).toFixed(1)}px`;
+    el.style.width = `${scrollRect.width.toFixed(1)}px`;
+    el.style.top = `${(scrollRect.bottom - containerRect.top - lineHeight).toFixed(1)}px`;
+  }
+
+  /**
+   * Resolves once the player has paged to the end of the pending output. Callers
+   * that are about to ask for story input should await this, so the prompt never
+   * appears over text the player has not seen yet.
+   */
+  pagerDrained(): Promise<void> {
+    if (!this.hasUnreadBelow()) {
+      this.hideMorePrompt();
+      // Reaching a prompt means the player has read this turn's output: start the
+      // next turn's count from zero, so an ordinary reply never pauses however
+      // long the transcript has grown.
+      this.startPagerTurn();
+      return Promise.resolve();
+    }
+    this.showMorePrompt();
+    // Reset on the deferred path too: whenever this resolves the player has caught
+    // up, whether that took one keypress or several.
+    return new Promise<void>((resolve) =>
+      this.pagerWaiters.push(() => {
+        this.startPagerTurn();
+        resolve();
+      })
+    );
+  }
+
+  /** Begin a fresh count of unread output, measured from the transcript's current height. */
+  private startPagerTurn(): void {
+    const el = this.scrollEl;
+    this.pagerUnreadPx = 0;
+    this.pagerLastHeight = el ? el.scrollHeight : 0;
+  }
+
+  /** Drop pending pager state — used when the window is cleared or a game ends. */
+  resetPager(): void {
+    this.hideMorePrompt();
+    this.startPagerTurn();
+    this.releasePagerWaiters();
   }
 
   /** Emit a V6 layout trace line; no-op unless `?v6debug` is in the page URL. */
@@ -716,13 +940,36 @@ export class WebScreen extends BaseScreen {
    * = round(canvasW / fontH) = round(canvasW * rows / canvasH).
    * This gives 40 columns for Zork Zero (320×200 canvas, rows=25, fontH=8).
    */
+  /**
+   * Size of one upper-window character cell, in CANVAS pixels.
+   *
+   * This deliberately overrides the font metrics reported in the header, the way
+   * modern interpreters do for Infocom's V6 games. Those games were authored
+   * against a narrow proportional header font and hardcode pixel positions from
+   * it: Zork Zero prints "Flatheadia" at x=285 of a 320px window, leaving 35px
+   * for 10 characters -- about 3.5px each. Laying that out on the 8px square cell
+   * the header advertises pushes the text five columns off the right edge, where
+   * it is simply dropped.
+   *
+   * Our own rendered glyphs happen to measure ~3.5 canvas pixels wide, so taking
+   * the MEASURED width as the cell width reproduces the intended layout instead
+   * of fighting it. Height stays on the header's row pitch, which the game does
+   * honour (its two header rows sit exactly one 8px row apart) -- so the cell is
+   * deliberately non-square.
+   */
+  private upperCellCanvasSize(): { width: number; height: number } {
+    const scale = this.getCanvasScale();
+    const measured = this.measureStatusBarCell();
+    const fontH = this.headerFontHeight;
+    if (scale === 0 || measured.width === 0) return { width: 1, height: fontH };
+    return { width: measured.width / scale, height: fontH };
+  }
+
   private getCanvasGridCols(): number {
-    const canvasH = this.pictureCanvas.height;
     const canvasW = this.pictureCanvas.width;
-    if (canvasH === 0 || canvasW === 0) return this.getSize().cols;
-    const targetRows = Math.round(canvasH / 8); // fontH_design = 8 for classic Infocom
-    const fontH = targetRows > 0 ? Math.max(1, Math.round(canvasH / targetRows)) : 1;
-    return Math.max(1, Math.round(canvasW / fontH));
+    if (canvasW === 0) return this.getSize().cols;
+    const cell = this.upperCellCanvasSize();
+    return Math.max(1, Math.floor(canvasW / cell.width));
   }
 
   /**
@@ -785,6 +1032,36 @@ export class WebScreen extends BaseScreen {
     } else {
       el.style.overflow = 'hidden';
     }
+
+    // #status-bar starts hidden and is normally revealed by split_window, but V6
+    // games position their upper windows with move_window/resize_window instead --
+    // Zork Zero never calls split_window at all, so the header stayed display:none
+    // and its text was never seen. Giving a window a real box is itself the signal
+    // that it should be visible.
+    if (el === this.statusEl && height > 0) {
+      this.statusEl.style.display = 'block';
+    }
+
+    // #input-line is chrome rather than a Z-machine window, but it is where the
+    // player types the story's text, so it belongs in the same column as window 0's
+    // text. Left at the container's full width it runs under the decorative side
+    // pillars; track window 0's frame instead. Done here so every path that
+    // repositions window 0 keeps the prompt aligned with it.
+    if (windowId === 0) this.applyInputLineFrame(frame);
+  }
+
+  /**
+   * Align #input-line horizontally with window 0's column, keeping it pinned to the
+   * bottom of #game-container.
+   */
+  private applyInputLineFrame(frame: { left: number; width: number }): void {
+    const gameContainer = this.statusEl.parentElement;
+    const inputLine = gameContainer?.querySelector('#input-line') as HTMLElement | null;
+    if (!inputLine) return;
+    inputLine.style.left = `${frame.left.toFixed(1)}px`;
+    inputLine.style.width = `${frame.width.toFixed(1)}px`;
+    // left+width now define the box; a leftover right:0 would fight them.
+    inputLine.style.right = 'auto';
   }
 
   /**
@@ -1061,7 +1338,11 @@ export class WebScreen extends BaseScreen {
     // Using main-content's width can mismatch when scrollbars differ between siblings.
     const statusBarWidth = this.statusEl.clientWidth || 800;
     const imgW = statusBarWidth / cols;
-    const imgH = cell.height;
+    // In canvas mode rows must sit on the game's own row pitch (8 canvas px for
+    // Zork Zero), not on the CSS line box -- otherwise the two header rows drift
+    // apart from the positions set_cursor mapped them to. Elsewhere the measured
+    // line box is still the right answer.
+    const imgH = this._useCanvasBackground ? this.headerFontHeight * this.getCanvasScale() : cell.height;
     const fontSize = parseFloat(getComputedStyle(this.statusEl).fontSize) || 16;
     const lines: string[] = [];
 
@@ -1167,11 +1448,9 @@ export class WebScreen extends BaseScreen {
       const span = document.createElement('span');
       span.innerHTML = styled;
       this.mainEl.appendChild(span);
-      // Scroll the parent container (#main-content), not the text div
-      const scrollContainer = this.mainEl.parentElement;
-      if (scrollContainer) {
-        scrollContainer.scrollTop = scrollContainer.scrollHeight;
-      }
+      // Advance the pager rather than jumping straight to the bottom, so output
+      // longer than the window stops at a [MORE] prompt (see updatePager).
+      this.updatePager();
     } else {
       // Upper window: store raw chars and track Font 3 positions for bitmap rendering.
       // In V6 canvas mode, buffer width uses the canvas-grid column count so character
@@ -1257,6 +1536,28 @@ export class WebScreen extends BaseScreen {
       this.v6debug(`[set_cursor] window=0 line=${line} col=${column} paddingTop=${paddingTop.toFixed(1)}`);
       return;
     }
+
+    // Upper windows: convert the game's pixel coordinates using OUR cell metrics
+    // rather than the 8px square cell the header advertises (see
+    // upperCellCanvasSize). Done here instead of deferring to BaseScreen, which
+    // would re-floor the same coordinates against the header font and undo it.
+    if (this._useCanvasBackground && machine.state.version >= 6) {
+      this.headerFontHeight = machine.memory.getByte(HeaderLocation.FontHeightInUnits) || 8;
+      const cell = this.upperCellCanvasSize();
+      const row = Math.floor((line - 1) / cell.height) + 1;
+      const col = Math.floor((column - 1) / cell.width) + 1;
+
+      // Flooring to a row drops the offset within it. Zork Zero's header rows sit
+      // at y=6 and y=14, both 5px into their cell, so without this the whole header
+      // rides 5px high. Re-apply the remainder as padding on the element.
+      const paddingTop = ((line - 1) % cell.height) * this.getCanvasScale();
+      this.statusEl.style.paddingTop = `${paddingTop.toFixed(1)}px`;
+
+      this.cursorPosition = { line: row, column: col };
+      this.v6debug(`[set_cursor] win=${windowId} px(${line},${column}) -> cell(${row},${col})`);
+      return;
+    }
+
     super.setCursorPosition(machine, line, column, windowId);
   }
 
@@ -1379,17 +1680,13 @@ export class WebScreen extends BaseScreen {
     const pixelX = x - 1;
 
     // width/margin are percentages of the <img>'s CSS containing block, which is
-    // mainEl's CONTENT box (mainEl's own width minus the set_margins padding already
-    // applied to it via applyLowerWindowMarginsCss) -- not the full canvas width.
-    // Narrow the column by the current left/right margins (the same values
-    // applyLowerWindowMarginsCss/setOutputWindow already read from the
-    // WindowManager) so percentages resolve against the box the browser will
-    // actually measure them against.
-    const leftMargin = this.windowManager.getWindowProperty(0, WindowProperty.LeftMargin);
+    // mainEl's CONTENT box. applyLowerWindowMarginsCss applies only the RIGHT margin
+    // as padding -- the left edge is left to the float itself (see the reasoning
+    // there) -- so the content box starts at window 0's own left edge.
     const rightMargin = this.windowManager.getWindowProperty(0, WindowProperty.RightMargin);
     const windowLeft = this.windowManager.getWindowProperty(0, WindowProperty.XCoordinate) - 1;
     const windowWidth = this.windowManager.getWindowProperty(0, WindowProperty.XSize);
-    const columnLeft = windowLeft + leftMargin;
+    const columnLeft = windowLeft;
     const columnRight = windowLeft + windowWidth - rightMargin;
     const columnWidth = Math.max(1, columnRight - columnLeft);
     const columnMid = (columnLeft + columnRight) / 2;
@@ -1399,12 +1696,26 @@ export class WebScreen extends BaseScreen {
     img.style.width = `${(widthPx / columnWidth) * 100}%`;
     img.style.height = 'auto';
 
+    // Breathing room between a floated picture and the text flowing beside and
+    // below it. Percentage margins resolve against the containing block's WIDTH on
+    // every side, so both work out to INLINE_PICTURE_GAP_PX canvas pixels.
+    const gapPct = (INLINE_PICTURE_GAP_PX / columnWidth) * 100;
+    img.style.marginBottom = `${gapPct.toFixed(2)}%`;
+
     if (pixelX <= columnMid) {
       img.style.float = 'left';
-      img.style.marginLeft = `${(Math.max(0, pixelX - columnLeft) / columnWidth) * 100}%`;
+      // Offset from the window's left edge, not clamped: for Zork Zero's icons the
+      // game passes exactly window-left (draw_picture x=44, window 0 at left=44), so
+      // this is 0 and the icon sits flush at the column edge. The float's own width
+      // plus INLINE_PICTURE_GAP_PX then reserves the gutter the game would otherwise
+      // request via set_margins, and -- unlike a container padding -- it stops
+      // reserving it below the icon, so text resumes at the window's left edge.
+      img.style.marginLeft = `${(((pixelX - columnLeft) / columnWidth) * 100).toFixed(2)}%`;
+      img.style.marginRight = `${gapPct.toFixed(2)}%`;
     } else {
       img.style.float = 'right';
-      img.style.marginRight = `${(Math.max(0, columnRight - (pixelX + widthPx)) / columnWidth) * 100}%`;
+      img.style.marginRight = `${(((columnRight - (pixelX + widthPx)) / columnWidth) * 100).toFixed(2)}%`;
+      img.style.marginLeft = `${gapPct.toFixed(2)}%`;
     }
   }
 
@@ -1422,15 +1733,27 @@ export class WebScreen extends BaseScreen {
   }
 
   private applyLowerWindowMarginsCss(leftInlinePx: number, rightInlinePx: number): void {
-    // #main-content is now window 0's own box (see applyWindowFrame), so
-    // set_margins' values are the entire story -- no window-offset or pillar
-    // reconstruction needed. Margins are in canvas-pixel units; convert to CSS px.
+    // #main-content is window 0's own box (see applyWindowFrame), so set_margins'
+    // values need no window-offset reconstruction. Canvas-pixel units -> CSS px.
     const scale = this.getCanvasScale();
     if (scale === 0) return;
-    const leftPx = leftInlinePx * scale;
     const rightPx = rightInlinePx * scale;
-    this.v6debug(`[margins] left=${leftPx.toFixed(1)}px right=${rightPx.toFixed(1)}px`);
-    this.mainEl.style.paddingLeft = `${leftPx.toFixed(1)}px`;
+    this.v6debug(`[margins] left=${leftInlinePx} (float-reserved) right=${rightPx.toFixed(1)}px`);
+
+    // The LEFT margin is deliberately not applied as padding here. Zork Zero uses it
+    // to reserve room for an icon it has just floated at window 0's left edge --
+    // set_margins(32, 0) follows a 21px-wide room icon, i.e. icon width plus a gap.
+    // The floated <img> already reserves exactly that space, so padding would double
+    // it. Worse, #main-content holds the whole scrollback, so a later set_margins
+    // retroactively indents text already printed under a different margin: the
+    // drop-cap paragraph prints while the margin is still 0 (confirmed by opcode
+    // trace) and wrapped correctly only until the next set_margins shifted it.
+    //
+    // Leaving the left edge to the float also gives the Infocom-interpreter
+    // behaviour of text resuming at the window's own left edge once it clears the
+    // bottom of the icon -- which is plain CSS float flow, and is not expressible
+    // with a container padding that applies to every line equally.
+    this.mainEl.style.paddingLeft = '';
     this.mainEl.style.paddingRight = `${rightPx.toFixed(1)}px`;
   }
 
@@ -1459,6 +1782,11 @@ export class WebScreen extends BaseScreen {
           );
         }
       }
+    }
+
+    // Any clear of window 0 discards text the pager may still be holding back.
+    if (windowId === -1 || windowId === -2 || windowId === 0) {
+      this.resetPager();
     }
 
     if (windowId === -1) {

@@ -97,6 +97,17 @@
       #text-output span {
         white-space: pre-wrap;
       }
+      /* [MORE] pager prompt: overlays the bottom line of the text window while
+         output is held back, mimicking Infocom's screenful-at-a-time paging. */
+      #more-prompt {
+        z-index: 2;
+        font-weight: bold;
+        text-align: center;
+        cursor: pointer;
+        user-select: none;
+        color: #000;
+        background: #cfcfcf;
+      }
       #input-line {
         position: relative;
         z-index: 1;
