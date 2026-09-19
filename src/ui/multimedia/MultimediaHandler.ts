@@ -164,9 +164,10 @@ export interface MultimediaHandler {
    * @param x X coordinate
    * @param y Y coordinate
    * @param scale Scale factor (100 = normal size)
+   * @param window Window the picture is being drawn into
    * @returns Status of the operation
    */
-  displayPicture(resourceId: number, x: number, y: number, scale: number): ResourceStatus;
+  displayPicture(resourceId: number, x: number, y: number, scale: number, window: number): ResourceStatus;
 
   /**
    * Erase a displayed picture
@@ -283,7 +284,7 @@ export class BaseMultimediaHandler implements MultimediaHandler {
   }
 
   // Picture Methods
-  displayPicture(resourceId: number, x: number, y: number, scale: number): ResourceStatus {
+  displayPicture(resourceId: number, x: number, y: number, scale: number, _window: number): ResourceStatus {
     this.logger.debug(`Displaying picture ${resourceId} at (${x},${y}) with scale ${scale}%`);
     return ResourceStatus.NotAvailable;
   }

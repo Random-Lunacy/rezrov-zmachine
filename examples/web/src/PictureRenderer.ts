@@ -1,28 +1,29 @@
 /**
  * Renders Blorb pictures to an HTML canvas.
- * Maps Z-machine line/column coordinates to pixel positions.
+ * Maps Z-machine V6 pixel coordinates directly to canvas pixel positions.
+ *
+ * In V6, draw_picture passes (x, y) as 1-based pixel coordinates where
+ * x is horizontal (column) and y is vertical (row). No cell-based scaling
+ * is applied — the values are already in the canvas's pixel space.
  */
 export class PictureRenderer {
   private readonly canvas: HTMLCanvasElement;
   private readonly ctx: CanvasRenderingContext2D;
-  private cellWidth: number;
-  private cellHeight: number;
-  private displayedPictures: Map<number, { x: number; y: number; width: number; height: number }> = new Map();
+  private readonly displayedPictures: Map<number, { x: number; y: number; width: number; height: number }> = new Map();
 
-  constructor(canvas: HTMLCanvasElement, cellWidth: number, cellHeight: number) {
+  constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     const ctx = canvas.getContext('2d');
     if (!ctx) {
       throw new Error('Could not get 2d context');
     }
     this.ctx = ctx;
-    this.cellWidth = cellWidth;
-    this.cellHeight = cellHeight;
   }
 
   /**
-   * Draw a picture at the given Z-machine coordinates.
-   * x and y are 1-based line/column from the Z-machine.
+   * Draw a picture at the given Z-machine V6 coordinates.
+   * x is horizontal position (1-based pixel column from window left).
+   * y is vertical position (1-based pixel row from window top).
    */
   async displayPicture(
     resourceId: number,
@@ -43,8 +44,10 @@ export class PictureRenderer {
     const width = Math.round(bitmap.width * scaleFactor);
     const height = Math.round(bitmap.height * scaleFactor);
 
-    const pixelX = (y - 1) * this.cellWidth;
-    const pixelY = (x - 1) * this.cellHeight;
+    // V6: x (column/horizontal) and y (row/vertical) are 1-based pixel coordinates.
+    // Subtract 1 to convert to 0-based canvas coordinates.
+    const pixelX = x - 1;
+    const pixelY = y - 1;
 
     this.ctx.drawImage(bitmap, pixelX, pixelY, width, height);
     this.displayedPictures.set(resourceId, { x: pixelX, y: pixelY, width, height });
@@ -77,13 +80,5 @@ export class PictureRenderer {
   resize(width: number, height: number): void {
     this.canvas.width = width;
     this.canvas.height = height;
-  }
-
-  /**
-   * Update cell dimensions after a font size change.
-   */
-  updateCellDimensions(cellWidth: number, cellHeight: number): void {
-    this.cellWidth = cellWidth;
-    this.cellHeight = cellHeight;
   }
 }

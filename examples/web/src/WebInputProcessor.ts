@@ -26,6 +26,13 @@ export class WebInputProcessor extends BaseInputProcessor {
   }
 
   protected doStartTextInput(machine: ZMachine, state: InputState): void {
+    // Let the player page through any pending [MORE] output before the prompt
+    // appears, so it never covers text they have not read. Resolves immediately
+    // when nothing is pending, which is the common case.
+    void this.screen.pagerDrained().then(() => this.beginTextInput(machine, state));
+  }
+
+  private beginTextInput(machine: ZMachine, state: InputState): void {
     this.logger.debug('Starting text input');
 
     // Clean up any existing input state (e.g. from a previous timeout-terminated input)
@@ -77,7 +84,13 @@ export class WebInputProcessor extends BaseInputProcessor {
     this.inputEl.addEventListener('keydown', h);
   }
 
-  protected doStartCharInput(machine: ZMachine, _state: InputState): void {
+  protected doStartCharInput(machine: ZMachine, state: InputState): void {
+    // As with text input: page out first, so the keypress that dismisses a [MORE]
+    // prompt is not also consumed as the story's requested character.
+    void this.screen.pagerDrained().then(() => this.beginCharInput(machine, state));
+  }
+
+  private beginCharInput(machine: ZMachine, _state: InputState): void {
     this.logger.debug('Starting char input');
     this.isWaitingForInput = true;
     this.inputEl.value = '';

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BlorbMap } from '../../../../src/resources/BlorbData';
 import { BlorbParser } from '../../../../src/resources/BlorbParser';
+import { readPalette } from '../../../../src/resources/PngPalette';
 import { BlorbMultimediaHandler } from '../../../../src/ui/multimedia/BlorbMultimediaHandler';
 import { ResourceStatus, ResourceType } from '../../../../src/ui/multimedia/MultimediaHandler';
 import { Logger } from '../../../../src/utils/log';
@@ -65,10 +66,24 @@ function createPngBuffer(width: number, height: number): Buffer {
 }
 
 /**
- * Build a minimal Blorb container with given picture resources.
- * Each picture is stored as a raw chunk (JPEG or PNG) with an RIdx entry.
+ * Build a Blorb 'Rect' placeholder chunk: 4-byte width + 4-byte height, big-endian.
+ * Per the Blorb spec, this describes the legacy picture behavior of some V6
+ * Infocom games (Zork Zero, Shogun, Arthur) — a declared size with no pixel data.
  */
-function createBlorbWithPictures(pictures: Array<{ id: number; data: Buffer; type: 'JPEG' | 'PNG ' }>): Buffer {
+function createRectBuffer(width: number, height: number): Buffer {
+  const buf = Buffer.alloc(8);
+  buf.writeUInt32BE(width, 0);
+  buf.writeUInt32BE(height, 4);
+  return buf;
+}
+
+/**
+ * Build a minimal Blorb container with given picture resources.
+ * Each picture is stored as a raw chunk (JPEG, PNG, or Rect) with an RIdx entry.
+ */
+function createBlorbWithPictures(
+  pictures: Array<{ id: number; data: Buffer; type: 'JPEG' | 'PNG ' | 'Rect' }>
+): Buffer {
   // Calculate sizes
   const ridxDataSize = 4 + pictures.length * 12; // count + entries
   const ridxChunkSize = 8 + ridxDataSize; // type + length + data
@@ -125,6 +140,61 @@ function createBlorbWithPictures(pictures: Array<{ id: number; data: Buffer; typ
   }
 
   return buf.subarray(0, totalSize);
+}
+
+/** CRC-32 as PNG defines it, for building palette chunks the parser will accept. */
+function pngCrc32(buf: Buffer): number {
+  let c = 0xffffffff;
+  for (const byte of buf) {
+    c ^= byte;
+    for (let k = 0; k < 8; k++) {
+      c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    }
+  }
+  return (c ^ 0xffffffff) >>> 0;
+}
+
+function pngChunk(type: string, data: Buffer): Buffer {
+  const length = Buffer.alloc(4);
+  length.writeUInt32BE(data.length);
+  const typeAndData = Buffer.concat([Buffer.from(type, 'ascii'), data]);
+  const crc = Buffer.alloc(4);
+  crc.writeUInt32BE(pngCrc32(typeAndData));
+  return Buffer.concat([length, typeAndData, crc]);
+}
+
+/** A PNG carrying the given palette, for adaptive-palette tests. */
+function createPalettedPng(palette: number[][]): Buffer {
+  const signature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(8, 0);
+  ihdr.writeUInt32BE(8, 4);
+  return Buffer.concat([
+    signature,
+    pngChunk('IHDR', ihdr),
+    pngChunk('PLTE', Buffer.from(palette.flat())),
+    pngChunk('IEND', Buffer.alloc(0)),
+  ]);
+}
+
+/**
+ * Append an 'APal' chunk (a flat list of big-endian picture numbers) to a Blorb
+ * built by createBlorbWithPictures. Safe to append: the RIdx offsets were fixed
+ * when the picture chunks were laid out, so adding a chunk at the end cannot
+ * disturb them.
+ */
+function withAdaptivePalettes(blorb: Buffer, ids: number[]): Buffer {
+  const apalData = Buffer.alloc(ids.length * 4);
+  ids.forEach((id, i) => apalData.writeUInt32BE(id, i * 4));
+
+  const header = Buffer.alloc(8);
+  header.write('APal', 0, 'ascii');
+  header.writeUInt32BE(apalData.length, 4);
+
+  const result = Buffer.concat([blorb, header, apalData]);
+  // Grow the FORM length to cover the appended chunk, or the scan will stop short.
+  result.writeUInt32BE(result.length - 8, 4);
+  return result;
 }
 
 describe('BlorbMultimediaHandler', () => {
@@ -261,13 +331,22 @@ describe('BlorbMultimediaHandler', () => {
 
   describe('displayPicture', () => {
     it('should return Available for existing picture', () => {
-      const status = handler.displayPicture(1, 10, 20, 100);
+      const status = handler.displayPicture(1, 10, 20, 100, 0);
       expect(status).toBe(ResourceStatus.Available);
     });
 
     it('should return NotAvailable for missing picture', () => {
-      const status = handler.displayPicture(99, 10, 20, 100);
+      const status = handler.displayPicture(99, 10, 20, 100, 0);
       expect(status).toBe(ResourceStatus.NotAvailable);
+    });
+
+    it('should forward the target window to the pictureRenderer callback', () => {
+      const rendererSpy = vi.fn();
+      const h = new BlorbMultimediaHandler(blorbMap, blorbData, { logger: mockLogger, pictureRenderer: rendererSpy });
+
+      h.displayPicture(1, 10, 20, 100, 3);
+
+      expect(rendererSpy).toHaveBeenCalledWith(1, jpegData, 'JPEG', 10, 20, 100, 3);
     });
   });
 
@@ -341,6 +420,29 @@ describe('BlorbMultimediaHandler', () => {
     });
   });
 
+  /**
+   * Per the Blorb spec, 'Rect' is a placeholder picture resource (declared size,
+   * no pixel data) "to describe the legacy behavior of some V6 Infocom games
+   * (Zork Zero, Shogun, and Arthur)". Zork Zero's own bytecode calls picture_data
+   * on Rect-typed resources and uses the returned width/height for layout
+   * (e.g. computing move_window's target position) — if picture_data fails for
+   * them, the game's own lookup table keeps whatever stale bytes were there
+   * before, corrupting later window placement.
+   */
+  describe('Rect placeholder pictures', () => {
+    it('should report the declared width/height instead of treating it as unsupported', () => {
+      const rectData = createRectBuffer(45, 40);
+      const blorb = createBlorbWithPictures([{ id: 387, data: rectData, type: 'Rect' }]);
+      const map = BlorbParser.parse(blorb);
+      const h = new BlorbMultimediaHandler(map, blorb, { logger: mockLogger });
+
+      const data = h.getPictureData(387);
+
+      expect(data).toEqual({ width: 45, height: 40, format: 'Rect', hasTransparency: false });
+      expect(mockLogger.warn).not.toHaveBeenCalled();
+    });
+  });
+
   describe('sound methods delegate to base', () => {
     it('should return NotAvailable for playSound', () => {
       expect(handler.playSound(1, 2, 128, 1)).toBe(ResourceStatus.NotAvailable);
@@ -348,6 +450,116 @@ describe('BlorbMultimediaHandler', () => {
 
     it('should return NotAvailable for stopSound', () => {
       expect(handler.stopSound(1)).toBe(ResourceStatus.NotAvailable);
+    });
+  });
+
+  /**
+   * Blorb adaptive palettes: pictures listed in 'APal' carry a placeholder palette
+   * and must be recolored with the palette of the last non-adaptive picture drawn.
+   * Zork Zero relies on this for its compass overlays, which ship with a stock EGA
+   * ramp and are meant to match the sepia artwork they sit on.
+   */
+  describe('adaptive palettes', () => {
+    const SEPIA = [
+      [0xee, 0xaa, 0x88],
+      [0xcc, 0x88, 0x66],
+      [0xaa, 0x66, 0x44],
+    ];
+    const EGA = [
+      [0x00, 0x00, 0xaa],
+      [0x00, 0xaa, 0x00],
+      [0x00, 0xaa, 0xaa],
+    ];
+
+    /** Palette each picture was rendered with, in call order. */
+    function renderWith(adaptiveIds: number[]): {
+      render: (id: number) => void;
+      palettes: Array<{ id: number; palette: number[] }>;
+    } {
+      const blorb = withAdaptivePalettes(
+        createBlorbWithPictures([
+          { id: 1, data: createPalettedPng(SEPIA), type: 'PNG ' },
+          { id: 2, data: createPalettedPng(EGA), type: 'PNG ' },
+        ]),
+        adaptiveIds
+      );
+      const map = BlorbParser.parse(blorb);
+      const palettes: Array<{ id: number; palette: number[] }> = [];
+      const h = new BlorbMultimediaHandler(map, blorb, {
+        logger: mockLogger,
+        pictureRenderer: (id, data) => {
+          const found = readPalette(data);
+          palettes.push({ id, palette: found ? [...found] : [] });
+        },
+      });
+      return { render: (id: number) => h.displayPicture(id, 1, 1, 100, 0), palettes };
+    }
+
+    it('should recolor an adaptive picture with the preceding picture palette', () => {
+      const { render, palettes } = renderWith([2]);
+
+      render(1); // non-adaptive: establishes the current palette
+      render(2); // adaptive: should be recolored
+
+      expect(palettes[0].palette).toEqual(SEPIA.flat());
+      expect(palettes[1].palette).toEqual(SEPIA.flat());
+    });
+
+    it('should leave a non-adaptive picture palette alone', () => {
+      const { render, palettes } = renderWith([]);
+
+      render(1);
+      render(2);
+
+      expect(palettes[1].palette).toEqual(EGA.flat());
+    });
+
+    it('should keep using the last non-adaptive palette across several overlays', () => {
+      const { render, palettes } = renderWith([2]);
+
+      render(1);
+      render(2);
+      render(2);
+
+      expect(palettes[2].palette).toEqual(SEPIA.flat());
+    });
+
+    it('should not let an adaptive picture become the current palette', () => {
+      // Drawing an adaptive picture must not overwrite the palette that
+      // subsequent adaptive pictures rely on.
+      const { render, palettes } = renderWith([2]);
+
+      render(1);
+      render(2);
+      render(1);
+      render(2);
+
+      expect(palettes[3].palette).toEqual(SEPIA.flat());
+    });
+
+    it('should render an adaptive picture unchanged when no palette is set yet', () => {
+      const { render, palettes } = renderWith([2]);
+
+      render(2); // adaptive picture drawn first, nothing to adapt to
+
+      expect(palettes[0].palette).toEqual(EGA.flat());
+    });
+
+    it('should report no adaptive ids when the Blorb has no APal chunk', () => {
+      const blorb = createBlorbWithPictures([{ id: 1, data: createPalettedPng(SEPIA), type: 'PNG ' }]);
+      const map = BlorbParser.parse(blorb);
+
+      expect(BlorbParser.getAdaptivePaletteIds(map, blorb).size).toBe(0);
+    });
+
+    it('should parse every id listed in the APal chunk', () => {
+      const blorb = withAdaptivePalettes(
+        createBlorbWithPictures([{ id: 1, data: createPalettedPng(SEPIA), type: 'PNG ' }]),
+        [9, 10, 481]
+      );
+      const map = BlorbParser.parse(blorb);
+
+      expect([...BlorbParser.getAdaptivePaletteIds(map, blorb)].sort((a, b) => a - b)).toEqual([9, 10, 481]);
     });
   });
 });

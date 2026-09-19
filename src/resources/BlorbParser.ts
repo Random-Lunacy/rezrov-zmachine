@@ -214,6 +214,30 @@ export class BlorbParser {
   }
 
   /**
+   * Picture resource numbers that use the adaptive palette, from the optional
+   * 'APal' chunk (Blorb spec, "Adaptive palettes").
+   *
+   * These pictures carry a placeholder palette rather than a meaningful one —
+   * their pixel indices address the "current palette", set by the most recent
+   * non-adaptive picture drawn. Zork Zero uses this for its compass overlays and
+   * room icons, which ship with a stock EGA palette and are meant to be recolored
+   * to match the sepia artwork they are drawn over.
+   *
+   * The chunk is a flat list of big-endian 32-bit resource numbers. Returns an
+   * empty set when the Blorb has no 'APal' chunk, which is the common case.
+   */
+  static getAdaptivePaletteIds(map: BlorbMap, data: Buffer): Set<number> {
+    const ids = new Set<number>();
+    const chunk = BlorbParser.getChunkByType(map, data, 'APal');
+    if (!chunk) return ids;
+
+    for (let offset = 0; offset + 4 <= chunk.length; offset += 4) {
+      ids.add(chunk.readUInt32BE(offset));
+    }
+    return ids;
+  }
+
+  /**
    * Extract the executable story data from the Blorb file.
    * Looks for Exec resource number 0 (the main story file).
    *

@@ -40,6 +40,13 @@ export enum BlorbChunkType {
   MOD = 'MOD ',
   SONG = 'SONG',
   FORM = 'FORM',
+  /**
+   * Placeholder picture: declared width/height, no pixel data. Per the Blorb
+   * spec, this describes the legacy behavior of some V6 Infocom games
+   * (Zork Zero, Shogun, Arthur) — valid for @picture_data/@erase_picture,
+   * but using it with @draw_picture is a game error.
+   */
+  Rect = 'Rect',
 }
 
 /**

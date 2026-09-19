@@ -11,6 +11,7 @@
 import type { BlorbMap } from '../../resources/BlorbData';
 import { BlorbChunkType, BlorbUsage } from '../../resources/BlorbData';
 import { BlorbParser } from '../../resources/BlorbParser';
+import { isPng, readPalette, replacePalette } from '../../resources/PngPalette';
 import { Logger } from '../../utils/log';
 import {
   BaseMultimediaHandler,
@@ -87,6 +88,19 @@ function getPngDimensions(data: Buffer): { width: number; height: number } | nul
 }
 
 /**
+ * Extract width and height from a Blorb 'Rect' placeholder chunk: 4-byte BE
+ * width followed by 4-byte BE height, no pixel data. Returns null if the
+ * buffer is too small.
+ */
+function getRectDimensions(data: Buffer): { width: number; height: number } | null {
+  if (data.length < 8) return null;
+
+  const width = data.readUInt32BE(0);
+  const height = data.readUInt32BE(4);
+  return { width, height };
+}
+
+/**
  * Callback for displaying a picture. Receives raw image data and display parameters.
  */
 export type PictureRendererCallback = (
@@ -95,7 +109,8 @@ export type PictureRendererCallback = (
   format: string,
   x: number,
   y: number,
-  scale: number
+  scale: number,
+  window: number
 ) => void;
 
 /**
@@ -144,6 +159,16 @@ export class BlorbMultimediaHandler extends BaseMultimediaHandler {
   private readonly _pictureEraser?: PictureEraserCallback;
   private readonly _soundPlayer?: SoundPlayerCallback;
 
+  /** Picture numbers listed in the Blorb 'APal' chunk (see getAdaptivePaletteIds). */
+  private readonly _adaptivePaletteIds: Set<number>;
+
+  /**
+   * Palette of the most recently drawn non-adaptive picture, applied to adaptive
+   * pictures so they take on the colors of the artwork they overlay. Null until
+   * such a picture has been drawn.
+   */
+  private _currentPalette: Buffer | null = null;
+
   constructor(blorbMap: BlorbMap, blorbData: Buffer, options?: BlorbMultimediaHandlerOptions) {
     super(options);
     this._blorbMap = blorbMap;
@@ -152,6 +177,7 @@ export class BlorbMultimediaHandler extends BaseMultimediaHandler {
     this._pictureRenderer = options?.pictureRenderer;
     this._pictureEraser = options?.pictureEraser;
     this._soundPlayer = options?.soundPlayer;
+    this._adaptivePaletteIds = BlorbParser.getAdaptivePaletteIds(blorbMap, blorbData);
   }
 
   get blorbMap(): BlorbMap {
@@ -222,6 +248,9 @@ export class BlorbMultimediaHandler extends BaseMultimediaHandler {
       dimensions = getPngDimensions(data);
       format = 'PNG';
       hasTransparency = true; // PNG supports alpha
+    } else if (chunkType === BlorbChunkType.Rect) {
+      dimensions = getRectDimensions(data);
+      format = 'Rect';
     } else {
       this._logger.warn(`Picture ${resourceId}: unsupported chunk type '${chunkType}'`);
       return null;
@@ -244,20 +273,51 @@ export class BlorbMultimediaHandler extends BaseMultimediaHandler {
     return pictureData;
   }
 
-  displayPicture(resourceId: number, x: number, y: number, scale: number): ResourceStatus {
+  /**
+   * Resolve a picture's palette against Blorb's adaptive-palette rule.
+   *
+   * A picture NOT listed in 'APal' owns its palette and becomes the current one.
+   * A picture that IS listed carries a placeholder palette (Zork Zero ships a
+   * stock EGA ramp) and is recolored with the current palette, so overlays such
+   * as the compass direction markers match the artwork beneath them instead of
+   * rendering in stock EGA blue/green/red.
+   *
+   * Returns the data to render — unchanged unless a substitution applies.
+   */
+  private applyAdaptivePalette(resourceId: number, data: Buffer): Buffer {
+    if (!isPng(data)) return data;
+
+    if (!this._adaptivePaletteIds.has(resourceId)) {
+      const palette = readPalette(data);
+      if (palette) this._currentPalette = palette;
+      return data;
+    }
+
+    // Adaptive, but nothing has established a palette yet: the picture's own
+    // placeholder is all we have, so draw it rather than failing.
+    if (!this._currentPalette) {
+      this._logger.debug(`Picture ${resourceId} is adaptive but no current palette is set`);
+      return data;
+    }
+
+    return replacePalette(data, this._currentPalette);
+  }
+
+  displayPicture(resourceId: number, x: number, y: number, scale: number, window: number): ResourceStatus {
     if (!this.isResourceAvailable(ResourceType.Picture, resourceId)) {
       this._logger.debug(`Picture ${resourceId} not available for display`);
       return ResourceStatus.NotAvailable;
     }
 
     if (this._pictureRenderer) {
-      const data = BlorbParser.getResource(this._blorbMap, this._blorbData, BlorbUsage.Pict, resourceId);
+      const raw = BlorbParser.getResource(this._blorbMap, this._blorbData, BlorbUsage.Pict, resourceId);
       const chunkType = BlorbParser.getResourceChunkType(this._blorbMap, BlorbUsage.Pict, resourceId);
-      if (data && chunkType) {
+      if (raw && chunkType) {
         const format =
           chunkType === BlorbChunkType.PNG ? 'PNG' : chunkType === BlorbChunkType.JPEG ? 'JPEG' : chunkType;
+        const data = this.applyAdaptivePalette(resourceId, raw);
         try {
-          this._pictureRenderer(resourceId, data, format, x, y, scale);
+          this._pictureRenderer(resourceId, data, format, x, y, scale, window);
           return ResourceStatus.Available;
         } catch (error) {
           this._logger.error(`Picture ${resourceId} render failed: ${error}`);
@@ -266,7 +326,7 @@ export class BlorbMultimediaHandler extends BaseMultimediaHandler {
       }
     }
 
-    this._logger.debug(`Picture ${resourceId} available at (${x},${y}) scale ${scale}%`);
+    this._logger.debug(`Picture ${resourceId} available at (${x},${y}) scale ${scale}% window=${window}`);
     return ResourceStatus.Available;
   }
 

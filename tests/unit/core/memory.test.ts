@@ -1,9 +1,18 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as fs from 'fs';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Memory } from '../../../src/core/memory/Memory';
 import { AlphabetTableManager } from '../../../src/parsers/AlphabetTable';
 import { HeaderLocation } from '../../../src/utils/constants';
 import { Logger } from '../../../src/utils/log';
+
+// ESM namespace objects are not configurable, so vi.spyOn(fs, 'readFileSync') cannot
+// work here. Only Memory.fromFile touches fs in this file, so mock readFileSync at the
+// top level (where hoisting is explicit) and keep the rest of fs intact. Each test that
+// needs it sets its own implementation via vi.mocked().
+vi.mock('fs', async (importActual) => {
+  const actual = await importActual<typeof import('fs')>();
+  return { ...actual, readFileSync: vi.fn() };
+});
 
 describe('Memory', () => {
   let mockBuffer: Buffer;
@@ -750,7 +759,9 @@ describe('Memory', () => {
       mockBuffer.writeUInt16BE(0x0000, HeaderLocation.RoutinesOffset);
       mockBuffer.writeUInt16BE(0x0000, HeaderLocation.StaticStringsOffset);
 
-      expect(() => new Memory(mockBuffer, { logger: mockLogger })).toThrow(/requires non-zero routine and string offsets/);
+      expect(() => new Memory(mockBuffer, { logger: mockLogger })).toThrow(
+        /requires non-zero routine and string offsets/
+      );
     });
 
     it('should validate V6/V7 fields correctly', () => {
@@ -1081,44 +1092,34 @@ describe('Memory', () => {
 
   describe('Static Methods', () => {
     it('should handle fromFile static method', () => {
-      // Mock fs.readFileSync to return a buffer with a complete valid header (64 bytes)
-      vi.mock('fs', () => ({
-        readFileSync: vi.fn(() => {
-          // Create a buffer of 64 bytes (minimum header size for v3)
-          const buffer = Buffer.alloc(64, 0);
+      // Return a buffer with a complete valid header (64 bytes, the v3 minimum)
+      vi.mocked(fs.readFileSync).mockImplementation(() => {
+        const buffer = Buffer.alloc(64, 0);
 
-          // Set the basic header values needed for validation
-          buffer[0] = 3; // Version 3
-          buffer.writeUInt16BE(0x0400, HeaderLocation.StaticMemBase); // 0x0e = 0x400
-          buffer.writeUInt16BE(0x0800, HeaderLocation.HighMemBase); // 0x04 = 0x800
+        // Set the basic header values needed for validation
+        buffer[0] = 3; // Version 3
+        buffer.writeUInt16BE(0x0400, HeaderLocation.StaticMemBase); // 0x0e = 0x400
+        buffer.writeUInt16BE(0x0800, HeaderLocation.HighMemBase); // 0x04 = 0x800
 
-          return buffer;
-        }),
-      }));
+        return buffer;
+      });
 
       const memory = Memory.fromFile('dummy.z3', { logger: mockLogger });
 
       expect(memory).toBeInstanceOf(Memory);
       expect(memory.version).toBe(3);
-
-      vi.restoreAllMocks();
     });
 
     it('should handle fromFile with file read errors', () => {
-      // Mock fs.readFileSync to throw an error
-      const mockReadFileSync = vi.spyOn(fs, 'readFileSync').mockImplementation(() => {
+      // Make fs.readFileSync throw
+      const mockReadFileSync = vi.mocked(fs.readFileSync).mockImplementation(() => {
         throw new Error('ENOENT: no such file or directory');
       });
 
       // Test that fromFile properly wraps file system errors
-      expect(() => Memory.fromFile('nonexistent.z3', { logger: mockLogger })).toThrow(
-        /Failed to load story file/
-      );
+      expect(() => Memory.fromFile('nonexistent.z3', { logger: mockLogger })).toThrow(/Failed to load story file/);
 
       expect(mockReadFileSync).toHaveBeenCalledWith('nonexistent.z3');
-
-      // Restore
-      mockReadFileSync.mockRestore();
     });
   });
 });

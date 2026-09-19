@@ -26,6 +26,9 @@ coverage
 # Vitest HTML test reporter output
 html-report
 
+# Vitest 5 default report/cache directory
+.vitest
+
 # nyc test coverage
 .nyc_output
 
@@ -152,3 +155,4 @@ rezrov-zmachine-output.xml
 .claude-cache/
 .claude-history/
 .claude-transcripts/
+.worktrees/

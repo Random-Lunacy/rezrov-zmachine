@@ -96,17 +96,23 @@ function set_cursor(
   _operandTypes: OperandType[],
   line: number,
   column: number,
-  window: number = 0
+  window?: number
 ): void {
   machine.logger.debug(`${getSafePcHex(machine)} set_cursor ${line} ${column}`);
 
+  // Per spec §15: the third operand is V6-only, and when omitted the cursor is
+  // set in the CURRENT window. `window` is undefined rather than 0 in that case,
+  // so an omitted operand stays distinguishable from an explicit window 0 --
+  // defaulting it to 0 sent every header-positioning call to the lower window.
+  let targetWindow = window ?? machine.screen.getOutputWindow(machine);
+
   if (machine.state.version >= 6) {
     if (line === -1) {
-      machine.screen.hideCursor(machine, window);
+      machine.screen.hideCursor(machine, targetWindow);
       return;
     }
     if (line === -2) {
-      machine.screen.showCursor(machine, window);
+      machine.screen.showCursor(machine, targetWindow);
       return;
     }
   }
@@ -114,10 +120,10 @@ function set_cursor(
   if (machine.state.version < 6) {
     // Per spec 8.7.2: set_cursor always targets the upper window in V4/V5
     // "This is the cursor which set_cursor sets."
-    window = 1; // WindowType.Upper
+    targetWindow = 1; // WindowType.Upper
   }
 
-  machine.screen.setCursorPosition(machine, line, column, window);
+  machine.screen.setCursorPosition(machine, line, column, targetWindow);
 }
 
 /**
