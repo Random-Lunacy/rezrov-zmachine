@@ -74,6 +74,7 @@ export type { ZString } from './parsers/ZString';
 export { BlorbChunkType, BlorbMetadataType, BlorbUsage } from './resources/BlorbData';
 export type { BlorbChunk, BlorbMap, BlorbResource } from './resources/BlorbData';
 export { BlorbParser } from './resources/BlorbParser';
+export { PALETTE_ENTRY_SIZE, findPaletteChunk, isPng, readPalette, replacePalette } from './resources/PngPalette';
 
 // Storage components
 export { createBrowserStorage, createFileSystemStorage, createMemoryStorage } from './storage/factory';
