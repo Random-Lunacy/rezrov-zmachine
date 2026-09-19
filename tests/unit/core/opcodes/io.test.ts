@@ -170,6 +170,49 @@ describe('I/O Opcodes', () => {
       // Assert - V6 uses the window parameter as-is
       expect(machine.screen.setCursorPosition).toHaveBeenCalledWith(machine, line, column, customWindow);
     });
+
+    /**
+     * Spec §15: the window operand is V6-only and, when omitted, the cursor is set
+     * in the CURRENT window. Zork Zero positions its header this way -- set_window 1
+     * followed by a two-operand set_cursor -- so defaulting to window 0 silently
+     * routed every header-positioning call to the lower window and the header text
+     * never appeared.
+     */
+    it('should target the current output window in V6 when the operand is omitted', () => {
+      // Arrange
+      mockMachine.state.version = 6;
+      machine.screen.getOutputWindow.mockReturnValue(1);
+
+      // Act
+      ioOpcodes.set_cursor.impl(machine, [], 14, 36);
+
+      // Assert
+      expect(machine.screen.setCursorPosition).toHaveBeenCalledWith(machine, 14, 36, 1);
+    });
+
+    it('should still honour an explicit window 0 in V6', () => {
+      // Arrange - explicit 0 must stay distinguishable from an omitted operand
+      mockMachine.state.version = 6;
+      machine.screen.getOutputWindow.mockReturnValue(1);
+
+      // Act
+      ioOpcodes.set_cursor.impl(machine, [], 14, 36, 0);
+
+      // Assert
+      expect(machine.screen.setCursorPosition).toHaveBeenCalledWith(machine, 14, 36, 0);
+    });
+
+    it('should hide the cursor in the current window when the operand is omitted', () => {
+      // Arrange
+      mockMachine.state.version = 6;
+      machine.screen.getOutputWindow.mockReturnValue(1);
+
+      // Act
+      ioOpcodes.set_cursor.impl(machine, [], -1);
+
+      // Assert
+      expect(machine.screen.hideCursor).toHaveBeenCalledWith(machine, 1);
+    });
   });
 
   describe('get_cursor', () => {
