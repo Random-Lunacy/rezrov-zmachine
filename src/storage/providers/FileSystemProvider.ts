@@ -13,7 +13,7 @@ export class FileSystemProvider implements StorageProvider {
         return null; // File does not exist
       }
       if ((error as NodeJS.ErrnoException).code === 'EACCES') {
-        throw new Error(`Permission denied: ${location}`);
+        throw new Error(`Permission denied: ${location}`, { cause: error });
       }
     }
     return null; // Other errors
@@ -62,10 +62,12 @@ export class FileSystemProvider implements StorageProvider {
         try {
           await fs.mkdir(directory, { recursive: true });
         } catch (mkdirError) {
-          throw new Error(`Failed to create directory '${directory}': ${(mkdirError as Error).message}`);
+          throw new Error(`Failed to create directory '${directory}': ${(mkdirError as Error).message}`, {
+            cause: mkdirError,
+          });
         }
       } else {
-        throw new Error(`Failed to check directory '${directory}': ${(error as Error).message}`);
+        throw new Error(`Failed to check directory '${directory}': ${(error as Error).message}`, { cause: error });
       }
     }
   }

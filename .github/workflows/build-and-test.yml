@@ -11,6 +11,11 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    # Job-level so the scan step's `if` can test whether the token is actually
+    # present (the `secrets` context is not readable from a step-level `if`).
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
     strategy:
       matrix:
         # Vitest 5 requires Node ^22.12 || ^24 || >=26, so Node 20 (EOL) is no
@@ -26,12 +31,16 @@ jobs:
           cache: 'npm'
       - name: Install dependencies
         run: npm ci
+      - name: Lint
+        run: npm run lint
       - name: Build
         run: npm run build
       - name: Run tests with coverage
         run: npm run test:coverage
       - name: SonarQube Scan
-        if: matrix.node-version == '22.x'          # ← only run on the 22.x job
+        # Only on 22.x, and only when the token is available. Dependabot and
+        # fork pull requests do not receive repository secrets, so the scanner
+        # would fail with HTTP 403 on an empty token and block an otherwise
+        # green PR.
+        if: matrix.node-version == '22.x' && env.SONAR_TOKEN != ''
         uses: SonarSource/sonarqube-scan-action@v6
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

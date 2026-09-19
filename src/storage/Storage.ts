@@ -69,7 +69,7 @@ export class Storage implements StorageInterface {
         description,
       };
     } catch (error) {
-      throw new Error(`Failed to get save info: ${error}`);
+      throw new Error(`Failed to get save info: ${error}`, { cause: error });
     }
   }
 
@@ -106,7 +106,7 @@ export class Storage implements StorageInterface {
 
       return results;
     } catch (error) {
-      throw new Error(`Failed to list saves: ${error}`);
+      throw new Error(`Failed to list saves: ${error}`, { cause: error });
     }
   }
 

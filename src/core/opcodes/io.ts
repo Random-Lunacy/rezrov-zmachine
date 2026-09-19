@@ -374,8 +374,8 @@ function set_font(machine: ZMachine, _operandTypes: OperandType[], font: number,
     window = -3;
   }
 
-  // Store the previous font
-  let oldFont = 1; // Default to font 1 if information not available
+  // Store the previous font. Every path below either assigns this or returns early.
+  let oldFont: number;
 
   // For V6, we need to handle the window parameter
   if (machine.state.version === 6 && window !== -3) {

@@ -80,7 +80,9 @@ export class EnhancedDatFormat implements FormatProvider {
       };
     } catch (error) {
       // More detailed error for debugging
-      throw new Error(`Failed to deserialize save file: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(`Failed to deserialize save file: ${error instanceof Error ? error.message : String(error)}`, {
+        cause: error,
+      });
     }
   }
 

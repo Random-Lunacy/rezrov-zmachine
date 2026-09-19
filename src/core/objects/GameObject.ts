@@ -76,7 +76,8 @@ export class GameObject {
       memory.getByte(this.objAddr);
     } catch (error) {
       throw new Error(
-        `Invalid object address for object ${objNum}: ${error instanceof Error ? error.message : String(error)}`
+        `Invalid object address for object ${objNum}: ${error instanceof Error ? error.message : String(error)}`,
+        { cause: error }
       );
     }
   }

@@ -196,7 +196,7 @@ function validateAndUnpackRoutine(machine: ZMachine, routine: number): number {
       throw e;
     }
     machine.logger.error(`Error unpacking routine address: ${e}`);
-    throw new Error(`Invalid routine address: ${hex(routine)}`);
+    throw new Error(`Invalid routine address: ${hex(routine)}`, { cause: e });
   }
 }
 

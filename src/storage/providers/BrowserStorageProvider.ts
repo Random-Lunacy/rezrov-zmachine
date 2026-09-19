@@ -29,7 +29,7 @@ export class BrowserStorageProvider implements StorageProvider {
       return Buffer.from(data, 'base64');
     } catch (error) {
       this.logger.error(`Error reading from localStorage: ${error}`);
-      throw new Error(`Failed to read from localStorage: ${error}`);
+      throw new Error(`Failed to read from localStorage: ${error}`, { cause: error });
     }
   }
 
@@ -55,7 +55,7 @@ export class BrowserStorageProvider implements StorageProvider {
         if (isQuotaExceededError(storageError)) {
           // Try to free some space by removing old items
           if (!this.clearOldest()) {
-            throw new Error('Storage quota exceeded and unable to free space');
+            throw new Error('Storage quota exceeded and unable to free space', { cause: storageError });
           }
 
           // Try again
@@ -66,7 +66,7 @@ export class BrowserStorageProvider implements StorageProvider {
       }
     } catch (error) {
       this.logger.error(`Failed to write to localStorage: ${error}`);
-      throw new Error(`Failed to write to localStorage: ${error}`);
+      throw new Error(`Failed to write to localStorage: ${error}`, { cause: error });
     }
   }
 
@@ -94,7 +94,7 @@ export class BrowserStorageProvider implements StorageProvider {
       return results;
     } catch (error) {
       this.logger.error(`Error listing localStorage keys: ${error}`);
-      throw new Error(`Failed to list localStorage keys: ${error}`);
+      throw new Error(`Failed to list localStorage keys: ${error}`, { cause: error });
     }
   }
 
@@ -109,7 +109,7 @@ export class BrowserStorageProvider implements StorageProvider {
       return localStorage.getItem(this.prefix + location) !== null;
     } catch (error) {
       this.logger.error(`Error checking if item exists in localStorage: ${error}`);
-      throw new Error(`Failed to check if item exists in localStorage: ${error}`);
+      throw new Error(`Failed to check if item exists in localStorage: ${error}`, { cause: error });
     }
   }
 
@@ -131,7 +131,7 @@ export class BrowserStorageProvider implements StorageProvider {
       return exists;
     } catch (error) {
       this.logger.error(`Error deleting item from localStorage: ${error}`);
-      throw new Error(`Failed to delete item from localStorage: ${error}`);
+      throw new Error(`Failed to delete item from localStorage: ${error}`, { cause: error });
     }
   }
 
@@ -155,7 +155,7 @@ export class BrowserStorageProvider implements StorageProvider {
       return count;
     } catch (error) {
       this.logger.error(`Error clearing localStorage: ${error}`);
-      throw new Error(`Failed to clear localStorage: ${error}`);
+      throw new Error(`Failed to clear localStorage: ${error}`, { cause: error });
     }
   }
 
@@ -180,7 +180,7 @@ export class BrowserStorageProvider implements StorageProvider {
       return totalSize;
     } catch (error) {
       this.logger.error(`Error calculating localStorage size: ${error}`);
-      throw new Error(`Failed to calculate localStorage size: ${error}`);
+      throw new Error(`Failed to calculate localStorage size: ${error}`, { cause: error });
     }
   }
 

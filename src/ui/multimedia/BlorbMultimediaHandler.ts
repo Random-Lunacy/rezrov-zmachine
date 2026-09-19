@@ -27,13 +27,12 @@ import {
  * Returns null if no SOF marker is found.
  */
 function getJpegDimensions(data: Buffer): { width: number; height: number } | null {
-  let offset = 0;
-
   // Validate JPEG SOI marker
   if (data.length < 2 || data[0] !== 0xff || data[1] !== 0xd8) {
     return null;
   }
-  offset = 2;
+
+  let offset = 2;
 
   while (offset + 4 < data.length) {
     if (data[offset] !== 0xff) {
@@ -237,8 +236,9 @@ export class BlorbMultimediaHandler extends BaseMultimediaHandler {
 
     const chunkType = BlorbParser.getResourceChunkType(this._blorbMap, BlorbUsage.Pict, resourceId);
 
-    let dimensions: { width: number; height: number } | null = null;
-    let format = 'unknown';
+    // Both are assigned on every branch below that does not return early.
+    let dimensions: { width: number; height: number } | null;
+    let format: string;
     let hasTransparency = false;
 
     if (chunkType === BlorbChunkType.JPEG) {
