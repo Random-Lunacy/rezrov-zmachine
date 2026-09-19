@@ -1,10 +1,23 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 export default defineConfig({
+  resolve: {
+    alias: [
+      // The web example imports the library by its published name, which in the
+      // repo resolves through a `file:` link in examples/web/node_modules. CI
+      // never installs that, so point the specifier at the TypeScript sources.
+      { find: /^rezrov-zmachine$/, replacement: path.resolve(__dirname, 'src/index.ts') },
+    ],
+  },
   test: {
     globals: true,
     environment: 'node',
     include: ['tests/**/*.test.ts'],
+    // Example tests opt into jsdom per file with a `@vitest-environment` docblock.
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html', 'lcov'],

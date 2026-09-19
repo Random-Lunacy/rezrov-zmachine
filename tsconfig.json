@@ -2,7 +2,10 @@
   "compilerOptions": {
     "target": "ES2020",
     "module": "ESNext",
-    "lib": ["ES2020", "DOM"],
+    // ES2022 lib (not target) so `new Error(msg, { cause })` type-checks. This only
+    // widens the ambient type declarations; emitted syntax stays at the ES2020 target,
+    // and `engines` already requires Node >=22.12, which has all of ES2022 at runtime.
+    "lib": ["ES2022", "DOM"],
     "moduleResolution": "Node",
     "moduleDetection": "force", // Ensures it treats files with imports/exports as modules (optional)
     "esModuleInterop": true,

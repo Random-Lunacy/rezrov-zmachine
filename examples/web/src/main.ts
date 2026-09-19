@@ -112,6 +112,7 @@ function setupGame(
           }
           await pictureRenderer.displayPicture(resourceId, data, format, x, y, scale);
         } catch (error) {
+          // eslint-disable-next-line no-console
           console.warn(`Picture ${resourceId} render failed:`, error);
         }
       },

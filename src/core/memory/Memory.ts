@@ -38,7 +38,7 @@ export class Memory {
     } catch (e) {
       const logger = options?.logger || new Logger('Memory.fromFile');
       logger.error(`Failed to load story file: ${e}`);
-      throw new Error(`Failed to load story file: ${e}`);
+      throw new Error(`Failed to load story file: ${e}`, { cause: e });
     }
   }
 

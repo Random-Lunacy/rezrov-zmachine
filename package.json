@@ -24,6 +24,7 @@
     "test:unit-coverage": "vitest run tests/unit/ --coverage",
     "test:integration": "vitest run tests/integration/",
     "test:compliance": "vitest run tests/compliance/",
+    "test:examples": "vitest run tests/examples/",
     "tools:objects": "tsx tools/GameObjectExample.ts",
     "tools:strings": "tsx tools/StringDumpExample.ts"
   },
@@ -48,6 +49,7 @@
     "eslint-plugin-prettier": "^5.5.6",
     "eslint-plugin-sort-class-members": "^1.22.1",
     "globals": "^17.12.0",
+    "jsdom": "^30.1.0",
     "patch-package": "^8.0.1",
     "prettier": "^3.9.6",
     "prettier-plugin-organize-imports": "^4.3.0",

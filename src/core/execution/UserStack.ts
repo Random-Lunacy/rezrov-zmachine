@@ -114,7 +114,9 @@ export class UserStackManager {
     const value = this.memory.getWord(valueAddr);
     this.memory.setWord(stackAddr, availableSlots + 1);
 
-    this.logger.debug(`Pulled ${value} from user stack at 0x${stackAddr.toString(16)}, new available: ${availableSlots + 1}`);
+    this.logger.debug(
+      `Pulled ${value} from user stack at 0x${stackAddr.toString(16)}, new available: ${availableSlots + 1}`
+    );
     return value;
   }
 
