@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ResourceStatus } from '../../../src/index';
 import { SoundPlayer } from '../../../examples/web/src/SoundPlayer';
+import { ResourceStatus } from '../../../src/index';
 
 interface FakeSource {
   buffer: unknown;

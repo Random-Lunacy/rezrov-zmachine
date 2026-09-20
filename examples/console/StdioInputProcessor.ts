@@ -1,5 +1,5 @@
 import * as readline from 'readline-sync';
-import { BaseInputProcessor, InputState, Logger, ZMachine } from '../../dist/index.js';
+import { BaseInputProcessor, InputState, Logger, ZMachine } from 'rezrov-zmachine';
 
 /**
  * Simple stdio-based input processor using readline-sync.

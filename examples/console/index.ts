@@ -1,14 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import {
-  BlorbParser,
-  dumpDictionary,
-  dumpHeader,
-  dumpObjectTable,
-  Logger,
-  LogLevel,
-  ZMachine,
-} from '../../dist/index.js';
+import { BlorbParser, dumpDictionary, dumpHeader, dumpObjectTable, Logger, LogLevel, ZMachine } from 'rezrov-zmachine';
 import { StdioInputProcessor } from './StdioInputProcessor.js';
 import { StdioScreen } from './StdioScreen.js';
 import { INTERPRETER_NAMES, parseArguments } from './utils.js';

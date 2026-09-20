@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { Logger, type InputState, type ZMachine } from '../../../src/index';
-// InputMode is re-exported type-only from the package root, so take the enum
-// value from the module that declares it.
-import { InputMode } from '../../../src/ui/input/InputInterface';
 import { WebInputProcessor } from '../../../examples/web/src/WebInputProcessor';
 import type { WebScreen } from '../../../examples/web/src/WebScreen';
+import { Logger, type InputState, type ZMachine } from '../../../src/index';
+import { InputMode } from '../../../src/ui/input/InputInterface';
 
+// InputMode above is imported from the module that declares it rather than from
+// src/index, which re-exports it type-only — so the enum has no runtime value there.
 Logger.setLogToConsole(false);
 
 let pagerResolve: () => void;
@@ -328,7 +328,10 @@ describe('WebInputProcessor', () => {
   describe('promptForFilename', () => {
     it('should return the name the player types', async () => {
       const h = setup();
-      vi.stubGlobal('prompt', vi.fn(() => 'zork1.qzl'));
+      vi.stubGlobal(
+        'prompt',
+        vi.fn(() => 'zork1.qzl')
+      );
 
       await expect(h.processor.promptForFilename(h.machine, 'save')).resolves.toBe('zork1.qzl');
       vi.unstubAllGlobals();
@@ -336,7 +339,10 @@ describe('WebInputProcessor', () => {
 
     it.each([null, ''])('should fall back to save.dat when the prompt returns %s', async (answer) => {
       const h = setup();
-      vi.stubGlobal('prompt', vi.fn(() => answer));
+      vi.stubGlobal(
+        'prompt',
+        vi.fn(() => answer)
+      );
 
       await expect(h.processor.promptForFilename(h.machine, 'restore')).resolves.toBe('save.dat');
       vi.unstubAllGlobals();

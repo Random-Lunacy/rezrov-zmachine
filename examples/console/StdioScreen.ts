@@ -1,14 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import chalk from 'chalk';
-import {
-  BaseScreen,
-  Capabilities,
-  Color,
-  ScreenSize,
-  TextStyle,
-  translateFont3Text,
-  ZMachine,
-} from '../../dist/index.js';
+import { BaseScreen, Capabilities, Color, ScreenSize, TextStyle, translateFont3Text, ZMachine } from 'rezrov-zmachine';
 
 export class StdioScreen extends BaseScreen {
   private textStyle: number = TextStyle.Roman;
@@ -287,24 +279,6 @@ export class StdioScreen extends BaseScreen {
   // Override setTextColors to ensure our styling works
   setTextColors(machine: ZMachine, window: number, foreground: number, background: number): void {
     super.setTextColors(machine, window, foreground, background);
-  }
-
-  /**
-   * Set the terminal scroll region to exclude the upper window.
-   * This prevents the status bar from scrolling off screen when lower window content scrolls.
-   */
-  private setScrollRegion(): void {
-    const { rows } = this.getSize();
-    if (this.upperWindowHeight > 0) {
-      // Set scroll region from line after upper window to bottom of screen (1-indexed)
-      const topLine = this.upperWindowHeight + 1;
-      process.stdout.write(`\x1b[${topLine};${rows}r`);
-      // Position cursor within the scroll region
-      process.stdout.write(`\x1b[${topLine};1H`);
-    } else {
-      // Reset to full screen scrolling
-      process.stdout.write('\x1b[r');
-    }
   }
 
   // Implement the rest of the Screen interface methods

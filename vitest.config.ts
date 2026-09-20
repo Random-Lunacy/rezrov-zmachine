@@ -16,6 +16,14 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
+    // chalk samples the environment at import time and emits no escape codes
+    // when stdout is not a TTY, which is every Vitest run. A *numeric*
+    // FORCE_COLOR pins it to exactly level 1 (16 colors) and short-circuits the
+    // branch that would otherwise report level 3 under GITHUB_ACTIONS, so the
+    // console example's ANSI assertions are identical locally and in CI.
+    // Safe globally: src/utils/log.ts colorizes from process.stdout.isTTY with
+    // hardcoded escapes and never consults FORCE_COLOR or chalk.
+    env: { FORCE_COLOR: '1' },
     include: ['tests/**/*.test.ts'],
     // Example tests opt into jsdom per file with a `@vitest-environment` docblock.
     coverage: {

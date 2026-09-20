@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { Color, Logger, TextStyle, type ZMachine } from '../../../src/index';
 import { WebScreen } from '../../../examples/web/src/WebScreen';
+import { Color, Logger, TextStyle, type ZMachine } from '../../../src/index';
 
 Logger.setLogToConsole(false);
 
