@@ -29,12 +29,28 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
+          # Without this the cache key hashes only the root lockfile, so the
+          # example installs below would miss the cache on every run and the key
+          # would never invalidate when an example lockfile changes.
+          cache-dependency-path: |
+            package-lock.json
+            examples/console/package-lock.json
+            examples/blessedConsole/package-lock.json
       - name: Install dependencies
         run: npm ci
       - name: Lint
         run: npm run lint
       - name: Build
         run: npm run build
+      - name: Install example dependencies
+        # tests/examples/ exercises the console examples against the versions
+        # they actually declare (chalk 6, nopt 10) rather than whatever the root
+        # tree happens to hoist. --ignore-scripts because each example now links
+        # the repo root via "file:../..", and npm would otherwise re-run the
+        # root's postinstall (patch-package) against the link.
+        run: |
+          npm ci --ignore-scripts --prefix examples/console
+          npm ci --ignore-scripts --prefix examples/blessedConsole
       - name: Run tests with coverage
         run: npm run test:coverage
       - name: SonarQube Scan

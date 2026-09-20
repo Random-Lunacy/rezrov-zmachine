@@ -15,11 +15,13 @@
   "dependencies": {
     "chalk": "^6.0.0",
     "nopt": "^10.0.1",
-    "readline-sync": "^1.4.10"
+    "readline-sync": "^1.4.10",
+    "rezrov-zmachine": "file:../.."
   },
   "devDependencies": {
     "@types/node": "^26.4.0",
     "@types/readline-sync": "^1.4.4",
-    "tsx": "^4.23.12"
+    "tsx": "^4.23.12",
+    "typescript": "^5.9.3"
   }
 }

@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import * as blessed from 'blessed';
-import { BaseInputProcessor, InputState, Logger, ZMachine } from '../../dist/index.js';
+import { BaseInputProcessor, InputState, Logger, ZMachine } from 'rezrov-zmachine';
 import { BlessedScreen } from './BlessedScreen.js';
 
 export class BlessedInputProcessor extends BaseInputProcessor {
@@ -375,11 +375,21 @@ export class BlessedInputProcessor extends BaseInputProcessor {
       this.screen.append(inputBox);
       inputBox.focus();
 
-      inputBox.on('submit', (value: string) => {
+      // Settle exactly once, whichever way the box is dismissed. Without the
+      // cancel path an Escape leaves this Promise pending forever and the
+      // interpreter hangs mid-save with no way back.
+      let settled = false;
+      const finish = (value: string): void => {
+        if (settled) return;
+        settled = true;
         this.screen.remove(inputBox);
         this.screen.render();
-        resolve(value || '');
-      });
+        resolve(value);
+      };
+
+      inputBox.on('submit', (value: string) => finish(value || ''));
+      inputBox.on('cancel', () => finish(''));
+      inputBox.key(['escape'], () => finish(''));
 
       this.screen.render();
     });

@@ -1,14 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import * as blessed from 'blessed';
-import {
-  BaseScreen,
-  Capabilities,
-  Color,
-  ScreenSize,
-  TextStyle,
-  translateFont3Text,
-  ZMachine,
-} from '../../dist/index.js';
+import { BaseScreen, Capabilities, Color, ScreenSize, TextStyle, translateFont3Text, ZMachine } from 'rezrov-zmachine';
 
 export class BlessedScreen extends BaseScreen {
   private screen: blessed.Widgets.Screen;
@@ -20,6 +12,13 @@ export class BlessedScreen extends BaseScreen {
 
   // Callback to update Z-machine header when screen dimensions change
   private onResizeCallback: ((cols: number, rows: number) => void) | null = null;
+
+  /**
+   * Kept as a field so quit() can detach the process-level listener it installs.
+   * blessed's own screen listener dies with screen.destroy(), but the one on
+   * process.stdout outlives it and would otherwise leak for the process's life.
+   */
+  private handleResize: (() => void) | null = null;
   private lastReportedCols: number = 0;
   private lastReportedRows: number = 0;
 
@@ -118,6 +117,7 @@ export class BlessedScreen extends BaseScreen {
       }
     };
 
+    this.handleResize = handleResize;
     this.screen.on('resize', handleResize);
     process.stdout.on('resize', handleResize);
 
@@ -599,6 +599,13 @@ export class BlessedScreen extends BaseScreen {
   }
 
   quit(): void {
+    // Detach the process-level resize listener. screen.destroy() below drops
+    // blessed's own handler, but this one is on process.stdout and would leak.
+    if (this.handleResize) {
+      process.stdout.removeListener('resize', this.handleResize);
+      this.handleResize = null;
+    }
+
     // Restore terminal cursor state before destroying
     this.screen.cursor.shape = 'line';
     this.screen.cursor.blink = true;

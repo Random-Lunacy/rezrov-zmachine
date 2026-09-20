@@ -9,7 +9,7 @@ import {
   Logger,
   LogLevel,
   ZMachine,
-} from '../../dist/index.js';
+} from 'rezrov-zmachine';
 import { BlessedInputProcessor } from './BlessedInputProcessor.js';
 import { BlessedScreen } from './BlessedScreen.js';
 import { INTERPRETER_NAMES, parseArguments } from './utils.js';

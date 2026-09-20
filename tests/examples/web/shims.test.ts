@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import fsPromises from '../../../examples/web/src/shim-fs-promises';
 import { appendFileSync, readFileSync } from '../../../examples/web/src/shim-fs';
+import fsPromises from '../../../examples/web/src/shim-fs-promises';
 import { glob } from '../../../examples/web/src/shim-glob';
 import { basename, dirname, join, sep } from '../../../examples/web/src/shim-path';
 

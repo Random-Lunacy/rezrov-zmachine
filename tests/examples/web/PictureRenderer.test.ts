@@ -3,7 +3,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PictureRenderer } from '../../../examples/web/src/PictureRenderer';
 
 /** jsdom has no 2d context, so stand one in and record the calls we assert on. */
-function makeCanvas(width = 320, height = 200): {
+function makeCanvas(
+  width = 320,
+  height = 200
+): {
   canvas: HTMLCanvasElement;
   ctx: { drawImage: ReturnType<typeof vi.fn>; fillRect: ReturnType<typeof vi.fn>; fillStyle: string };
 } {
