@@ -820,6 +820,70 @@ describe('ZMachine', () => {
     });
   });
 
+  describe('Flags2 configuration', () => {
+    const baseCapabilities = {
+      hasColors: true,
+      hasBold: true,
+      hasItalic: true,
+      hasReverseVideo: true,
+      hasFixedPitch: true,
+      hasSplitWindow: true,
+      hasDisplayStatusBar: true,
+      hasPictures: true,
+      hasSound: true,
+      hasTimedKeyboardInput: true,
+    };
+
+    beforeEach(() => {
+      storyBuffer[0] = 5;
+      storyBuffer.writeUInt16BE(0x78, HeaderLocation.Flags2); // Zork Zero: pictures, undo, mouse, colours
+    });
+
+    it('should clear the wants-mouse bit when the screen has no mouse', () => {
+      vi.spyOn(screen, 'getCapabilities').mockReturnValue(baseCapabilities);
+
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+
+      expect(zmachine.memory.getWord(HeaderLocation.Flags2)).toBe(0x58);
+    });
+
+    it('should keep the wants-mouse bit when the screen has a mouse', () => {
+      vi.spyOn(screen, 'getCapabilities').mockReturnValue({ ...baseCapabilities, hasMouse: true });
+
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+
+      expect(zmachine.memory.getWord(HeaderLocation.Flags2)).toBe(0x78);
+    });
+
+    it('should not set the wants-mouse bit when the game did not request it', () => {
+      storyBuffer.writeUInt16BE(0x08, HeaderLocation.Flags2);
+      vi.spyOn(screen, 'getCapabilities').mockReturnValue({ ...baseCapabilities, hasMouse: true });
+
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+
+      expect(zmachine.memory.getWord(HeaderLocation.Flags2)).toBe(0x08);
+    });
+
+    it('should clear the wants-mouse bit again after a restart', () => {
+      vi.spyOn(screen, 'getCapabilities').mockReturnValue(baseCapabilities);
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+
+      zmachine.restart();
+
+      expect(zmachine.memory.getWord(HeaderLocation.Flags2)).toBe(0x58);
+    });
+
+    it('should leave Flags2 alone before Version 5', () => {
+      storyBuffer[0] = 3;
+      storyBuffer.writeUInt16BE(0x20, HeaderLocation.Flags2);
+      vi.spyOn(screen, 'getCapabilities').mockReturnValue(baseCapabilities);
+
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+
+      expect(zmachine.memory.getWord(HeaderLocation.Flags2)).toBe(0x20);
+    });
+  });
+
   describe('Undo error handling', () => {
     it('should handle error during saveUndo', () => {
       const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });

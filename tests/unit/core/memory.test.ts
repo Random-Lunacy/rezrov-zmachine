@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Memory } from '../../../src/core/memory/Memory';
 import { AlphabetTableManager } from '../../../src/parsers/AlphabetTable';
-import { HeaderLocation } from '../../../src/utils/constants';
+import { HeaderExtension, HeaderLocation } from '../../../src/utils/constants';
 import { Logger } from '../../../src/utils/log';
 
 // ESM namespace objects are not configurable, so vi.spyOn(fs, 'readFileSync') cannot
@@ -562,6 +562,7 @@ describe('Memory', () => {
 
       // Setup header extension table
       mockBuffer.writeUInt16BE(0x0900, HeaderLocation.HeaderExtTable);
+      mockBuffer.writeUInt16BE(3, 0x0900); // Table length: words 1-3
       mockBuffer.writeUInt16BE(0x0a00, 0x0906); // Unicode table address at header ext + 6
 
       // Setup Unicode translation table with 1 entry
@@ -779,7 +780,7 @@ describe('Memory', () => {
       mockBuffer.writeUInt16BE(0x0900, HeaderLocation.HeaderExtTable);
 
       // Set up valid header extension table
-      mockBuffer[0x0900] = 5; // Table size
+      mockBuffer.writeUInt16BE(5, 0x0900); // Table size (a word)
       for (let i = 0; i < 5; i++) {
         mockBuffer.writeUInt16BE(0x0a00 + i * 2, 0x0900 + 1 + i * 2);
       }
@@ -796,11 +797,27 @@ describe('Memory', () => {
       // Test with an address that's out of bounds for a smaller buffer
       const smallBuffer = Buffer.alloc(0x1000);
       smallBuffer[HeaderLocation.Version] = 5;
-      smallBuffer.writeUInt16BE(0x0fff, HeaderLocation.HeaderExtTable);
+      smallBuffer.writeUInt16BE(0x0ffe, HeaderLocation.HeaderExtTable);
       smallBuffer.writeUInt16BE(0x0400, HeaderLocation.StaticMemBase);
       smallBuffer.writeUInt16BE(0x0800, HeaderLocation.HighMemBase);
-      // 0x0fff is within 0x1000, so it should pass
+      // The length word at 0x0ffe-0x0fff fits inside 0x1000, so it should pass
       expect(() => new Memory(smallBuffer, { logger: mockLogger })).not.toThrow();
+
+      // At 0x0fff the length word itself would run past the end of the story
+      smallBuffer.writeUInt16BE(0x0fff, HeaderLocation.HeaderExtTable);
+      expect(() => new Memory(smallBuffer, { logger: mockLogger })).toThrow(
+        'Header extension table contains invalid entries'
+      );
+    });
+
+    it('should reject a header extension table whose words run past the end of the story', () => {
+      mockBuffer[HeaderLocation.Version] = 5;
+      mockBuffer.writeUInt16BE(0xfff0, HeaderLocation.HeaderExtTable);
+      mockBuffer.writeUInt16BE(0x0010, 0xfff0); // 16 words would end at 0x10010
+
+      expect(() => new Memory(mockBuffer, { logger: mockLogger })).toThrow(
+        'Header extension table contains invalid entries'
+      );
     });
 
     it('should validate header extension table entries', () => {
@@ -813,6 +830,52 @@ describe('Memory', () => {
       // Test with valid header extension table size
       smallBuffer[0x0900] = 10; // Valid size
       expect(() => new Memory(smallBuffer, { logger: mockLogger })).not.toThrow();
+    });
+  });
+
+  describe('Header Extension Words', () => {
+    beforeEach(() => {
+      mockBuffer[HeaderLocation.Version] = 5;
+      mockBuffer.writeUInt16BE(0x0900, HeaderLocation.HeaderExtTable);
+      mockBuffer.writeUInt16BE(2, 0x0900); // Words 1-2 only, as in Zork Zero
+      mockBuffer.writeUInt16BE(0xbeef, 0x0906); // Just past the table
+    });
+
+    it('should read and write words inside the table', () => {
+      const memory = new Memory(mockBuffer, { logger: mockLogger });
+
+      expect(memory.setHeaderExtensionWord(HeaderExtension.MouseX, 120)).toBe(true);
+      expect(memory.setHeaderExtensionWord(HeaderExtension.MouseY, 45)).toBe(true);
+
+      expect(memory.getHeaderExtensionWord(HeaderExtension.Length)).toBe(2);
+      expect(memory.getHeaderExtensionWord(HeaderExtension.MouseX)).toBe(120);
+      expect(memory.getWord(0x0902)).toBe(120);
+      expect(memory.getWord(0x0904)).toBe(45);
+    });
+
+    it('should not read or write words past the end of the table', () => {
+      const memory = new Memory(mockBuffer, { logger: mockLogger });
+
+      expect(memory.getHeaderExtensionWord(HeaderExtension.UnicodeTable)).toBeUndefined();
+      expect(memory.setHeaderExtensionWord(HeaderExtension.UnicodeTable, 0x1234)).toBe(false);
+      expect(memory.getWord(0x0906)).toBe(0xbeef);
+    });
+
+    it('should report no words when the story has no extension table', () => {
+      mockBuffer.writeUInt16BE(0, HeaderLocation.HeaderExtTable);
+      const memory = new Memory(mockBuffer, { logger: mockLogger });
+
+      expect(memory.getHeaderExtensionWord(HeaderExtension.MouseX)).toBeUndefined();
+      expect(memory.setHeaderExtensionWord(HeaderExtension.MouseX, 1)).toBe(false);
+    });
+
+    it('should report no words before Version 5, where 0x36 is not an extension table', () => {
+      mockBuffer[HeaderLocation.Version] = 3;
+      const memory = new Memory(mockBuffer, { logger: mockLogger });
+
+      expect(memory.getHeaderExtensionWord(HeaderExtension.MouseX)).toBeUndefined();
+      expect(memory.setHeaderExtensionWord(HeaderExtension.MouseX, 1)).toBe(false);
+      expect(memory.getWord(0x0902)).toBe(0);
     });
   });
 
@@ -933,12 +996,14 @@ describe('Memory', () => {
       expect(memory.zsciiToUnicode(155)).toBe(63);
     });
 
-    it('should handle Unicode table that is too short', () => {
+    it('should ignore word 3 when the header extension table is too short to include it', () => {
+      // Zork Zero ships a 2-word table (mouse X/Y only); whatever follows it is not a Unicode address
       mockBuffer[HeaderLocation.Version] = 5;
       mockBuffer.writeUInt16BE(0x0900, HeaderLocation.HeaderExtTable);
-      mockBuffer.writeUInt16BE(0x0a00, 0x0906);
-      // Set header extension table address to point to invalid location
-      mockBuffer.writeUInt16BE(0xffff, HeaderLocation.HeaderExtTable);
+      mockBuffer.writeUInt16BE(2, 0x0900); // Table length: words 1-2 only
+      mockBuffer.writeUInt16BE(0x0a00, 0x0906); // Not part of the table
+      mockBuffer[0x0a00] = 1;
+      mockBuffer.writeUInt16BE(0x1234, 0x0a01);
 
       const memory = new Memory(mockBuffer, { logger: mockLogger });
       expect(memory.zsciiToUnicode(155)).toBe(63);

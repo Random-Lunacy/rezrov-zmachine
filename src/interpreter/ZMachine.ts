@@ -14,7 +14,7 @@ import { InputProcessor, InputState } from '../ui/input/InputInterface';
 import { BlorbMultimediaHandler } from '../ui/multimedia/BlorbMultimediaHandler';
 import { BaseMultimediaHandler, MultimediaHandler } from '../ui/multimedia/MultimediaHandler';
 import { Capabilities, Screen } from '../ui/screen/interfaces';
-import { Flags1, HeaderLocation, Interpreter } from '../utils/constants';
+import { Flags1, Flags2, HeaderLocation, Interpreter } from '../utils/constants';
 import { Logger } from '../utils/log';
 import { GameState } from './GameState';
 
@@ -203,6 +203,25 @@ export class ZMachine {
     }
 
     this._memory.setByte(HeaderLocation.Flags1, flags1);
+
+    if (version >= 5) {
+      this.configureFlags2(screenCapabilities);
+    }
+  }
+
+  /**
+   * Clear the Flags2 "wants" bits for features this screen cannot provide (V5+, spec §11.1).
+   * The game sets these bits in its story file; bits it did not request are never set.
+   * @param screenCapabilities The screen capabilities
+   */
+  private configureFlags2(screenCapabilities: Capabilities): void {
+    let flags2 = this._memory.getWord(HeaderLocation.Flags2);
+
+    if (!screenCapabilities.hasMouse) {
+      flags2 &= ~Flags2.WantsMouse;
+    }
+
+    this._memory.setWord(HeaderLocation.Flags2, flags2);
   }
 
   /**

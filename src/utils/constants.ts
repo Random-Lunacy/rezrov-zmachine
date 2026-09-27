@@ -45,6 +45,20 @@ export enum HeaderLocation {
 }
 
 /**
+ * Word indices in the header extension table (spec §11.1.7).
+ * Word 0 holds the number of further words; a story may provide fewer than listed here.
+ */
+export enum HeaderExtension {
+  Length = 0, // Number of further words in the table
+  MouseX = 1, // X coordinate of the last mouse click (set by interpreter)
+  MouseY = 2, // Y coordinate of the last mouse click (set by interpreter)
+  UnicodeTable = 3, // Address of the Unicode translation table
+  Flags3 = 4, // Flags 3 (bit 0: game wants transparency)
+  TrueDefaultForeground = 5, // True default foreground colour
+  TrueDefaultBackground = 6, // True default background colour
+}
+
+/**
  * Known global variable indices
  */
 export enum KnownGlobals {
