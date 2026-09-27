@@ -66,7 +66,7 @@ export enum KnownGlobals {
  */
 export enum Flags1 {
   // V1-V3
-  DisplayStatusLine = 0x10, // Bit 4: Display status line
+  StatusLineNotAvailable = 0x10, // Bit 4: Status line NOT available (set by interpreter)
   SplitScreen = 0x20, // Bit 5: Screen can be split
   VariableFont = 0x40, // Bit 6: Variable-width font as default
 

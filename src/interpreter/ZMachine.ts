@@ -14,7 +14,7 @@ import { InputProcessor, InputState } from '../ui/input/InputInterface';
 import { BlorbMultimediaHandler } from '../ui/multimedia/BlorbMultimediaHandler';
 import { BaseMultimediaHandler, MultimediaHandler } from '../ui/multimedia/MultimediaHandler';
 import { Capabilities, Screen } from '../ui/screen/interfaces';
-import { HeaderLocation, Interpreter } from '../utils/constants';
+import { Flags1, HeaderLocation, Interpreter } from '../utils/constants';
 import { Logger } from '../utils/log';
 import { GameState } from './GameState';
 
@@ -215,8 +215,9 @@ export class ZMachine {
     // Clear bits 4, 5, 6 before setting them
     flags1 &= 0b10001111;
 
-    if (screenCapabilities.hasDisplayStatusBar) {
-      flags1 |= 0b00010000; // bit 4
+    // Bit 4 is inverted: it tells the game the status line is NOT available
+    if (!screenCapabilities.hasDisplayStatusBar) {
+      flags1 |= Flags1.StatusLineNotAvailable;
     }
 
     if (screenCapabilities.hasSplitWindow) {

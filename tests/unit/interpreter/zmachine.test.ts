@@ -95,7 +95,7 @@ describe('ZMachine', () => {
 
       // For version 3, check that flags1 has appropriate bits set
       const flags1 = zmachine.memory.getByte(HeaderLocation.Flags1);
-      expect(flags1 & 0x10).toBe(0x10); // Bit 4 (StatusLine)
+      expect(flags1 & 0x10).toBe(0); // Bit 4 (status line NOT available) clear: we have one
       expect(flags1 & 0x20).toBe(0x20); // Bit 5 (SplitScreen)
     });
 
@@ -606,8 +606,8 @@ describe('ZMachine', () => {
       // For version 3, check that flags1 has appropriate bits set
       const flags1 = zmachine.memory.getByte(HeaderLocation.Flags1);
 
-      // Status line (bit 4)
-      expect(flags1 & 0x10).toBe(0x10);
+      // Status line NOT available (bit 4) is clear because the screen has one
+      expect(flags1 & 0x10).toBe(0);
       // Split screen (bit 5)
       expect(flags1 & 0x20).toBe(0x20);
       // Should not have version 4+ specific bits
@@ -810,11 +810,11 @@ describe('ZMachine', () => {
 
       const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
 
-      // For version 3, check that V3-specific flags are cleared
+      // For version 3, check the V3 capability flags reflect the missing features
       const flags1 = zmachine.memory.getByte(HeaderLocation.Flags1);
 
-      // Status line (bit 4) should be cleared
-      expect(flags1 & 0x10).toBe(0);
+      // Status line NOT available (bit 4) is set because the screen has no status bar
+      expect(flags1 & 0x10).toBe(0x10);
       // Split screen (bit 5) should be cleared
       expect(flags1 & 0x20).toBe(0);
     });
