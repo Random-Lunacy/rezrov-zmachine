@@ -100,6 +100,9 @@ export class BaseScreen implements Screen {
    * Get window property with version-aware behavior
    */
   getWindowProperty(machine: ZMachine, window: number, property: number): number {
+    if (machine.state.version >= 6) {
+      this.syncWindowManagerScreenSize(machine);
+    }
     // Use BaseScreen's own tracked state as the source of truth.
     // The WindowManager's state can be stale (e.g., cursor position is only updated
     // in BaseScreen.cursorPosition, not in WindowManager's window state).
@@ -214,8 +217,14 @@ export class BaseScreen implements Screen {
     const version = machine.state.version;
     const oldHeight = this.upperWindowHeight;
 
-    // V5+ allows the upper window to cover the full screen (for title pages, etc.)
-    this.upperWindowHeight = Math.max(0, Math.min(lines, this.getSize().rows));
+    // V5+ allows the upper window to cover the full screen (for title pages, etc.).
+    // V6 splits in pixels, so the limit is the header's screen height rather than the text rows.
+    let maxLines = this.getSize().rows;
+    if (version >= 6) {
+      this.syncWindowManagerScreenSize(machine);
+      maxLines = this.windowManager.getScreenSize().height;
+    }
+    this.upperWindowHeight = Math.max(0, Math.min(lines, maxLines));
 
     // Use WindowManager for advanced window management
     this.windowManager.splitWindow(this.upperWindowHeight);
@@ -916,7 +925,8 @@ export class BaseScreen implements Screen {
   private syncWindowManagerScreenSize(machine: ZMachine): void {
     const width = machine.memory.getWord(HeaderLocation.ScreenWidthInUnits);
     const height = machine.memory.getWord(HeaderLocation.ScreenHeightInUnits);
-    if (width > 0 && height > 0) {
+    const current = this.windowManager.getScreenSize();
+    if (width > 0 && height > 0 && (width !== current.width || height !== current.height)) {
       this.windowManager.setScreenSize(width, height);
     }
   }

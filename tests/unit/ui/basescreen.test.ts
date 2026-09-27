@@ -710,6 +710,24 @@ describe('BaseScreen', () => {
       expect(screen.getWindowProperty(machine as any, 2, WindowProperty.YSize)).toBe(100);
     });
 
+    it('should size windows 0 and 1 to the header screen before the game resizes anything', () => {
+      givenScreenPixelSize(640, 200);
+
+      expect(screen.getWindowProperty(machine as any, 0, WindowProperty.XSize)).toBe(640);
+      expect(screen.getWindowProperty(machine as any, 0, WindowProperty.YSize)).toBe(200);
+      expect(screen.getWindowProperty(machine as any, 1, WindowProperty.XSize)).toBe(640);
+    });
+
+    it('should split in pixels, not capped at the text row count', () => {
+      givenScreenPixelSize(320, 200);
+
+      screen.splitWindow(machine as any, 100);
+
+      expect(screen.getWindowProperty(machine as any, 1, WindowProperty.YSize)).toBe(100);
+      expect(screen.getWindowProperty(machine as any, 0, WindowProperty.YCoordinate)).toBe(101);
+      expect(screen.getWindowProperty(machine as any, 0, WindowProperty.YSize)).toBe(100);
+    });
+
     it('should report V6 window sizes from window_size rather than the text grid', () => {
       // get_wind_prop 2/3 must match window_size: Zork Zero hit-tests mouse clicks against them
       givenScreenPixelSize(320, 200);

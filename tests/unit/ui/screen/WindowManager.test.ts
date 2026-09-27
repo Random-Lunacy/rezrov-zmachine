@@ -406,6 +406,33 @@ describe('WindowManager', () => {
       expect(window.dirty).toBe(true);
     });
 
+    it('should stretch windows 0 and 1 that span the old screen to the new size', () => {
+      windowManager.setScreenSize(640, 200);
+
+      expect(windowManager.getWindowProperty(0, WindowProperty.XSize)).toBe(640);
+      expect(windowManager.getWindowProperty(0, WindowProperty.YSize)).toBe(200);
+      expect(windowManager.getWindowProperty(1, WindowProperty.XSize)).toBe(640);
+      expect(windowManager.getWindowProperty(1, WindowProperty.YSize)).toBe(0); // Still unsplit
+    });
+
+    it('should not stretch windows the game has already sized', () => {
+      windowManager.resizeWindow(0, 60, 20);
+      windowManager.resizeWindow(1, 30, 5);
+
+      windowManager.setScreenSize(640, 200);
+
+      expect(windowManager.getWindowProperty(0, WindowProperty.XSize)).toBe(60);
+      expect(windowManager.getWindowProperty(0, WindowProperty.YSize)).toBe(20);
+      expect(windowManager.getWindowProperty(1, WindowProperty.XSize)).toBe(30);
+    });
+
+    it('should only shrink windows other than 0 and 1', () => {
+      windowManager.setScreenSize(640, 200);
+
+      expect(windowManager.getWindowProperty(2, WindowProperty.XSize)).toBe(80);
+      expect(windowManager.getWindowProperty(2, WindowProperty.YSize)).toBe(25);
+    });
+
     it('should get screen dimensions', () => {
       const size = windowManager.getScreenSize();
       expect(size.width).toBe(80);
