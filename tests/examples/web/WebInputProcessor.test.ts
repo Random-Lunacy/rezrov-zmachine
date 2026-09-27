@@ -2,11 +2,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { WebInputProcessor } from '../../../examples/web/src/WebInputProcessor';
 import type { WebScreen } from '../../../examples/web/src/WebScreen';
-import { Logger, type InputState, type ZMachine } from '../../../src/index';
-import { InputMode } from '../../../src/ui/input/InputInterface';
+import { InputMode, Logger, type InputState, type ZMachine } from '../../../src/index';
 
-// InputMode above is imported from the module that declares it rather than from
-// src/index, which re-exports it type-only — so the enum has no runtime value there.
 Logger.setLogToConsole(false);
 
 let pagerResolve: () => void;
