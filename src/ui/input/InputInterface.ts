@@ -1,5 +1,6 @@
 import { ZMachine } from '../../interpreter/ZMachine';
-import { HeaderLocation } from '../../utils/constants';
+import { HeaderExtension, HeaderLocation, MouseClickCode } from '../../utils/constants';
+import { WindowProperty } from '../screen/interfaces';
 
 /**
  * Input Interface for Z-Machine
@@ -53,6 +54,15 @@ export interface InputState {
 }
 
 /**
+ * A mouse click reported by the platform
+ */
+export interface MouseClick {
+  x: number; // 1-based, in screen units (V6: pixels), relative to the whole screen
+  y: number; // 1-based, in screen units (V6: pixels), relative to the whole screen
+  isDouble?: boolean; // True for the second click of a double-click
+}
+
+/**
  * InputProcessor interface for handling input
  * This interface defines the methods required for processing user input in the Z-Machine interpreter.
  * It includes methods for starting text and character input, canceling input, and handling timed input.
@@ -72,6 +82,7 @@ export interface InputProcessor {
   onInputComplete(machine: ZMachine, input: string, termChar?: number): void;
   onKeyPress(machine: ZMachine, key: string): void;
   onInputTimeout(machine: ZMachine, state: InputState): void;
+  onMouseClick?(machine: ZMachine, click: MouseClick, currentInput?: string): boolean;
 }
 
 /**
@@ -305,6 +316,43 @@ export abstract class BaseInputProcessor implements InputProcessor {
   }
 
   /**
+   * Handle a mouse click while the game is waiting for input (V5+).
+   *
+   * Follows Frotz's validate_click: a click outside the mouse window is ignored and input
+   * carries on. Otherwise its position is written to the header extension table and input
+   * ends with ZSCII 254 (single click) or 253 (double click). Line input only ends on a
+   * click if the game listed that code as a terminating character.
+   *
+   * @param machine The Z-Machine instance
+   * @param click Where the click landed
+   * @param currentInput Text typed so far, kept in the buffer if the click ends line input
+   * @returns True if the click was delivered to the game, false if it was ignored
+   */
+  onMouseClick(machine: ZMachine, click: MouseClick, currentInput: string = ''): boolean {
+    const state = machine.getInputState();
+    if (!state || machine.state.version < 5) return false;
+
+    const code = click.isDouble ? MouseClickCode.DoubleClick : MouseClickCode.SingleClick;
+    const isLineInput =
+      state.mode === InputMode.TEXT || state.mode === InputMode.TIMED_TEXT || state.mode === InputMode.UNICODE_TEXT;
+    if (isLineInput && !this.terminatingChars.includes(code)) return false;
+
+    const position = this.resolveMousePosition(machine, click);
+    if (!position) return false;
+
+    const memory = machine.state.memory;
+    memory.setHeaderExtensionWord(HeaderExtension.MouseX, position.x);
+    memory.setHeaderExtensionWord(HeaderExtension.MouseY, position.y);
+
+    if (isLineInput) {
+      this.onInputComplete(machine, currentInput, code);
+    } else {
+      this.onKeyPress(machine, String.fromCharCode(code));
+    }
+    return true;
+  }
+
+  /**
    * Handle input timeout events
    * This method is called when the input times out.
    *
@@ -363,6 +411,41 @@ export abstract class BaseInputProcessor implements InputProcessor {
           machine.logger.error(`Error executing timeout routine: ${error}`);
         });
     }
+  }
+
+  /**
+   * Convert a screen position into the coordinates the game reads from the header,
+   * or null if the click falls outside the mouse window (or the screen, with no mouse window).
+   */
+  private resolveMousePosition(machine: ZMachine, click: MouseClick): { x: number; y: number } | null {
+    const memory = machine.state.memory;
+    const window = machine.mouseWindow;
+    let { x, y } = click;
+
+    if (window >= 0) {
+      // Clicks count only inside the mouse window, and are reported relative to it
+      const top = machine.screen.getWindowProperty(machine, window, WindowProperty.YCoordinate);
+      const left = machine.screen.getWindowProperty(machine, window, WindowProperty.XCoordinate);
+      const height = machine.screen.getWindowProperty(machine, window, WindowProperty.YSize);
+      const width = machine.screen.getWindowProperty(machine, window, WindowProperty.XSize);
+      if (y < top || y >= top + height || x < left || x >= left + width) return null;
+      x = x - left + 1;
+      y = y - top + 1;
+    } else {
+      const width = memory.getWord(HeaderLocation.ScreenWidthInUnits);
+      const height = memory.getWord(HeaderLocation.ScreenHeightInUnits);
+      if (x < 1 || x > width || y < 1 || y > height) return null;
+    }
+
+    // Before V6 the game expects character cells, so divide by the header's font size
+    if (machine.state.version !== 6) {
+      const fontWidth = memory.getByte(HeaderLocation.FontWidthInUnits) || 1;
+      const fontHeight = memory.getByte(HeaderLocation.FontHeightInUnits) || 1;
+      x = Math.floor((x - 1) / fontWidth) + 1;
+      y = Math.floor((y - 1) / fontHeight) + 1;
+    }
+
+    return { x, y };
   }
 
   /**

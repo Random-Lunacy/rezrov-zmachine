@@ -706,11 +706,36 @@ describe('BaseScreen', () => {
 
       screen.resizeWindow(machine as any, 2, 100, 300); // resizeWindow(machine, windowId, height, width)
 
-      // BaseScreen.getWindowProperty doesn't route XSize/YSize through WindowManager
-      // (a separate, pre-existing gap), so check WindowManager's own tracked state —
-      // the layer resize_window's clamp bounds actually live in.
-      expect(screen['windowManager'].getWindowProperty(2, WindowProperty.XSize)).toBe(300);
-      expect(screen['windowManager'].getWindowProperty(2, WindowProperty.YSize)).toBe(100);
+      expect(screen.getWindowProperty(machine as any, 2, WindowProperty.XSize)).toBe(300);
+      expect(screen.getWindowProperty(machine as any, 2, WindowProperty.YSize)).toBe(100);
+    });
+
+    it('should size windows 0 and 1 to the header screen before the game resizes anything', () => {
+      givenScreenPixelSize(640, 200);
+
+      expect(screen.getWindowProperty(machine as any, 0, WindowProperty.XSize)).toBe(640);
+      expect(screen.getWindowProperty(machine as any, 0, WindowProperty.YSize)).toBe(200);
+      expect(screen.getWindowProperty(machine as any, 1, WindowProperty.XSize)).toBe(640);
+    });
+
+    it('should split in pixels, not capped at the text row count', () => {
+      givenScreenPixelSize(320, 200);
+
+      screen.splitWindow(machine as any, 100);
+
+      expect(screen.getWindowProperty(machine as any, 1, WindowProperty.YSize)).toBe(100);
+      expect(screen.getWindowProperty(machine as any, 0, WindowProperty.YCoordinate)).toBe(101);
+      expect(screen.getWindowProperty(machine as any, 0, WindowProperty.YSize)).toBe(100);
+    });
+
+    it('should report V6 window sizes from window_size rather than the text grid', () => {
+      // get_wind_prop 2/3 must match window_size: Zork Zero hit-tests mouse clicks against them
+      givenScreenPixelSize(320, 200);
+
+      screen.resizeWindow(machine as any, 0, 161, 234);
+
+      expect(screen.getWindowProperty(machine as any, 0, WindowProperty.YSize)).toBe(161);
+      expect(screen.getWindowProperty(machine as any, 0, WindowProperty.XSize)).toBe(234);
     });
   });
 

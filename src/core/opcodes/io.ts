@@ -709,8 +709,12 @@ function mouse_window(machine: ZMachine, _operandTypes: OperandType[], window: n
     return;
   }
 
+  // -1 lifts the constraint; -3 means the current window
+  const signedWindow = toI16(window);
+  machine.mouseWindow = signedWindow === -3 ? machine.screen.getOutputWindow(machine) : signedWindow;
+
   if (machine.screen.setMouseWindow) {
-    machine.screen.setMouseWindow(machine, window);
+    machine.screen.setMouseWindow(machine, machine.mouseWindow);
   }
 }
 

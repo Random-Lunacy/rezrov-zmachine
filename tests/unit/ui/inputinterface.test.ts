@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Executor } from '../../../src/core/execution/Executor';
 import { ZMachine } from '../../../src/interpreter/ZMachine';
 import { BaseInputProcessor, InputMode, InputState } from '../../../src/ui/input/InputInterface';
-import { HeaderLocation } from '../../../src/utils/constants';
+import { WindowProperty } from '../../../src/ui/screen/interfaces';
+import { HeaderExtension, HeaderLocation, MouseClickCode } from '../../../src/utils/constants';
 import { MockZMachine, createMockZMachine } from '../../mocks';
 import { MockExecutor } from '../../mocks/MockExecutor';
 
@@ -53,6 +54,10 @@ class TestInputProcessor extends BaseInputProcessor {
   // Allow direct access to terminatingChars for testing
   public getTerminatingChars(): number[] {
     return this.terminatingChars;
+  }
+
+  public setTerminatingChars(chars: number[]): void {
+    this.terminatingChars = chars;
   }
 }
 
@@ -1304,6 +1309,192 @@ describe('InputInterface', () => {
 
         expect(machine.screen.updateStatusBar).not.toHaveBeenCalled();
       });
+    });
+  });
+  describe('onMouseClick', () => {
+    type Rect = { top: number; left: number; height: number; width: number };
+    let header: Map<HeaderExtension, number>;
+    let windows: Map<number, Rect>;
+    let onKeyPress: ReturnType<typeof vi.spyOn>;
+    let onInputComplete: ReturnType<typeof vi.spyOn>;
+
+    function givenMachine(options: {
+      version: number;
+      mouseWindow: number;
+      screen: { width: number; height: number };
+      font?: { width: number; height: number };
+      mode: InputMode;
+    }): void {
+      const m = machine as any;
+      m.state.version = options.version;
+      m.mouseWindow = options.mouseWindow;
+      m.getInputState.mockReturnValue({ mode: options.mode, resultVar: 16 });
+      m.state.memory.getWord.mockImplementation((addr: number) =>
+        addr === HeaderLocation.ScreenWidthInUnits
+          ? options.screen.width
+          : addr === HeaderLocation.ScreenHeightInUnits
+            ? options.screen.height
+            : 0
+      );
+      m.state.memory.getByte.mockImplementation((addr: number) =>
+        addr === HeaderLocation.FontWidthInUnits
+          ? (options.font?.width ?? 1)
+          : addr === HeaderLocation.FontHeightInUnits
+            ? (options.font?.height ?? 1)
+            : 0
+      );
+      m.state.memory.setHeaderExtensionWord = vi.fn().mockImplementation((index: HeaderExtension, value: number) => {
+        header.set(index, value);
+        return true;
+      });
+      m.screen.getWindowProperty = vi.fn().mockImplementation((_m: unknown, window: number, property: number) => {
+        const rect = windows.get(window) ?? { top: 1, left: 1, height: 0, width: 0 };
+        switch (property) {
+          case WindowProperty.YCoordinate:
+            return rect.top;
+          case WindowProperty.XCoordinate:
+            return rect.left;
+          case WindowProperty.YSize:
+            return rect.height;
+          case WindowProperty.XSize:
+            return rect.width;
+          default:
+            return 0;
+        }
+      });
+    }
+
+    beforeEach(() => {
+      header = new Map();
+      windows = new Map();
+      onKeyPress = vi.spyOn(inputProcessor, 'onKeyPress').mockImplementation(() => {});
+      onInputComplete = vi.spyOn(inputProcessor, 'onInputComplete').mockImplementation(() => {});
+    });
+
+    describe('Zork Zero (V6, mouse_window -1)', () => {
+      beforeEach(() => {
+        givenMachine({ version: 6, mouseWindow: -1, screen: { width: 320, height: 200 }, mode: InputMode.CHAR });
+      });
+
+      it('should end char input with 254 and store the absolute pixel position', () => {
+        const delivered = inputProcessor.onMouseClick(machine as any, { x: 150, y: 90 });
+
+        expect(delivered).toBe(true);
+        expect(header.get(HeaderExtension.MouseX)).toBe(150);
+        expect(header.get(HeaderExtension.MouseY)).toBe(90);
+        expect(onKeyPress).toHaveBeenCalledWith(machine, String.fromCharCode(MouseClickCode.SingleClick));
+      });
+
+      it('should report the second click of a double-click as 253', () => {
+        inputProcessor.onMouseClick(machine as any, { x: 150, y: 90, isDouble: true });
+
+        expect(onKeyPress).toHaveBeenCalledWith(machine, String.fromCharCode(MouseClickCode.DoubleClick));
+      });
+
+      it('should ignore a click off the screen', () => {
+        const delivered = inputProcessor.onMouseClick(machine as any, { x: 321, y: 90 });
+
+        expect(delivered).toBe(false);
+        expect(header.size).toBe(0);
+        expect(onKeyPress).not.toHaveBeenCalled();
+      });
+
+      it('should end line input with the click when 254 is a terminator, keeping the typed text', () => {
+        (machine as any).getInputState.mockReturnValue({ mode: InputMode.TEXT, resultVar: 16 });
+        inputProcessor.setTerminatingChars([13, 252, 253, 254]); // What the story's [255] expands to
+
+        const delivered = inputProcessor.onMouseClick(machine as any, { x: 150, y: 90 }, 'nor');
+
+        expect(delivered).toBe(true);
+        expect(onInputComplete).toHaveBeenCalledWith(machine, 'nor', MouseClickCode.SingleClick);
+      });
+
+      it('should ignore a click during line input when it is not a terminator', () => {
+        (machine as any).getInputState.mockReturnValue({ mode: InputMode.TEXT, resultVar: 16 });
+        inputProcessor.setTerminatingChars([13]);
+
+        const delivered = inputProcessor.onMouseClick(machine as any, { x: 150, y: 90 }, 'nor');
+
+        expect(delivered).toBe(false);
+        expect(header.size).toBe(0);
+        expect(onInputComplete).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('V6 with a mouse window', () => {
+      beforeEach(() => {
+        givenMachine({ version: 6, mouseWindow: 0, screen: { width: 320, height: 200 }, mode: InputMode.CHAR });
+        windows.set(0, { top: 40, left: 44, height: 161, width: 234 });
+      });
+
+      it('should report the position relative to the mouse window', () => {
+        const delivered = inputProcessor.onMouseClick(machine as any, { x: 50, y: 60 });
+
+        expect(delivered).toBe(true);
+        expect(header.get(HeaderExtension.MouseX)).toBe(7);
+        expect(header.get(HeaderExtension.MouseY)).toBe(21);
+      });
+
+      it('should ignore a click outside the mouse window', () => {
+        expect(inputProcessor.onMouseClick(machine as any, { x: 43, y: 60 })).toBe(false);
+        expect(inputProcessor.onMouseClick(machine as any, { x: 50, y: 39 })).toBe(false);
+        expect(inputProcessor.onMouseClick(machine as any, { x: 44 + 234, y: 60 })).toBe(false);
+        expect(onKeyPress).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('Beyond Zork (V5, default mouse window 1)', () => {
+      beforeEach(() => {
+        givenMachine({ version: 5, mouseWindow: 1, screen: { width: 80, height: 25 }, mode: InputMode.TEXT });
+        windows.set(1, { top: 1, left: 1, height: 11, width: 80 }); // Upper window holding the map
+        inputProcessor.setTerminatingChars([13, 129, 130, 254, 253]); // Listed explicitly in the story
+      });
+
+      it('should end line input on a click in the map, reporting the character cell', () => {
+        const delivered = inputProcessor.onMouseClick(machine as any, { x: 70, y: 5 }, '');
+
+        expect(delivered).toBe(true);
+        expect(header.get(HeaderExtension.MouseX)).toBe(70);
+        expect(header.get(HeaderExtension.MouseY)).toBe(5);
+        expect(onInputComplete).toHaveBeenCalledWith(machine, '', MouseClickCode.SingleClick);
+      });
+
+      it('should ignore a click in the lower window', () => {
+        const delivered = inputProcessor.onMouseClick(machine as any, { x: 70, y: 12 }, '');
+
+        expect(delivered).toBe(false);
+        expect(onInputComplete).not.toHaveBeenCalled();
+      });
+
+      it('should divide by the header font size to get character cells', () => {
+        givenMachine({
+          version: 5,
+          mouseWindow: 1,
+          screen: { width: 640, height: 200 },
+          font: { width: 8, height: 8 },
+          mode: InputMode.TEXT,
+        });
+        windows.set(1, { top: 1, left: 1, height: 88, width: 640 });
+
+        inputProcessor.onMouseClick(machine as any, { x: 17, y: 16 }, '');
+
+        expect(header.get(HeaderExtension.MouseX)).toBe(3);
+        expect(header.get(HeaderExtension.MouseY)).toBe(2);
+      });
+    });
+
+    it('should ignore a click when the game is not waiting for input', () => {
+      givenMachine({ version: 6, mouseWindow: -1, screen: { width: 320, height: 200 }, mode: InputMode.CHAR });
+      (machine as any).getInputState.mockReturnValue(null);
+
+      expect(inputProcessor.onMouseClick(machine as any, { x: 1, y: 1 })).toBe(false);
+    });
+
+    it('should ignore a click before Version 5', () => {
+      givenMachine({ version: 4, mouseWindow: -1, screen: { width: 80, height: 25 }, mode: InputMode.CHAR });
+
+      expect(inputProcessor.onMouseClick(machine as any, { x: 1, y: 1 })).toBe(false);
+      expect(onKeyPress).not.toHaveBeenCalled();
     });
   });
 });

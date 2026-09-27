@@ -40,6 +40,7 @@ export class ZMachine {
   private readonly _originalStory: Buffer;
   private _blorbMap: BlorbMap | null = null;
   private _blorbData: Buffer | null = null;
+  private _mouseWindow = 1;
 
   /**
    * Creates a new Z-Machine interpreter
@@ -109,6 +110,17 @@ export class ZMachine {
   }
   get inputProcessor(): InputProcessor {
     return this._inputProcessor;
+  }
+
+  /**
+   * Window that mouse clicks are constrained to, set by mouse_window (V6).
+   * Defaults to window 1 in every version; -1 means the whole screen.
+   */
+  get mouseWindow(): number {
+    return this._mouseWindow;
+  }
+  set mouseWindow(window: number) {
+    this._mouseWindow = window;
   }
 
   /**
@@ -605,6 +617,7 @@ export class ZMachine {
     // Cancel any pending input operations first
     // This clears timeouts and other input-related state
     this._inputProcessor.cancelInput(this);
+    this._mouseWindow = 1;
 
     // Signal the current execution loop to exit for restart
     // This is critical: restart() is called from within an opcode handler,

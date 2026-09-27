@@ -694,14 +694,29 @@ export class WindowManager {
   }
 
   /**
-   * Update screen dimensions
+   * Update screen dimensions.
+   * Windows 0 and 1 start out spanning the screen width, and window 0 its height (as in Frotz's
+   * restart_screen); while they still span the old size they are stretched to the new one.
+   * Every other window is only shrunk to fit.
    */
   public setScreenSize(width: number, height: number): void {
+    const oldWidth = this.screenWidth;
+    const oldHeight = this.screenHeight;
     this.screenWidth = width;
     this.screenHeight = height;
 
-    // Adjust existing windows to fit new screen size
     this.windows.forEach((window) => {
+      const isMainWindow = window.id === WindowType.Lower || window.id === WindowType.Upper;
+      if (isMainWindow && window.x === 0 && window.width === oldWidth) {
+        window.width = width;
+        window.rightMargin = width;
+      }
+      if (window.id === WindowType.Lower && window.y === 0 && window.height === oldHeight) {
+        window.height = height;
+        window.scrollBottom = height;
+      }
+
+      // Shrink anything that no longer fits
       if (window.x + window.width > width) {
         window.width = Math.max(1, width - window.x);
         window.rightMargin = window.x + window.width;

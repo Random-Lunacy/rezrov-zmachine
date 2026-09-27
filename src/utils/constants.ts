@@ -59,6 +59,15 @@ export enum HeaderExtension {
 }
 
 /**
+ * ZSCII input codes reported for mouse clicks (spec §3.8, Table 2)
+ */
+export enum MouseClickCode {
+  MenuClick = 252, // Menu selection (V6)
+  DoubleClick = 253, // Second click of a double-click
+  SingleClick = 254, // Single click, or the first click of a double-click
+}
+
+/**
  * Known global variable indices
  */
 export enum KnownGlobals {
