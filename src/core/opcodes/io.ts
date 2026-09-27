@@ -35,7 +35,7 @@
 import { SuspendState } from '../../core/execution/SuspendState';
 import { ZMachine } from '../../interpreter/ZMachine';
 import { OperandType } from '../../types';
-import { HeaderLocation } from '../../utils/constants';
+import { HeaderExtension } from '../../utils/constants';
 import { toI16 } from '../memory/cast16';
 import { opcode } from './base';
 
@@ -494,13 +494,12 @@ function handleTransparency(machine: ZMachine, foreground: number, background: n
 }
 
 function supportsTransparency(machine: ZMachine): boolean {
-  const flags3Addr = machine.state.memory.getWord(HeaderLocation.HeaderExtTable) + 4;
-  if (flags3Addr > 0) {
-    const flags3 = machine.state.memory.getWord(flags3Addr);
-    return (flags3 & 0x0001) !== 0;
+  const flags3 = machine.state.memory.getHeaderExtensionWord(HeaderExtension.Flags3);
+  if (flags3 === undefined) {
+    machine.logger.warn('Transparency requested but header extension has no Flags3 word');
+    return false;
   }
-  machine.logger.warn('Transparency requested but header extension not present');
-  return false;
+  return (flags3 & 0x0001) !== 0;
 }
 
 function isReverseVideoActive(machine: ZMachine): boolean {

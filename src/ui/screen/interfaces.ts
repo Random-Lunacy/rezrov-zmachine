@@ -49,6 +49,10 @@ export type Capabilities = {
   hasSound: boolean;
   hasTimedKeyboardInput: boolean;
 
+  // Mouse clicks reported as ZSCII 253/254 with coordinates in the header extension (V5+).
+  // Optional: when absent or false the interpreter clears the game's Flags2 "wants mouse" bit.
+  hasMouse?: boolean;
+
   // Default colors for V5+ header bytes 0x2C/0x2D (Z-machine Color enum values)
   defaultForeground?: number;
   defaultBackground?: number;

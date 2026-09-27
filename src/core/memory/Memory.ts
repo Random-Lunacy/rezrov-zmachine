@@ -11,7 +11,7 @@ import {
 import { AlphabetTableManager } from '../../parsers/AlphabetTable';
 import { ZString } from '../../parsers/ZString';
 import { Address } from '../../types';
-import { HeaderLocation } from '../../utils/constants';
+import { HeaderExtension, HeaderLocation } from '../../utils/constants';
 import { Logger } from '../../utils/log';
 
 /**
@@ -418,6 +418,40 @@ export class Memory {
   }
 
   /**
+   * Read a word from the header extension table (spec §11.1.7)
+   * @param index Word index within the table
+   * @returns The word, or undefined if the story has no extension table or it is too short
+   */
+  getHeaderExtensionWord(index: HeaderExtension): number | undefined {
+    const addr = this.headerExtensionWordAddress(index);
+    return addr === undefined ? undefined : this.getWord(addr);
+  }
+
+  /**
+   * Write a word to the header extension table (spec §11.1.7)
+   * @param index Word index within the table
+   * @param value The value to store
+   * @returns False, without writing, if the story has no extension table or it is too short
+   */
+  setHeaderExtensionWord(index: HeaderExtension, value: number): boolean {
+    const addr = this.headerExtensionWordAddress(index);
+    if (addr === undefined) return false;
+    this.setWord(addr, value);
+    return true;
+  }
+
+  /**
+   * Address of a header extension table word, or undefined if the table does not include it.
+   * Stories may supply a table shorter than the spec's full list, so word 0 must be checked.
+   */
+  private headerExtensionWordAddress(index: HeaderExtension): Address | undefined {
+    if (this._version < 5) return undefined;
+    const tableAddr = this.getWord(HeaderLocation.HeaderExtTable);
+    if (tableAddr === 0 || index > this.getWord(tableAddr)) return undefined;
+    return tableAddr + 2 * index;
+  }
+
+  /**
    * Get the size of memory
    */
   get size(): number {
@@ -580,20 +614,11 @@ export class Memory {
       return; // Only relevant for version 5+
     }
 
-    // Check for header extension table
-    const headerExtAddr = this.getWord(HeaderLocation.HeaderExtTable);
-    if (headerExtAddr === 0) {
-      this.logger.debug('No header extension table found');
+    const unicodeTableAddr = this.getHeaderExtensionWord(HeaderExtension.UnicodeTable);
+    if (unicodeTableAddr === undefined) {
+      this.logger.debug('No header extension table entry for a Unicode translation table');
       return;
     }
-
-    // Check for Unicode translation table (Word 3)
-    if (headerExtAddr + 6 > this.size) {
-      this.logger.warn('Header extension table too short for Unicode translation');
-      return;
-    }
-
-    const unicodeTableAddr = this.getWord(headerExtAddr + 6);
     if (unicodeTableAddr === 0) {
       this.logger.debug('No Unicode translation table address found');
       return;
@@ -819,12 +844,9 @@ export class Memory {
         description: 'Valid header extension entries',
         condition: () => {
           try {
-            const tableSize = this.getByte(headerExtAddr);
-            for (let i = 0; i < tableSize; i++) {
-              const entryAddr = headerExtAddr + 2 * i;
-              if (entryAddr >= this._mem.length) return false;
-            }
-            return true;
+            // Word 0 is the number of further words; the last one must lie inside the story
+            const lastWordEnd = headerExtAddr + 2 * this.getWord(headerExtAddr) + 1;
+            return lastWordEnd < this._mem.length;
           } catch {
             return false;
           }

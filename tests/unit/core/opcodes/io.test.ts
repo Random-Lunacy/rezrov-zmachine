@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { SuspendState } from '../../../../src/core/execution/SuspendState';
 import { ioOpcodes } from '../../../../src/core/opcodes/io';
 import { ZMachine } from '../../../../src/interpreter/ZMachine';
-import { HeaderLocation } from '../../../../src/utils/constants';
+import { HeaderExtension } from '../../../../src/utils/constants';
 import { createMockZMachine } from '../../../mocks';
 
 describe('I/O Opcodes', () => {
@@ -874,12 +874,10 @@ describe('I/O Opcodes', () => {
       const background = 15; // Transparent
       const window = 1;
 
-      // Setup transparency support
-      mockMachine.state.memory.getWord = vi.fn().mockImplementation((addr) => {
-        if (addr === HeaderLocation.HeaderExtTable) return 0x5000;
-        if (addr === 0x5000 + 4) return 0x0001; // Transparency supported
-        return 0;
-      });
+      // Setup transparency support: Flags3 bit 0
+      mockMachine.state.memory.getHeaderExtensionWord = vi
+        .fn()
+        .mockImplementation((index) => (index === HeaderExtension.Flags3 ? 0x0001 : undefined));
 
       // Current style is not reverse video
       machine.screen.getOutputWindow = vi.fn().mockReturnValue(window);
@@ -890,6 +888,21 @@ describe('I/O Opcodes', () => {
 
       // Assert
       expect(machine.screen.setTextColors).toHaveBeenCalledWith(machine, window, foreground, background);
+    });
+
+    it('should refuse a transparent background when the header extension has no Flags3 word', () => {
+      // Arrange: a 2-word table like Zork Zero's, where word 2 is mouse Y, not Flags3
+      mockMachine.state.version = 6;
+      mockMachine.state.memory.getHeaderExtensionWord = vi
+        .fn()
+        .mockImplementation((index) => (index <= HeaderExtension.MouseY ? 0x0001 : undefined));
+
+      // Act
+      ioOpcodes.set_colour.impl(machine, [], 3, 15, 1);
+
+      // Assert
+      expect(mockMachine.state.memory.getHeaderExtensionWord).toHaveBeenCalledWith(HeaderExtension.Flags3);
+      expect(machine.screen.setTextColors).not.toHaveBeenCalled();
     });
 
     it('should not allow transparent foreground in Version 6', () => {
