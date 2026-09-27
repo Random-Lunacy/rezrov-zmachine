@@ -84,17 +84,22 @@ export enum Flags1 {
 }
 
 /**
- * Flags in Header.Flags2
+ * Flags in Header.Flags2 (a word; bit numbers are within that word, per spec §11.1)
+ *
+ * The "Wants" bits are set by the game in its story file; the interpreter must clear
+ * any it cannot provide so the game falls back to an alternative.
  */
 export enum Flags2 {
-  Transcribing = 0x01, // Bit 0: Transcribing on/off
-  ForcedFixedFont = 0x02, // Bit 1: Force fixed-width font
-  RequestScreenRedraw = 0x04, // Bit 2: Request screen redraw (set by game)
-  UseCustomAlphabet = 0x08, // Bit 3: Use pictures
-  UsePictures = 0x10, // Bit 4: Use custom alphabet table
-  UseSound = 0x20, // Bit 5: Use sound effects
-  UseMenu = 0x40, // Bit 6: Use menus (V6)
-  // Bits 7-15 undefined or reserved
+  Transcribing = 0x01, // Bit 0: Transcripting on/off (game and interpreter)
+  ForcedFixedFont = 0x02, // Bit 1: Game forces fixed-pitch printing (V3+)
+  RequestScreenRedraw = 0x04, // Bit 2: Interpreter requests a screen redraw (V6)
+  WantsPictures = 0x08, // Bit 3: Game wants to use pictures (V5+)
+  WantsUndo = 0x10, // Bit 4: Game wants to use save_undo/restore_undo (V5+)
+  WantsMouse = 0x20, // Bit 5: Game wants to use a mouse (V5+)
+  WantsColors = 0x40, // Bit 6: Game wants to use colours (V5+)
+  WantsSound = 0x80, // Bit 7: Game wants to use sound effects (V5+)
+  WantsMenus = 0x100, // Bit 8: Game wants to use menus (V6)
+  // Bits 9-15 unused
 }
 
 /**
