@@ -23,8 +23,8 @@ export { GameObjectFactory } from './core/objects/GameObjectFactory';
 
 // UI components
 export { BufferMode, Color, TextStyle } from './types';
-export { BaseInputProcessor } from './ui/input/InputInterface';
-export type { InputMode, InputProcessor, InputState } from './ui/input/InputInterface';
+export { BaseInputProcessor, InputMode } from './ui/input/InputInterface';
+export type { InputProcessor, InputState } from './ui/input/InputInterface';
 export {
   BlorbMultimediaHandler,
   type BlorbMultimediaHandlerOptions,
@@ -37,14 +37,8 @@ export type { MultimediaHandler, PictureData, ResourceInfo } from './ui/multimed
 export { BaseScreen } from './ui/screen/BaseScreen';
 export { WindowProperty, WindowType } from './ui/screen/interfaces';
 export type { Capabilities, Screen, ScreenSize } from './ui/screen/interfaces';
-export { WindowManager } from './ui/screen/WindowManager';
-export type {
-  WindowEvent,
-  WindowEventHandler,
-  WindowEventType,
-  WindowOptions,
-  WindowState,
-} from './ui/screen/WindowManager';
+export { WindowEventType, WindowManager } from './ui/screen/WindowManager';
+export type { WindowEvent, WindowEventHandler, WindowOptions, WindowState } from './ui/screen/WindowManager';
 
 // Font system
 export { FONT3_BITMAPS, getAvailableFont3Codes, getFont3Bitmap, hasFont3Bitmap } from './ui/fonts/Font3Bitmaps';
