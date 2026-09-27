@@ -106,9 +106,8 @@ export class BaseScreen implements Screen {
     const screenSize = this.getSize();
     switch (property) {
       case WindowProperty.YCoordinate:
-        // Delegate to WindowManager which tracks actual pixel positions from move_window.
-        // For V3/V5 (no move_window calls): window 0 y = upperWindowHeight (from splitWindow),
-        // window 1 y = 0 — both matching the legacy upperWindowHeight+1 / 1 behaviour.
+        // Delegate to WindowManager, which reports 1-based positions.
+        // For V3/V5 (no move_window calls): window 1 is at y = 1 and window 0 at upperWindowHeight + 1.
         // For V6: move_window updates the WindowManager, so the correct pixel position is returned.
         return this.windowManager.getWindowProperty(window, WindowProperty.YCoordinate);
 
@@ -117,7 +116,10 @@ export class BaseScreen implements Screen {
         return this.windowManager.getWindowProperty(window, WindowProperty.XCoordinate);
 
       case WindowProperty.YSize:
-        // Height of window in units
+        // Height of window in units. V6 windows are sized by window_size, tracked in the WindowManager.
+        if (machine.state.version >= 6) {
+          return this.windowManager.getWindowProperty(window, WindowProperty.YSize);
+        }
         if (window === WindowType.Upper) {
           return this.upperWindowHeight;
         } else {
@@ -126,6 +128,9 @@ export class BaseScreen implements Screen {
 
       case WindowProperty.XSize:
         // Width of window in units
+        if (machine.state.version >= 6) {
+          return this.windowManager.getWindowProperty(window, WindowProperty.XSize);
+        }
         return screenSize.cols;
 
       case WindowProperty.YCursor:

@@ -884,6 +884,18 @@ describe('ZMachine', () => {
     });
   });
 
+  describe('Mouse window', () => {
+    it('should default to window 1 and return to it on restart', () => {
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+      expect(zmachine.mouseWindow).toBe(1);
+
+      zmachine.mouseWindow = -1;
+      zmachine.restart();
+
+      expect(zmachine.mouseWindow).toBe(1);
+    });
+  });
+
   describe('Undo error handling', () => {
     it('should handle error during saveUndo', () => {
       const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });

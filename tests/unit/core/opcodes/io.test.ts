@@ -1127,7 +1127,20 @@ describe('I/O Opcodes', () => {
     describe('mouse_window', () => {
       it('should call screen.setMouseWindow with window ID', () => {
         ioOpcodes.mouse_window.impl(machine, [], 2);
+        expect(machine.mouseWindow).toBe(2);
         expect(machine.screen.setMouseWindow).toHaveBeenCalledWith(machine, 2);
+      });
+
+      it('should lift the constraint for -1 (Zork Zero passes 0xFFFF)', () => {
+        ioOpcodes.mouse_window.impl(machine, [], 0xffff);
+        expect(machine.mouseWindow).toBe(-1);
+        expect(machine.screen.setMouseWindow).toHaveBeenCalledWith(machine, -1);
+      });
+
+      it('should resolve -3 to the current window', () => {
+        machine.screen.getOutputWindow = vi.fn().mockReturnValue(3);
+        ioOpcodes.mouse_window.impl(machine, [], 0xfffd);
+        expect(machine.mouseWindow).toBe(3);
       });
 
       it('should warn in V5 and earlier', () => {
