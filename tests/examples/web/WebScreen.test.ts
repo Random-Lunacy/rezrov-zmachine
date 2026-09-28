@@ -140,6 +140,16 @@ describe('WebScreen', () => {
     });
   });
 
+  describe('describeUpperCell', () => {
+    it('should describe the character at a 1-based upper-window cell', () => {
+      (screen as unknown as { upperWindowBuffer: string[] }).upperWindowBuffer = ['abc', 'xyz'];
+
+      expect(screen.describeUpperCell(2, 3)).toBe("char 122 'z'");
+      expect(screen.describeUpperCell(3, 1)).toBe('outside the upper window');
+      expect(screen.describeUpperCell(1, 4)).toBe('outside the upper window');
+    });
+  });
+
   describe('clientToScreenUnits', () => {
     function givenRect(el: Element, rect: { left: number; top: number; width: number; height: number }): void {
       el.getBoundingClientRect = () => ({ ...rect, right: 0, bottom: 0, x: rect.left, y: rect.top }) as DOMRect;

@@ -714,6 +714,18 @@ export class WebScreen extends BaseScreen {
     for (const resolve of waiters) resolve();
   }
 
+  /**
+   * What the upper window shows at a 1-based character cell, for the ?mousedebug trace:
+   * the character code, and whether it is a Font 3 (character graphics) glyph.
+   */
+  describeUpperCell(y: number, x: number): string {
+    const line = this.upperWindowBuffer[y - 1];
+    if (line === undefined || x < 1 || x > line.length) return 'outside the upper window';
+    const code = line.charCodeAt(x - 1);
+    const font3 = this.upperWindowFontBuffer[y - 1]?.[x - 1] ? ' (font 3)' : '';
+    return `char ${code} '${line[x - 1]}'${font3}`;
+  }
+
   /** True while the [MORE] prompt is waiting for the player to page on. */
   isPaging(): boolean {
     return this.pagerKeyHandler !== null;

@@ -4,6 +4,9 @@ import type { WebScreen } from './WebScreen';
 /** Clicks held while the game is busy; more than this is a burst the player didn't mean. */
 const MAX_PENDING_CLICKS = 4;
 
+/** Mouse tracing. Off unless the page URL carries `?mousedebug`. */
+const MOUSE_DEBUG = typeof location !== 'undefined' && new URLSearchParams(location.search).has('mousedebug');
+
 export class WebInputProcessor extends BaseInputProcessor {
   private readonly logger: Logger;
   private readonly clickTarget: HTMLElement | null;
@@ -36,6 +39,14 @@ export class WebInputProcessor extends BaseInputProcessor {
     if (this.screen.isPaging()) return;
 
     const position = this.screen.clientToScreenUnits(e.clientX, e.clientY);
+    if (MOUSE_DEBUG) {
+      const cell = position ? this.screen.describeUpperCell(position.y, position.x) : 'n/a';
+      // eslint-disable-next-line no-console
+      console.debug(
+        `[mouse] client=(${e.clientX}, ${e.clientY}) units=${position ? `(x=${position.x}, y=${position.y})` : 'none'} ` +
+          `detail=${e.detail} waiting=${this.isWaitingForInput} cell: ${cell}`
+      );
+    }
     if (position) {
       // The browser counts clicks: the second of a double-click has detail 2
       const click: MouseClick = { ...position, isDouble: e.detail >= 2 };
