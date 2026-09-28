@@ -1010,6 +1010,18 @@ describe('ZMachine', () => {
       expect(zmachine.memory.getFontUnits()).toEqual({ width: 7, height: 14 });
     });
 
+    it('should write the screen size in characters from screenChars in preference to getSize()', () => {
+      storyBuffer[0] = 5;
+      vi.spyOn(screen, 'getCapabilities').mockReturnValue({ ...capabilities, screenChars: { rows: 30, cols: 93 } });
+
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+
+      expect(zmachine.memory.getByte(HeaderLocation.ScreenHeightInLines)).toBe(30);
+      expect(zmachine.memory.getByte(HeaderLocation.ScreenWidthInChars)).toBe(93);
+      // With no screenUnits either, the text-mode units follow the same grid
+      expect(zmachine.memory.getWord(HeaderLocation.ScreenWidthInUnits)).toBe(93);
+    });
+
     it('should pick up new capabilities when the header is re-applied', () => {
       storyBuffer[0] = 5;
       const getCapabilities = vi.spyOn(screen, 'getCapabilities').mockReturnValue(capabilities);

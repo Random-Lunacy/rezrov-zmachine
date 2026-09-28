@@ -173,11 +173,11 @@ export class ZMachine {
    * Platforms call it again whenever those capabilities change, e.g. after a resize.
    */
   applyInterpreterHeader(): void {
-    const { rows, cols } = this._screen.getSize();
     const version = this._state.version;
 
     // Configure capabilities in header flags
     const screenCapabilities = this._screen.getCapabilities();
+    const { rows, cols } = screenCapabilities.screenChars ?? this._screen.getSize();
 
     // Set interpreter number and version (required for games like Beyond Zork)
     // Default to Amiga (4) which provides better default color palettes in games

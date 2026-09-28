@@ -105,22 +105,34 @@ describe('WebScreen', () => {
 
       // 200px canvas / 25 rows = 8px cells, as in Zork Zero's 320x200 layout
       expect(screen.getCapabilities()).toMatchObject({
+        screenChars: { cols: 80, rows: 25 },
         screenUnits: { width: 320, height: 200 },
         fontUnits: { width: 8, height: 8 },
       });
     });
 
-    it('should keep the V6 font cell across a resize but re-measure it after a font size change', () => {
+    it('should keep the V6 text grid and font cell across a resize but re-measure them after a font change', () => {
       screen.enableCanvasBackground();
       screen.getCapabilities();
 
-      // A taller container gives 50 rows, which would make a 4px cell if re-measured
-      Object.defineProperty(dom.gameContainer, 'clientWidth', { configurable: true, value: 800 });
+      // Shrinking the window gives fewer columns and rows. Zork Zero lays its status line out
+      // from the header's character width, so reporting these would shift it after a restore.
+      Object.defineProperty(dom.gameContainer, 'clientWidth', { configurable: true, value: 600 });
       Object.defineProperty(dom.gameContainer, 'clientHeight', { configurable: true, value: 800 });
-      expect(screen.getCapabilities().fontUnits).toEqual({ width: 8, height: 8 });
+      expect(screen.getCapabilities()).toMatchObject({
+        screenChars: { cols: 80, rows: 25 },
+        fontUnits: { width: 8, height: 8 },
+      });
 
       screen.remeasureCellDimensions();
-      expect(screen.getCapabilities().fontUnits).toEqual({ width: 4, height: 4 });
+      expect(screen.getCapabilities()).toMatchObject({
+        screenChars: { cols: 60, rows: 50 },
+        fontUnits: { width: 4, height: 4 },
+      });
+    });
+
+    it('should report no separate text grid outside canvas mode, so the header follows getSize()', () => {
+      expect(screen.getCapabilities().screenChars).toBeUndefined();
     });
   });
 

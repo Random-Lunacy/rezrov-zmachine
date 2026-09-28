@@ -143,7 +143,7 @@ function setupGame(
   const gameContainerEl = pictureCanvas.parentElement as HTMLElement;
 
   const resizeObserver = new ResizeObserver(() => {
-    // Rows/cols (and V5 units) follow the new size; V6 units stay at the canvas's pixel size.
+    // V5 rows/cols and units follow the new size; V6 keeps its text grid and canvas units.
     machine.applyInterpreterHeader();
     if (machine.state.version >= 6 && pictureCanvas.width > 0) {
       const rect = gameContainerEl.getBoundingClientRect();
