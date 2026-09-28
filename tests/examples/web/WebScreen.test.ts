@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { PictureRenderer } from '../../../examples/web/src/PictureRenderer';
 import { WebScreen } from '../../../examples/web/src/WebScreen';
-import { Color, Logger, TextStyle, type ZMachine } from '../../../src/index';
+import { Color, HeaderLocation, Logger, TextStyle, WindowProperty, type ZMachine } from '../../../src/index';
 
 Logger.setLogToConsole(false);
 
@@ -309,6 +310,82 @@ describe('WebScreen', () => {
 
       const line = dom.statusEl.textContent ?? '';
       expect(line.length).toBe(screen.getSize().cols);
+    });
+  });
+
+  describe('canvas clears in V6', () => {
+    /** A V6 machine on Zork Zero's 320x200 screen. */
+    function v6Machine(): ZMachine {
+      return {
+        logger: new Logger('TestMachine'),
+        state: { version: 6 },
+        memory: {
+          getByte: vi.fn(() => 8),
+          getWord: vi.fn((addr: number) =>
+            addr === HeaderLocation.ScreenWidthInUnits ? 320 : addr === HeaderLocation.ScreenHeightInUnits ? 200 : 0
+          ),
+          getFontUnits: vi.fn(() => ({ width: 8, height: 8 })),
+        },
+      } as unknown as ZMachine;
+    }
+
+    function givenRenderer(): { fill: ReturnType<typeof vi.fn> } {
+      const renderer = { fill: vi.fn(() => Promise.resolve()) };
+      screen.setPictureRenderer(renderer as unknown as PictureRenderer);
+      return renderer;
+    }
+
+    beforeEach(() => screen.enableCanvasBackground());
+
+    it("should clear only window 0's own box when window 0 is erased", () => {
+      // Zork Zero's Tower of Bozbar: text window below the tower, cleared after every move
+      const v6 = v6Machine();
+      const renderer = givenRenderer();
+      screen.moveWindow(v6, 0, 120, 14);
+      screen.resizeWindow(v6, 0, 81, 294);
+
+      screen.clearWindow(v6, 0);
+
+      expect(renderer.fill).toHaveBeenCalledWith('#ffffff', { x: 13, y: 119, width: 294, height: 81 });
+    });
+
+    it('should undo a narrowing of window 0 that comes without a move', () => {
+      const v6 = v6Machine();
+      screen.moveWindow(v6, 0, 40, 44);
+      screen.resizeWindow(v6, 0, 161, 234);
+
+      screen.resizeWindow(v6, 0, 161, 93); // Transient narrowing, never restored by the game
+
+      expect(screen.getWindowProperty(v6, 0, WindowProperty.XSize)).toBe(234);
+    });
+
+    it('should take a new width after window 0 is moved, e.g. leaving the Tower of Bozbar', () => {
+      const v6 = v6Machine();
+      screen.moveWindow(v6, 0, 120, 14); // Tower layout
+      screen.resizeWindow(v6, 0, 81, 294);
+
+      screen.moveWindow(v6, 0, 40, 44); // Back to the normal layout
+      screen.resizeWindow(v6, 0, 161, 234);
+
+      expect(screen.getWindowProperty(v6, 0, WindowProperty.XSize)).toBe(234);
+    });
+
+    it('should fill the whole canvas when the screen is erased', () => {
+      const v6 = v6Machine();
+      const renderer = givenRenderer();
+
+      screen.clearWindow(v6, -1);
+
+      expect(renderer.fill).toHaveBeenCalledWith('#ffffff', undefined);
+    });
+
+    it('should draw fills directly when no picture renderer is set', () => {
+      const v6 = v6Machine();
+      dom.ctx.fillRect.mockClear();
+
+      screen.clearWindow(v6, -2);
+
+      expect(dom.ctx.fillRect).toHaveBeenCalledWith(0, 0, 320, 200);
     });
   });
 
