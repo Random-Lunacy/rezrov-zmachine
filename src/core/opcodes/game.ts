@@ -28,19 +28,22 @@ function getSafePcHex(machine: ZMachine): string {
 }
 
 /**
- * Save the machine state to a given table
+ * Save the machine state to memory for a later restore_undo (V5+).
+ *
+ * The snapshot is taken before the store byte is read, so the saved PC points at it.
+ * A later restore_undo resumes there and completes this instruction with 2 ("restored").
  */
 async function save_undo(machine: ZMachine, _operandTypes: OperandType[]): Promise<void> {
-  const resultVar = machine.state.readByte();
-  machine.logger.debug(`${getSafePcHex(machine)} save_undo ${resultVar}`);
-
+  let saved = false;
   try {
-    const success = machine.saveUndo();
-    machine.state.storeVariable(resultVar, success ? 1 : 0);
+    saved = machine.saveUndo();
   } catch (error) {
     machine.logger.error(`Failed to save undo state: ${error}`);
-    machine.state.storeVariable(resultVar, 0);
   }
+
+  const resultVar = machine.state.readByte();
+  machine.logger.debug(`${getSafePcHex(machine)} save_undo ${resultVar}`);
+  machine.state.storeVariable(resultVar, saved ? 1 : 0);
 }
 
 /**
@@ -50,11 +53,17 @@ async function restore_undo(machine: ZMachine, _operandTypes: OperandType[]): Pr
   const resultVar = machine.state.readByte();
   machine.logger.debug(`${getSafePcHex(machine)} restore_undo ${resultVar}`);
 
+  let restored = false;
   try {
-    const success = machine.restoreUndo();
-    machine.state.storeVariable(resultVar, success ? 2 : 0);
+    restored = machine.restoreUndo();
   } catch (error) {
     machine.logger.error(`Failed to restore undo state: ${error}`);
+  }
+
+  if (restored) {
+    // Execution is back at save_undo's store byte: complete that instruction with 2
+    machine.state.storeVariable(machine.state.readByte(), 2);
+  } else {
     machine.state.storeVariable(resultVar, 0);
   }
 }
@@ -129,43 +138,39 @@ async function save(
   name: number = 0,
   prompt: number = -1
 ): Promise<void> {
-  if (machine.state.version >= 5) {
+  const version = machine.state.version;
+
+  if (version >= 5 && operandTypes.length > 0) {
+    // Partial save: write memory region to auxiliary file (no game state)
     const resultVar = machine.state.readByte();
     const shouldPrompt = prompt === -1 || prompt === 1;
-    const isPartial = operandTypes.length > 0;
-
-    if (isPartial) {
-      // Partial save: write memory region to auxiliary file (no game state)
-      machine.logger.debug(`${getSafePcHex(machine)} save (partial) table=${table} bytes=${bytes} name=${name}`);
-      try {
-        const success = await machine.saveAuxiliary(table, bytes, name, shouldPrompt);
-        machine.state.storeVariable(resultVar, success ? 1 : 0);
-      } catch (error) {
-        machine.logger.error(`Failed to save auxiliary data: ${error}`);
-        machine.state.storeVariable(resultVar, 0);
-      }
-    } else {
-      // Standard save: full game state
-      machine.logger.debug(`${getSafePcHex(machine)} save (standard)`);
-      try {
-        const success = await machine.saveGame();
-        machine.state.storeVariable(resultVar, success ? 1 : 0);
-      } catch (error) {
-        machine.logger.error(`Failed to save: ${error}`);
-        machine.state.storeVariable(resultVar, 0);
-      }
+    machine.logger.debug(`${getSafePcHex(machine)} save (partial) table=${table} bytes=${bytes} name=${name}`);
+    try {
+      const success = await machine.saveAuxiliary(table, bytes, name, shouldPrompt);
+      machine.state.storeVariable(resultVar, success ? 1 : 0);
+    } catch (error) {
+      machine.logger.error(`Failed to save auxiliary data: ${error}`);
+      machine.state.storeVariable(resultVar, 0);
     }
+    return;
+  }
+
+  // Full save. Snapshot first, while the PC still points at this instruction's store byte (V4+)
+  // or branch data (V1-3): that is the PC Quetzal records, and a later restore resumes there to
+  // complete this instruction as "restored" (spec §15 save; Frotz does the same).
+  machine.logger.debug(`${getSafePcHex(machine)} save (standard)`);
+  let saved = false;
+  try {
+    saved = await machine.saveGame();
+  } catch (error) {
+    machine.logger.error(`Failed to save game: ${error}`);
+  }
+
+  if (version >= 4) {
+    machine.state.storeVariable(machine.state.readByte(), saved ? 1 : 0);
   } else {
     const [offset, branchOnFalse] = machine.state.readBranchOffset();
-    machine.logger.debug(`${getSafePcHex(machine)} save -> [${!branchOnFalse}] ${offset}`);
-
-    try {
-      const saved = await machine.saveGame();
-      machine.state.doBranch(saved, branchOnFalse, offset);
-    } catch (error) {
-      machine.logger.error(`Failed to save game: ${error}`);
-      machine.state.doBranch(false, branchOnFalse, offset);
-    }
+    machine.state.doBranch(saved, branchOnFalse, offset);
   }
 }
 
@@ -177,43 +182,48 @@ async function restore(
   name: number = 0,
   prompt: number = -1
 ): Promise<void> {
-  if (machine.state.version >= 5) {
+  const version = machine.state.version;
+
+  if (version >= 5 && operandTypes.length > 0) {
+    // Partial restore: read memory region from auxiliary file (no game state)
     const resultVar = machine.state.readByte();
     const shouldPrompt = prompt === -1 || prompt === 1;
-    const isPartial = operandTypes.length > 0;
-
-    if (isPartial) {
-      // Partial restore: read memory region from auxiliary file (no game state)
-      machine.logger.debug(`${getSafePcHex(machine)} restore (partial) table=${table} bytes=${bytes} name=${name}`);
-      try {
-        const bytesRead = await machine.restoreAuxiliary(table, bytes, name, shouldPrompt);
-        machine.state.storeVariable(resultVar, bytesRead);
-      } catch (error) {
-        machine.logger.error(`Failed to restore auxiliary data: ${error}`);
-        machine.state.storeVariable(resultVar, 0);
-      }
-    } else {
-      // Standard restore: full game state
-      machine.logger.debug(`${getSafePcHex(machine)} restore (standard)`);
-      try {
-        const success = await machine.restoreGame();
-        machine.state.storeVariable(resultVar, success ? 2 : 0);
-      } catch (error) {
-        machine.logger.error(`Failed to restore: ${error}`);
-        machine.state.storeVariable(resultVar, 0);
-      }
-    }
-  } else {
-    const [offset, branchOnFalse] = machine.state.readBranchOffset();
-    machine.logger.debug(`${getSafePcHex(machine)} restore -> [${!branchOnFalse}] ${offset}`);
-
+    machine.logger.debug(`${getSafePcHex(machine)} restore (partial) table=${table} bytes=${bytes} name=${name}`);
     try {
-      const restored = await machine.restoreGame();
-      machine.state.doBranch(restored, branchOnFalse, offset);
+      const bytesRead = await machine.restoreAuxiliary(table, bytes, name, shouldPrompt);
+      machine.state.storeVariable(resultVar, bytesRead);
     } catch (error) {
-      machine.logger.error(`Failed to restore game: ${error}`);
-      machine.state.doBranch(false, branchOnFalse, offset);
+      machine.logger.error(`Failed to restore auxiliary data: ${error}`);
+      machine.state.storeVariable(resultVar, 0);
     }
+    return;
+  }
+
+  // Full restore. This instruction's own store/branch is only used if the restore fails.
+  machine.logger.debug(`${getSafePcHex(machine)} restore (standard)`);
+  const resultVar = version >= 4 ? machine.state.readByte() : 0;
+  const branch = version >= 4 ? null : machine.state.readBranchOffset();
+
+  let restored = false;
+  try {
+    restored = await machine.restoreGame();
+  } catch (error) {
+    machine.logger.error(`Failed to restore game: ${error}`);
+  }
+
+  if (restored) {
+    // Execution is back at the saving instruction's store byte or branch data: complete it
+    // with 2 ("restored"), or a taken branch in V1-3
+    if (version >= 4) {
+      machine.state.storeVariable(machine.state.readByte(), 2);
+    } else {
+      const [offset, branchOnFalse] = machine.state.readBranchOffset();
+      machine.state.doBranch(true, branchOnFalse, offset);
+    }
+  } else if (branch) {
+    machine.state.doBranch(false, branch[1], branch[0]);
+  } else {
+    machine.state.storeVariable(resultVar, 0);
   }
 }
 
