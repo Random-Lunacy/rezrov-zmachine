@@ -1007,6 +1007,7 @@ describe('ZMachine', () => {
 
       expect(zmachine.memory.getByte(0x26)).toBe(14);
       expect(zmachine.memory.getByte(0x27)).toBe(7);
+      expect(zmachine.memory.getFontUnits()).toEqual({ width: 7, height: 14 });
     });
 
     it('should pick up new capabilities when the header is re-applied', () => {

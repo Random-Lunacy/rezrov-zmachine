@@ -175,9 +175,7 @@ describe('Multimedia Opcodes', () => {
 
     /** Report a square font of `size` screen units, as classic V6 games assume. */
     function givenFontSize(size: number): void {
-      machine.memory.getByte.mockImplementation((addr: number) =>
-        addr === HeaderLocation.FontHeightInUnits || addr === HeaderLocation.FontWidthInUnits ? size : 0
-      );
+      machine.memory.getFontUnits.mockReturnValue({ width: size, height: size });
     }
 
     beforeEach(() => {

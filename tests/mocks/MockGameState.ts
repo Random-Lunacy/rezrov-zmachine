@@ -11,6 +11,7 @@ export class MockGameState {
     getWord: vi.fn().mockReturnValue(0),
     setByte: vi.fn(),
     setWord: vi.fn(),
+    getFontUnits: vi.fn().mockReturnValue({ width: 0, height: 0 }),
     unpackRoutineAddress: vi.fn().mockImplementation((addr: number) => addr * 2),
     validateRoutineHeader: vi.fn().mockReturnValue(true),
   };

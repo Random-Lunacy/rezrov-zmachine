@@ -1336,13 +1336,10 @@ describe('InputInterface', () => {
             ? options.screen.height
             : 0
       );
-      m.state.memory.getByte.mockImplementation((addr: number) =>
-        addr === HeaderLocation.FontWidthInUnits
-          ? (options.font?.width ?? 1)
-          : addr === HeaderLocation.FontHeightInUnits
-            ? (options.font?.height ?? 1)
-            : 0
-      );
+      m.state.memory.getFontUnits.mockReturnValue({
+        width: options.font?.width ?? 1,
+        height: options.font?.height ?? 1,
+      });
       m.state.memory.setHeaderExtensionWord = vi.fn().mockImplementation((index: HeaderExtension, value: number) => {
         header.set(index, value);
         return true;

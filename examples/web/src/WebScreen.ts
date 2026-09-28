@@ -2,7 +2,6 @@ import {
   BaseScreen,
   Capabilities,
   Color,
-  HeaderLocation,
   ScreenSize,
   TextStyle,
   WindowProperty,
@@ -1574,7 +1573,7 @@ export class WebScreen extends BaseScreen {
     // upperCellCanvasSize). Done here instead of deferring to BaseScreen, which
     // would re-floor the same coordinates against the header font and undo it.
     if (this._useCanvasBackground && machine.state.version >= 6) {
-      this.headerFontHeight = machine.memory.getByte(HeaderLocation.FontHeightInUnits) || 8;
+      this.headerFontHeight = machine.memory.getFontUnits().height || 8;
       const cell = this.upperCellCanvasSize();
       const row = Math.floor((line - 1) / cell.height) + 1;
       const col = Math.floor((column - 1) / cell.width) + 1;

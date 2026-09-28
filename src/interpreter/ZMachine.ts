@@ -198,10 +198,7 @@ export class ZMachine {
       this._memory.setWord(HeaderLocation.ScreenWidthInUnits, units.width);
       this._memory.setWord(HeaderLocation.ScreenHeightInUnits, units.height);
 
-      // V6 swaps the font bytes: 0x26 holds the height and 0x27 the width (spec §11.1)
-      const [first, second] = version >= 6 ? [font.height, font.width] : [font.width, font.height];
-      this._memory.setByte(HeaderLocation.FontWidthInUnits, Math.min(255, first));
-      this._memory.setByte(HeaderLocation.FontHeightInUnits, Math.min(255, second));
+      this._memory.setFontUnits(font.width, font.height);
 
       // Write default colors to header (Z-machine spec section 8.3.2)
       const defaultFg = screenCapabilities.defaultForeground ?? Color.White;

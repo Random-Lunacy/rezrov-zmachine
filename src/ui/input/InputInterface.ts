@@ -439,10 +439,9 @@ export abstract class BaseInputProcessor implements InputProcessor {
 
     // Before V6 the game expects character cells, so divide by the header's font size
     if (machine.state.version !== 6) {
-      const fontWidth = memory.getByte(HeaderLocation.FontWidthInUnits) || 1;
-      const fontHeight = memory.getByte(HeaderLocation.FontHeightInUnits) || 1;
-      x = Math.floor((x - 1) / fontWidth) + 1;
-      y = Math.floor((y - 1) / fontHeight) + 1;
+      const font = memory.getFontUnits();
+      x = Math.floor((x - 1) / (font.width || 1)) + 1;
+      y = Math.floor((y - 1) / (font.height || 1)) + 1;
     }
 
     return { x, y };

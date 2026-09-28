@@ -624,9 +624,7 @@ describe('BaseScreen', () => {
   describe('V6 cursor and window coordinates', () => {
     /** Report a square font of `size` screen units via the header. */
     function givenFontSize(size: number): void {
-      machine.memory.getByte.mockImplementation((addr: number) =>
-        addr === HeaderLocation.FontHeightInUnits || addr === HeaderLocation.FontWidthInUnits ? size : 0
-      );
+      machine.memory.getFontUnits.mockReturnValue({ width: size, height: size });
     }
 
     beforeEach(() => {
@@ -641,6 +639,15 @@ describe('BaseScreen', () => {
 
       // charRow = floor((17-1)/8)+1 = 3, charCol = floor((9-1)/8)+1 = 2
       expect(screen.getCursorPosition(machine as any)).toEqual({ line: 3, column: 2 });
+    });
+
+    it('should use the font height for rows and the width for columns with a non-square cell', () => {
+      machine.memory.getFontUnits.mockReturnValue({ width: 6, height: 8 });
+
+      screen.setCursorPosition(machine as any, 17, 13, 1);
+
+      // charRow = floor((17-1)/8)+1 = 3, charCol = floor((13-1)/6)+1 = 3
+      expect(screen.getCursorPosition(machine as any)).toEqual({ line: 3, column: 3 });
     });
 
     it('should keep a pixel coordinate inside the same cell it falls in', () => {
