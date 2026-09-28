@@ -134,15 +134,17 @@ describe('WindowManager', () => {
       expect(window.dirty).toBe(true);
     });
 
-    it('should constrain window position to screen bounds', () => {
+    it('should constrain window position to screen bounds, shrinking the window to fit', () => {
       const windowId = windowManager.createWindow({ x: 0, y: 0, width: 20, height: 10 });
 
       // Try to move beyond screen bounds
       windowManager.moveWindow(windowId, 100, 30);
 
       const window = windowManager.getWindow(windowId)!;
-      expect(window.x).toBe(60); // 80 - 20 = 60
-      expect(window.y).toBe(15); // 25 - 10 = 15
+      expect(window.x).toBe(79); // screenWidth - 1
+      expect(window.y).toBe(24); // screenHeight - 1
+      expect(window.width).toBe(1);
+      expect(window.height).toBe(1);
     });
 
     /**
@@ -173,16 +175,32 @@ describe('WindowManager', () => {
       expect(window.y).toBe(24); // screenHeight - 1
     });
 
-    it('should keep the size-aware bound for a window smaller than the screen', () => {
-      // Regression guard: the dim-1 fallback must not let a smaller window slide
-      // off the right/bottom edge.
+    it('should keep a window on screen by shrinking it rather than moving it', () => {
       const windowId = windowManager.createWindow({ x: 0, y: 0, width: 20, height: 10 });
 
-      windowManager.moveWindow(windowId, 79, 24);
+      windowManager.moveWindow(windowId, 70, 20);
 
       const window = windowManager.getWindow(windowId)!;
-      expect(window.x).toBe(60); // 80 - 20, not 79
-      expect(window.y).toBe(15); // 25 - 10, not 24
+      expect(window.x).toBe(70);
+      expect(window.y).toBe(20);
+      expect(window.width).toBe(10); // 80 - 70
+      expect(window.height).toBe(5); // 25 - 20
+    });
+
+    it('should honour a move made before the resize that makes it fit (Zork Zero Tower of Bozbar)', () => {
+      // SPLIT-BY-PICTURE moves window 0 from its normal 234x161 box at y=40 to y=120, then
+      // resizes it to 81 high. Bounding the move by the old 161px height pinned it at y=40.
+      windowManager.setScreenSize(320, 200);
+      windowManager.moveWindow(0, 43, 39);
+      windowManager.resizeWindow(0, 234, 161);
+
+      windowManager.moveWindow(0, 13, 119);
+      windowManager.resizeWindow(0, 294, 81);
+
+      expect(windowManager.getWindowProperty(0, WindowProperty.YCoordinate)).toBe(120);
+      expect(windowManager.getWindowProperty(0, WindowProperty.XCoordinate)).toBe(14);
+      expect(windowManager.getWindowProperty(0, WindowProperty.YSize)).toBe(81);
+      expect(windowManager.getWindowProperty(0, WindowProperty.XSize)).toBe(294);
     });
 
     it('should resize a window', () => {

@@ -295,15 +295,15 @@ export class WindowManager {
     const oldX = window.x;
     const oldY = window.y;
 
-    // When a window fills the full screen dimension (e.g. V6 window-0 before resize_window is
-    // called), subtracting window.dim from screenDim yields 0, clamping any non-zero position
-    // to 0.  Use dim-1 as the fallback upper bound so move_window can reposition the window
-    // before the resize arrives.  For smaller windows the size-aware bound is kept so the
-    // window cannot be moved off the right/bottom edge.
-    const maxX = window.width < this.screenWidth ? this.screenWidth - window.width : this.screenWidth - 1;
-    const maxY = window.height < this.screenHeight ? this.screenHeight - window.height : this.screenHeight - 1;
-    window.x = Math.max(0, Math.min(x, maxX));
-    window.y = Math.max(0, Math.min(y, maxY));
+    // Honour the requested position, kept on screen, and shrink the window to fit from there.
+    // The position must not be limited by the window's current size: V6 games move a window
+    // before resizing it (move_window, then window_size), so the size is still the old one.
+    // Zork Zero's Tower of Bozbar moves a 161px-high window 0 to y=120; bounding the position by
+    // that height pinned it at y=40, over the tower. Frotz does not clamp move_window at all.
+    window.x = Math.max(0, Math.min(x, this.screenWidth - 1));
+    window.y = Math.max(0, Math.min(y, this.screenHeight - 1));
+    window.width = Math.max(1, Math.min(window.width, this.screenWidth - window.x));
+    window.height = Math.min(window.height, this.screenHeight - window.y);
     window.dirty = true;
 
     this.emitEvent(WindowEventType.MOVED, windowId, {
