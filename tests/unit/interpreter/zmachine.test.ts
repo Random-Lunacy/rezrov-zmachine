@@ -884,6 +884,144 @@ describe('ZMachine', () => {
     });
   });
 
+  describe('Header rules on restore, undo and restart (spec §6.1)', () => {
+    const capabilities = {
+      hasColors: true,
+      hasBold: true,
+      hasItalic: true,
+      hasReverseVideo: true,
+      hasFixedPitch: true,
+      hasSplitWindow: true,
+      hasDisplayStatusBar: true,
+      hasPictures: true,
+      hasSound: true,
+      hasTimedKeyboardInput: true,
+    };
+    const TRANSCRIBING = 0x01;
+
+    beforeEach(() => {
+      storyBuffer[0] = 5;
+      storyBuffer.writeUInt16BE(0x78, HeaderLocation.Flags2); // Zork Zero's value; no mouse here, so 0x58 at load
+      vi.spyOn(screen, 'getCapabilities').mockReturnValue(capabilities);
+    });
+
+    it('should keep the current Flags 2 and rewrite interpreter fields after a restore', async () => {
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+      zmachine.memory.setWord(HeaderLocation.Flags2, 0x58 | TRANSCRIBING);
+
+      // A save written by another interpreter, with its own header values
+      const saved = Buffer.from(zmachine.memory.buffer);
+      saved.writeUInt16BE(0x78, HeaderLocation.Flags2);
+      saved[HeaderLocation.InterpreterNumber] = 6;
+      saved.writeUInt16BE(999, HeaderLocation.ScreenWidthInUnits);
+      vi.spyOn(zmachine.storage, 'loadSnapshot').mockResolvedValue({
+        memory: saved,
+        pc: 0x1000,
+        stack: [],
+        callFrames: [],
+        originalStory: Buffer.from(storyBuffer),
+      });
+
+      expect(await zmachine.restoreGame()).toBe(true);
+
+      expect(zmachine.memory.getWord(HeaderLocation.Flags2)).toBe(0x58 | TRANSCRIBING);
+      expect(zmachine.memory.getByte(HeaderLocation.InterpreterNumber)).toBe(4);
+      expect(zmachine.memory.getWord(HeaderLocation.ScreenWidthInUnits)).toBe(80);
+    });
+
+    it('should keep the current Flags 2 and rewrite interpreter fields after an undo', () => {
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+      zmachine.memory.setByte(HeaderLocation.InterpreterNumber, 99);
+      zmachine.saveUndo();
+
+      zmachine.memory.setWord(HeaderLocation.Flags2, 0x58 | TRANSCRIBING);
+      expect(zmachine.restoreUndo()).toBe(true);
+
+      expect(zmachine.memory.getWord(HeaderLocation.Flags2)).toBe(0x58 | TRANSCRIBING);
+      expect(zmachine.memory.getByte(HeaderLocation.InterpreterNumber)).toBe(4);
+    });
+
+    it('should keep the current Flags 2 across a restart', () => {
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+      zmachine.memory.setWord(HeaderLocation.Flags2, 0x58 | TRANSCRIBING);
+
+      zmachine.restart();
+
+      expect(zmachine.memory.getWord(HeaderLocation.Flags2)).toBe(0x58 | TRANSCRIBING);
+    });
+  });
+
+  describe('Screen and font units', () => {
+    const capabilities = {
+      hasColors: true,
+      hasBold: true,
+      hasItalic: true,
+      hasReverseVideo: true,
+      hasFixedPitch: true,
+      hasSplitWindow: true,
+      hasDisplayStatusBar: true,
+      hasPictures: true,
+      hasSound: true,
+      hasTimedKeyboardInput: true,
+    };
+
+    it('should default to one unit per character in V5', () => {
+      storyBuffer[0] = 5;
+      vi.spyOn(screen, 'getCapabilities').mockReturnValue(capabilities);
+
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+
+      expect(zmachine.memory.getWord(HeaderLocation.ScreenWidthInUnits)).toBe(80);
+      expect(zmachine.memory.getWord(HeaderLocation.ScreenHeightInUnits)).toBe(25);
+      expect(zmachine.memory.getByte(HeaderLocation.FontWidthInUnits)).toBe(1);
+      expect(zmachine.memory.getByte(HeaderLocation.FontHeightInUnits)).toBe(1);
+    });
+
+    it('should write the screen and font units the screen reports in V5', () => {
+      storyBuffer[0] = 5;
+      vi.spyOn(screen, 'getCapabilities').mockReturnValue({
+        ...capabilities,
+        screenUnits: { width: 640, height: 200 },
+        fontUnits: { width: 8, height: 16 },
+      });
+
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+
+      expect(zmachine.memory.getWord(HeaderLocation.ScreenWidthInUnits)).toBe(640);
+      expect(zmachine.memory.getWord(HeaderLocation.ScreenHeightInUnits)).toBe(200);
+      expect(zmachine.memory.getByte(0x26)).toBe(8); // V5: width
+      expect(zmachine.memory.getByte(0x27)).toBe(16); // V5: height
+    });
+
+    it('should swap the font bytes in V6 (0x26 height, 0x27 width)', () => {
+      storyBuffer[0] = 6;
+      storyBuffer.writeUInt16BE(0x0100, HeaderLocation.RoutinesOffset);
+      storyBuffer.writeUInt16BE(0x0100, HeaderLocation.StaticStringsOffset);
+      vi.spyOn(screen, 'getCapabilities').mockReturnValue({
+        ...capabilities,
+        screenUnits: { width: 320, height: 200 },
+        fontUnits: { width: 7, height: 14 },
+      });
+
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+
+      expect(zmachine.memory.getByte(0x26)).toBe(14);
+      expect(zmachine.memory.getByte(0x27)).toBe(7);
+    });
+
+    it('should pick up new capabilities when the header is re-applied', () => {
+      storyBuffer[0] = 5;
+      const getCapabilities = vi.spyOn(screen, 'getCapabilities').mockReturnValue(capabilities);
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+
+      getCapabilities.mockReturnValue({ ...capabilities, screenUnits: { width: 100, height: 30 } });
+      zmachine.applyInterpreterHeader();
+
+      expect(zmachine.memory.getWord(HeaderLocation.ScreenWidthInUnits)).toBe(100);
+      expect(zmachine.memory.getWord(HeaderLocation.ScreenHeightInUnits)).toBe(30);
+    });
+  });
+
   describe('Mouse window', () => {
     it('should default to window 1 and return to it on restart', () => {
       const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });

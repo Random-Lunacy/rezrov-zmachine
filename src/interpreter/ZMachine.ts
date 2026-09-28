@@ -85,7 +85,7 @@ export class ZMachine {
     this._executor = new Executor(this);
 
     // Configure screen capabilities
-    this.configureScreenCapabilities();
+    this.applyInterpreterHeader();
 
     // Initialize UserStackManager for Version 6
     if (this._state.version === 6) {
@@ -168,9 +168,11 @@ export class ZMachine {
   }
 
   /**
-   * Configure screen capabilities based on the Z-Machine version
+   * Write the header fields the interpreter owns (marked "Rst" in spec §11) from the screen's
+   * current capabilities. Runs on load, restart, restore and undo (spec §6.1.2.2, §6.1.3).
+   * Platforms call it again whenever those capabilities change, e.g. after a resize.
    */
-  private configureScreenCapabilities(): void {
+  applyInterpreterHeader(): void {
     const { rows, cols } = this._screen.getSize();
     const version = this._state.version;
 
@@ -188,16 +190,18 @@ export class ZMachine {
     this._memory.setByte(HeaderLocation.ScreenHeightInLines, rows);
     this._memory.setByte(HeaderLocation.ScreenWidthInChars, cols);
 
-    // For V5+, also set screen dimensions in units and font size
-    // In text mode, 1 unit = 1 character, so units = chars
+    // For V5+, also set screen dimensions in units and font size.
+    // Unless the screen says otherwise, 1 unit = 1 character (text mode).
     if (version >= 5) {
-      // Screen dimensions in units (for text mode, 1 unit = 1 character)
-      this._memory.setWord(HeaderLocation.ScreenWidthInUnits, cols);
-      this._memory.setWord(HeaderLocation.ScreenHeightInUnits, rows);
+      const units = screenCapabilities.screenUnits ?? { width: cols, height: rows };
+      const font = screenCapabilities.fontUnits ?? { width: 1, height: 1 };
+      this._memory.setWord(HeaderLocation.ScreenWidthInUnits, units.width);
+      this._memory.setWord(HeaderLocation.ScreenHeightInUnits, units.height);
 
-      // Font size in units - for text mode terminals, each character is 1x1 unit
-      this._memory.setByte(HeaderLocation.FontWidthInUnits, 1);
-      this._memory.setByte(HeaderLocation.FontHeightInUnits, 1);
+      // V6 swaps the font bytes: 0x26 holds the height and 0x27 the width (spec §11.1)
+      const [first, second] = version >= 6 ? [font.height, font.width] : [font.width, font.height];
+      this._memory.setByte(HeaderLocation.FontWidthInUnits, Math.min(255, first));
+      this._memory.setByte(HeaderLocation.FontHeightInUnits, Math.min(255, second));
 
       // Write default colors to header (Z-machine spec section 8.3.2)
       const defaultFg = screenCapabilities.defaultForeground ?? Color.White;
@@ -541,8 +545,15 @@ export class ZMachine {
     };
   }
 
+  /**
+   * Restore a saved or undo state. Flags 2 keeps its current value rather than the saved one,
+   * and the interpreter's header fields are rewritten (spec §6.1.2, §6.1.2.2).
+   */
   private setState(state: ZMachineState): void {
+    const flags2 = this._memory.getWord(HeaderLocation.Flags2);
     this._state.restoreFromSnapshot(state);
+    this._memory.setWord(HeaderLocation.Flags2, flags2);
+    this.applyInterpreterHeader();
   }
 
   /**
@@ -630,16 +641,17 @@ export class ZMachine {
     this._state.stack.length = 0;
     this._state.callstack.length = 0;
 
-    // Restore ALL dynamic memory from the original story file
-    // This includes the header, which will be re-initialized below
+    // Restore ALL dynamic memory from the original story file, except that Flags 2
+    // keeps its current value (spec §6.1.3): it records transcripting and fixed-pitch state.
+    const flags2 = this._memory.getWord(HeaderLocation.Flags2);
     const dynamicMemoryEnd = this._memory.dynamicMemoryEnd;
     for (let i = 0; i < dynamicMemoryEnd; i++) {
       this._memory.buffer[i] = this._originalStory[i];
     }
+    this._memory.setWord(HeaderLocation.Flags2, flags2);
 
-    // Re-configure screen capabilities (this sets interpreter-specific header fields)
-    // This must be done after restoring memory to ensure header is properly initialized
-    this.configureScreenCapabilities();
+    // Rewrite the interpreter's header fields, which the copy above overwrote
+    this.applyInterpreterHeader();
 
     // Reset execution start: V6-7 call main routine; V1-5 jump to initial PC
     if (this._state.version >= 6) {

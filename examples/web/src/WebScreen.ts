@@ -539,6 +539,8 @@ export class WebScreen extends BaseScreen {
   private onQuitCallback?: () => void;
   /** When true the picture canvas provides backgrounds; HTML element BG colors are cleared. */
   private _useCanvasBackground: boolean = false;
+  /** V6 header font cell; fixed across resizes, re-measured on a font size change. */
+  private v6FontUnits: { width: number; height: number } | null = null;
 
   /**
    * Widest width (canvas pixels) ever assigned to window 0 via resize_window.
@@ -1234,6 +1236,36 @@ export class WebScreen extends BaseScreen {
       hasPictures: true,
       hasSound: true,
       hasTimedKeyboardInput: true,
+      ...this.getHeaderMetrics(),
+    };
+  }
+
+  /**
+   * Screen and font size in header units. The interpreter rewrites these into the header on
+   * load, restart, restore and undo, so they must describe the screen as the game sees it.
+   */
+  private getHeaderMetrics(): Pick<Capabilities, 'screenUnits' | 'fontUnits'> {
+    const { rows, cols } = this.getSize();
+
+    if (this._useCanvasBackground && this.pictureCanvas.width > 0) {
+      // V6: units are canvas pixels. The font cell is canvas height / rows, square because
+      // classic Infocom V6 games (e.g. Zork Zero at 320x200) assume an 8x8 grid, so set_cursor
+      // pixel coordinates convert to cells correctly in BaseScreen.setCursorPosition(). It is
+      // kept across window resizes and only re-measured when the font size changes.
+      if (!this.v6FontUnits) {
+        const size = rows > 0 ? Math.max(1, Math.round(this.pictureCanvas.height / rows)) : 1;
+        this.v6FontUnits = { width: size, height: size };
+      }
+      return {
+        screenUnits: { width: this.pictureCanvas.width, height: this.pictureCanvas.height },
+        fontUnits: this.v6FontUnits,
+      };
+    }
+
+    // V5: units are character cells, font size in CSS pixels
+    return {
+      screenUnits: { width: cols, height: rows },
+      fontUnits: { width: Math.round(this.cellWidth), height: Math.round(this.cellHeight) },
     };
   }
 
@@ -1889,6 +1921,7 @@ export class WebScreen extends BaseScreen {
     // Clear bitmap cache and cached cell dims since font size changed
     this.font3BitmapCache.clear();
     this.statusBarCellDims = null;
+    this.v6FontUnits = null; // Re-measured from the new row count on the next header write
     return { width, height };
   }
 }
