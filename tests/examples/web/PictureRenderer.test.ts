@@ -89,17 +89,17 @@ describe('PictureRenderer', () => {
       const renderer = new PictureRenderer(canvas);
       await renderer.displayPicture(7, new ArrayBuffer(8), 'PNG', 10, 25, 100);
 
-      renderer.erasePicture(7, '#123456');
+      await renderer.erasePicture(7, '#123456');
 
       expect(ctx.fillStyle).toBe('#123456');
       expect(ctx.fillRect).toHaveBeenCalledWith(9, 24, 40, 20);
     });
 
-    it('should do nothing for a picture that was never displayed', () => {
+    it('should do nothing for a picture that was never displayed', async () => {
       const { canvas, ctx } = makeCanvas();
       const renderer = new PictureRenderer(canvas);
 
-      renderer.erasePicture(99);
+      await renderer.erasePicture(99);
 
       expect(ctx.fillRect).not.toHaveBeenCalled();
     });
@@ -109,8 +109,8 @@ describe('PictureRenderer', () => {
       const renderer = new PictureRenderer(canvas);
       await renderer.displayPicture(7, new ArrayBuffer(8), 'PNG', 10, 25, 100);
 
-      renderer.erasePicture(7);
-      renderer.erasePicture(7);
+      void renderer.erasePicture(7);
+      await renderer.erasePicture(7);
 
       expect(ctx.fillRect).toHaveBeenCalledTimes(1);
     });
@@ -122,11 +122,77 @@ describe('PictureRenderer', () => {
       const renderer = new PictureRenderer(canvas);
       await renderer.displayPicture(7, new ArrayBuffer(8), 'PNG', 10, 25, 100);
 
-      renderer.clear('#0a0a0a');
-      renderer.erasePicture(7);
+      void renderer.clear('#0a0a0a');
+      await renderer.erasePicture(7);
 
       expect(ctx.fillRect).toHaveBeenCalledTimes(1);
       expect(ctx.fillRect).toHaveBeenCalledWith(0, 0, 320, 200);
+    });
+  });
+
+  describe('ordering', () => {
+    /** Decodes that finish only when the test says so, in whatever order it chooses. */
+    function controlledDecodes(): Array<(size: { width: number; height: number }) => void> {
+      const resolvers: Array<(size: { width: number; height: number }) => void> = [];
+      vi.stubGlobal(
+        'createImageBitmap',
+        vi.fn(() => new Promise((resolve) => resolvers.push(resolve)))
+      );
+      return resolvers;
+    }
+
+    it('should draw pictures in the order requested, even when a later one decodes first', async () => {
+      // Zork Zero's tower: the full-screen border is requested first but decodes last
+      const decodes = controlledDecodes();
+      const { canvas, ctx } = makeCanvas();
+      const renderer = new PictureRenderer(canvas);
+
+      const border = renderer.displayPicture(41, new ArrayBuffer(8), 'PNG', 1, 1, 100);
+      const weight = renderer.displayPicture(43, new ArrayBuffer(8), 'PNG', 27, 41, 100);
+      decodes[1]({ width: 87, height: 11 }); // The weight finishes decoding first
+      await Promise.resolve();
+      expect(ctx.drawImage).not.toHaveBeenCalled(); // ...but waits for the border
+
+      decodes[0]({ width: 320, height: 200 });
+      await Promise.all([border, weight]);
+
+      expect(ctx.drawImage.mock.calls.map((c) => c.slice(1))).toEqual([
+        [0, 0, 320, 200],
+        [26, 40, 87, 11],
+      ]);
+    });
+
+    it('should hold an erase or fill until the pictures requested before it are drawn', async () => {
+      const decodes = controlledDecodes();
+      const { canvas, ctx } = makeCanvas();
+      const renderer = new PictureRenderer(canvas);
+      const order: string[] = [];
+      ctx.drawImage.mockImplementation(() => order.push('draw'));
+      ctx.fillRect.mockImplementation(() => order.push('fill'));
+
+      const draw = renderer.displayPicture(7, new ArrayBuffer(8), 'PNG', 1, 1, 100);
+      const fill = renderer.fill('#ffffff', { x: 0, y: 119, width: 320, height: 81 });
+      const erase = renderer.erasePicture(7);
+      decodes[0]({ width: 40, height: 20 });
+      await Promise.all([draw, fill, erase]);
+
+      expect(order).toEqual(['draw', 'fill', 'fill']);
+      expect(ctx.fillRect).toHaveBeenNthCalledWith(1, 0, 119, 320, 81);
+      expect(ctx.fillRect).toHaveBeenNthCalledWith(2, 0, 0, 40, 20);
+    });
+
+    it('should keep going after a picture fails to decode', async () => {
+      const { canvas, ctx } = makeCanvas();
+      const renderer = new PictureRenderer(canvas);
+      vi.stubGlobal(
+        'createImageBitmap',
+        vi.fn().mockRejectedValueOnce(new Error('bad PNG')).mockResolvedValue({ width: 40, height: 20 })
+      );
+
+      await expect(renderer.displayPicture(1, new ArrayBuffer(8), 'PNG', 1, 1, 100)).rejects.toThrow('bad PNG');
+      await renderer.displayPicture(2, new ArrayBuffer(8), 'PNG', 1, 1, 100);
+
+      expect(ctx.drawImage).toHaveBeenCalledTimes(1);
     });
   });
 

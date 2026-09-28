@@ -97,6 +97,7 @@ function setupGame(
 
   // PictureRenderer uses direct pixel coordinates; no cell dimensions needed.
   const pictureRenderer = new PictureRenderer(pictureCanvas);
+  screen.setPictureRenderer(pictureRenderer);
   const soundPlayer = new SoundPlayer();
 
   let multimediaHandler: BlorbMultimediaHandler | undefined;

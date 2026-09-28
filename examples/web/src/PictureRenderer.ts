@@ -10,6 +10,13 @@ export class PictureRenderer {
   private readonly canvas: HTMLCanvasElement;
   private readonly ctx: CanvasRenderingContext2D;
   private readonly displayedPictures: Map<number, { x: number; y: number; width: number; height: number }> = new Map();
+  /**
+   * Canvas operations run one at a time, in the order the game issued them. Pictures decode
+   * asynchronously, and drawing each one as soon as it decoded let a slow full-screen picture
+   * land on top of smaller ones requested after it: Zork Zero's Tower of Bozbar border covered
+   * the weights. Erases and fills must wait their turn too, or a pending draw undoes them.
+   */
+  private queue: Promise<void> = Promise.resolve();
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -25,7 +32,7 @@ export class PictureRenderer {
    * x is horizontal position (1-based pixel column from window left).
    * y is vertical position (1-based pixel row from window top).
    */
-  async displayPicture(
+  displayPicture(
     resourceId: number,
     data: ArrayBuffer | Buffer,
     format: string,
@@ -38,40 +45,69 @@ export class PictureRenderer {
       type: format === 'PNG' ? 'image/png' : 'image/jpeg',
     });
 
-    const bitmap = await createImageBitmap(blob);
+    // Start decoding now, alongside any pictures still in the queue; only the drawing waits
+    const decoded = createImageBitmap(blob);
+    decoded.catch(() => undefined); // Reported when the queued draw awaits it
 
-    const scaleFactor = scale / 100;
-    const width = Math.round(bitmap.width * scaleFactor);
-    const height = Math.round(bitmap.height * scaleFactor);
+    return this.enqueue(async (ctx) => {
+      const bitmap = await decoded;
 
-    // V6: x (column/horizontal) and y (row/vertical) are 1-based pixel coordinates.
-    // Subtract 1 to convert to 0-based canvas coordinates.
-    const pixelX = x - 1;
-    const pixelY = y - 1;
+      const scaleFactor = scale / 100;
+      const width = Math.round(bitmap.width * scaleFactor);
+      const height = Math.round(bitmap.height * scaleFactor);
 
-    this.ctx.drawImage(bitmap, pixelX, pixelY, width, height);
-    this.displayedPictures.set(resourceId, { x: pixelX, y: pixelY, width, height });
+      // V6: x (column/horizontal) and y (row/vertical) are 1-based pixel coordinates.
+      // Subtract 1 to convert to 0-based canvas coordinates.
+      const pixelX = x - 1;
+      const pixelY = y - 1;
+
+      ctx.drawImage(bitmap, pixelX, pixelY, width, height);
+      this.displayedPictures.set(resourceId, { x: pixelX, y: pixelY, width, height });
+    });
   }
 
   /**
    * Erase a displayed picture by clearing its region.
    */
-  erasePicture(resourceId: number, clearColor: string = '#0a0a0a'): void {
-    const info = this.displayedPictures.get(resourceId);
-    if (info) {
-      this.ctx.fillStyle = clearColor;
-      this.ctx.fillRect(info.x, info.y, info.width, info.height);
-      this.displayedPictures.delete(resourceId);
-    }
+  erasePicture(resourceId: number, clearColor: string = '#0a0a0a'): Promise<void> {
+    return this.enqueue((ctx) => {
+      const info = this.displayedPictures.get(resourceId);
+      if (info) {
+        ctx.fillStyle = clearColor;
+        ctx.fillRect(info.x, info.y, info.width, info.height);
+        this.displayedPictures.delete(resourceId);
+      }
+    });
   }
 
   /**
    * Clear the entire canvas.
    */
-  clear(clearColor: string = '#0a0a0a'): void {
-    this.ctx.fillStyle = clearColor;
-    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-    this.displayedPictures.clear();
+  clear(clearColor: string = '#0a0a0a'): Promise<void> {
+    return this.enqueue((ctx) => {
+      ctx.fillStyle = clearColor;
+      ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+      this.displayedPictures.clear();
+    });
+  }
+
+  /**
+   * Fill a canvas-pixel rectangle (the whole canvas if omitted) with a colour, in turn with
+   * the pictures. Pictures inside the area stay tracked, as before, so a later erase still works.
+   */
+  fill(color: string, rect?: { x: number; y: number; width: number; height: number }): Promise<void> {
+    return this.enqueue((ctx) => {
+      ctx.fillStyle = color;
+      const r = rect ?? { x: 0, y: 0, width: this.canvas.width, height: this.canvas.height };
+      ctx.fillRect(r.x, r.y, r.width, r.height);
+    });
+  }
+
+  /** Run a canvas operation after every one queued before it; a failure doesn't stop the rest. */
+  private enqueue(op: (ctx: CanvasRenderingContext2D) => void | Promise<void>): Promise<void> {
+    const run = this.queue.then(() => op(this.ctx));
+    this.queue = run.catch(() => undefined);
+    return run;
   }
 
   /**

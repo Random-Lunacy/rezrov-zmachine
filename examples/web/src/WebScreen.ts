@@ -8,6 +8,7 @@ import {
   ZMachine,
   translateFont3Text,
 } from 'rezrov-zmachine';
+import type { PictureRenderer } from './PictureRenderer';
 
 /**
  * Render a Font 3 character directly at the target cell size using Canvas 2D drawing.
@@ -538,6 +539,8 @@ export class WebScreen extends BaseScreen {
   private onQuitCallback?: () => void;
   /** When true the picture canvas provides backgrounds; HTML element BG colors are cleared. */
   private _useCanvasBackground: boolean = false;
+  /** Draws on the picture canvas; set by main.ts so fills queue behind pending pictures. */
+  private pictureRenderer: PictureRenderer | null = null;
   /** V6 header text grid and font cell; fixed across resizes, re-measured on a font size change. */
   private v6HeaderGrid: { chars: ScreenSize; font: { width: number; height: number } } | null = null;
 
@@ -549,6 +552,10 @@ export class WebScreen extends BaseScreen {
    * text-flow boundary (confirmed against the sfrotz reference: the narrow
    * value, if honored, renders body text into a thin column with a large
    * empty gap before the right pillar). -1 = not yet set.
+   *
+   * A move_window of window 0 starts a new layout and resets it: Zork Zero lays out with
+   * move-then-resize (SPLIT-BY-PICTURE), and its Tower of Bozbar widens window 0 to 294px, so
+   * without the reset the normal 234px column that follows would be forced back to 294.
    */
   private _window0MaxWidthPx: number = -1;
 
@@ -922,11 +929,29 @@ export class WebScreen extends BaseScreen {
    * Fill the entire picture canvas with a solid color.
    * Used to initialize the V6 canvas background and on erase_window calls.
    */
-  private fillCanvasWithColor(color: string): void {
+  /**
+   * Draw canvas fills through the picture renderer, so they happen in order with the pictures
+   * the game asked for before them instead of being overtaken by a draw still decoding.
+   */
+  setPictureRenderer(renderer: PictureRenderer): void {
+    this.pictureRenderer = renderer;
+  }
+
+  /** Fill a canvas-pixel rectangle (the whole canvas if omitted) with a colour. */
+  private fillCanvas(color: string, rect?: { x: number; y: number; width: number; height: number }): void {
+    if (this.pictureRenderer) {
+      void this.pictureRenderer.fill(color, rect);
+      return;
+    }
     const ctx = this.pictureCanvas.getContext('2d');
     if (!ctx) return;
+    const r = rect ?? { x: 0, y: 0, width: this.pictureCanvas.width, height: this.pictureCanvas.height };
     ctx.fillStyle = color;
-    ctx.fillRect(0, 0, this.pictureCanvas.width, this.pictureCanvas.height);
+    ctx.fillRect(r.x, r.y, r.width, r.height);
+  }
+
+  private fillCanvasWithColor(color: string): void {
+    this.fillCanvas(color);
   }
 
   /**
@@ -1668,6 +1693,7 @@ export class WebScreen extends BaseScreen {
     super.moveWindow(machine, windowId, y, x);
     if (!this._useCanvasBackground) return;
     if (windowId === 0) {
+      this._window0MaxWidthPx = -1; // A new layout: see _window0MaxWidthPx
       const mainContent = this.mainEl.parentElement as HTMLElement | null;
       if (mainContent) this.applyWindowFrame(mainContent, 0, true);
       this.v6debug(`[move_window] window=0 y=${y} x=${x}`);
@@ -1828,23 +1854,19 @@ export class WebScreen extends BaseScreen {
     // canvas reflects the game's intended background (typically white for V6).
     if (this._useCanvasBackground) {
       const bgColor = this.getCanvasBgColor();
-      const ctx = this.pictureCanvas.getContext('2d');
-      if (ctx) {
-        if (windowId === -1 || windowId === -2) {
-          // Full screen clear: fill entire canvas
-          this.fillCanvasWithColor(bgColor);
-        } else if (windowId === 0) {
-          // Lower window clear: fill only the lower window area so header pictures persist.
-          // In V6 canvas mode, split_window uses pixel units, so upperWindowHeight is already
-          // the canvas-pixel Y where the lower window begins — use it directly.
-          ctx.fillStyle = bgColor;
-          ctx.fillRect(
-            0,
-            this.upperWindowHeight,
-            this.pictureCanvas.width,
-            this.pictureCanvas.height - this.upperWindowHeight
-          );
-        }
+      if (windowId === -1 || windowId === -2) {
+        // Full screen clear: fill entire canvas
+        this.fillCanvasWithColor(bgColor);
+      } else if (windowId === 0) {
+        // Clear only window 0's own box (spec §15 erase_window), wherever move_window/window_size put
+        // it, so pictures in the other windows survive. Zork Zero never calls split_window, and
+        // its Tower of Bozbar clears window 0 after every move with the tower drawn above it.
+        this.fillCanvas(bgColor, {
+          x: this.windowManager.getWindowProperty(0, WindowProperty.XCoordinate) - 1,
+          y: this.windowManager.getWindowProperty(0, WindowProperty.YCoordinate) - 1,
+          width: this.windowManager.getWindowProperty(0, WindowProperty.XSize),
+          height: this.windowManager.getWindowProperty(0, WindowProperty.YSize),
+        });
       }
     }
 
