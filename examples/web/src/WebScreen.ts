@@ -539,6 +539,13 @@ export class WebScreen extends BaseScreen {
   private onQuitCallback?: () => void;
   /** When true the picture canvas provides backgrounds; HTML element BG colors are cleared. */
   private _useCanvasBackground: boolean = false;
+  /**
+   * Cell size (CSS px) the upper window was last rendered with. Clicks are mapped with this,
+   * not a fresh measurement: after a font size change the rendered rows keep their old size
+   * until the game next writes there (#351), and mapping with the new size put a click on
+   * Beyond Zork's map one row low.
+   */
+  private upperRenderedCell: { width: number; height: number } | null = null;
   /** Draws on the picture canvas; set by main.ts so fills queue behind pending pictures. */
   private pictureRenderer: PictureRenderer | null = null;
   /** V6 header text grid and font cell; fixed across resizes, re-measured on a font size change. */
@@ -712,6 +719,23 @@ export class WebScreen extends BaseScreen {
     const waiters = this.pagerWaiters;
     this.pagerWaiters = [];
     for (const resolve of waiters) resolve();
+  }
+
+  /**
+   * What the upper window shows at a 1-based character cell, for the ?mousedebug trace:
+   * the character code, and whether it is a Font 3 (character graphics) glyph.
+   */
+  describeUpperCell(y: number, x: number): string {
+    const line = this.upperWindowBuffer[y - 1];
+    if (line === undefined || x < 1 || x > line.length) return 'outside the upper window';
+    const code = line.charCodeAt(x - 1);
+    const font3 = this.upperWindowFontBuffer[y - 1]?.[x - 1] ? ' (font 3)' : '';
+    return `char ${code} '${line[x - 1]}'${font3}`;
+  }
+
+  /** True while the [MORE] prompt is waiting for the player to page on. */
+  isPaging(): boolean {
+    return this.pagerKeyHandler !== null;
   }
 
   /** Show the [MORE] prompt and listen for the keypress/click that dismisses it. */
@@ -1260,6 +1284,7 @@ export class WebScreen extends BaseScreen {
       hasPictures: true,
       hasSound: true,
       hasTimedKeyboardInput: true,
+      hasMouse: true,
       ...this.getHeaderMetrics(),
     };
   }
@@ -1289,11 +1314,34 @@ export class WebScreen extends BaseScreen {
       };
     }
 
-    // V5: units are character cells, font size in CSS pixels
-    const { rows, cols } = this.getSize();
+    // Text mode: the interpreter's defaults (1 unit per character, 1x1 font) describe this screen.
+    // Reporting the font in CSS pixels would mix units: Beyond Zork divides the screen size by it.
+    return {};
+  }
+
+  /**
+   * Convert a browser click into 1-based screen units, matching how the header describes the
+   * screen: canvas pixels in V6 canvas mode, otherwise character cells on the upper window's
+   * grid (the only window V5 games take clicks in). Returns null before the page is laid out.
+   */
+  clientToScreenUnits(clientX: number, clientY: number): { x: number; y: number } | null {
+    if (this._useCanvasBackground) {
+      const rect = this.pictureCanvas.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) return null;
+      return {
+        x: Math.floor(((clientX - rect.left) * this.pictureCanvas.width) / rect.width) + 1,
+        y: Math.floor(((clientY - rect.top) * this.pictureCanvas.height) / rect.height) + 1,
+      };
+    }
+
+    // The cell size the upper window is currently drawn with (see upperRenderedCell)
+    const rect = this.statusEl.getBoundingClientRect();
+    const colWidth = this.upperRenderedCell?.width ?? (this.statusEl.clientWidth || rect.width) / this.getSize().cols;
+    const rowHeight = this.upperRenderedCell?.height ?? this.measureStatusBarCell().height;
+    if (!(colWidth > 0) || !(rowHeight > 0)) return null;
     return {
-      screenUnits: { width: cols, height: rows },
-      fontUnits: { width: Math.round(this.cellWidth), height: Math.round(this.cellHeight) },
+      x: Math.floor((clientX - rect.left) / colWidth) + 1,
+      y: Math.floor((clientY - rect.top) / rowHeight) + 1,
     };
   }
 
@@ -1403,6 +1451,7 @@ export class WebScreen extends BaseScreen {
     // apart from the positions set_cursor mapped them to. Elsewhere the measured
     // line box is still the right answer.
     const imgH = this._useCanvasBackground ? this.headerFontHeight * this.getCanvasScale() : cell.height;
+    this.upperRenderedCell = { width: imgW, height: imgH };
     const fontSize = parseFloat(getComputedStyle(this.statusEl).fontSize) || 16;
     const lines: string[] = [];
 

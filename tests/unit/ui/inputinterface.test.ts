@@ -1324,6 +1324,7 @@ describe('InputInterface', () => {
       screen: { width: number; height: number };
       font?: { width: number; height: number };
       mode: InputMode;
+      flags2?: number;
     }): void {
       const m = machine as any;
       m.state.version = options.version;
@@ -1334,7 +1335,9 @@ describe('InputInterface', () => {
           ? options.screen.width
           : addr === HeaderLocation.ScreenHeightInUnits
             ? options.screen.height
-            : 0
+            : addr === HeaderLocation.Flags2
+              ? (options.flags2 ?? 0x78) // Zork Zero and Beyond Zork: pictures, undo, mouse, colours
+              : 0
       );
       m.state.memory.getFontUnits.mockReturnValue({
         width: options.font?.width ?? 1,
@@ -1485,6 +1488,19 @@ describe('InputInterface', () => {
       (machine as any).getInputState.mockReturnValue(null);
 
       expect(inputProcessor.onMouseClick(machine as any, { x: 1, y: 1 })).toBe(false);
+    });
+
+    it('should ignore a click when the game did not ask for a mouse', () => {
+      givenMachine({
+        version: 5,
+        mouseWindow: -1,
+        screen: { width: 80, height: 25 },
+        mode: InputMode.CHAR,
+        flags2: 0x58, // No Flags2.WantsMouse
+      });
+
+      expect(inputProcessor.onMouseClick(machine as any, { x: 1, y: 1 })).toBe(false);
+      expect(onKeyPress).not.toHaveBeenCalled();
     });
 
     it('should ignore a click before Version 5', () => {
