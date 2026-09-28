@@ -42,7 +42,7 @@ export class WebInputProcessor extends BaseInputProcessor {
     if (MOUSE_DEBUG) {
       const cell = position ? this.screen.describeUpperCell(position.y, position.x) : 'n/a';
       // eslint-disable-next-line no-console
-      console.debug(
+      console.log(
         `[mouse] client=(${e.clientX}, ${e.clientY}) units=${position ? `(x=${position.x}, y=${position.y})` : 'none'} ` +
           `detail=${e.detail} waiting=${this.isWaitingForInput} cell: ${cell}`
       );
