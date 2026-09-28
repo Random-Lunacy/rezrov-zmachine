@@ -90,14 +90,17 @@ describe('WebScreen', () => {
         hasPictures: true,
         hasSound: true,
         hasTimedKeyboardInput: true,
+        hasMouse: true,
       });
     });
 
-    it('should report character cells as units, with the font in CSS pixels, outside canvas mode', () => {
-      expect(screen.getCapabilities()).toMatchObject({
-        screenUnits: { width: 80, height: 25 },
-        fontUnits: { width: 10, height: 16 },
-      });
+    it('should leave units to the interpreter default (1 per character, 1x1 font) outside canvas mode', () => {
+      // Beyond Zork divides the screen size in units by the font size in units, so both
+      // must be character cells; CSS-pixel fonts made it think the screen was 11 columns (#347)
+      const caps = screen.getCapabilities();
+      expect(caps.screenUnits).toBeUndefined();
+      expect(caps.fontUnits).toBeUndefined();
+      expect(caps.screenChars).toBeUndefined();
     });
 
     it('should report canvas pixels as units and a square font cell in V6 canvas mode', () => {
@@ -133,6 +136,37 @@ describe('WebScreen', () => {
 
     it('should report no separate text grid outside canvas mode, so the header follows getSize()', () => {
       expect(screen.getCapabilities().screenChars).toBeUndefined();
+    });
+  });
+
+  describe('clientToScreenUnits', () => {
+    function givenRect(el: Element, rect: { left: number; top: number; width: number; height: number }): void {
+      el.getBoundingClientRect = () => ({ ...rect, right: 0, bottom: 0, x: rect.left, y: rect.top }) as DOMRect;
+    }
+
+    it('should map a click to 1-based native canvas pixels in V6 canvas mode', () => {
+      screen.enableCanvasBackground();
+      givenRect(dom.canvas, { left: 10, top: 20, width: 640, height: 400 }); // 320x200 shown at 2x
+
+      expect(screen.clientToScreenUnits(10, 20)).toEqual({ x: 1, y: 1 });
+      expect(screen.clientToScreenUnits(110, 70)).toEqual({ x: 51, y: 26 });
+      expect(screen.clientToScreenUnits(10 + 639, 20 + 399)).toEqual({ x: 320, y: 200 });
+    });
+
+    it('should map a click to 1-based character cells on the upper window outside canvas mode', () => {
+      // 800px status bar over 80 columns, and jsdom's fallback 16px rows
+      givenRect(dom.statusEl, { left: 5, top: 7, width: 800, height: 160 });
+      Object.defineProperty(dom.statusEl, 'clientWidth', { configurable: true, value: 800 });
+
+      expect(screen.clientToScreenUnits(5, 7)).toEqual({ x: 1, y: 1 });
+      expect(screen.clientToScreenUnits(5 + 695, 7 + 40)).toEqual({ x: 70, y: 3 });
+    });
+
+    it('should return null before the canvas is laid out', () => {
+      screen.enableCanvasBackground();
+      givenRect(dom.canvas, { left: 0, top: 0, width: 0, height: 0 });
+
+      expect(screen.clientToScreenUnits(10, 10)).toBeNull();
     });
   });
 

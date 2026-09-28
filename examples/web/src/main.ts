@@ -70,6 +70,7 @@ function stopSession(): void {
 
   machine.quit();
   inputProcessor.cancelInput(machine);
+  inputProcessor.dispose();
   resizeObserver.disconnect();
   pictureRenderer.clear((machine.screen as import('./WebScreen').WebScreen).getBackgroundColor(0));
   soundPlayer.stopSound(0); // 0 = stop all sounds
@@ -90,7 +91,9 @@ function setupGame(
   const screen = new WebScreen(statusEl, mainEl, pictureCanvas, {
     onQuit: stopSession,
   });
-  const inputProcessor = new WebInputProcessor(screen, inputEl, mainEl);
+  // The canvas is a direct child of #game-container, which also takes the mouse clicks
+  const gameContainerEl = pictureCanvas.parentElement as HTMLElement;
+  const inputProcessor = new WebInputProcessor(screen, inputEl, mainEl, { clickTarget: gameContainerEl });
 
   // PictureRenderer uses direct pixel coordinates; no cell dimensions needed.
   const pictureRenderer = new PictureRenderer(pictureCanvas);
@@ -138,9 +141,6 @@ function setupGame(
   if (machine.state.version >= 6) {
     screen.enableCanvasBackground();
   }
-
-  // After the HTML change the canvas is a direct child of #game-container.
-  const gameContainerEl = pictureCanvas.parentElement as HTMLElement;
 
   const resizeObserver = new ResizeObserver(() => {
     // V5 rows/cols and units follow the new size; V6 keeps its text grid and canvas units.

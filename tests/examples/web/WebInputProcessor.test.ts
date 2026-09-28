@@ -2,7 +2,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { WebInputProcessor } from '../../../examples/web/src/WebInputProcessor';
 import type { WebScreen } from '../../../examples/web/src/WebScreen';
-import { InputMode, Logger, type InputState, type ZMachine } from '../../../src/index';
+import { BaseInputProcessor, InputMode, Logger, type InputState, type ZMachine } from '../../../src/index';
 
 Logger.setLogToConsole(false);
 
@@ -22,6 +22,8 @@ function makeScreen(pagerPending = false): WebScreen {
         })
     ),
     getForegroundColor: vi.fn(() => 'rgb(224, 224, 224)'),
+    isPaging: vi.fn(() => false),
+    clientToScreenUnits: vi.fn(() => ({ x: 150, y: 90 })),
   } as unknown as WebScreen;
 }
 
@@ -54,6 +56,8 @@ interface Harness {
   outputEl: HTMLDivElement;
   onInputComplete: ReturnType<typeof vi.spyOn>;
   onKeyPress: ReturnType<typeof vi.spyOn>;
+  container: HTMLDivElement;
+  onMouseClick: ReturnType<typeof vi.spyOn>;
 }
 
 function setup(pagerPending = false): Harness {
@@ -62,18 +66,22 @@ function setup(pagerPending = false): Harness {
   const outputEl = document.createElement('div');
   scroller.appendChild(outputEl);
   const inputEl = document.createElement('input');
-  document.body.append(scroller, inputEl);
+  const container = document.createElement('div');
+  container.append(scroller, inputEl);
+  document.body.append(container);
 
   const screen = makeScreen(pagerPending);
   const machine = makeMachine();
-  const processor = new WebInputProcessor(screen, inputEl, outputEl);
+  const processor = new WebInputProcessor(screen, inputEl, outputEl, { clickTarget: container });
 
   // The base class's completion path needs a live executor and memory; the
   // example's own contribution is what it hands over, so observe that instead.
   const onInputComplete = vi.spyOn(processor, 'onInputComplete').mockImplementation(() => {});
   const onKeyPress = vi.spyOn(processor, 'onKeyPress').mockImplementation(() => {});
+  // Whether the core accepts a click is tested in core; here, observe what reaches it
+  const onMouseClick = vi.spyOn(processor, 'onMouseClick').mockReturnValue(true);
 
-  return { processor, screen, machine, inputEl, outputEl, onInputComplete, onKeyPress };
+  return { processor, screen, machine, inputEl, outputEl, onInputComplete, onKeyPress, container, onMouseClick };
 }
 
 /** Reach the protected hooks without going through the base class's setup work. */
@@ -319,6 +327,160 @@ describe('WebInputProcessor', () => {
     it('should be safe to call when no input is pending', () => {
       const h = setup();
       expect(() => h.processor.cancelInput(h.machine)).not.toThrow();
+    });
+  });
+
+  describe('mouse clicks', () => {
+    function click(el: Element, detail = 1): void {
+      el.dispatchEvent(
+        new MouseEvent('click', { bubbles: true, cancelable: true, detail, clientX: 300, clientY: 180 })
+      );
+    }
+
+    /** Start char input and let the (already drained) pager release it. */
+    async function waitingForChar(h: Harness): Promise<void> {
+      await startCharInput(h);
+      await vi.waitFor(() => expect(h.inputEl.disabled).toBe(false));
+    }
+
+    it('should hand a click to the game in screen units while it waits for input', async () => {
+      const h = setup();
+      await waitingForChar(h);
+
+      click(h.outputEl);
+
+      expect(h.screen.clientToScreenUnits).toHaveBeenCalledWith(300, 180);
+      expect(h.onMouseClick).toHaveBeenCalledWith(h.machine, { x: 150, y: 90, isDouble: false }, '');
+    });
+
+    it('should report the second click of a double-click as a double', async () => {
+      const h = setup();
+      await waitingForChar(h);
+
+      click(h.outputEl, 2);
+
+      expect(h.onMouseClick).toHaveBeenCalledWith(h.machine, { x: 150, y: 90, isDouble: true }, '');
+    });
+
+    it('should pass the text typed so far with a click during line input', async () => {
+      const h = setup();
+      await startTextInput(h);
+      await vi.waitFor(() => expect(h.inputEl.disabled).toBe(false));
+      h.inputEl.value = 'go ';
+
+      click(h.outputEl);
+
+      expect(h.onMouseClick).toHaveBeenCalledWith(h.machine, { x: 150, y: 90, isDouble: false }, 'go ');
+    });
+
+    it('should queue a click that arrives while the game is busy and deliver it at the next input', async () => {
+      // The tower puzzle: the peg click often comes while the game still prints its prompt
+      const h = setup();
+      await waitingForChar(h);
+      h.processor.cancelInput(h.machine); // The game took the weight click and is running
+
+      click(h.outputEl, 1);
+      expect(h.onMouseClick).not.toHaveBeenCalled();
+
+      await waitingForChar(h);
+      expect(h.onMouseClick).toHaveBeenCalledTimes(1);
+      expect(h.onMouseClick).toHaveBeenCalledWith(h.machine, { x: 150, y: 90, isDouble: false }, '');
+    });
+
+    it('should deliver queued clicks one input at a time', async () => {
+      const h = setup();
+      await waitingForChar(h);
+      h.processor.cancelInput(h.machine);
+      click(h.outputEl, 1);
+      click(h.outputEl, 2);
+
+      await waitingForChar(h);
+      expect(h.onMouseClick).toHaveBeenCalledTimes(1);
+      h.processor.cancelInput(h.machine);
+
+      await waitingForChar(h);
+      expect(h.onMouseClick).toHaveBeenCalledTimes(2);
+      expect(h.onMouseClick).toHaveBeenLastCalledWith(h.machine, { x: 150, y: 90, isDouble: true }, '');
+    });
+
+    it('should drop a queued click the game rejects and try the next one', async () => {
+      const h = setup();
+      await waitingForChar(h);
+      h.processor.cancelInput(h.machine);
+      click(h.outputEl, 1);
+      click(h.outputEl, 2);
+      h.onMouseClick.mockReturnValueOnce(false).mockReturnValueOnce(true);
+
+      await waitingForChar(h);
+
+      expect(h.onMouseClick).toHaveBeenCalledTimes(2);
+    });
+
+    it('should keep at most four queued clicks', async () => {
+      const h = setup();
+      await waitingForChar(h);
+      h.processor.cancelInput(h.machine);
+      for (let i = 0; i < 6; i++) click(h.outputEl);
+      h.onMouseClick.mockReturnValue(false); // Rejected, so every queued click is tried
+
+      await waitingForChar(h);
+
+      expect(h.onMouseClick).toHaveBeenCalledTimes(4);
+    });
+
+    it('should ignore clicks before the game has asked for any input', () => {
+      const h = setup();
+
+      click(h.outputEl);
+
+      expect(h.onMouseClick).not.toHaveBeenCalled();
+    });
+
+    it('should leave clicks on the input field and the [MORE] prompt alone', async () => {
+      const h = setup();
+      await waitingForChar(h);
+      const more = document.createElement('div');
+      more.id = 'more-prompt';
+      h.container.appendChild(more);
+
+      click(h.inputEl);
+      click(more);
+
+      expect(h.onMouseClick).not.toHaveBeenCalled();
+    });
+
+    it('should ignore clicks while the [MORE] prompt is showing', async () => {
+      const h = setup();
+      await waitingForChar(h);
+      (h.screen.isPaging as ReturnType<typeof vi.fn>).mockReturnValue(true);
+
+      click(h.outputEl);
+
+      expect(h.onMouseClick).not.toHaveBeenCalled();
+    });
+
+    it('should stop listening once disposed', async () => {
+      const h = setup();
+      await waitingForChar(h);
+
+      h.processor.dispose();
+      click(h.outputEl);
+
+      expect(h.onMouseClick).not.toHaveBeenCalled();
+    });
+
+    it('should leave typed text on screen without a newline when a click ends line input', () => {
+      const h = setup();
+      h.onInputComplete.mockRestore();
+      const base = vi.spyOn(BaseInputProcessor.prototype, 'onInputComplete').mockImplementation(() => {});
+      h.inputEl.value = 'go ';
+
+      h.processor.onInputComplete(h.machine, 'go ', 254);
+
+      expect(h.outputEl.textContent).toBe('go ');
+      expect(h.inputEl.value).toBe('');
+      expect(base).toHaveBeenCalledWith(h.machine, 'go ', 254);
+      base.mockRestore();
     });
   });
 

@@ -707,6 +707,11 @@ export class WebScreen extends BaseScreen {
     for (const resolve of waiters) resolve();
   }
 
+  /** True while the [MORE] prompt is waiting for the player to page on. */
+  isPaging(): boolean {
+    return this.pagerKeyHandler !== null;
+  }
+
   /** Show the [MORE] prompt and listen for the keypress/click that dismisses it. */
   private showMorePrompt(): void {
     const container = this.statusEl.parentElement as HTMLElement | null;
@@ -1235,6 +1240,7 @@ export class WebScreen extends BaseScreen {
       hasPictures: true,
       hasSound: true,
       hasTimedKeyboardInput: true,
+      hasMouse: true,
       ...this.getHeaderMetrics(),
     };
   }
@@ -1264,11 +1270,34 @@ export class WebScreen extends BaseScreen {
       };
     }
 
-    // V5: units are character cells, font size in CSS pixels
-    const { rows, cols } = this.getSize();
+    // Text mode: the interpreter's defaults (1 unit per character, 1x1 font) describe this screen.
+    // Reporting the font in CSS pixels would mix units: Beyond Zork divides the screen size by it.
+    return {};
+  }
+
+  /**
+   * Convert a browser click into 1-based screen units, matching how the header describes the
+   * screen: canvas pixels in V6 canvas mode, otherwise character cells on the upper window's
+   * grid (the only window V5 games take clicks in). Returns null before the page is laid out.
+   */
+  clientToScreenUnits(clientX: number, clientY: number): { x: number; y: number } | null {
+    if (this._useCanvasBackground) {
+      const rect = this.pictureCanvas.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) return null;
+      return {
+        x: Math.floor(((clientX - rect.left) * this.pictureCanvas.width) / rect.width) + 1,
+        y: Math.floor(((clientY - rect.top) * this.pictureCanvas.height) / rect.height) + 1,
+      };
+    }
+
+    // Same cell size renderStyledUpperWindow lays the upper window out with
+    const rect = this.statusEl.getBoundingClientRect();
+    const colWidth = (this.statusEl.clientWidth || rect.width) / this.getSize().cols;
+    const rowHeight = this.measureStatusBarCell().height;
+    if (!(colWidth > 0) || !(rowHeight > 0)) return null;
     return {
-      screenUnits: { width: cols, height: rows },
-      fontUnits: { width: Math.round(this.cellWidth), height: Math.round(this.cellHeight) },
+      x: Math.floor((clientX - rect.left) / colWidth) + 1,
+      y: Math.floor((clientY - rect.top) / rowHeight) + 1,
     };
   }
 

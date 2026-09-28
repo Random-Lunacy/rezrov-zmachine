@@ -1,5 +1,5 @@
 import { ZMachine } from '../../interpreter/ZMachine';
-import { HeaderExtension, HeaderLocation, MouseClickCode } from '../../utils/constants';
+import { Flags2, HeaderExtension, HeaderLocation, MouseClickCode } from '../../utils/constants';
 import { WindowProperty } from '../screen/interfaces';
 
 /**
@@ -318,6 +318,7 @@ export abstract class BaseInputProcessor implements InputProcessor {
   /**
    * Handle a mouse click while the game is waiting for input (V5+).
    *
+   * Only games that set Flags 2's "wants mouse" bit receive clicks.
    * Follows Frotz's validate_click: a click outside the mouse window is ignored and input
    * carries on. Otherwise its position is written to the header extension table and input
    * ends with ZSCII 254 (single click) or 253 (double click). Line input only ends on a
@@ -331,6 +332,9 @@ export abstract class BaseInputProcessor implements InputProcessor {
   onMouseClick(machine: ZMachine, click: MouseClick, currentInput: string = ''): boolean {
     const state = machine.getInputState();
     if (!state || machine.state.version < 5) return false;
+
+    // Only a game that asked for a mouse gets clicks (the interpreter clears this bit without one)
+    if ((machine.state.memory.getWord(HeaderLocation.Flags2) & Flags2.WantsMouse) === 0) return false;
 
     const code = click.isDouble ? MouseClickCode.DoubleClick : MouseClickCode.SingleClick;
     const isLineInput =
