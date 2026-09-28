@@ -173,6 +173,24 @@ describe('WebScreen', () => {
       expect(screen.clientToScreenUnits(5 + 695, 7 + 40)).toEqual({ x: 70, y: 3 });
     });
 
+    it('should map clicks with the cell size the upper window was drawn with, not a fresh one', () => {
+      // After a font size change the rows stay drawn at the old size until the game writes to
+      // the upper window again (#351); a fresh measurement put Beyond Zork map clicks a row low
+      givenRect(dom.statusEl, { left: 5, top: 7, width: 800, height: 160 });
+      Object.defineProperty(dom.statusEl, 'clientWidth', { configurable: true, value: 800 });
+      const internals = screen as unknown as {
+        upperWindowBuffer: string[];
+        renderStyledUpperWindow(): string;
+        statusBarCellDims: { width: number; height: number } | null;
+      };
+      internals.upperWindowBuffer = ['abc'];
+      internals.renderStyledUpperWindow(); // Drawn with 10x16 cells
+
+      internals.statusBarCellDims = { width: 8, height: 12 }; // A smaller font is now measured
+
+      expect(screen.clientToScreenUnits(5 + 695, 7 + 40)).toEqual({ x: 70, y: 3 }); // Not y: 4
+    });
+
     it('should return null before the canvas is laid out', () => {
       screen.enableCanvasBackground();
       givenRect(dom.canvas, { left: 0, top: 0, width: 0, height: 0 });

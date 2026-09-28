@@ -539,6 +539,13 @@ export class WebScreen extends BaseScreen {
   private onQuitCallback?: () => void;
   /** When true the picture canvas provides backgrounds; HTML element BG colors are cleared. */
   private _useCanvasBackground: boolean = false;
+  /**
+   * Cell size (CSS px) the upper window was last rendered with. Clicks are mapped with this,
+   * not a fresh measurement: after a font size change the rendered rows keep their old size
+   * until the game next writes there (#351), and mapping with the new size put a click on
+   * Beyond Zork's map one row low.
+   */
+  private upperRenderedCell: { width: number; height: number } | null = null;
   /** Draws on the picture canvas; set by main.ts so fills queue behind pending pictures. */
   private pictureRenderer: PictureRenderer | null = null;
   /** V6 header text grid and font cell; fixed across resizes, re-measured on a font size change. */
@@ -1327,10 +1334,10 @@ export class WebScreen extends BaseScreen {
       };
     }
 
-    // Same cell size renderStyledUpperWindow lays the upper window out with
+    // The cell size the upper window is currently drawn with (see upperRenderedCell)
     const rect = this.statusEl.getBoundingClientRect();
-    const colWidth = (this.statusEl.clientWidth || rect.width) / this.getSize().cols;
-    const rowHeight = this.measureStatusBarCell().height;
+    const colWidth = this.upperRenderedCell?.width ?? (this.statusEl.clientWidth || rect.width) / this.getSize().cols;
+    const rowHeight = this.upperRenderedCell?.height ?? this.measureStatusBarCell().height;
     if (!(colWidth > 0) || !(rowHeight > 0)) return null;
     return {
       x: Math.floor((clientX - rect.left) / colWidth) + 1,
@@ -1444,6 +1451,7 @@ export class WebScreen extends BaseScreen {
     // apart from the positions set_cursor mapped them to. Elsewhere the measured
     // line box is still the right answer.
     const imgH = this._useCanvasBackground ? this.headerFontHeight * this.getCanvasScale() : cell.height;
+    this.upperRenderedCell = { width: imgW, height: imgH };
     const fontSize = parseFloat(getComputedStyle(this.statusEl).fontSize) || 16;
     const lines: string[] = [];
 
