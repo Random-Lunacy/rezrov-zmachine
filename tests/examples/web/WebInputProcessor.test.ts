@@ -533,6 +533,42 @@ describe('WebInputProcessor', () => {
     });
   });
 
+  describe('?mousedebug trace', () => {
+    it('should log each click with the reported units when the page URL has ?mousedebug', async () => {
+      // The flag is read once when the module loads, so load a fresh copy with the URL set
+      window.history.replaceState({}, '', '/?mousedebug');
+      vi.resetModules();
+      const { WebInputProcessor: TracedProcessor } = await import('../../../examples/web/src/WebInputProcessor');
+      const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+      try {
+        const screen = makeScreen();
+        (screen as unknown as { describeUpperCell: () => string }).describeUpperCell = vi.fn(() => "char 92 '\\'");
+        const container = document.createElement('div');
+        const inputEl = document.createElement('input');
+        const outputEl = document.createElement('div');
+        container.append(outputEl, inputEl);
+        document.body.append(container);
+        const processor = new TracedProcessor(screen, inputEl, outputEl, { clickTarget: container });
+        vi.spyOn(processor, 'onMouseClick').mockReturnValue(true);
+        const machine = makeMachine();
+        (processor as unknown as { doStartCharInput(m: ZMachine, s: InputState): void }).doStartCharInput(
+          machine,
+          textState({ mode: InputMode.CHAR })
+        );
+        await vi.waitFor(() => expect(inputEl.disabled).toBe(false));
+
+        outputEl.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1, clientX: 300, clientY: 180 }));
+
+        expect(log).toHaveBeenCalledWith(expect.stringContaining('[mouse] client=(300, 180) units=(x=150, y=90)'));
+        expect(log).toHaveBeenCalledWith(expect.stringContaining("cell: char 92 '\\'"));
+      } finally {
+        log.mockRestore();
+        window.history.replaceState({}, '', '/');
+        vi.resetModules();
+      }
+    });
+  });
+
   describe('promptForFilename', () => {
     it('should return the name the player types', async () => {
       const h = setup();
