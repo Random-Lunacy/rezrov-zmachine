@@ -334,14 +334,27 @@ describe('WebInputProcessor', () => {
       vi.unstubAllGlobals();
     });
 
-    it.each([null, ''])('should fall back to save.dat when the prompt returns %s', async (answer) => {
+    it.each([null, '', '   '])('should return an empty name, cancelling the operation, for %j', async (answer) => {
       const h = setup();
       vi.stubGlobal(
         'prompt',
         vi.fn(() => answer)
       );
 
-      await expect(h.processor.promptForFilename(h.machine, 'restore')).resolves.toBe('save.dat');
+      await expect(h.processor.promptForFilename(h.machine, 'restore')).resolves.toBe('');
+      vi.unstubAllGlobals();
+    });
+
+    it('should offer save.dat first, then the last name the player chose', async () => {
+      const h = setup();
+      const prompt = vi.fn().mockReturnValueOnce('castle.sav').mockReturnValueOnce(null);
+      vi.stubGlobal('prompt', prompt);
+
+      await h.processor.promptForFilename(h.machine, 'save');
+      await h.processor.promptForFilename(h.machine, 'restore');
+
+      expect(prompt).toHaveBeenNthCalledWith(1, 'Enter filename for save:', 'save.dat');
+      expect(prompt).toHaveBeenNthCalledWith(2, 'Enter filename for restore:', 'castle.sav');
       vi.unstubAllGlobals();
     });
   });
