@@ -79,7 +79,7 @@ describe('WebScreen', () => {
 
   describe('getCapabilities', () => {
     it('should advertise the full V6 feature set the browser client supports', () => {
-      expect(screen.getCapabilities()).toEqual({
+      expect(screen.getCapabilities()).toMatchObject({
         hasColors: true,
         hasBold: true,
         hasItalic: true,
@@ -91,6 +91,48 @@ describe('WebScreen', () => {
         hasSound: true,
         hasTimedKeyboardInput: true,
       });
+    });
+
+    it('should report character cells as units, with the font in CSS pixels, outside canvas mode', () => {
+      expect(screen.getCapabilities()).toMatchObject({
+        screenUnits: { width: 80, height: 25 },
+        fontUnits: { width: 10, height: 16 },
+      });
+    });
+
+    it('should report canvas pixels as units and a square font cell in V6 canvas mode', () => {
+      screen.enableCanvasBackground();
+
+      // 200px canvas / 25 rows = 8px cells, as in Zork Zero's 320x200 layout
+      expect(screen.getCapabilities()).toMatchObject({
+        screenChars: { cols: 80, rows: 25 },
+        screenUnits: { width: 320, height: 200 },
+        fontUnits: { width: 8, height: 8 },
+      });
+    });
+
+    it('should keep the V6 text grid and font cell across a resize but re-measure them after a font change', () => {
+      screen.enableCanvasBackground();
+      screen.getCapabilities();
+
+      // Shrinking the window gives fewer columns and rows. Zork Zero lays its status line out
+      // from the header's character width, so reporting these would shift it after a restore.
+      Object.defineProperty(dom.gameContainer, 'clientWidth', { configurable: true, value: 600 });
+      Object.defineProperty(dom.gameContainer, 'clientHeight', { configurable: true, value: 800 });
+      expect(screen.getCapabilities()).toMatchObject({
+        screenChars: { cols: 80, rows: 25 },
+        fontUnits: { width: 8, height: 8 },
+      });
+
+      screen.remeasureCellDimensions();
+      expect(screen.getCapabilities()).toMatchObject({
+        screenChars: { cols: 60, rows: 50 },
+        fontUnits: { width: 4, height: 4 },
+      });
+    });
+
+    it('should report no separate text grid outside canvas mode, so the header follows getSize()', () => {
+      expect(screen.getCapabilities().screenChars).toBeUndefined();
     });
   });
 

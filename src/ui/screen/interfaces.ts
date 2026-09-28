@@ -49,6 +49,16 @@ export type Capabilities = {
   hasSound: boolean;
   hasTimedKeyboardInput: boolean;
 
+  // Screen size in characters for header 0x20/0x21, when it should differ from getSize() --
+  // e.g. a V6 platform whose text grid must stay fixed while the browser window resizes.
+  screenChars?: ScreenSize;
+
+  // V5+ screen and font size in units (header 0x22-0x27). When absent the interpreter uses
+  // text mode: 1 unit per character, so the screen is getSize()'s cols x rows and fonts are 1x1.
+  // V6 platforms drawing in pixels set these to their pixel dimensions.
+  screenUnits?: { width: number; height: number };
+  fontUnits?: { width: number; height: number };
+
   // Mouse clicks reported as ZSCII 253/254 with coordinates in the header extension (V5+).
   // Optional: when absent or false the interpreter clears the game's Flags2 "wants mouse" bit.
   hasMouse?: boolean;

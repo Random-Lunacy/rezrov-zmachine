@@ -15,7 +15,6 @@ import {
   BlorbMultimediaHandler,
   BlorbParser,
   BrowserStorageProvider,
-  HeaderLocation,
   Logger,
   LogLevel,
   MemoryStorageProvider,
@@ -144,19 +143,9 @@ function setupGame(
   const gameContainerEl = pictureCanvas.parentElement as HTMLElement;
 
   const resizeObserver = new ResizeObserver(() => {
-    const { rows, cols } = screen.getSize();
-    const version = machine.state.version;
-    machine.memory.setByte(HeaderLocation.ScreenHeightInLines, rows);
-    machine.memory.setByte(HeaderLocation.ScreenWidthInChars, cols);
-    if (version >= 5) {
-      if (version < 6) {
-        // V5: units are character cells — update when char count changes.
-        machine.memory.setWord(HeaderLocation.ScreenWidthInUnits, cols);
-        machine.memory.setWord(HeaderLocation.ScreenHeightInUnits, rows);
-      }
-      // V6: pixel-based units stay fixed at the canvas's initial pixel dimensions.
-    }
-    if (version >= 6 && pictureCanvas.width > 0) {
+    // V5 rows/cols and units follow the new size; V6 keeps its text grid and canvas units.
+    machine.applyInterpreterHeader();
+    if (machine.state.version >= 6 && pictureCanvas.width > 0) {
       const rect = gameContainerEl.getBoundingClientRect();
       const aspectHeight = Math.round((rect.width * pictureCanvas.height) / pictureCanvas.width);
       gameContainerEl.style.height = `${aspectHeight}px`;
@@ -167,34 +156,9 @@ function setupGame(
 
   resizeObserver.observe(gameContainerEl);
 
-  // Set initial dimensions in header before execution (ZMachine constructor may
-  // have run before layout; ResizeObserver callback is async).
-  const { rows, cols } = screen.getSize();
-  const { width: cellWidth, height: cellHeight } = screen.getCellDimensions();
-  machine.memory.setByte(HeaderLocation.ScreenHeightInLines, rows);
-  machine.memory.setByte(HeaderLocation.ScreenWidthInChars, cols);
-  if (machine.state.version >= 5) {
-    const isV6 = machine.state.version >= 6;
-    // V6: units are pixels — report the canvas's actual pixel dimensions.
-    // V5: units are character cells.
-    machine.memory.setWord(HeaderLocation.ScreenWidthInUnits, isV6 ? pictureCanvas.width : cols);
-    machine.memory.setWord(HeaderLocation.ScreenHeightInUnits, isV6 ? pictureCanvas.height : rows);
-    if (isV6) {
-      // V6: font dimensions are in canvas pixel units (screen units = pixels).
-      // fontH = canvas height / row count derived from CSS layout at the current font size.
-      // fontW = fontH (classic Infocom V6 games use a square 8×8 character grid, e.g. Zork Zero
-      // at 320×200 with 25 rows × 40 cols). This ensures set_cursor pixel coordinates convert
-      // to character cells correctly in BaseScreen.setCursorPosition().
-      const fontH = rows > 0 ? Math.max(1, Math.round(pictureCanvas.height / rows)) : 1;
-      const fontW = fontH; // Square font assumption for classic Infocom V6 games
-      machine.memory.setByte(HeaderLocation.FontWidthInUnits, Math.min(255, fontW));
-      machine.memory.setByte(HeaderLocation.FontHeightInUnits, Math.min(255, fontH));
-    } else {
-      // V5: font dimensions in CSS pixels (character cells).
-      machine.memory.setByte(HeaderLocation.FontWidthInUnits, Math.min(255, Math.round(cellWidth)));
-      machine.memory.setByte(HeaderLocation.FontHeightInUnits, Math.min(255, Math.round(cellHeight)));
-    }
-  }
+  // Rewrite the header now that layout has settled: the ZMachine constructor ran before
+  // layout and before canvas mode, and the ResizeObserver callback is async.
+  machine.applyInterpreterHeader();
 
   currentSession = {
     machine,
@@ -359,33 +323,11 @@ function init(): void {
     if (!currentSession) return;
     const { machine } = currentSession;
 
-    // Recalculate cell dimensions after font size change.
+    // Recalculate cell dimensions after font size change, then rewrite the header:
+    // rows/cols and the font size follow the new cells (V6 screen units stay at the canvas size).
     const screen = machine.screen as import('./WebScreen').WebScreen;
-    const { width: cellWidth, height: cellHeight } = screen.remeasureCellDimensions();
-
-    // Update character-count header fields (these change when font size changes).
-    const { rows, cols } = screen.getSize();
-    machine.memory.setByte(HeaderLocation.ScreenHeightInLines, rows);
-    machine.memory.setByte(HeaderLocation.ScreenWidthInChars, cols);
-    if (machine.state.version >= 5) {
-      if (machine.state.version < 6) {
-        // V5: units are character cells — update to new char counts.
-        machine.memory.setWord(HeaderLocation.ScreenWidthInUnits, cols);
-        machine.memory.setWord(HeaderLocation.ScreenHeightInUnits, rows);
-        // V5: font dimensions in CSS pixels.
-        machine.memory.setByte(HeaderLocation.FontWidthInUnits, Math.min(255, Math.round(cellWidth)));
-        machine.memory.setByte(HeaderLocation.FontHeightInUnits, Math.min(255, Math.round(cellHeight)));
-      } else {
-        // V6: pixel-based ScreenWidthInUnits/ScreenHeightInUnits are fixed to the canvas
-        // pixel dimensions and do not change when the font size changes.
-        // Font dimensions: fontH = canvasH / rows, fontW = fontH (square font assumption).
-        const pictureCanvas = (machine.screen as import('./WebScreen').WebScreen).getPictureCanvas();
-        const fontH = rows > 0 ? Math.max(1, Math.round(pictureCanvas.height / rows)) : 1;
-        const fontW = fontH; // Square font: Infocom V6 games use 8×8 pixel characters
-        machine.memory.setByte(HeaderLocation.FontWidthInUnits, Math.min(255, fontW));
-        machine.memory.setByte(HeaderLocation.FontHeightInUnits, Math.min(255, fontH));
-      }
-    }
+    screen.remeasureCellDimensions();
+    machine.applyInterpreterHeader();
   });
 
   // Clean up session when the tab/window is closed

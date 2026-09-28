@@ -12,7 +12,6 @@ import { ZMachine } from '../../interpreter/ZMachine';
 import { OperandType } from '../../types';
 import { ResourceType } from '../../ui/multimedia/MultimediaHandler';
 import { WindowProperty } from '../../ui/screen/interfaces';
-import { HeaderLocation } from '../../utils/constants';
 import { opcode } from './base';
 
 /**
@@ -28,8 +27,9 @@ function draw_picture(machine: ZMachine, _operandTypes: OperandType[], picture: 
     return;
   }
 
-  const fontH = machine.memory.getByte(HeaderLocation.FontHeightInUnits) || 1;
-  const fontW = machine.memory.getByte(HeaderLocation.FontWidthInUnits) || 1;
+  const font = machine.memory.getFontUnits();
+  const fontH = font.height || 1;
+  const fontW = font.width || 1;
 
   // Default position: use current cursor when y or x is 0.
   // In V6, BaseScreen.setCursorPosition() converts set_cursor's pixel args to char-cell

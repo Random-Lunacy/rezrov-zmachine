@@ -418,6 +418,26 @@ export class Memory {
   }
 
   /**
+   * Font size in screen units from the header (spec §11.1). V6 stores the two bytes the other
+   * way round from V5: 0x26 holds the height and 0x27 the width. Always read and write the font
+   * size through this pair rather than HeaderLocation.FontWidthInUnits/FontHeightInUnits.
+   */
+  getFontUnits(): { width: number; height: number } {
+    const first = this.getByte(HeaderLocation.FontWidthInUnits);
+    const second = this.getByte(HeaderLocation.FontHeightInUnits);
+    return this._version >= 6 ? { width: second, height: first } : { width: first, height: second };
+  }
+
+  /**
+   * Write the font size in screen units to the header, in the version's byte order (see getFontUnits)
+   */
+  setFontUnits(width: number, height: number): void {
+    const [first, second] = this._version >= 6 ? [height, width] : [width, height];
+    this.setByte(HeaderLocation.FontWidthInUnits, Math.min(255, first));
+    this.setByte(HeaderLocation.FontHeightInUnits, Math.min(255, second));
+  }
+
+  /**
    * Read a word from the header extension table (spec §11.1.7)
    * @param index Word index within the table
    * @returns The word, or undefined if the story has no extension table or it is too short

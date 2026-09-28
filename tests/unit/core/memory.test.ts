@@ -833,6 +833,41 @@ describe('Memory', () => {
     });
   });
 
+  describe('Font Units', () => {
+    it('should store width at 0x26 and height at 0x27 in V5', () => {
+      mockBuffer[HeaderLocation.Version] = 5;
+      const memory = new Memory(mockBuffer, { logger: mockLogger });
+
+      memory.setFontUnits(6, 8);
+
+      expect(memory.getByte(0x26)).toBe(6);
+      expect(memory.getByte(0x27)).toBe(8);
+      expect(memory.getFontUnits()).toEqual({ width: 6, height: 8 });
+    });
+
+    it('should store height at 0x26 and width at 0x27 in V6 (spec §11.1)', () => {
+      mockBuffer[HeaderLocation.Version] = 6;
+      mockBuffer.writeUInt16BE(0x0100, HeaderLocation.RoutinesOffset);
+      mockBuffer.writeUInt16BE(0x0100, HeaderLocation.StaticStringsOffset);
+      const memory = new Memory(mockBuffer, { logger: mockLogger });
+
+      memory.setFontUnits(6, 8);
+
+      expect(memory.getByte(0x26)).toBe(8);
+      expect(memory.getByte(0x27)).toBe(6);
+      expect(memory.getFontUnits()).toEqual({ width: 6, height: 8 });
+    });
+
+    it('should cap each size at 255, the largest a header byte holds', () => {
+      mockBuffer[HeaderLocation.Version] = 5;
+      const memory = new Memory(mockBuffer, { logger: mockLogger });
+
+      memory.setFontUnits(300, 8);
+
+      expect(memory.getFontUnits()).toEqual({ width: 255, height: 8 });
+    });
+  });
+
   describe('Header Extension Words', () => {
     beforeEach(() => {
       mockBuffer[HeaderLocation.Version] = 5;

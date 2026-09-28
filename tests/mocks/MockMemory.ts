@@ -6,6 +6,7 @@ export class MockMemory {
   setByte = vi.fn();
   getWord = vi.fn().mockReturnValue(0);
   setWord = vi.fn();
+  getFontUnits = vi.fn().mockReturnValue({ width: 0, height: 0 });
   getZString = vi.fn().mockReturnValue([]);
   copyBlock = vi.fn();
   checkPackedAddressAlignment = vi.fn();

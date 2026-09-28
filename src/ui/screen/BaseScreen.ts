@@ -408,8 +408,9 @@ export class BaseScreen implements Screen {
     // 1-based character-cell indices using the font dimensions from the header.
     // Formula matches Frotz: charRow = floor((pixelRow - 1) / fontH) + 1
     if (version >= 6) {
-      const fontH = machine.memory.getByte(HeaderLocation.FontHeightInUnits) || 1;
-      const fontW = machine.memory.getByte(HeaderLocation.FontWidthInUnits) || 1;
+      const font = machine.memory.getFontUnits();
+      const fontH = font.height || 1;
+      const fontW = font.width || 1;
       line = Math.floor((line - 1) / fontH) + 1;
       column = Math.floor((column - 1) / fontW) + 1;
     }

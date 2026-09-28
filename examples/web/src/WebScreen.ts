@@ -2,7 +2,6 @@ import {
   BaseScreen,
   Capabilities,
   Color,
-  HeaderLocation,
   ScreenSize,
   TextStyle,
   WindowProperty,
@@ -539,6 +538,8 @@ export class WebScreen extends BaseScreen {
   private onQuitCallback?: () => void;
   /** When true the picture canvas provides backgrounds; HTML element BG colors are cleared. */
   private _useCanvasBackground: boolean = false;
+  /** V6 header text grid and font cell; fixed across resizes, re-measured on a font size change. */
+  private v6HeaderGrid: { chars: ScreenSize; font: { width: number; height: number } } | null = null;
 
   /**
    * Widest width (canvas pixels) ever assigned to window 0 via resize_window.
@@ -1234,6 +1235,40 @@ export class WebScreen extends BaseScreen {
       hasPictures: true,
       hasSound: true,
       hasTimedKeyboardInput: true,
+      ...this.getHeaderMetrics(),
+    };
+  }
+
+  /**
+   * Screen and font size in header units. The interpreter rewrites these into the header on
+   * load, restart, restore and undo, so they must describe the screen as the game sees it.
+   */
+  private getHeaderMetrics(): Pick<Capabilities, 'screenChars' | 'screenUnits' | 'fontUnits'> {
+    if (this._useCanvasBackground && this.pictureCanvas.width > 0) {
+      // V6: units are canvas pixels, and the game lays text out against that fixed screen
+      // (Zork Zero sets its status-line WIDTH from the header's character width). The canvas
+      // scales with the browser window, so the text grid and font cell reported here are
+      // measured once and kept across resizes; only a font size change re-measures them.
+      // The font cell is canvas height / rows, square because classic Infocom V6 games (e.g.
+      // Zork Zero at 320x200) assume an 8x8 grid, so set_cursor pixel coordinates convert to
+      // cells correctly in BaseScreen.setCursorPosition().
+      if (!this.v6HeaderGrid) {
+        const chars = this.getSize();
+        const size = chars.rows > 0 ? Math.max(1, Math.round(this.pictureCanvas.height / chars.rows)) : 1;
+        this.v6HeaderGrid = { chars, font: { width: size, height: size } };
+      }
+      return {
+        screenChars: this.v6HeaderGrid.chars,
+        screenUnits: { width: this.pictureCanvas.width, height: this.pictureCanvas.height },
+        fontUnits: this.v6HeaderGrid.font,
+      };
+    }
+
+    // V5: units are character cells, font size in CSS pixels
+    const { rows, cols } = this.getSize();
+    return {
+      screenUnits: { width: cols, height: rows },
+      fontUnits: { width: Math.round(this.cellWidth), height: Math.round(this.cellHeight) },
     };
   }
 
@@ -1542,7 +1577,7 @@ export class WebScreen extends BaseScreen {
     // upperCellCanvasSize). Done here instead of deferring to BaseScreen, which
     // would re-floor the same coordinates against the header font and undo it.
     if (this._useCanvasBackground && machine.state.version >= 6) {
-      this.headerFontHeight = machine.memory.getByte(HeaderLocation.FontHeightInUnits) || 8;
+      this.headerFontHeight = machine.memory.getFontUnits().height || 8;
       const cell = this.upperCellCanvasSize();
       const row = Math.floor((line - 1) / cell.height) + 1;
       const col = Math.floor((column - 1) / cell.width) + 1;
@@ -1889,6 +1924,7 @@ export class WebScreen extends BaseScreen {
     // Clear bitmap cache and cached cell dims since font size changed
     this.font3BitmapCache.clear();
     this.statusBarCellDims = null;
+    this.v6HeaderGrid = null; // Re-measured from the new cell size on the next header write
     return { width, height };
   }
 }
