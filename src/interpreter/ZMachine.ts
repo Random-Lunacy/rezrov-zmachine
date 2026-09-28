@@ -370,14 +370,19 @@ export class ZMachine {
   }
 
   /**
-   * Save the current game state to storage
+   * Save the current game state to storage, asking the player for a filename first
+   * (spec §15: "all questions about filenames are asked by interpreters").
+   * @returns False if the save failed or the player cancelled the filename prompt
    */
-  // Save the current state
   async saveGame(): Promise<boolean> {
     try {
       if (!this._storage) {
         throw new Error('No storage provider available');
       }
+
+      const filename = await this._inputProcessor.promptForFilename(this, 'save');
+      if (!filename) return false;
+      this._storage.setOptions({ filename });
 
       const state = this.getState();
       await this._storage.saveSnapshot(state);
@@ -389,13 +394,18 @@ export class ZMachine {
   }
 
   /**
-   * Restore a saved game state from storage
+   * Restore a saved game state from storage, asking the player which file to load
+   * @returns False if the restore failed or the player cancelled the filename prompt
    */
   async restoreGame(): Promise<boolean> {
     try {
       if (!this._storage) {
         throw new Error('No storage provider available');
       }
+
+      const filename = await this._inputProcessor.promptForFilename(this, 'restore');
+      if (!filename) return false;
+      this._storage.setOptions({ filename });
 
       const state = await this._storage.loadSnapshot();
       this.setState(state);

@@ -12,6 +12,9 @@ export class WebInputProcessor extends BaseInputProcessor {
   // Flag to pause input handling during timeout routine execution
   private isExecutingTimeoutRoutine = false;
 
+  // Offered as the default the next time a filename is asked for
+  private lastFilename = 'save.dat';
+
   constructor(
     screen: WebScreen,
     inputEl: HTMLInputElement,
@@ -195,9 +198,14 @@ export class WebInputProcessor extends BaseInputProcessor {
     this.inputEl.disabled = true;
   }
 
+  /**
+   * Ask for a save filename, offering the last one used. Returns '' if the player cancels,
+   * which makes the save or restore fail rather than silently using a default file.
+   */
   async promptForFilename(_machine: ZMachine, operation: string): Promise<string> {
-    const filename = window.prompt(`Enter filename for ${operation}:`, 'save.dat');
-    return filename || 'save.dat';
+    const filename = window.prompt(`Enter filename for ${operation}:`, this.lastFilename)?.trim() ?? '';
+    if (filename) this.lastFilename = filename;
+    return filename;
   }
 
   private echoInput(input: string): void {
