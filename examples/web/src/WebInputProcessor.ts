@@ -23,6 +23,8 @@ export class WebInputProcessor extends BaseInputProcessor {
   private machine: ZMachine | null = null;
   // Clicks that arrived while the game was busy, delivered when it next waits for input
   private pendingClicks: MouseClick[] = [];
+  // Typed text printed when a click ended line input, taken back if the game asks again with it
+  private clickEcho: HTMLSpanElement | null = null;
 
   private readonly handleClick = (e: MouseEvent): void => {
     const machine = this.machine;
@@ -87,14 +89,28 @@ export class WebInputProcessor extends BaseInputProcessor {
 
   /**
    * A click that ends line input leaves what the player typed on screen, without a newline:
-   * the game carries on from there (Zork Zero prints the direction clicked on after it).
+   * the game may carry on from there (Zork Zero prints the direction clicked on after it).
+   * If instead it asks again with the same text, beginTextInput takes the echo back.
    */
   onInputComplete(machine: ZMachine, input: string, termChar: number = 13): void {
     if (termChar === MouseClickCode.SingleClick || termChar === MouseClickCode.DoubleClick) {
-      if (input) this.echoInput(input, false);
+      this.clickEcho = input ? this.echoInput(input, false) : null;
       this.inputEl.value = '';
     }
     super.onInputComplete(machine, input, termChar);
+  }
+
+  /**
+   * Remove the typed text printed by a click that ended the last input, when the game has asked
+   * again with that same text preloaded and printed nothing since. Zork Zero does this for a
+   * click that misses the compass: the text belongs back in the input field, not twice on screen.
+   */
+  private takeBackClickEcho(preloaded: string): void {
+    const echo = this.clickEcho;
+    this.clickEcho = null;
+    if (echo && preloaded && echo.textContent === preloaded && echo === this.textOutputEl.lastChild) {
+      echo.remove();
+    }
   }
 
   protected doStartTextInput(machine: ZMachine, state: InputState): void {
@@ -118,6 +134,7 @@ export class WebInputProcessor extends BaseInputProcessor {
     this.isWaitingForInput = true;
     // Z-spec §15.2: pre-loaded text must be displayed so the player can edit/append to it
     const preloaded = state.preloadedText ?? '';
+    this.takeBackClickEcho(preloaded);
     this.inputEl.value = preloaded;
     this.inputEl.disabled = false;
     this.inputEl.style.visibility = 'visible';
@@ -167,6 +184,7 @@ export class WebInputProcessor extends BaseInputProcessor {
   private beginCharInput(machine: ZMachine, _state: InputState): void {
     this.logger.debug('Starting char input');
     this.machine = machine;
+    this.clickEcho = null;
     this.isWaitingForInput = true;
     this.inputEl.value = '';
     this.inputEl.disabled = false;
@@ -282,11 +300,12 @@ export class WebInputProcessor extends BaseInputProcessor {
     return filename;
   }
 
-  private echoInput(input: string, withNewline: boolean = true): void {
+  private echoInput(input: string, withNewline: boolean = true): HTMLSpanElement {
     const span = document.createElement('span');
     span.textContent = withNewline ? input + '\n' : input;
     span.style.color = this.screen.getForegroundColor(0);
     this.textOutputEl.appendChild(span);
     this.textOutputEl.parentElement!.scrollTop = this.textOutputEl.parentElement!.scrollHeight;
+    return span;
   }
 }

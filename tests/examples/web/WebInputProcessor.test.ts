@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { WebInputProcessor } from '../../../examples/web/src/WebInputProcessor';
 import type { WebScreen } from '../../../examples/web/src/WebScreen';
 import { BaseInputProcessor, InputMode, Logger, type InputState, type ZMachine } from '../../../src/index';
@@ -467,6 +467,55 @@ describe('WebInputProcessor', () => {
       click(h.outputEl);
 
       expect(h.onMouseClick).not.toHaveBeenCalled();
+    });
+
+    describe('when a click ends line input', () => {
+      let base: ReturnType<typeof vi.spyOn>;
+
+      function clickEndsInput(h: Harness, typed: string): void {
+        h.onInputComplete.mockRestore();
+        base = vi.spyOn(BaseInputProcessor.prototype, 'onInputComplete').mockImplementation(() => {});
+        h.processor.onInputComplete(h.machine, typed, 254);
+      }
+
+      afterEach(() => base.mockRestore());
+
+      it('should take the typed text back into the input field when the game asks again with it', async () => {
+        // Zork Zero: a click that misses the compass loops back to READ with the buffer intact
+        const h = setup();
+        clickEndsInput(h, 'look');
+        expect(h.outputEl.textContent).toBe('look');
+
+        await startTextInput(h, textState({ preloadedText: 'look' }));
+        await vi.waitFor(() => expect(h.inputEl.disabled).toBe(false));
+
+        expect(h.outputEl.textContent).toBe('');
+        expect(h.inputEl.value).toBe('look');
+      });
+
+      it('should keep the typed text on screen when the game prints after it', async () => {
+        // Zork Zero: a compass click appends the direction to the typed text and prints it
+        const h = setup();
+        clickEndsInput(h, 'go ');
+        const printed = document.createElement('span');
+        printed.textContent = 'north\n';
+        h.outputEl.appendChild(printed);
+
+        await startTextInput(h, textState({ preloadedText: '' }));
+        await vi.waitFor(() => expect(h.inputEl.disabled).toBe(false));
+
+        expect(h.outputEl.textContent).toBe('go north\n');
+      });
+
+      it('should keep the typed text on screen when the game asks again with different text', async () => {
+        const h = setup();
+        clickEndsInput(h, 'look');
+
+        await startTextInput(h, textState({ preloadedText: 'examine' }));
+        await vi.waitFor(() => expect(h.inputEl.disabled).toBe(false));
+
+        expect(h.outputEl.textContent).toBe('look');
+      });
     });
 
     it('should leave typed text on screen without a newline when a click ends line input', () => {
