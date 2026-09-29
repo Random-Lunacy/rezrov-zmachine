@@ -35,6 +35,10 @@ export class BlessedInputProcessor extends BaseInputProcessor {
   private clickEcho: { text: string; content: string } | null = null;
 
   private readonly handleMouse = (data: { x: number; y: number; action: string; button?: string }): void => {
+    this.logger.debug(
+      `mouse ${data.action} ${data.button ?? '-'} at (${data.x}, ${data.y}); ` +
+        `line input ${this.isWaitingForInput}, char input ${this.charKeyHandler !== null}`
+    );
     if (data.action !== 'mousedown' || data.button !== 'left') return;
     const machine = this.machine;
     if (!machine) return;
