@@ -423,65 +423,20 @@ describe('BlessedScreen', () => {
     });
   });
 
-  describe('mouse handling', () => {
-    it('should translate a main-window click into 1-based Z-machine coordinates', () => {
-      const onClick = vi.fn();
-      screen.setMouseClickCallback(onClick);
-      mainWindow.top = 1;
-
-      mainWindow.emit('click', { x: 4, y: 9, button: 'left' });
-
-      // x is +1; y is measured from the window's own top, then +1.
-      expect(onClick).toHaveBeenCalledWith(5, 9, 1);
+  describe('mouse and bleeps', () => {
+    it('should report mouse support, so games keep their mouse features', () => {
+      expect(screen.getCapabilities().hasMouse).toBe(true);
     });
 
-    it('should translate a status-window click without the top offset', () => {
-      const onClick = vi.fn();
-      screen.setMouseClickCallback(onClick);
-
-      statusWindow.emit('click', { x: 4, y: 0, button: 'left' });
-
-      expect(onClick).toHaveBeenCalledWith(5, 1, 1);
+    it('should have the terminal report button presses only, without motion', () => {
+      expect(mockScreen.program.enableMouse).toHaveBeenCalled();
+      expect(mockScreen.program.setMouse).toHaveBeenCalledWith({ allMotion: false, cellMotion: false });
     });
 
-    it.each([
-      ['left', 1],
-      ['right', 2],
-      ['middle', 3],
-      ['other', 0],
-    ] as const)('should map the %s button to %i', (button, expected) => {
-      const onClick = vi.fn();
-      screen.setMouseClickCallback(onClick);
+    it.each([true, false])('should ring the terminal bell for a bleep (high: %s)', (high) => {
+      screen.bleep(machine, high);
 
-      mainWindow.emit('click', { x: 0, y: 0, button });
-
-      expect(onClick).toHaveBeenCalledWith(expect.any(Number), expect.any(Number), expected);
-    });
-
-    it('should ignore clicks while the mouse is disabled', () => {
-      const onClick = vi.fn();
-      screen.setMouseClickCallback(onClick);
-      screen.setMouseEnabled(false);
-
-      mainWindow.emit('click', { x: 1, y: 1, button: 'left' });
-
-      expect(onClick).not.toHaveBeenCalled();
-    });
-
-    it('should record the last click for getMouseState', () => {
-      mainWindow.top = 0;
-
-      mainWindow.emit('click', { x: 6, y: 2, button: 'right' });
-
-      expect(screen.getMouseState()).toEqual({ x: 7, y: 3, button: 2 });
-    });
-
-    it('should report whether the mouse is enabled', () => {
-      expect(screen.isMouseEnabled()).toBe(true);
-
-      screen.setMouseEnabled(false);
-
-      expect(screen.isMouseEnabled()).toBe(false);
+      expect(mockScreen.program.bell).toHaveBeenCalledTimes(1);
     });
   });
 });

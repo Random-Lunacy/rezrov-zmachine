@@ -43,7 +43,14 @@ export interface MockScreen extends MockWidget {
     key: ReturnType<typeof vi.fn>;
     disableMouse: ReturnType<typeof vi.fn>;
     enableMouse: ReturnType<typeof vi.fn>;
+    setMouse: ReturnType<typeof vi.fn>;
+    bell: ReturnType<typeof vi.fn>;
+    on(event: string, fn: Handler): void;
+    removeListener(event: string, fn: Handler): void;
+    /** Test-only: deliver a program event (e.g. 'mouse') to its listeners. */
+    emit(event: string, ...args: unknown[]): void;
     handlers: Map<string, Handler[]>;
+    eventHandlers: Map<string, Handler[]>;
   };
   cursor: { artificial: boolean; shape: string; blink: boolean; color: string };
 }
@@ -107,6 +114,7 @@ function baseWidget(options: Record<string, unknown> = {}): MockWidget {
 function makeScreen(options: Record<string, unknown> = {}): MockScreen {
   const base = baseWidget(options);
   const programHandlers = new Map<string, Handler[]>();
+  const programEvents = new Map<string, Handler[]>();
 
   const screen: MockScreen = Object.assign(base, {
     // Defaults above the >10 / >5 thresholds in BlessedScreen.getSize, so tests
@@ -127,7 +135,24 @@ function makeScreen(options: Record<string, unknown> = {}): MockScreen {
       }),
       disableMouse: vi.fn(),
       enableMouse: vi.fn(),
+      setMouse: vi.fn(),
+      bell: vi.fn(),
+      on(event: string, fn: Handler) {
+        const list = programEvents.get(event) ?? [];
+        list.push(fn);
+        programEvents.set(event, list);
+      },
+      removeListener(event: string, fn: Handler) {
+        const list = programEvents.get(event);
+        if (!list) return;
+        const i = list.indexOf(fn);
+        if (i !== -1) list.splice(i, 1);
+      },
+      emit(event: string, ...args: unknown[]) {
+        for (const fn of [...(programEvents.get(event) ?? [])]) fn(...args);
+      },
       handlers: programHandlers,
+      eventHandlers: programEvents,
     },
     cursor: { artificial: true, shape: 'line', blink: true, color: 'default' },
   });

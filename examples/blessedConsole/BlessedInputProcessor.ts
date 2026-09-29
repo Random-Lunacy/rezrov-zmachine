@@ -1,7 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import * as blessed from 'blessed';
-import { BaseInputProcessor, InputState, Logger, ZMachine } from 'rezrov-zmachine';
+import { BaseInputProcessor, InputState, Logger, MouseClickCode, ZMachine, type MouseClick } from 'rezrov-zmachine';
 import { BlessedScreen } from './BlessedScreen.js';
+
+/** Clicks held while the game is busy; more than this is a burst the player didn't mean. */
+const MAX_PENDING_CLICKS = 4;
+/** A second press on the same cell within this many ms is a double-click (blessed doesn't count). */
+const DOUBLE_CLICK_MS = 400;
 
 export class BlessedInputProcessor extends BaseInputProcessor {
   private logger: Logger;
@@ -18,9 +23,36 @@ export class BlessedInputProcessor extends BaseInputProcessor {
   // Flag to pause input handling during timeout routine execution
   private isExecutingTimeoutRoutine: boolean = false;
 
-  // Mouse support for Beyond Zork
-  private mouseClickHandler: ((data: { x: number; y: number; button: string }) => void) | null = null;
-  private pendingMouseClick: { x: number; y: number; button: number } | null = null;
+  // Mouse support (Beyond Zork's map, Zork Zero's compass): see handleMouse.
+  // Set once the game first asks for input; clicks before then have nowhere to go.
+  private machine: ZMachine | null = null;
+  private charKeyHandler: ((ch: string, key: any) => void) | null = null;
+  // Clicks that arrived while the game was busy, delivered when it next waits for input
+  private pendingClicks: MouseClick[] = [];
+  private lastClick: { x: number; y: number; time: number } | null = null;
+  // Typed text left on screen by a click that ended line input, taken back if the game asks again
+  // with the same text preloaded (Zork Zero does, for a click that misses the compass)
+  private clickEcho: { text: string; content: string } | null = null;
+
+  private readonly handleMouse = (data: { x: number; y: number; action: string; button?: string }): void => {
+    if (data.action !== 'mousedown' || data.button !== 'left') return;
+    const machine = this.machine;
+    if (!machine) return;
+
+    // blessed doesn't count clicks: a second press on the same cell soon after is a double-click
+    const now = Date.now();
+    const last = this.lastClick;
+    const isDouble = last !== null && last.x === data.x && last.y === data.y && now - last.time <= DOUBLE_CLICK_MS;
+    this.lastClick = isDouble ? null : { x: data.x, y: data.y, time: now };
+
+    // blessed reports 0-based screen cells; the game wants 1-based ones, in characters
+    const click: MouseClick = { x: data.x + 1, y: data.y + 1, isDouble };
+    if (this.isWaitingForClick()) {
+      this.onMouseClick(machine, click, this.isWaitingForInput ? this.currentInput : '');
+    } else if (this.pendingClicks.length < MAX_PENDING_CLICKS) {
+      this.pendingClicks.push(click);
+    }
+  };
 
   constructor(blessedScreen: BlessedScreen, options?: { logger?: Logger }) {
     super();
@@ -28,10 +60,12 @@ export class BlessedInputProcessor extends BaseInputProcessor {
     this.blessedScreen = blessedScreen;
     this.screen = blessedScreen.getBlessedScreen();
     this.mainWindow = blessedScreen.getMainWindow();
+    this.screen.program.on('mouse', this.handleMouse);
   }
 
-  protected doStartTextInput(machine: ZMachine, _state: InputState): void {
+  protected doStartTextInput(machine: ZMachine, state: InputState): void {
     this.logger.debug('Starting text input');
+    this.machine = machine;
 
     // IMPORTANT: Clean up any existing input state before starting new input
     // This handles the case where a previous input was terminated by timeout
@@ -49,10 +83,9 @@ export class BlessedInputProcessor extends BaseInputProcessor {
     // Calling it twice would create duplicate timeouts, causing repeated timeout callbacks.
 
     this.isWaitingForInput = true;
-    this.currentInput = '';
-
-    // Disable mouse tracking during text input to prevent escape sequence leakage
-    this.screen.program.disableMouse();
+    // Z-spec §15.2: pre-loaded text is part of the input, for the player to edit or append to
+    const preloaded = state.preloadedText ?? '';
+    this.currentInput = preloaded;
 
     // Get current cursor position from BlessedScreen's content buffer
     const content = this.blessedScreen.getMainWindowContent();
@@ -61,6 +94,14 @@ export class BlessedInputProcessor extends BaseInputProcessor {
       line: lines.length - 1,
       column: lines[lines.length - 1]?.length || 0,
     };
+
+    // The preloaded text may be what a click just left on screen (see endTextInputForClick):
+    // edit it in place rather than print it twice
+    const echo = this.clickEcho;
+    this.clickEcho = null;
+    if (echo && preloaded === echo.text && content === echo.content) {
+      this.inputStartPosition.column = Math.max(0, this.inputStartPosition.column - preloaded.length);
+    }
 
     // Set up key handler for inline input
     this.keyHandler = (ch: string, key: blessed.Widgets.Events.IKeyEventArg) => {
@@ -116,7 +157,8 @@ export class BlessedInputProcessor extends BaseInputProcessor {
     // Start cursor blinking
     this.startCursorBlink();
 
-    this.screen.render();
+    this.updateInputDisplay();
+    this.deliverPendingClicks(machine);
   }
 
   private startCursorBlink(): void {
@@ -164,9 +206,6 @@ export class BlessedInputProcessor extends BaseInputProcessor {
     // Stop cursor blinking
     this.stopCursorBlink();
 
-    // Re-enable mouse tracking
-    this.screen.program.enableMouse();
-
     // Remove the key handler
     if (this.keyHandler) {
       this.screen.removeListener('keypress', this.keyHandler);
@@ -201,6 +240,7 @@ export class BlessedInputProcessor extends BaseInputProcessor {
 
   protected doStartCharInput(machine: ZMachine, state: InputState): void {
     this.logger.debug('Starting char input');
+    this.machine = machine;
 
     // NOTE: Do NOT call handleTimedInput here - the base class startCharInput() already does this.
     // Calling it twice would create duplicate timeouts.
@@ -218,8 +258,7 @@ export class BlessedInputProcessor extends BaseInputProcessor {
         return; // Part of an escape sequence, wait for real key
       }
 
-      this.screen.removeListener('keypress', handleKey);
-      this.removeMouseHandler();
+      this.removeCharKeyHandler();
 
       // Enter/Return → ZSCII 13
       if (key?.name === 'enter' || key?.name === 'return') {
@@ -269,54 +308,69 @@ export class BlessedInputProcessor extends BaseInputProcessor {
       }
     };
 
-    // Set up mouse click handler for Beyond Zork
-    // Mouse clicks during read_char can be used for map navigation
-    this.mouseClickHandler = (_data: { x: number; y: number; button: string }) => {
-      // Store the click for potential use by the game
-      const button = _data.button === 'left' ? 1 : _data.button === 'right' ? 2 : _data.button === 'middle' ? 3 : 0;
-      this.pendingMouseClick = {
-        x: _data.x + 1,
-        y: _data.y + 1,
-        button,
-      };
-      this.logger.debug(`Mouse click during char input: ${JSON.stringify(this.pendingMouseClick)}`);
-
-      // For Beyond Zork, a mouse click during read_char should generate
-      // a special character code (254 for single click, 253 for double click)
-      // Remove handlers and signal the click
-      this.screen.removeListener('keypress', handleKey);
-      this.removeMouseHandler();
-
-      // Send mouse click as special character (254 = single click)
-      this.onKeyPress(machine, String.fromCharCode(254));
-    };
-
-    // Listen for clicks on the main window
-    const mainWindow = this.mainWindow;
-    if (mainWindow) {
-      mainWindow.on('click', this.mouseClickHandler);
-    }
-
+    this.charKeyHandler = handleKey;
     this.screen.on('keypress', handleKey);
+    this.deliverPendingClicks(machine);
   }
 
-  /**
-   * Remove the current mouse click handler
-   */
-  private removeMouseHandler(): void {
-    if (this.mouseClickHandler && this.mainWindow) {
-      this.mainWindow.removeListener('click', this.mouseClickHandler);
-      this.mouseClickHandler = null;
+  /** Stop listening for the key that ends character input. */
+  private removeCharKeyHandler(): void {
+    if (this.charKeyHandler) {
+      this.screen.removeListener('keypress', this.charKeyHandler);
+      this.charKeyHandler = null;
     }
   }
 
+  /** Whether a click now would reach the game: line input (not mid-timeout) or char input. */
+  private isWaitingForClick(): boolean {
+    return (this.isWaitingForInput && !this.isExecutingTimeoutRoutine) || this.charKeyHandler !== null;
+  }
+
   /**
-   * Get the pending mouse click (if any) and clear it
+   * Deliver clicks queued while the game was busy, now that it is waiting for input again.
+   * Stops at the first one the game accepts; the rest wait for the input after that.
    */
-  getPendingMouseClick(): { x: number; y: number; button: number } | null {
-    const click = this.pendingMouseClick;
-    this.pendingMouseClick = null;
-    return click;
+  private deliverPendingClicks(machine: ZMachine): void {
+    while (this.pendingClicks.length > 0 && this.isWaitingForClick()) {
+      const click = this.pendingClicks.shift()!;
+      if (this.onMouseClick(machine, click, this.isWaitingForInput ? this.currentInput : '')) return;
+    }
+  }
+
+  /** A click can end char input (as ZSCII 254/253) without going through its key handler. */
+  onKeyPress(machine: ZMachine, key: string): void {
+    this.removeCharKeyHandler();
+    super.onKeyPress(machine, key);
+  }
+
+  /** A click can end line input too; it doesn't go through finishInput either. */
+  onInputComplete(machine: ZMachine, input: string, termChar: number = 13): void {
+    const isClick = termChar === MouseClickCode.SingleClick || termChar === MouseClickCode.DoubleClick;
+    if (isClick && this.isWaitingForInput) {
+      this.endTextInputForClick(input);
+    }
+    super.onInputComplete(machine, input, termChar);
+  }
+
+  /**
+   * A click that ends line input leaves what the player typed on screen, without a newline:
+   * the game may carry on from there (Zork Zero prints the direction clicked on after it).
+   */
+  private endTextInputForClick(input: string): void {
+    this.isWaitingForInput = false;
+    this.stopCursorBlink();
+    if (this.keyHandler) {
+      this.screen.removeListener('keypress', this.keyHandler);
+      this.keyHandler = null;
+    }
+
+    const lines = this.blessedScreen.getMainWindowContent().split('\n');
+    const inputLine = this.inputStartPosition.line;
+    lines[inputLine] = (lines[inputLine] || '').substring(0, this.inputStartPosition.column) + input;
+    const content = lines.join('\n');
+    this.blessedScreen.setMainWindowContent(content);
+    this.clickEcho = input ? { text: input, content } : null;
+    this.screen.render();
   }
 
   processTerminatingCharacters(input: string, terminators: number[] = this.terminatingChars): number {
@@ -460,7 +514,10 @@ export class BlessedInputProcessor extends BaseInputProcessor {
       this.keyHandler = null;
     }
 
-    // Remove mouse handler if active
-    this.removeMouseHandler();
+    // Stop listening for the mouse
+    this.removeCharKeyHandler();
+    this.screen.program.removeListener('mouse', this.handleMouse);
+    this.pendingClicks = [];
+    this.machine = null;
   }
 }

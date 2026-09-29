@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BlessedInputProcessor } from '../../../examples/blessedConsole/BlessedInputProcessor';
 import { BlessedScreen } from '../../../examples/blessedConsole/BlessedScreen';
-import { Logger, type InputState, type ZMachine } from '../../../src/index';
+import { BaseInputProcessor, Logger, type InputState, type ZMachine } from '../../../src/index';
 import { InputMode } from '../../../src/ui/input/InputInterface';
 import { created, resetBlessedMock, trackStdoutResizeListeners, type MockScreen, type MockWidget } from './blessedMock';
 
@@ -100,26 +100,163 @@ describe('BlessedInputProcessor', () => {
     });
   });
 
-  describe('getPendingMouseClick', () => {
-    it('should report no click before one happens', () => {
-      expect(processor.getPendingMouseClick()).toBeNull();
+  describe('mouse clicks', () => {
+    const textState = (preloadedText?: string) => ({ mode: InputMode.TEXT, preloadedText }) as InputState;
+    let onMouseClick: ReturnType<typeof vi.spyOn>;
+
+    /** Deliver a mouse event the way blessed's program would, in 0-based screen cells. */
+    function mouse(x: number, y: number, action = 'mousedown', button = 'left'): void {
+      mockScreen.program.emit('mouse', { x, y, action, button });
+    }
+
+    beforeEach(() => {
+      vi.useFakeTimers(); // Text input starts a cursor-blink interval
+      onMouseClick = vi.spyOn(processor, 'onMouseClick').mockReturnValue(true);
     });
 
-    it('should return the recorded click and then clear it', () => {
+    it('should hand a left press to the game as a 1-based cell during char input', () => {
       invoke(processor, 'doStartCharInput', machine, charState);
 
-      mainWindow.emit('click', { x: 3, y: 4, button: 'left' });
+      mouse(70, 5);
 
-      expect(processor.getPendingMouseClick()).toEqual({ x: 4, y: 5, button: 1 });
-      expect(processor.getPendingMouseClick()).toBeNull();
+      expect(onMouseClick).toHaveBeenCalledWith(machine, { x: 71, y: 6, isDouble: false }, '');
     });
 
-    it('should signal a click as ZSCII 254 during character input', () => {
+    it.each([
+      ['mouseup', 'left'],
+      ['mousedown', 'right'],
+      ['wheelup', 'middle'],
+    ])('should ignore a %s of the %s button', (action, button) => {
       invoke(processor, 'doStartCharInput', machine, charState);
 
-      mainWindow.emit('click', { x: 0, y: 0, button: 'left' });
+      mouse(70, 5, action, button);
 
-      expect(onKeyPress).toHaveBeenCalledWith(machine, String.fromCharCode(254));
+      expect(onMouseClick).not.toHaveBeenCalled();
+    });
+
+    it('should report a second press on the same cell within 400ms as a double-click', () => {
+      invoke(processor, 'doStartCharInput', machine, charState);
+      mouse(70, 5);
+      vi.advanceTimersByTime(300);
+
+      mouse(70, 5);
+
+      expect(onMouseClick).toHaveBeenLastCalledWith(machine, { x: 71, y: 6, isDouble: true }, '');
+    });
+
+    it('should not count a press on another cell, or a late one, as a double-click', () => {
+      invoke(processor, 'doStartCharInput', machine, charState);
+      mouse(70, 5);
+      mouse(71, 5);
+      vi.advanceTimersByTime(500);
+      mouse(71, 5);
+
+      expect(onMouseClick.mock.calls.map((c) => (c[1] as { isDouble: boolean }).isDouble)).toEqual([
+        false,
+        false,
+        false,
+      ]);
+    });
+
+    it('should pass the text typed so far with a click during line input', () => {
+      invoke(processor, 'doStartTextInput', machine, textState());
+      press(undefined, 'g');
+      press(undefined, 'o');
+
+      mouse(70, 5);
+
+      expect(onMouseClick).toHaveBeenCalledWith(machine, { x: 71, y: 6, isDouble: false }, 'go');
+    });
+
+    it('should keep mouse tracking on during line input, where Beyond Zork takes map clicks', () => {
+      invoke(processor, 'doStartTextInput', machine, textState());
+
+      expect(mockScreen.program.disableMouse).not.toHaveBeenCalled();
+    });
+
+    it('should queue a click while the game is busy and deliver it at the next input', () => {
+      invoke(processor, 'doStartCharInput', machine, charState);
+      invoke(processor, 'removeCharKeyHandler'); // The game took the key and is running
+
+      mouse(70, 5);
+      expect(onMouseClick).not.toHaveBeenCalled();
+
+      invoke(processor, 'doStartCharInput', machine, charState);
+      expect(onMouseClick).toHaveBeenCalledWith(machine, { x: 71, y: 6, isDouble: false }, '');
+    });
+
+    it('should keep at most four queued clicks', () => {
+      invoke(processor, 'doStartCharInput', machine, charState);
+      invoke(processor, 'removeCharKeyHandler');
+      for (let i = 0; i < 6; i++) mouse(i * 2, 5);
+      onMouseClick.mockReturnValue(false); // Rejected, so every queued click is tried
+
+      invoke(processor, 'doStartCharInput', machine, charState);
+
+      expect(onMouseClick).toHaveBeenCalledTimes(4);
+    });
+
+    it('should ignore clicks before the game has asked for any input', () => {
+      mouse(70, 5);
+
+      expect(onMouseClick).not.toHaveBeenCalled();
+    });
+
+    it('should stop listening after cleanup', () => {
+      invoke(processor, 'doStartCharInput', machine, charState);
+
+      processor.cleanup();
+      mouse(70, 5);
+
+      expect(onMouseClick).not.toHaveBeenCalled();
+    });
+
+    describe('when a click ends line input', () => {
+      let base: ReturnType<typeof vi.spyOn>;
+
+      beforeEach(() => {
+        base = vi.spyOn(BaseInputProcessor.prototype, 'onInputComplete').mockImplementation(() => {});
+        blessedScreen.setMainWindowContent('>');
+      });
+
+      afterEach(() => base.mockRestore());
+
+      it('should leave the typed text on screen without a newline', () => {
+        invoke(processor, 'doStartTextInput', machine, textState());
+        press(undefined, 'g');
+        press(undefined, 'o');
+
+        processor.onInputComplete(machine, 'go', 254);
+
+        expect(blessedScreen.getMainWindowContent()).toBe('>go');
+        expect(base).toHaveBeenCalledWith(machine, 'go', 254);
+      });
+
+      it('should edit the text in place when the game asks again with it preloaded', () => {
+        // Zork Zero: a click that misses the compass loops back to READ with the buffer intact
+        invoke(processor, 'doStartTextInput', machine, textState());
+        press(undefined, 'l');
+        press(undefined, 'o');
+        processor.onInputComplete(machine, 'lo', 254);
+
+        invoke(processor, 'doStartTextInput', machine, textState('lo'));
+        press(undefined, 'o');
+        press(undefined, 'k');
+        press('enter');
+
+        expect(blessedScreen.getMainWindowContent()).toBe('>look\n');
+      });
+    });
+
+    it('should start line input with preloaded text (spec §15.2)', () => {
+      blessedScreen.setMainWindowContent('>');
+      invoke(processor, 'doStartTextInput', machine, textState('open '));
+      const onInputComplete = vi.spyOn(processor, 'onInputComplete').mockImplementation(() => {});
+
+      press(undefined, 'x');
+      press('enter');
+
+      expect(onInputComplete).toHaveBeenCalledWith(machine, 'open x', 13);
     });
   });
 

@@ -186,6 +186,7 @@ machine.execute();
 
 - **Text Input**: Type directly inline with the story text (no separate input box)
 - **Character Input**: Press any key when prompted
+- **Mouse**: Click where the game supports it (e.g. rooms and exits on Beyond Zork's map); see [Mouse and sound](#mouse-and-sound)
 - **Exit**: Press Escape or Ctrl+C to quit
 - **Backspace**: Use backspace to edit your input
 - **Enter**: Submit your input
@@ -210,6 +211,13 @@ machine.execute();
 - **Timed Input**: Support for timed input operations
 - **Visual Feedback**: Blinking cursor and immediate character echo
 - **Authentic Prompts**: ">" prompts appear naturally inline with story text
+
+### Mouse and sound
+
+- **Mouse clicks** reach games that ask for a mouse, such as Beyond Zork, where clicking a room or exit on the map moves you. Clicks work during both line and single-key input. A second click on the same cell within 400 ms counts as a double-click.
+- **Your terminal must report mouse events.** Windows Terminal, iTerm2, GNOME Terminal and xterm do; in tmux, enable `set -g mouse on`. Only button presses are tracked, not mouse movement.
+- **Selecting text** while the game has the mouse usually needs **Shift-drag** (Option-drag in iTerm2).
+- **Bleeps**: the game's built-in high and low bleeps (sound effects 1 and 2) ring the terminal bell. A terminal has one bell, so both sound alike, and some terminals flash instead. Sampled sound effects aren't supported.
 
 ### File Operations
 
