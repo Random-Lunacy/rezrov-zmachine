@@ -22,13 +22,6 @@ export class BlessedScreen extends BaseScreen {
   private lastReportedCols: number = 0;
   private lastReportedRows: number = 0;
 
-  // Mouse state for Beyond Zork support
-  private mouseEnabled: boolean = true;
-  private lastMouseX: number = 0;
-  private lastMouseY: number = 0;
-  private lastMouseButton: number = 0;
-  private mouseClickCallback: ((x: number, y: number, button: number) => void) | null = null;
-
   // Raw content buffer for main window - needed because blessed's getContent() returns
   // rendered text without tags, so we can't append new tagged content to it
   private mainWindowContent: string = '';
@@ -94,8 +87,8 @@ export class BlessedScreen extends BaseScreen {
       return false; // Prevent further processing
     });
 
-    // Set up mouse event handling for Beyond Zork map support
-    this.setupMouseHandling();
+    // Mouse clicks are reported to the game by BlessedInputProcessor (Beyond Zork's map)
+    this.enableMouseTracking();
 
     // Listen for resize events to update Z-machine header when dimensions change
     // Listen for terminal resize events
@@ -142,50 +135,26 @@ export class BlessedScreen extends BaseScreen {
   }
 
   /**
-   * Set up mouse event handling for clickable elements
-   * Beyond Zork uses mouse clicks on the map for navigation
+   * Have the terminal report mouse button presses and releases, and nothing else. blessed's
+   * enableMouse() also turns on motion tracking, which sends a report on every mouse movement;
+   * that traffic let fragments of the reports leak into typed input, which is why tracking used
+   * to be switched off during line input. Button events are all a game needs.
+   *
+   * Terminals keep one tracking mode (xterm, Windows Terminal): setting 1000, 1002 or 1003
+   * replaces it, and resetting any of them turns mouse reporting OFF, not back to 1000. So reset
+   * the motion modes, then set button tracking again. Two calls, because setMouse applies its
+   * modes in a fixed order (1000 before 1002/1003) whatever order the options are given in.
    */
-  private setupMouseHandling(): void {
-    // Handle mouse clicks on the main window
-    this.mainWindow.on('click', (data: { x: number; y: number; button: string }) => {
-      if (!this.mouseEnabled) return;
+  private enableMouseTracking(): void {
+    const program = this.screen.program;
+    program.enableMouse();
+    program.setMouse({ allMotion: false, cellMotion: false });
+    program.setMouse({ vt200Mouse: true });
+  }
 
-      // Convert blessed coordinates to 1-based Z-machine coordinates
-      // Account for window position
-      const x = data.x + 1;
-      const y = data.y - (this.mainWindow.top as number) + 1;
-      const button = data.button === 'left' ? 1 : data.button === 'right' ? 2 : data.button === 'middle' ? 3 : 0;
-
-      this.lastMouseX = x;
-      this.lastMouseY = y;
-      this.lastMouseButton = button;
-
-      this.logger.debug(`Mouse click: x=${x}, y=${y}, button=${button}`);
-
-      // Call the callback if set
-      if (this.mouseClickCallback) {
-        this.mouseClickCallback(x, y, button);
-      }
-    });
-
-    // Handle mouse clicks on the status window (upper window)
-    this.statusWindow.on('click', (data: { x: number; y: number; button: string }) => {
-      if (!this.mouseEnabled) return;
-
-      const x = data.x + 1;
-      const y = data.y + 1;
-      const button = data.button === 'left' ? 1 : data.button === 'right' ? 2 : data.button === 'middle' ? 3 : 0;
-
-      this.lastMouseX = x;
-      this.lastMouseY = y;
-      this.lastMouseButton = button;
-
-      this.logger.debug(`Mouse click (status): x=${x}, y=${y}, button=${button}`);
-
-      if (this.mouseClickCallback) {
-        this.mouseClickCallback(x, y, button);
-      }
-    });
+  /** sound_effect 1 or 2 (spec §9.2): the terminal has one bell, so high and low sound alike. */
+  bleep(_machine: ZMachine, _high: boolean): void {
+    this.screen.program.bell();
   }
 
   getCapabilities(): Capabilities {
@@ -199,6 +168,7 @@ export class BlessedScreen extends BaseScreen {
       hasDisplayStatusBar: true,
       hasPictures: false,
       hasSound: false,
+      hasMouse: true,
       hasTimedKeyboardInput: true,
       interpreterNumber: this.interpreterNum,
     };
@@ -647,40 +617,6 @@ export class BlessedScreen extends BaseScreen {
   setMainWindowContent(content: string): void {
     this.mainWindowContent = content;
     this.mainWindow.setContent(this.mainWindowContent);
-  }
-
-  /**
-   * Get the last recorded mouse position and button
-   * Used by read_mouse opcode
-   */
-  getMouseState(): { x: number; y: number; button: number } {
-    return {
-      x: this.lastMouseX,
-      y: this.lastMouseY,
-      button: this.lastMouseButton,
-    };
-  }
-
-  /**
-   * Set a callback to be called when a mouse click occurs
-   * Used by Beyond Zork for map navigation
-   */
-  setMouseClickCallback(callback: ((x: number, y: number, button: number) => void) | null): void {
-    this.mouseClickCallback = callback;
-  }
-
-  /**
-   * Enable or disable mouse handling
-   */
-  setMouseEnabled(enabled: boolean): void {
-    this.mouseEnabled = enabled;
-  }
-
-  /**
-   * Check if mouse handling is enabled
-   */
-  isMouseEnabled(): boolean {
-    return this.mouseEnabled;
   }
 
   /**

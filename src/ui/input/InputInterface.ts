@@ -330,19 +330,29 @@ export abstract class BaseInputProcessor implements InputProcessor {
    * @returns True if the click was delivered to the game, false if it was ignored
    */
   onMouseClick(machine: ZMachine, click: MouseClick, currentInput: string = ''): boolean {
+    const ignore = (reason: string): false => {
+      machine.logger.debug(`Mouse click (${click.x}, ${click.y}) ignored: ${reason}`);
+      return false;
+    };
     const state = machine.getInputState();
-    if (!state || machine.state.version < 5) return false;
+    if (!state) return ignore('the game is not waiting for input');
+    if (machine.state.version < 5) return ignore(`version ${machine.state.version} has no mouse`);
 
     // Only a game that asked for a mouse gets clicks (the interpreter clears this bit without one)
-    if ((machine.state.memory.getWord(HeaderLocation.Flags2) & Flags2.WantsMouse) === 0) return false;
+    if ((machine.state.memory.getWord(HeaderLocation.Flags2) & Flags2.WantsMouse) === 0) {
+      return ignore('the game did not ask for a mouse (Flags 2)');
+    }
 
     const code = click.isDouble ? MouseClickCode.DoubleClick : MouseClickCode.SingleClick;
     const isLineInput =
       state.mode === InputMode.TEXT || state.mode === InputMode.TIMED_TEXT || state.mode === InputMode.UNICODE_TEXT;
-    if (isLineInput && !this.terminatingChars.includes(code)) return false;
+    if (isLineInput && !this.terminatingChars.includes(code)) {
+      return ignore(`${code} is not a terminating character (${this.terminatingChars.join(',')})`);
+    }
 
     const position = this.resolveMousePosition(machine, click);
-    if (!position) return false;
+    if (!position) return ignore(`outside mouse window ${machine.mouseWindow}`);
+    machine.logger.debug(`Mouse click (${click.x}, ${click.y}) delivered as ${code} at (${position.x}, ${position.y})`);
 
     const memory = machine.state.memory;
     memory.setHeaderExtensionWord(HeaderExtension.MouseX, position.x);
