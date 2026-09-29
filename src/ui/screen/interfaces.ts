@@ -170,6 +170,13 @@ export interface Screen {
   setWindowMargins?(machine: ZMachine, left: number, right: number, windowId?: number): void;
   setWindowProperty?(machine: ZMachine, windowId: number, property: number, value: number): void;
 
+  /**
+   * Play the built-in bleep for sound_effect 1 (high) or 2 (low) (spec §9.2). Optional: without
+   * it bleeps are silent. Any platform that can make a noise should implement it, even without
+   * sampled sound (Capabilities.hasSound covers effects beyond a bleep).
+   */
+  bleep?(machine: ZMachine, high: boolean): void;
+
   // V6 mouse support (optional for backward compatibility)
   readMouse?(machine: ZMachine, array: number): void;
   setMouseWindow?(machine: ZMachine, windowId: number): void;

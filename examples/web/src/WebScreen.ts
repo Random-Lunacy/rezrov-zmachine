@@ -9,6 +9,7 @@ import {
   translateFont3Text,
 } from 'rezrov-zmachine';
 import type { PictureRenderer } from './PictureRenderer';
+import type { SoundPlayer } from './SoundPlayer';
 
 /**
  * Render a Font 3 character directly at the target cell size using Canvas 2D drawing.
@@ -548,6 +549,8 @@ export class WebScreen extends BaseScreen {
   private upperRenderedCell: { width: number; height: number } | null = null;
   /** Draws on the picture canvas; set by main.ts so fills queue behind pending pictures. */
   private pictureRenderer: PictureRenderer | null = null;
+  /** Plays built-in bleeps; set by main.ts. */
+  private soundPlayer: SoundPlayer | null = null;
   /** V6 header text grid and font cell; fixed across resizes, re-measured on a font size change. */
   private v6HeaderGrid: { chars: ScreenSize; font: { width: number; height: number } } | null = null;
 
@@ -954,6 +957,16 @@ export class WebScreen extends BaseScreen {
    */
   setPictureRenderer(renderer: PictureRenderer): void {
     this.pictureRenderer = renderer;
+  }
+
+  /** Give the screen the page's sound player, used for the built-in bleeps. */
+  setSoundPlayer(player: SoundPlayer): void {
+    this.soundPlayer = player;
+  }
+
+  /** sound_effect 1 or 2: the built-in high or low bleep (spec §9.2). */
+  bleep(_machine: ZMachine, high: boolean): void {
+    this.soundPlayer?.bleep(high);
   }
 
   /** Fill a canvas-pixel rectangle (the whole canvas if omitted) with a colour. */

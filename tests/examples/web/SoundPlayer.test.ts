@@ -13,7 +13,23 @@ interface FakeSource {
 }
 
 let sources: FakeSource[];
-let gain: { gain: { value: number }; connect: ReturnType<typeof vi.fn> };
+let gain: {
+  gain: {
+    value: number;
+    setValueAtTime: ReturnType<typeof vi.fn>;
+    linearRampToValueAtTime: ReturnType<typeof vi.fn>;
+  };
+  connect: ReturnType<typeof vi.fn>;
+};
+let oscillators: Array<{
+  type: string;
+  frequency: { value: number };
+  connect: ReturnType<typeof vi.fn>;
+  start: ReturnType<typeof vi.fn>;
+  stop: ReturnType<typeof vi.fn>;
+}>;
+let contextState: string;
+let resume: ReturnType<typeof vi.fn>;
 let decode: ReturnType<typeof vi.fn>;
 
 function makeSource(): FakeSource {
@@ -32,15 +48,28 @@ function makeSource(): FakeSource {
 /** Web Audio does not exist in jsdom; stand in a context we can inspect. */
 function installAudioContext(): void {
   sources = [];
-  gain = { gain: { value: 0 }, connect: vi.fn() };
+  oscillators = [];
+  contextState = 'running';
+  resume = vi.fn(async () => undefined);
+  gain = { gain: { value: 0, setValueAtTime: vi.fn(), linearRampToValueAtTime: vi.fn() }, connect: vi.fn() };
   decode = vi.fn(async () => ({}) as AudioBuffer);
   vi.stubGlobal(
     'AudioContext',
     class {
       destination = {};
+      currentTime = 5;
+      resume = resume;
+      get state(): string {
+        return contextState;
+      }
       decodeAudioData = decode;
       createBufferSource = (): FakeSource => makeSource();
       createGain = (): typeof gain => gain;
+      createOscillator = (): (typeof oscillators)[number] => {
+        const osc = { type: '', frequency: { value: 0 }, connect: vi.fn(), start: vi.fn(), stop: vi.fn() };
+        oscillators.push(osc);
+        return osc;
+      };
     }
   );
 }
@@ -173,6 +202,31 @@ describe('SoundPlayer', () => {
       });
 
       expect(() => player.stopSound(3)).not.toThrow();
+    });
+  });
+  describe('bleep', () => {
+    it.each([
+      [true, 880],
+      [false, 220],
+    ])('should play a short square-wave tone (high: %s, %i Hz)', (high, frequency) => {
+      const player = new SoundPlayer();
+
+      player.bleep(high);
+
+      expect(oscillators).toHaveLength(1);
+      expect(oscillators[0].type).toBe('square');
+      expect(oscillators[0].frequency.value).toBe(frequency);
+      expect(oscillators[0].start).toHaveBeenCalledWith(5);
+      expect(oscillators[0].stop).toHaveBeenCalledWith(5.1);
+    });
+
+    it('should resume an AudioContext the browser started suspended', () => {
+      contextState = 'suspended';
+      const player = new SoundPlayer();
+
+      player.bleep(true);
+
+      expect(resume).toHaveBeenCalled();
     });
   });
 });

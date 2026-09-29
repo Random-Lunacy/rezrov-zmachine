@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PictureRenderer } from '../../../examples/web/src/PictureRenderer';
+import type { SoundPlayer } from '../../../examples/web/src/SoundPlayer';
 import { WebScreen } from '../../../examples/web/src/WebScreen';
 import { Color, HeaderLocation, Logger, TextStyle, WindowProperty, type ZMachine } from '../../../src/index';
 
@@ -137,6 +138,21 @@ describe('WebScreen', () => {
 
     it('should report no separate text grid outside canvas mode, so the header follows getSize()', () => {
       expect(screen.getCapabilities().screenChars).toBeUndefined();
+    });
+  });
+
+  describe('bleep', () => {
+    it('should play the built-in bleep through the sound player', () => {
+      const player = { bleep: vi.fn() };
+      screen.setSoundPlayer(player as unknown as SoundPlayer);
+
+      screen.bleep(machine, false);
+
+      expect(player.bleep).toHaveBeenCalledWith(false);
+    });
+
+    it('should do nothing without a sound player', () => {
+      expect(() => screen.bleep(machine, true)).not.toThrow();
     });
   });
 

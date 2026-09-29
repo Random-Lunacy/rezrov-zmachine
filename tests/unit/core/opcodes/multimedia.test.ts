@@ -36,20 +36,20 @@ describe('Multimedia Opcodes', () => {
       mockMultimediaHandler.playSound.mockReturnValue(ResourceStatus.Available);
 
       // ARG3=0x0080: count=0 (high byte), volume=128 (low byte)
-      sound_effect(machine, [], 1, 2, 0x0080, 0);
+      sound_effect(machine, [], 3, 2, 0x0080, 0);
 
       // volume=128 (0x80 & 0xFF), repeats=1 (count=0 defaults to 1)
-      expect(mockMultimediaHandler.playSound).toHaveBeenCalledWith(1, 2, 128, 1);
+      expect(mockMultimediaHandler.playSound).toHaveBeenCalledWith(3, 2, 128, 1);
     });
 
     it('should work for V3 games (sound available from V3)', () => {
       machine.state.version = 3;
       mockMultimediaHandler.playSound.mockReturnValue(ResourceStatus.Available);
 
-      sound_effect(machine, [], 1, 2, 0x0008, 0);
+      sound_effect(machine, [], 3, 2, 0x0008, 0);
 
       // V3 sound should not be blocked
-      expect(mockMultimediaHandler.playSound).toHaveBeenCalledWith(1, 2, 8, 1);
+      expect(mockMultimediaHandler.playSound).toHaveBeenCalledWith(3, 2, 8, 1);
     });
 
     it('should handle multimedia handler errors gracefully', () => {
@@ -58,27 +58,27 @@ describe('Multimedia Opcodes', () => {
         throw new Error('Test error');
       });
 
-      sound_effect(machine, [], 1, 2, 0x0080, 0);
+      sound_effect(machine, [], 3, 2, 0x0080, 0);
 
-      expect(machine.logger.error).toHaveBeenCalledWith('Error playing sound effect 1: Test error');
+      expect(machine.logger.error).toHaveBeenCalledWith('Error playing sound effect 3: Test error');
     });
 
     it('should log success when sound starts', () => {
       machine.state.version = 5;
       mockMultimediaHandler.playSound.mockReturnValue(ResourceStatus.Available);
 
-      sound_effect(machine, [], 1, 2, 0x0080, 0);
+      sound_effect(machine, [], 3, 2, 0x0080, 0);
 
-      expect(machine.logger.debug).toHaveBeenCalledWith(expect.stringContaining('Sound effect 1 started successfully'));
+      expect(machine.logger.debug).toHaveBeenCalledWith(expect.stringContaining('Sound effect 3 started successfully'));
     });
 
     it('should log warning when sound fails to start', () => {
       machine.state.version = 5;
       mockMultimediaHandler.playSound.mockReturnValue(ResourceStatus.NotAvailable);
 
-      sound_effect(machine, [], 1, 2, 0x0080, 0);
+      sound_effect(machine, [], 3, 2, 0x0080, 0);
 
-      expect(machine.logger.warn).toHaveBeenCalledWith('Sound effect 1 failed to start, status: 1');
+      expect(machine.logger.warn).toHaveBeenCalledWith('Sound effect 3 failed to start, status: 1');
     });
   });
 

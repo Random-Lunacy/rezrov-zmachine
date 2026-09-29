@@ -99,6 +99,7 @@ function setupGame(
   const pictureRenderer = new PictureRenderer(pictureCanvas);
   screen.setPictureRenderer(pictureRenderer);
   const soundPlayer = new SoundPlayer();
+  screen.setSoundPlayer(soundPlayer);
 
   let multimediaHandler: BlorbMultimediaHandler | undefined;
   let blorbMap: ReturnType<typeof BlorbParser.parse> | null = null;

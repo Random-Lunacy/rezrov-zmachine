@@ -497,10 +497,42 @@ describe('I/O Opcodes', () => {
       expect(machine.multimediaHandler.playSound).toHaveBeenCalledWith(number, effect, 8, 1);
     });
 
+    describe('built-in bleeps (spec §9.2)', () => {
+      beforeEach(() => {
+        machine.multimediaHandler = { playSound: vi.fn().mockReturnValue(0) } as any;
+        machine.screen.bleep = vi.fn();
+      });
+
+      it.each([
+        [1, true],
+        [2, false],
+      ])('should play sound %i as a bleep (high: %s), not a sound resource', (number, isHigh) => {
+        ioOpcodes.sound_effect.impl(machine, [], number);
+
+        expect(machine.screen.bleep).toHaveBeenCalledWith(machine, isHigh);
+        expect(machine.multimediaHandler.playSound).not.toHaveBeenCalled();
+        expect(machine.logger.warn).not.toHaveBeenCalled();
+      });
+
+      it('should bleep high when called with no operands (spec §15)', () => {
+        ioOpcodes.sound_effect.impl(machine, []);
+
+        expect(machine.screen.bleep).toHaveBeenCalledWith(machine, true);
+        expect(machine.multimediaHandler.playSound).not.toHaveBeenCalled();
+      });
+
+      it('should stay silent, without a warning, when the screen has no bleep', () => {
+        delete (machine.screen as { bleep?: unknown }).bleep;
+
+        expect(() => ioOpcodes.sound_effect.impl(machine, [], 2)).not.toThrow();
+        expect(machine.logger.warn).not.toHaveBeenCalled();
+      });
+    });
+
     it('should use Infocom defaults when no optional args provided', () => {
       // Arrange
       mockMachine.state.version = 5;
-      const number = 1; // beep
+      const number = 3; // The first sound resource (1 and 2 are bleeps)
 
       machine.multimediaHandler = {
         playSound: vi.fn().mockReturnValue(0),
@@ -510,13 +542,13 @@ describe('I/O Opcodes', () => {
       ioOpcodes.sound_effect.impl(machine, [], number);
 
       // Assert - default: effect=2, volume=0xFF (255), repeats=1 (from count=0)
-      expect(machine.multimediaHandler.playSound).toHaveBeenCalledWith(1, 2, 255, 1);
+      expect(machine.multimediaHandler.playSound).toHaveBeenCalledWith(3, 2, 255, 1);
     });
 
     it('should work for V3 games (not blocked by version check)', () => {
       // Infocom has OPSOUND in V3/EZIP code (zip2.asm:1592)
       mockMachine.state.version = 3;
-      const number = 1; // beep
+      const number = 3;
 
       machine.multimediaHandler = {
         playSound: vi.fn().mockReturnValue(0),
