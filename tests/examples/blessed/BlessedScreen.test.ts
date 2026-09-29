@@ -430,7 +430,12 @@ describe('BlessedScreen', () => {
 
     it('should have the terminal report button presses only, without motion', () => {
       expect(mockScreen.program.enableMouse).toHaveBeenCalled();
-      expect(mockScreen.program.setMouse).toHaveBeenCalledWith({ allMotion: false, cellMotion: false });
+      // Resetting a motion mode turns tracking off in xterm-style terminals, so button tracking
+      // (1000) must be set again afterwards, in a separate, later call
+      expect(mockScreen.program.setMouse.mock.calls).toEqual([
+        [{ allMotion: false, cellMotion: false }],
+        [{ vt200Mouse: true }],
+      ]);
     });
 
     it.each([true, false])('should ring the terminal bell for a bleep (high: %s)', (high) => {

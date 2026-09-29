@@ -139,11 +139,17 @@ export class BlessedScreen extends BaseScreen {
    * enableMouse() also turns on motion tracking, which sends a report on every mouse movement;
    * that traffic let fragments of the reports leak into typed input, which is why tracking used
    * to be switched off during line input. Button events are all a game needs.
+   *
+   * Terminals keep one tracking mode (xterm, Windows Terminal): setting 1000, 1002 or 1003
+   * replaces it, and resetting any of them turns mouse reporting OFF, not back to 1000. So reset
+   * the motion modes, then set button tracking again. Two calls, because setMouse applies its
+   * modes in a fixed order (1000 before 1002/1003) whatever order the options are given in.
    */
   private enableMouseTracking(): void {
     const program = this.screen.program;
     program.enableMouse();
     program.setMouse({ allMotion: false, cellMotion: false });
+    program.setMouse({ vt200Mouse: true });
   }
 
   /** sound_effect 1 or 2 (spec §9.2): the terminal has one bell, so high and low sound alike. */
