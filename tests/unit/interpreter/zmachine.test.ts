@@ -873,6 +873,24 @@ describe('ZMachine', () => {
       expect(zmachine.memory.getWord(HeaderLocation.Flags2)).toBe(0x58);
     });
 
+    it('should clear the wants-sound bit when the screen has no sound effects (spec §9.1.2)', () => {
+      storyBuffer.writeUInt16BE(0xf8, HeaderLocation.Flags2); // 0x78 plus wants-sound
+      vi.spyOn(screen, 'getCapabilities').mockReturnValue({ ...baseCapabilities, hasSound: false, hasMouse: true });
+
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+
+      expect(zmachine.memory.getWord(HeaderLocation.Flags2)).toBe(0x78);
+    });
+
+    it('should keep the wants-sound bit when the screen has sound effects', () => {
+      storyBuffer.writeUInt16BE(0xf8, HeaderLocation.Flags2);
+      vi.spyOn(screen, 'getCapabilities').mockReturnValue({ ...baseCapabilities, hasMouse: true });
+
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+
+      expect(zmachine.memory.getWord(HeaderLocation.Flags2)).toBe(0xf8);
+    });
+
     it('should leave Flags2 alone before Version 5', () => {
       storyBuffer[0] = 3;
       storyBuffer.writeUInt16BE(0x20, HeaderLocation.Flags2);

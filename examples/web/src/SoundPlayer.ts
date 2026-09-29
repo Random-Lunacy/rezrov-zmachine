@@ -83,6 +83,33 @@ export class SoundPlayer {
     return ResourceStatus.NotAvailable;
   }
 
+  /**
+   * Play a built-in bleep (sound_effect 1 or 2): a short square-wave tone, high or low.
+   * The gain ramps in and out so the tone starts and stops without a click.
+   */
+  bleep(high: boolean): void {
+    const ctx = this.audioContext;
+    // Browsers start an AudioContext suspended until the page has had user input
+    if (ctx.state === 'suspended') void ctx.resume();
+
+    const start = ctx.currentTime;
+    const duration = 0.1;
+    const oscillator = ctx.createOscillator();
+    oscillator.type = 'square';
+    oscillator.frequency.value = high ? 880 : 220;
+
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0, start);
+    gain.gain.linearRampToValueAtTime(0.15, start + 0.005);
+    gain.gain.setValueAtTime(0.15, start + duration - 0.02);
+    gain.gain.linearRampToValueAtTime(0, start + duration);
+
+    oscillator.connect(gain);
+    gain.connect(ctx.destination);
+    oscillator.start(start);
+    oscillator.stop(start + duration);
+  }
+
   getSoundStatus(resourceId: number): ResourceStatus {
     return this.playingSources.has(resourceId) ? ResourceStatus.Playing : ResourceStatus.Stopped;
   }

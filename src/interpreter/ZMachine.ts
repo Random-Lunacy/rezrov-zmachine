@@ -234,6 +234,11 @@ export class ZMachine {
       flags2 &= ~Flags2.WantsMouse;
     }
 
+    // "Sound" here means effects beyond a bleep; bleeps need no capability (spec §9.1.2)
+    if (!screenCapabilities.hasSound) {
+      flags2 &= ~Flags2.WantsSound;
+    }
+
     this._memory.setWord(HeaderLocation.Flags2, flags2);
   }
 

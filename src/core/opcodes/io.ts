@@ -269,11 +269,21 @@ function sread(
 function sound_effect(
   machine: ZMachine,
   _operandTypes: OperandType[],
-  number: number,
+  number?: number,
   effect: number = 2,
   volumeAndRepeats: number = 0x00ff,
   _routine: number = 0
 ): void {
+  // Numbers 1 and 2 are the interpreter's built-in high and low bleeps, not sound resources
+  // (spec §9.2). With no operands at all the opcode is illegal, but interpreters are asked to
+  // bleep as if the number were 1, and not to halt (spec §15).
+  if (number === undefined || number === 1 || number === 2) {
+    const isHigh = number !== 2;
+    machine.logger.debug(`${getSafePcHex(machine)} sound_effect bleep ${isHigh ? 'high' : 'low'}`);
+    machine.screen.bleep?.(machine, isHigh);
+    return;
+  }
+
   // Infocom ARG3 packs count (high byte) and volume (low byte)
   // Default $00FF = count 0 (use default), volume 255 (use MIDI/max)
   const volume = volumeAndRepeats & 0xff;
