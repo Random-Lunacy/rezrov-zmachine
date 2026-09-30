@@ -415,6 +415,29 @@ describe('WebScreen', () => {
 
     beforeEach(() => screen.enableCanvasBackground());
 
+    it('should put window 0 back over the whole canvas on restart', () => {
+      const v6 = v6Machine();
+      screen.moveWindow(v6, 0, 120, 14); // Tower of Bozbar layout
+      screen.resizeWindow(v6, 0, 81, 294);
+
+      screen.reset(v6);
+
+      expect(screen.getWindowProperty(v6, 0, WindowProperty.YCoordinate)).toBe(1);
+      expect(screen.getWindowProperty(v6, 0, WindowProperty.XSize)).toBe(320);
+      expect(screen.getWindowProperty(v6, 0, WindowProperty.YSize)).toBe(200);
+    });
+
+    it("should forget window 0's widest width on restart", () => {
+      const v6 = v6Machine();
+      screen.moveWindow(v6, 0, 120, 14);
+      screen.resizeWindow(v6, 0, 81, 294);
+      screen.reset(v6);
+
+      screen.resizeWindow(v6, 0, 161, 234); // Normal layout, no move first
+
+      expect(screen.getWindowProperty(v6, 0, WindowProperty.XSize)).toBe(234);
+    });
+
     it("should clear only window 0's own box when window 0 is erased", () => {
       // Zork Zero's Tower of Bozbar: text window below the tower, cleared after every move
       const v6 = v6Machine();
@@ -464,6 +487,18 @@ describe('WebScreen', () => {
       screen.clearWindow(v6, -2);
 
       expect(dom.ctx.fillRect).toHaveBeenCalledWith(0, 0, 320, 200);
+    });
+  });
+
+  describe('reset (restart) outside canvas mode', () => {
+    it('should show the status bar again, where a V3 game keeps its status line', () => {
+      const v3 = makeMachine(3);
+      screen.clearWindow(v3, -1); // Hides it
+      expect(dom.statusEl.style.display).toBe('none');
+
+      screen.reset(v3);
+
+      expect(dom.statusEl.style.display).toBe('');
     });
   });
 

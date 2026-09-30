@@ -736,6 +736,46 @@ export class WebScreen extends BaseScreen {
     return `char ${code} '${line[x - 1]}'${font3}`;
   }
 
+  /**
+   * Seed WindowManager with the canvas's real pixel dimensions and window 0's
+   * initial box (full canvas), so any print() before the game's first
+   * move_window/resize_window call for window 0 -- per spec, window 0 initially
+   * occupies the entire screen -- renders into a correctly-sized frame instead of
+   * WindowManager's stale 80x25-character-grid default (read here as canvas pixels,
+   * which would be far too small). Then apply the frames (no-ops if the canvas isn't
+   * sized yet -- the later moveWindow/resizeWindow/splitWindow calls apply them once it is).
+   */
+  private seedCanvasWindows(): void {
+    const canvasW = this.pictureCanvas.width;
+    const canvasH = this.pictureCanvas.height;
+    if (canvasW > 0 && canvasH > 0) {
+      this.windowManager.setScreenSize(canvasW, canvasH);
+      this.windowManager.moveWindow(0, 0, 0);
+      this.windowManager.resizeWindow(0, canvasW, canvasH);
+    }
+    const mainContent = this.mainEl.parentElement as HTMLElement | null;
+    if (mainContent) this.applyWindowFrame(mainContent, 0, true);
+    this.applyWindowFrame(this.statusEl, 1, false);
+  }
+
+  /**
+   * Restart: the base class resets the window state and erases the screen, which clears the
+   * text, inline pictures, canvas and pager through clearWindow(-1). Put back what this screen
+   * set up at the start that an erase doesn't.
+   */
+  override reset(machine: ZMachine): void {
+    super.reset(machine);
+    this._window0MaxWidthPx = -1;
+    this.upperRenderedCell = null;
+    if (this._useCanvasBackground) {
+      this.seedCanvasWindows();
+    } else {
+      // clearWindow(-1) hides the status bar, and nothing shows it again for a V3 game's
+      // status line (V3 has no split_window to reveal it)
+      this.statusEl.style.display = '';
+    }
+  }
+
   /** True while the [MORE] prompt is waiting for the player to page on. */
   isPaging(): boolean {
     return this.pagerKeyHandler !== null;
@@ -913,24 +953,7 @@ export class WebScreen extends BaseScreen {
       inputField.style.border = '1px solid rgba(255,255,255,0.3)';
     }
 
-    // Seed WindowManager with the canvas's real pixel dimensions and window 0's
-    // initial box (full canvas), so any print() before the game's first
-    // move_window/resize_window call for window 0 -- per spec, window 0 initially
-    // occupies the entire screen -- renders into a correctly-sized frame instead of
-    // WindowManager's stale 80x25-character-grid default (read here as canvas pixels,
-    // which would be far too small).
-    const canvasW = this.pictureCanvas.width;
-    const canvasH = this.pictureCanvas.height;
-    if (canvasW > 0 && canvasH > 0) {
-      this.windowManager.setScreenSize(canvasW, canvasH);
-      this.windowManager.moveWindow(0, 0, 0);
-      this.windowManager.resizeWindow(0, canvasW, canvasH);
-    }
-
-    // Apply initial frames (no-ops if the canvas isn't sized yet — the later
-    // moveWindow/resizeWindow/splitWindow calls will apply them once it is).
-    if (mainContent) this.applyWindowFrame(mainContent, 0, true);
-    this.applyWindowFrame(this.statusEl, 1, false);
+    this.seedCanvasWindows();
 
     // Remeasure cell dimensions with the new font size
     this.remeasureCellDimensions();

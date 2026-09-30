@@ -665,6 +665,9 @@ export class ZMachine {
     // Rewrite the interpreter's header fields, which the copy above overwrote
     this.applyInterpreterHeader();
 
+    // Windows, cursors, colours and the split go back to how a new game starts
+    this._screen.reset?.(this);
+
     // Reset execution start: V6-7 call main routine; V1-5 jump to initial PC
     if (this._state.version >= 6) {
       const packedMain = this._memory.getWord(HeaderLocation.InitialPC);

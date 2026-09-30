@@ -423,6 +423,21 @@ describe('BlessedScreen', () => {
     });
   });
 
+  describe('reset (restart)', () => {
+    it('should clear the windows and put back the one-line status layout', () => {
+      screen.splitWindow(machine, 8);
+      mainWindow.setContent('old text');
+
+      screen.reset(machine);
+
+      // A V3 game's status line lives in that one-line window; V3 can't split to restore it
+      expect(statusWindow.height).toBe(1);
+      expect(mainWindow.top).toBe(1);
+      expect(mainWindow.height).toBe('100%-1');
+      expect(mainWindow.content).toBe('');
+    });
+  });
+
   describe('mouse and bleeps', () => {
     it('should report mouse support, so games keep their mouse features', () => {
       expect(screen.getCapabilities().hasMouse).toBe(true);

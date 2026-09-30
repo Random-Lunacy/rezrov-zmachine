@@ -1053,6 +1053,26 @@ describe('ZMachine', () => {
     });
   });
 
+  describe('Screen reset on restart (#344)', () => {
+    it('should reset the screen after rewriting the header', () => {
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+      const applyHeader = vi.spyOn(zmachine, 'applyInterpreterHeader');
+      const reset = vi.fn();
+      (screen as unknown as { reset: typeof reset }).reset = reset;
+
+      zmachine.restart();
+
+      expect(reset).toHaveBeenCalledWith(zmachine);
+      expect(applyHeader.mock.invocationCallOrder[0]).toBeLessThan(reset.mock.invocationCallOrder[0]);
+    });
+
+    it('should restart without error when the screen has no reset', () => {
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+
+      expect(() => zmachine.restart()).not.toThrow();
+    });
+  });
+
   describe('Mouse window', () => {
     it('should default to window 1 and return to it on restart', () => {
       const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
