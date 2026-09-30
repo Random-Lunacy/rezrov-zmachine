@@ -171,6 +171,13 @@ export interface Screen {
   setWindowProperty?(machine: ZMachine, windowId: number, property: number, value: number): void;
 
   /**
+   * Return the screen to its initial state for a restart: window positions, sizes, cursors,
+   * styles, colours and fonts, erased and unsplit (spec §6.1.3, Frotz restart_screen).
+   * Optional: without it the screen keeps whatever the previous session left.
+   */
+  reset?(machine: ZMachine): void;
+
+  /**
    * Play the built-in bleep for sound_effect 1 (high) or 2 (low) (spec §9.2). Optional: without
    * it bleeps are silent. Any platform that can make a noise should implement it, even without
    * sampled sound (Capabilities.hasSound covers effects beyond a bleep).

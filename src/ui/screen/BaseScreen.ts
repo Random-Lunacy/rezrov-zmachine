@@ -62,18 +62,51 @@ export class BaseScreen implements Screen {
     this.fontManager = FontManager.getInstance();
     this.windowManager = new WindowManager(this.logger);
     this.startFromBottom = options?.startFromBottom ?? true;
+    this.resetScreenState();
+  }
 
-    // Initialize default colors for both windows
+  /**
+   * Put the window state back to how a new screen starts: one place for the constructor and
+   * reset() to share, so a restart can't drift from a fresh start. Covers what Frotz's
+   * restart_screen resets -- each window's position, size, cursor, style, colour and font, and
+   * the split -- but not output streams, which a restart leaves alone.
+   */
+  protected resetScreenState(): void {
+    this.currentStyles = TextStyle.Roman;
+    this.outputWindowId = WindowType.Lower;
+    this.bufferMode = BufferMode.Buffered;
+    this.upperWindowHeight = 0;
+    this.cursorPosition = { line: 1, column: 1 };
+    this.windowManager = new WindowManager(this.logger);
+    this.upperWindowBuffer = [];
+    this.upperWindowStyleBuffer = [];
+    this.upperWindowColorBuffer = [];
+    this.hasReceivedFirstOutput = false;
+
+    // Default colors for both windows
+    this.windowColors.clear();
     this.windowColors.set(WindowType.Lower, { foreground: Color.Default, background: Color.Default });
     this.windowColors.set(WindowType.Upper, { foreground: Color.Default, background: Color.Default });
 
-    // Initialize default fonts for both windows
+    // Default fonts for both windows
+    this.windowFonts.clear();
     this.windowFonts.set(WindowType.Lower, 1);
     this.windowFonts.set(WindowType.Upper, 1);
 
-    // Initialize per-window cursor positions (1-based, matching Infocom behavior)
+    // Per-window cursor positions (1-based, matching Infocom behavior)
+    this.windowCursors.clear();
     this.windowCursors.set(WindowType.Lower, { line: 1, column: 1 });
     this.windowCursors.set(WindowType.Upper, { line: 1, column: 1 });
+  }
+
+  /**
+   * Restart: return the screen to its initial state (as Frotz's restart_screen does), then erase
+   * it and unsplit it through clearWindow(-1), so subclasses clear their own display too.
+   * Subclasses whose starting layout differs from an erased, unsplit screen restore it after.
+   */
+  reset(machine: ZMachine): void {
+    this.resetScreenState();
+    this.clearWindow(machine, -1);
   }
 
   /**

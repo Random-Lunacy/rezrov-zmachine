@@ -152,6 +152,20 @@ export class BlessedScreen extends BaseScreen {
     program.setMouse({ vt200Mouse: true });
   }
 
+  /**
+   * Restart: the base class resets the window state and erases the screen, whose
+   * clearWindow(-1) also unsplits it (status window height 0). Put back the layout the
+   * constructor builds: a V3 game's status line lives in that one-line status window, and
+   * V3 has no split_window to restore it.
+   */
+  override reset(machine: ZMachine): void {
+    super.reset(machine);
+    this.statusWindow.height = 1;
+    this.mainWindow.top = 1;
+    this.mainWindow.height = '100%-1';
+    this.screen.render();
+  }
+
   /** sound_effect 1 or 2 (spec §9.2): the terminal has one bell, so high and low sound alike. */
   bleep(_machine: ZMachine, _high: boolean): void {
     this.screen.program.bell();
