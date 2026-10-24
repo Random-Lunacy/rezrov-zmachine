@@ -10,7 +10,7 @@ describe('Object Opcodes', () => {
   let mockMachine: ReturnType<typeof createMockZMachine>;
 
   // Mock objects with getters for name
-  let mockObject: Partial<GameObject> & { name: string };
+  let mockObject: Partial<GameObject> & { name: string; shortName: string };
   let mockParentObject: Partial<GameObject>;
   let mockSiblingObject: Partial<GameObject>;
   let mockChildObject: Partial<GameObject>;
@@ -34,6 +34,7 @@ describe('Object Opcodes', () => {
       getNextProperty: vi.fn(),
       putProperty: vi.fn(),
       name: 'Test Object', // This is now defined as part of the type, not set later
+      shortName: 'Test Object',
     };
 
     mockParentObject = {
@@ -615,7 +616,19 @@ describe('Object Opcodes', () => {
       objectOpcodes.print_obj.impl(machine, [], obj);
 
       // Assert
-      expect(machine.screen.print).toHaveBeenCalledWith(machine, mockObject.name);
+      expect(machine.screen.print).toHaveBeenCalledWith(machine, mockObject.shortName);
+    });
+
+    it('should print nothing for an object the game gave no name, not the debug placeholder', () => {
+      // Arrange: `name` substitutes a placeholder for unnamed objects, `shortName` does not
+      mockObject.name = '[Unnamed Object 5]';
+      mockObject.shortName = '';
+
+      // Act
+      objectOpcodes.print_obj.impl(machine, [], 5);
+
+      // Assert
+      expect(machine.screen.print).toHaveBeenCalledWith(machine, '');
     });
 
     it('should log warning when object is null', () => {

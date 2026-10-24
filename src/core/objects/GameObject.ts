@@ -393,6 +393,20 @@ export class GameObject {
     throw new Error(`getObject() must be implemented by object provider [${objNum}]`);
   }
 
+  /**
+   * The object's short name exactly as the game defined it: empty when the game gave the object no
+   * name (Infidel's darkness "room", for instance). Use this for anything the player sees; `name`
+   * substitutes a placeholder for unnamed objects, which is only useful in debug output.
+   */
+  get shortName(): string {
+    const propTableAddr = this.propertyTableAddr;
+    if (propTableAddr === 0 || this.memory.getByte(propTableAddr) === 0) {
+      return '';
+    }
+    return this.name;
+  }
+
+  /** The short name, or a placeholder such as "[Unnamed Object 12]" for debugging. */
   get name(): string {
     try {
       const propTableAddr = this.propertyTableAddr;

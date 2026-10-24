@@ -320,7 +320,7 @@ function print_obj(machine: ZMachine, _operandTypes: OperandType[], obj: number)
     return;
   }
 
-  machine.screen.print(machine, targetObj.name);
+  machine.screen.print(machine, targetObj.shortName);
 }
 
 /**

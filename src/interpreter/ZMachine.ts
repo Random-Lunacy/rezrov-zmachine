@@ -360,7 +360,7 @@ export class ZMachine {
       }
 
       try {
-        locationName = obj.name || '';
+        locationName = obj.shortName;
       } catch (error) {
         this.logger.error(`Error getting name for location object ${locationObj}: ${error}`);
         locationName = '';
