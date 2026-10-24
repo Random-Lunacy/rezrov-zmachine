@@ -75,7 +75,8 @@ export class ZMachine {
     this._storage = new Storage(
       format ?? new EnhancedDatFormat(),
       provider ?? new MemoryStorageProvider(),
-      storyBuffer
+      // Saves are diffed against the pristine story; storyBuffer is modified in place as the game runs
+      this._originalStory
     );
 
     // Initialize state
