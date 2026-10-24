@@ -309,8 +309,10 @@ export class QuetzalFormat implements FormatProvider {
     // Compress the XORed memory
     const compressed = this.compressMemory(dynamicMemory);
 
-    // Create the chunk
-    const buffer = Buffer.alloc(compressed.length + 8);
+    // Create the chunk. IFF requires odd-length chunks to be followed by a pad byte (not counted in
+    // the chunk size), otherwise the next chunk is misaligned for any conforming reader.
+    const padding = compressed.length % 2;
+    const buffer = Buffer.alloc(compressed.length + 8 + padding);
     let offset = 0;
 
     // Write chunk ID
