@@ -330,8 +330,8 @@ describe('ZMachine', () => {
       // These represent game state like object locations, inventory, etc.
       const testAddress1 = 0x100; // Object table area
       const testAddress2 = 0x200; // Another area in dynamic memory
-      testStoryBuffer[testAddress1] = 0xAA; // Original value
-      testStoryBuffer[testAddress2] = 0xBB; // Original value
+      testStoryBuffer[testAddress1] = 0xaa; // Original value
+      testStoryBuffer[testAddress2] = 0xbb; // Original value
 
       const zmachine = new ZMachine(testStoryBuffer, screen, inputProcessor, undefined, undefined, undefined, {
         logger,
@@ -352,8 +352,8 @@ describe('ZMachine', () => {
       zmachine.restart();
 
       // Memory should be restored to original values
-      expect(zmachine.memory.buffer[testAddress1]).toBe(0xAA);
-      expect(zmachine.memory.buffer[testAddress2]).toBe(0xBB);
+      expect(zmachine.memory.buffer[testAddress1]).toBe(0xaa);
+      expect(zmachine.memory.buffer[testAddress2]).toBe(0xbb);
     });
 
     it('should clear undo stack on restart', () => {
@@ -1295,6 +1295,21 @@ describe('ZMachine', () => {
       expect(updateStatusBarSpy).toHaveBeenCalledWith(null, 42, 100, false);
     });
 
+    it('should show an empty location, not a placeholder, when the location object has no name', () => {
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+      const globalVarsAddr = zmachine.memory.getWord(HeaderLocation.GlobalVariables);
+      zmachine.memory.setWord(globalVarsAddr, 1); // Location object = 1
+      vi.spyOn(zmachine.state, 'getObject').mockReturnValue({
+        name: '[Unnamed Object 1]',
+        shortName: '',
+      } as any);
+      const updateStatusBarSpy = vi.spyOn(screen, 'updateStatusBar');
+
+      zmachine.updateStatusBar();
+
+      expect(updateStatusBarSpy).toHaveBeenCalledWith('', expect.any(Number), expect.any(Number), false);
+    });
+
     it('should not update status bar for version 5', () => {
       storyBuffer[0] = 5;
       const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
@@ -1396,7 +1411,9 @@ describe('ZMachine', () => {
       expect(pristineBuffer[HeaderLocation.InterpreterNumber]).toBe(0);
       expect(pristineBuffer[HeaderLocation.InterpreterVersion]).toBe(0);
 
-      const zmachine = new ZMachine(pristineBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+      const zmachine = new ZMachine(pristineBuffer, screen, inputProcessor, undefined, undefined, undefined, {
+        logger,
+      });
 
       // Working memory should have interpreter modifications
       expect(zmachine.memory.buffer[HeaderLocation.InterpreterNumber]).not.toBe(0);
@@ -1407,5 +1424,4 @@ describe('ZMachine', () => {
       expect(zmachine.originalStory[HeaderLocation.InterpreterVersion]).toBe(0);
     });
   });
-
 });

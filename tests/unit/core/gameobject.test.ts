@@ -1381,6 +1381,22 @@ describe('GameObject', () => {
       expect(name).toBe(`[Unnamed Object ${objNum}]`);
     });
 
+    it('should give an empty short name, not the placeholder, when name length is 0', () => {
+      const propTable = 0x200;
+      const calculatedObjAddr = objTableAddr + 31 * 2 + (objNum - 1) * 9;
+      mockMemory.getByte.mockImplementation((addr: number) => (addr === propTable ? 0 : 0));
+      mockMemory.getWord.mockImplementation((addr: number) => (addr === calculatedObjAddr + 7 ? propTable : 0));
+
+      expect(testObject.name).toBe(`[Unnamed Object ${objNum}]`);
+      expect(testObject.shortName).toBe('');
+    });
+
+    it('should give an empty short name when the property table address is 0', () => {
+      mockMemory.getWord.mockImplementation(() => 0);
+
+      expect(testObject.shortName).toBe('');
+    });
+
     it('should handle memory access errors when reading name words', () => {
       mockMemory.getByte.mockImplementation((addr: number) => {
         const calculatedObjAddr = objTableAddr + 31 * 2 + (objNum - 1) * 9;
