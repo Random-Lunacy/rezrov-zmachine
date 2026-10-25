@@ -53,13 +53,13 @@ When creating new test files:
 
 ## Using the Test Files
 
-In your tests, you can use these files by loading them with the Memory class:
+In your tests, you can use these files by loading them with `memoryFromFile`:
 
 ```typescript
-import { Memory } from '../../src/core/memory/Memory';
+import { memoryFromFile } from '../../src/node';
 import { join } from 'path';
 
-memory = Memory.fromFile(join(__dirname, '../fixtures/je_test.z3'));
+memory = memoryFromFile(join(__dirname, '../fixtures/je_test.z3'));
 ```
 
 ## Learning Inform 6

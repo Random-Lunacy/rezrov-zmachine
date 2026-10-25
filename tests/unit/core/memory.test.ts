@@ -1,18 +1,8 @@
-import * as fs from 'fs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Memory } from '../../../src/core/memory/Memory';
 import { AlphabetTableManager } from '../../../src/parsers/AlphabetTable';
 import { HeaderExtension, HeaderLocation } from '../../../src/utils/constants';
 import { Logger } from '../../../src/utils/log';
-
-// ESM namespace objects are not configurable, so vi.spyOn(fs, 'readFileSync') cannot
-// work here. Only Memory.fromFile touches fs in this file, so mock readFileSync at the
-// top level (where hoisting is explicit) and keep the rest of fs intact. Each test that
-// needs it sets its own implementation via vi.mocked().
-vi.mock('fs', async (importActual) => {
-  const actual = await importActual<typeof import('fs')>();
-  return { ...actual, readFileSync: vi.fn() };
-});
 
 describe('Memory', () => {
   let mockBuffer: Buffer;
@@ -1187,39 +1177,6 @@ describe('Memory', () => {
       // Should return default fallback
       expect(tables).toHaveLength(3);
       expect(tables[0]).toBe('abcdefghijklmnopqrstuvwxyz');
-    });
-  });
-
-  describe('Static Methods', () => {
-    it('should handle fromFile static method', () => {
-      // Return a buffer with a complete valid header (64 bytes, the v3 minimum)
-      vi.mocked(fs.readFileSync).mockImplementation(() => {
-        const buffer = Buffer.alloc(64, 0);
-
-        // Set the basic header values needed for validation
-        buffer[0] = 3; // Version 3
-        buffer.writeUInt16BE(0x0400, HeaderLocation.StaticMemBase); // 0x0e = 0x400
-        buffer.writeUInt16BE(0x0800, HeaderLocation.HighMemBase); // 0x04 = 0x800
-
-        return buffer;
-      });
-
-      const memory = Memory.fromFile('dummy.z3', { logger: mockLogger });
-
-      expect(memory).toBeInstanceOf(Memory);
-      expect(memory.version).toBe(3);
-    });
-
-    it('should handle fromFile with file read errors', () => {
-      // Make fs.readFileSync throw
-      const mockReadFileSync = vi.mocked(fs.readFileSync).mockImplementation(() => {
-        throw new Error('ENOENT: no such file or directory');
-      });
-
-      // Test that fromFile properly wraps file system errors
-      expect(() => Memory.fromFile('nonexistent.z3', { logger: mockLogger })).toThrow(/Failed to load story file/);
-
-      expect(mockReadFileSync).toHaveBeenCalledWith('nonexistent.z3');
     });
   });
 });

@@ -11,6 +11,7 @@ export default defineConfig({
       // repo resolves through a `file:` link in examples/web/node_modules. CI
       // never installs that, so point the specifier at the TypeScript sources.
       { find: /^rezrov-zmachine$/, replacement: path.resolve(__dirname, 'src/index.ts') },
+      { find: /^rezrov-zmachine\/node$/, replacement: path.resolve(__dirname, 'src/node.ts') },
     ],
   },
   test: {

@@ -1,4 +1,3 @@
-import { readFileSync } from 'fs';
 import {
   byteToPackedAddress,
   getMaxFileSize,
@@ -28,20 +27,6 @@ interface ValidationRule {
  * Memory class for the Z-machine
  */
 export class Memory {
-  /**
-   * Creates a new Memory instance from a story file
-   */
-  public static fromFile(filePath: string, options?: { logger?: Logger }): Memory {
-    try {
-      const buffer = readFileSync(filePath);
-      return new Memory(buffer, options);
-    } catch (e) {
-      const logger = options?.logger || new Logger('Memory.fromFile');
-      logger.error(`Failed to load story file: ${e}`);
-      throw new Error(`Failed to load story file: ${e}`, { cause: e });
-    }
-  }
-
   private _mem: Buffer;
   private readonly logger: Logger;
 

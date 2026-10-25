@@ -31,6 +31,7 @@ jobs:
             package-lock.json
             examples/console/package-lock.json
             examples/blessedConsole/package-lock.json
+            examples/web/package-lock.json
       - name: Install dependencies
         run: npm ci
       - name: Lint
@@ -48,5 +49,13 @@ jobs:
         run: |
           npm ci --ignore-scripts --prefix examples/console
           npm ci --ignore-scripts --prefix examples/blessedConsole
+      - name: Build web example
+        # A real browser bundle is the only check that the main entry needs no
+        # Node shims: a stray node: import resolves to Vite's browser-external
+        # stub and only fails at runtime, so fail the build if one shows up.
+        run: |
+          npm ci --ignore-scripts --prefix examples/web
+          npm run build --prefix examples/web
+          ! grep -rl "__vite-browser-external" examples/web/dist
       - name: Run tests with coverage
         run: npm run test:coverage
