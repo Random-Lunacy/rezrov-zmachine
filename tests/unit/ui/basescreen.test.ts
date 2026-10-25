@@ -582,6 +582,53 @@ describe('BaseScreen', () => {
     });
   });
 
+  describe('reset (restart)', () => {
+    beforeEach(() => {
+      machine.state.version = 5;
+    });
+
+    it('should return windows, cursor, styles, colours and fonts to their starting state', () => {
+      screen.splitWindow(machine as any, 3);
+      screen.setOutputWindow(machine as any, 1);
+      screen.setTextStyle(machine as any, TextStyle.Bold);
+      screen.setTextColors(machine as any, 1, Color.Red, Color.Blue);
+      screen.setFontForWindow(machine as any, 4, 1);
+      screen.setCursorPosition(machine as any, 2, 5, 1);
+
+      screen.reset(machine as any);
+
+      expect(screen.getOutputWindow(machine as any)).toBe(0);
+      expect(screen.getWindowProperty(machine as any, 1, WindowProperty.YSize)).toBe(0);
+      expect(screen.getWindowProperty(machine as any, 1, WindowProperty.TextStyle)).toBe(TextStyle.Roman);
+      expect(screen.getWindowProperty(machine as any, 1, WindowProperty.ColorData)).toBe(
+        (Color.Default << 8) | Color.Default
+      );
+      expect(screen.getWindowProperty(machine as any, 1, WindowProperty.Font)).toBe(1);
+      expect(screen.getCursorPosition(machine as any)).toEqual({ line: 1, column: 1 });
+    });
+
+    it('should erase through clearWindow(-1), so subclasses clear their own display too', () => {
+      const clear = vi.spyOn(screen, 'clearWindow');
+
+      screen.reset(machine as any);
+
+      expect(clear).toHaveBeenCalledWith(machine, -1);
+    });
+
+    it('should forget where V6 windows were moved', () => {
+      machine.state.version = 6;
+      machine.memory.getWord.mockImplementation((addr: number) =>
+        addr === HeaderLocation.ScreenWidthInUnits ? 320 : addr === HeaderLocation.ScreenHeightInUnits ? 200 : 0
+      );
+      screen.moveWindow(machine as any, 2, 50, 100);
+
+      screen.reset(machine as any);
+
+      expect(screen.getWindowProperty(machine as any, 2, WindowProperty.YCoordinate)).toBe(1);
+      expect(screen.getWindowProperty(machine as any, 2, WindowProperty.XCoordinate)).toBe(1);
+    });
+  });
+
   describe('clearWindow special cases', () => {
     it('should handle clearWindow with -1 (clear entire screen)', () => {
       // Set up some state
