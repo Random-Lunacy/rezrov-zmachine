@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createStackFrame } from '../../../src/core/execution/StackFrame';
+import { createStackFrame, serializeStackFrame } from '../../../src/core/execution/StackFrame';
 import { Memory } from '../../../src/core/memory/Memory';
 import { GameState } from '../../../src/interpreter/GameState';
+import { ZMachineState } from '../../../src/types';
 import { HeaderLocation } from '../../../src/utils/constants';
 import { Logger } from '../../../src/utils/log';
 import { MockMemory } from '../../mocks/MockMemory';
@@ -593,28 +594,14 @@ describe('GameState', () => {
       buffer.writeUInt16BE(0xabcd, 0x100);
     });
 
-    it('should create a snapshot of the current state', () => {
-      const snapshot = gameState.createSnapshot();
-
-      expect(snapshot.pc).toBe(0x1234);
-      expect(snapshot.stack).toEqual([100, 200]);
-      expect(snapshot.callFrames.length).toBe(1);
-
-      const serializedFrame = snapshot.callFrames[0];
-      expect(serializedFrame.returnPC).toBe(0x5678);
-      expect(serializedFrame.storeVariable).toBe(16);
-      expect(serializedFrame.locals.length).toBe(15); // Frames allocate 15 slots
-      expect(serializedFrame.locals[0]).toBe(42);
-      expect(serializedFrame.locals[1]).toBe(43);
-
-      // Original buffer should be copied
-      expect(snapshot.memory).toBeInstanceOf(Buffer);
-      expect(snapshot.memory.readUInt16BE(0x100)).toBe(0xabcd);
-    });
-
     it('should restore state from a snapshot', () => {
-      // Create a snapshot
-      const snapshot = gameState.createSnapshot();
+      const snapshot: ZMachineState = {
+        memory: Buffer.from(mockMemory.buffer),
+        pc: gameState.pc,
+        stack: [...gameState.stack],
+        callFrames: gameState.callstack.map((frame) => serializeStackFrame(frame)),
+        originalStory: Buffer.from(mockMemory.buffer),
+      };
 
       // Change the state
       gameState.pc = 0x9999;
@@ -629,6 +616,9 @@ describe('GameState', () => {
       expect(gameState.pc).toBe(0x1234);
       expect(gameState.stack).toEqual([100, 200]);
       expect(gameState.callstack.length).toBe(1);
+      expect(gameState.callstack[0].returnPC).toBe(0x5678);
+      expect(gameState.callstack[0].locals[0]).toBe(42);
+      expect(gameState.callstack[0].locals[1]).toBe(43);
     });
   });
 

@@ -395,15 +395,20 @@ export class GameObject {
 
   /**
    * The object's short name exactly as the game defined it: empty when the game gave the object no
-   * name (Infidel's darkness "room", for instance). Use this for anything the player sees; `name`
-   * substitutes a placeholder for unnamed objects, which is only useful in debug output.
+   * name (Infidel's darkness "room", for instance) or the name can't be read. Use this for anything
+   * the player sees; `name` substitutes a placeholder in those cases, which is only useful in debug output.
    */
   get shortName(): string {
-    const propTableAddr = this.propertyTableAddr;
-    if (propTableAddr === 0 || this.memory.getByte(propTableAddr) === 0) {
+    try {
+      const propTableAddr = this.propertyTableAddr;
+      if (propTableAddr === 0 || this.memory.getByte(propTableAddr) === 0) {
+        return '';
+      }
+      return this._decodeName(propTableAddr) ?? '';
+    } catch (error) {
+      this.logger.debug(`[Object ${this.objNum} - Property Table Error] - ${error}`);
       return '';
     }
-    return this.name;
   }
 
   /** The short name, or a placeholder such as "[Unnamed Object 12]" for debugging. */
@@ -414,30 +419,32 @@ export class GameObject {
         return `[Invalid Object ${this.objNum}]`;
       }
 
-      // Get the length of the name in Z-characters
-      const nameLength = this.memory.getByte(propTableAddr);
-
-      // If length is 0, return a placeholder
-      if (nameLength === 0) {
+      // If the name length is 0, return a placeholder
+      if (this.memory.getByte(propTableAddr) === 0) {
         return `[Unnamed Object ${this.objNum}]`;
       }
 
-      // Verify the name is within memory bounds before decoding
-      try {
-        // Each word contains 3 Z-characters, so we need to check all words
-        for (let i = 0; i < nameLength; i++) {
-          this.memory.getWord(propTableAddr + 1 + i * 2);
-        }
-
-        // Now decode the name if verification passed
-        return decodeZString(this.memory, this.memory.getZString(propTableAddr + 1), true);
-      } catch (error) {
-        this.logger.debug(`[Object ${this.objNum} - Name Error] - ${error}`);
-        return `[Object ${this.objNum} - Name Error]`;
-      }
+      return this._decodeName(propTableAddr) ?? `[Object ${this.objNum} - Name Error]`;
     } catch (error) {
       this.logger.debug(`[Object ${this.objNum} - Property Table Error] - ${error}`);
       return `[Object ${this.objNum} - Property Table Error]`;
+    }
+  }
+
+  /** Decode the name stored at the start of the property table, or null if it can't be read. */
+  private _decodeName(propTableAddr: number): string | null {
+    try {
+      // Verify the name is within memory bounds before decoding. Each word holds 3 Z-characters,
+      // so check every word.
+      const nameLength = this.memory.getByte(propTableAddr);
+      for (let i = 0; i < nameLength; i++) {
+        this.memory.getWord(propTableAddr + 1 + i * 2);
+      }
+
+      return decodeZString(this.memory, this.memory.getZString(propTableAddr + 1), true);
+    } catch (error) {
+      this.logger.debug(`[Object ${this.objNum} - Name Error] - ${error}`);
+      return null;
     }
   }
 
