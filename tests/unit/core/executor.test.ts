@@ -1009,13 +1009,7 @@ describe('Executor', () => {
       await executor.executeInstruction();
 
       // Should only have 3 operands from single type byte
-      expect(mockCallVnOpcode.impl).toHaveBeenCalledWith(
-        mockZMachine,
-        expect.any(Array),
-        0x1234,
-        0x5678,
-        0x9abc
-      );
+      expect(mockCallVnOpcode.impl).toHaveBeenCalledWith(mockZMachine, expect.any(Array), 0x1234, 0x5678, 0x9abc);
     });
 
     it('should stop decoding double operand types at first Omitted in first byte', async () => {

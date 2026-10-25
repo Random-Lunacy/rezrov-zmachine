@@ -1,7 +1,7 @@
 import { vi } from 'vitest';
 import { Executor } from '../../src/core/execution/Executor';
-import { Logger } from '../../src/utils/log';
 import { BaseMultimediaHandler } from '../../src/ui/multimedia/MultimediaHandler';
+import { Logger } from '../../src/utils/log';
 import { MockGameState } from './MockGameState';
 import { MockInputProcessor } from './MockInputProcessor';
 import { MockMemory } from './MockMemory';

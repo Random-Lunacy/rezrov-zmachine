@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { Font3System, Font3Character } from '../../../../src/ui/fonts/Font3System';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { Font3System } from '../../../../src/ui/fonts/Font3System';
 
 describe('Font3System', () => {
   let fontSystem: Font3System;
@@ -126,7 +126,7 @@ describe('Font3System', () => {
     it('should have space character with empty bitmap', () => {
       const space = fontSystem.getCharacter(32);
       expect(space).toBeDefined();
-      expect(space?.bitmap.every(byte => byte === 0)).toBe(true);
+      expect(space?.bitmap.every((byte) => byte === 0)).toBe(true);
     });
   });
 });

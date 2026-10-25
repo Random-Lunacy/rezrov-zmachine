@@ -56,16 +56,12 @@ describe('BaseMultimediaHandler', () => {
       const resources = [
         { type: ResourceType.Picture, id: 1 },
         { type: ResourceType.Sound, id: 2 },
-        { type: ResourceType.Music, id: 3 }
+        { type: ResourceType.Music, id: 3 },
       ];
 
       const result = await handler.preloadResources(resources);
 
-      expect(result).toEqual([
-        ResourceStatus.NotAvailable,
-        ResourceStatus.NotAvailable,
-        ResourceStatus.NotAvailable
-      ]);
+      expect(result).toEqual([ResourceStatus.NotAvailable, ResourceStatus.NotAvailable, ResourceStatus.NotAvailable]);
       expect(mockLogger.debug).toHaveBeenCalledWith('Preloading 3 resources');
     });
   });

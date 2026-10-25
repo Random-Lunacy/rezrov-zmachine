@@ -15,7 +15,8 @@
   "scripts": {
     "postinstall": "patch-package",
     "build": "tsc && tsc-esm-fix --ext .js",
-    "format": "prettier --write \"src/**/*.{ts,tsx,json,md}\" \"package.json\" \"README.md\"",
+    "format": "prettier --write \"src/**/*.{ts,tsx,json,md}\" \"tests/**/*.ts\" \"examples/**/*.ts\" \"package.json\" \"README.md\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,json,md}\" \"tests/**/*.ts\" \"examples/**/*.ts\" \"package.json\" \"README.md\"",
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",

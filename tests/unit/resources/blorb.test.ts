@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { BlorbParser } from '../../../src/resources/BlorbParser';
-import { BlorbUsage } from '../../../src/resources/BlorbData';
 import type { BlorbMap } from '../../../src/resources/BlorbData';
+import { BlorbUsage } from '../../../src/resources/BlorbData';
+import { BlorbParser } from '../../../src/resources/BlorbParser';
 
 /**
  * Helper to build a synthetic Blorb file buffer for testing.
@@ -348,10 +348,13 @@ describe('BlorbParser', () => {
     it('should skip to the Nth occurrence with count parameter', () => {
       const anno1 = Buffer.from('First annotation');
       const anno2 = Buffer.from('Second annotation');
-      const blorbData = buildBlorb([], [
-        { type: 'ANNO', data: anno1 },
-        { type: 'ANNO', data: anno2 },
-      ]);
+      const blorbData = buildBlorb(
+        [],
+        [
+          { type: 'ANNO', data: anno1 },
+          { type: 'ANNO', data: anno2 },
+        ]
+      );
       const map = BlorbParser.parse(blorbData);
 
       const first = BlorbParser.getChunkByType(map, blorbData, 'ANNO', 0);

@@ -292,9 +292,7 @@ describe('TextParser', () => {
       textParser.tokenizeLine(textBuffer, parseBuffer, 0, true);
 
       // Should NOT have reset the count to 0 (flag=true preserves existing entries)
-      const resetCalls = mockMemory.setByte.mock.calls.filter(
-        (call) => call[0] === parseBuffer + 1 && call[1] === 0
-      );
+      const resetCalls = mockMemory.setByte.mock.calls.filter((call) => call[0] === parseBuffer + 1 && call[1] === 0);
       expect(resetCalls.length).toBe(0);
     });
 
@@ -705,9 +703,7 @@ describe('TextParser', () => {
       textParser.tokenizeString('unknown', parseBuffer, 0, true);
 
       // flag=true: should NOT reset count, and should not add unrecognized word
-      const resetCalls = mockMemory.setByte.mock.calls.filter(
-        (call) => call[0] === parseBuffer + 1 && call[1] === 0
-      );
+      const resetCalls = mockMemory.setByte.mock.calls.filter((call) => call[0] === parseBuffer + 1 && call[1] === 0);
       expect(resetCalls.length).toBe(0);
     });
 

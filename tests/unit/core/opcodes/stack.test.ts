@@ -103,7 +103,9 @@ describe('Stack Opcodes', () => {
       expect(mockMachine.getUserStackManager).toHaveBeenCalled();
       expect(mockUserStackManager.pullStack).toHaveBeenCalledWith(stackAddr);
       expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(resultVar, stackValue);
-      expect(mockMachine.logger.debug).toHaveBeenCalledWith(`1234 pull (0x${stackAddr.toString(16)}) -> (${resultVar}) = ${stackValue}`);
+      expect(mockMachine.logger.debug).toHaveBeenCalledWith(
+        `1234 pull (0x${stackAddr.toString(16)}) -> (${resultVar}) = ${stackValue}`
+      );
     });
 
     it('should pull from game stack when user stack address is 0 in V6', () => {
