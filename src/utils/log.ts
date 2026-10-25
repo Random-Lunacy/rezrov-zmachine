@@ -22,7 +22,7 @@ export type LogSink = (formattedMsg: string) => void;
  */
 export class Logger {
   private static level: LogLevel = LogLevel.INFO; // Global log level
-  private static useColors: boolean = typeof process !== 'undefined' && process.stdout.isTTY; // Global color setting
+  private static useColors: boolean = typeof process !== 'undefined' && !!process.stdout?.isTTY; // Global color setting
   private static logToConsole: boolean = true; // Whether to log to the console
   private static logSink: LogSink | null = null; // Extra destination for formatted messages (e.g. a file)
 
@@ -76,7 +76,14 @@ export class Logger {
    */
   private outputLog(formattedMsg: string): void {
     if (Logger.logSink) {
-      Logger.logSink(formattedMsg);
+      try {
+        Logger.logSink(formattedMsg);
+      } catch (error) {
+        // A failing sink (a read-only directory, say) must not take the interpreter down with it
+        Logger.logSink = null;
+        // eslint-disable-next-line no-console
+        console.error(`[Logger] Log sink failed and was removed: ${error}`);
+      }
     }
     if (Logger.logToConsole) {
       // eslint-disable-next-line no-console

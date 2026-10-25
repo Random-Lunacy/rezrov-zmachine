@@ -64,6 +64,22 @@ describe('Logger', () => {
       expect(sink).not.toHaveBeenCalled();
     });
 
+    it('should drop a sink that throws, rather than failing the caller', () => {
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const sink = vi.fn(() => {
+        throw new Error('EROFS: read-only file system');
+      });
+      Logger.setLogSink(sink);
+      const logger = new Logger('TestLogger');
+
+      expect(() => logger.info('First message')).not.toThrow();
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('EROFS'));
+
+      logger.info('Second message');
+      expect(sink).toHaveBeenCalledTimes(1);
+      errorSpy.mockRestore();
+    });
+
     it('should enable/disable console logging', () => {
       Logger.setLogToConsole(true);
       const logger = new Logger('TestLogger');

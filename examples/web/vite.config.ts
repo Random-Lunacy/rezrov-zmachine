@@ -6,7 +6,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   resolve: {
-    alias: [{ find: 'rezrov-zmachine', replacement: path.resolve(__dirname, '../../dist/index.js') }],
+    alias: [{ find: /^rezrov-zmachine$/, replacement: path.resolve(__dirname, '../../dist/index.js') }],
   },
   build: {
     commonjsOptions: {
