@@ -1,6 +1,6 @@
+import { join } from 'path';
 import { describe, expect, it } from 'vitest';
 import { runZStory } from '../utils/testRunner';
-import { join } from 'path';
 
 describe('Memory Operations Compliance', () => {
   it('V3: should pass all memory operation tests', async () => {

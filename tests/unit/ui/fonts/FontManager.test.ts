@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { FontManager, FontType } from '../../../../src/ui/fonts/FontManager';
 
 describe('FontManager', () => {
@@ -189,7 +189,7 @@ describe('FontManager', () => {
       const supported = fontManager.getSupportedFonts();
       expect(supported).toHaveLength(3); // Font 1, 3, and 4
 
-      const types = supported.map(f => f.type);
+      const types = supported.map((f) => f.type);
       expect(types).toContain(FontType.Normal);
       expect(types).toContain(FontType.CharacterGraphics);
       expect(types).toContain(FontType.FixedPitch);

@@ -731,7 +731,6 @@ describe('BaseScreen', () => {
 
       expect(mockLogger.debug).toHaveBeenCalledWith('TestScreen setCursorPosition only works in upper window');
     });
-
   });
 
   describe('V6 window move/resize with a real pixel screen size', () => {

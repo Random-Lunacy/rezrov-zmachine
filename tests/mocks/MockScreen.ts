@@ -56,20 +56,34 @@ export class MockScreen implements Screen {
   // Window property with Z-machine spec property numbers
   getWindowProperty = vi.fn().mockImplementation((_machine: any, window: number, property: number) => {
     switch (property) {
-      case 0: return window === 1 ? 1 : 1; // YCoordinate (1-based)
-      case 1: return 1; // XCoordinate (1-based)
-      case 2: return window === 1 ? 0 : 25; // YSize (height)
-      case 3: return 80; // XSize (width)
-      case 4: return 1; // YCursor
-      case 5: return 1; // XCursor
-      case 6: return 0; // LeftMargin (size)
-      case 7: return 0; // RightMargin (size)
-      case 10: return 0; // TextStyle
-      case 11: return 257; // ColorData: (1 << 8) | 1
-      case 12: return 1; // Font
-      case 13: return 257; // FontSize: (1 << 8) | 1
-      case 15: return window === 1 ? 0 : 25; // LineCount
-      default: return 0;
+      case 0:
+        return window === 1 ? 1 : 1; // YCoordinate (1-based)
+      case 1:
+        return 1; // XCoordinate (1-based)
+      case 2:
+        return window === 1 ? 0 : 25; // YSize (height)
+      case 3:
+        return 80; // XSize (width)
+      case 4:
+        return 1; // YCursor
+      case 5:
+        return 1; // XCursor
+      case 6:
+        return 0; // LeftMargin (size)
+      case 7:
+        return 0; // RightMargin (size)
+      case 10:
+        return 0; // TextStyle
+      case 11:
+        return 257; // ColorData: (1 << 8) | 1
+      case 12:
+        return 1; // Font
+      case 13:
+        return 257; // FontSize: (1 << 8) | 1
+      case 15:
+        return window === 1 ? 0 : 25; // LineCount
+      default:
+        return 0;
     }
   });
 

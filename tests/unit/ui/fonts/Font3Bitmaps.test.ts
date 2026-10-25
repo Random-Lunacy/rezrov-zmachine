@@ -1,11 +1,16 @@
-import { describe, it, expect } from 'vitest';
-import { FONT3_BITMAPS, getFont3Bitmap, hasFont3Bitmap, getAvailableFont3Codes } from '../../../../src/ui/fonts/Font3Bitmaps';
+import { describe, expect, it } from 'vitest';
+import {
+  FONT3_BITMAPS,
+  getAvailableFont3Codes,
+  getFont3Bitmap,
+  hasFont3Bitmap,
+} from '../../../../src/ui/fonts/Font3Bitmaps';
 
 describe('Font3Bitmaps', () => {
   describe('FONT3_BITMAPS', () => {
     it('should contain bitmap data for all 256 character codes', () => {
       expect(Object.keys(FONT3_BITMAPS)).toHaveLength(256);
-      
+
       // Check that all codes 0-255 are present
       for (let i = 0; i < 256; i++) {
         expect(FONT3_BITMAPS[i]).toBeDefined();
@@ -95,7 +100,7 @@ describe('Font3Bitmaps', () => {
     it('should return correct bitmap for specific characters', () => {
       // Test horizontal line character
       const horizontalLine = getFont3Bitmap(128);
-      expect(horizontalLine).toEqual(new Uint8Array([0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00]));
+      expect(horizontalLine).toEqual(new Uint8Array([0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00]));
 
       // Test vertical line character
       const verticalLine = getFont3Bitmap(129);
@@ -103,7 +108,7 @@ describe('Font3Bitmaps', () => {
 
       // Test up arrow character
       const upArrow = getFont3Bitmap(160);
-      expect(upArrow).toEqual(new Uint8Array([0x18, 0x3C, 0x7E, 0xFF, 0x18, 0x18, 0x18, 0x18]));
+      expect(upArrow).toEqual(new Uint8Array([0x18, 0x3c, 0x7e, 0xff, 0x18, 0x18, 0x18, 0x18]));
     });
   });
 
@@ -131,7 +136,7 @@ describe('Font3Bitmaps', () => {
       expect(codes).toHaveLength(256);
       expect(codes[0]).toBe(0);
       expect(codes[255]).toBe(255);
-      
+
       // Check that all codes are present
       for (let i = 0; i < 256; i++) {
         expect(codes).toContain(i);
@@ -153,7 +158,7 @@ describe('Font3Bitmaps', () => {
         expect(bitmap).toBeDefined();
         expect(bitmap).toBeInstanceOf(Uint8Array);
         expect(bitmap).toHaveLength(8);
-        
+
         // Each byte should be a valid 8-bit value
         for (let j = 0; j < 8; j++) {
           expect(bitmap[j]).toBeGreaterThanOrEqual(0);
@@ -165,10 +170,10 @@ describe('Font3Bitmaps', () => {
     it('should have meaningful patterns for key characters', () => {
       // Horizontal line should have horizontal pattern
       const horizontalLine = FONT3_BITMAPS[128];
-      expect(horizontalLine[2]).toBe(0xFF); // Middle rows should be solid
-      expect(horizontalLine[3]).toBe(0xFF);
-      expect(horizontalLine[4]).toBe(0xFF);
-      expect(horizontalLine[5]).toBe(0xFF);
+      expect(horizontalLine[2]).toBe(0xff); // Middle rows should be solid
+      expect(horizontalLine[3]).toBe(0xff);
+      expect(horizontalLine[4]).toBe(0xff);
+      expect(horizontalLine[5]).toBe(0xff);
 
       // Vertical line should have vertical pattern
       const verticalLine = FONT3_BITMAPS[129];
@@ -183,7 +188,7 @@ describe('Font3Bitmaps', () => {
 
       // Up arrow should have arrow pattern
       const upArrow = FONT3_BITMAPS[160];
-      expect(upArrow[3]).toBe(0xFF); // Tip of arrow
+      expect(upArrow[3]).toBe(0xff); // Tip of arrow
       expect(upArrow[7]).toBe(0x18); // Base of arrow
     });
   });
