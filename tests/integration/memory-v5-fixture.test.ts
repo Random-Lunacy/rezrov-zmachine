@@ -2,6 +2,7 @@ import { join } from 'path';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { Memory } from '../../src/core/memory/Memory';
 import { GameObjectFactory } from '../../src/core/objects/GameObjectFactory';
+import { memoryFromFile } from '../../src/node';
 import { HeaderLocation } from '../../src/utils/constants';
 import { Logger, LogLevel } from '../../src/utils/log';
 
@@ -13,7 +14,7 @@ describe('Memory with minimal.z5 fixture', () => {
   Logger.setLevel(LogLevel.DEBUG);
 
   beforeAll(() => {
-    memory = Memory.fromFile(join(__dirname, '../fixtures/minimal.z5'));
+    memory = memoryFromFile(join(__dirname, '../fixtures/minimal.z5'));
     logger = new Logger('MemoryTest');
     objectFactory = new GameObjectFactory(memory, 5, memory.getWord(HeaderLocation.ObjectTable), { logger });
   });

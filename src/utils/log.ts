@@ -1,7 +1,6 @@
 /**
  * Logging system for the Z-machine interpreter
  */
-import * as fs from 'fs';
 
 /**
  * Log levels used by the logger
@@ -14,14 +13,18 @@ export enum LogLevel {
 }
 
 /**
+ * Receives each formatted log message, without a trailing newline
+ */
+export type LogSink = (formattedMsg: string) => void;
+
+/**
  * Logger class for outputting messages at different severity levels
  */
 export class Logger {
   private static level: LogLevel = LogLevel.INFO; // Global log level
   private static useColors: boolean = typeof process !== 'undefined' && process.stdout.isTTY; // Global color setting
   private static logToConsole: boolean = true; // Whether to log to the console
-  private static logToFile: boolean = false; // Whether to log to a file
-  private static logFilePath: string = 'log.txt'; // Default log file path
+  private static logSink: LogSink | null = null; // Extra destination for formatted messages (e.g. a file)
 
   /**
    * Set the global log level
@@ -40,15 +43,13 @@ export class Logger {
   }
 
   /**
-   * Set whether to log to a file
-   * @param toFile Whether to enable file logging
-   * @param filePath Optional file path for logging
+   * Install an extra destination for formatted log messages, or remove it with null. This is how
+   * file logging works without the core depending on Node: `setLogToFile` from `rezrov-zmachine/node`
+   * installs a sink that appends to a file.
+   * @param sink Called with each formatted message, or null to remove the current sink
    */
-  static setLogToFile(toFile: boolean, filePath?: string): void {
-    Logger.logToFile = toFile;
-    if (filePath) {
-      Logger.logFilePath = filePath;
-    }
+  static setLogSink(sink: LogSink | null): void {
+    Logger.logSink = sink;
   }
 
   /**
@@ -74,8 +75,8 @@ export class Logger {
    * @param formattedMsg The formatted message to output
    */
   private outputLog(formattedMsg: string): void {
-    if (Logger.logToFile) {
-      fs.appendFileSync(Logger.logFilePath, formattedMsg + '\n', 'utf8');
+    if (Logger.logSink) {
+      Logger.logSink(formattedMsg);
     }
     if (Logger.logToConsole) {
       // eslint-disable-next-line no-console

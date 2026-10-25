@@ -71,13 +71,12 @@ export { BlorbParser } from './resources/BlorbParser';
 export { PALETTE_ENTRY_SIZE, findPaletteChunk, isPng, readPalette, replacePalette } from './resources/PngPalette';
 
 // Storage components
-export { createBrowserStorage, createFileSystemStorage, createMemoryStorage } from './storage/factory';
+export { createBrowserStorage, createMemoryStorage } from './storage/factory';
 export { EnhancedDatFormat } from './storage/formats/EnhancedDatFormat';
 export type { FormatProvider } from './storage/formats/FormatProvider';
 export { QuetzalFormat } from './storage/formats/QuetzalFormat';
 export type { SaveInfo, StorageInterface, StorageOptions, StorageStats } from './storage/interfaces';
 export { BrowserStorageProvider } from './storage/providers/BrowserStorageProvider';
-export { FileSystemProvider } from './storage/providers/FileSystemProvider';
 export { MemoryStorageProvider } from './storage/providers/MemoryStorageProvider';
 export type { StorageProvider } from './storage/providers/StorageProvider';
 export { Storage } from './storage/Storage';
@@ -94,6 +93,7 @@ export {
 } from './utils/constants';
 export { dumpDictionary, dumpHeader, dumpObjectTable, dumpParseBuffer, dumpState, hex } from './utils/debug';
 export { LogLevel, Logger } from './utils/log';
+export type { LogSink } from './utils/log';
 export { initRandom, random, randomInt, randomIntFrom0, randomSeed } from './utils/random';
 
 // Types

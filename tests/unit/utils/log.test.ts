@@ -1,11 +1,5 @@
-import * as fs from 'fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LogLevel, Logger } from '../../../src/utils/log';
-
-// Mock fs.appendFileSync
-vi.mock('fs', () => ({
-  appendFileSync: vi.fn(),
-}));
 
 describe('Logger', () => {
   // Spy on console.log
@@ -16,13 +10,12 @@ describe('Logger', () => {
     Logger.setLevel(LogLevel.INFO);
     Logger.setColored(typeof process !== 'undefined' && process.stdout.isTTY);
     Logger.setLogToConsole(true);
-    Logger.setLogToFile(false);
+    Logger.setLogSink(null);
   });
 
   afterEach(() => {
     // Clear mocks after each test
     consoleSpy.mockClear();
-    vi.mocked(fs.appendFileSync).mockClear();
   });
 
   describe('static configuration', () => {
@@ -56,18 +49,19 @@ describe('Logger', () => {
       expect(consoleSpy).toHaveBeenCalledWith(expect.not.stringContaining('\x1b[32m'));
     });
 
-    it('should enable/disable file logging', () => {
-      Logger.setLogToFile(true, 'test.log');
+    it('should send formatted messages to a sink, until it is removed', () => {
+      const sink = vi.fn();
+      Logger.setLogSink(sink);
       const logger = new Logger('TestLogger');
 
-      logger.info('Test file logging');
-      expect(fs.appendFileSync).toHaveBeenCalledWith('test.log', expect.stringContaining('Test file logging'), 'utf8');
+      logger.info('Test sink logging');
+      expect(sink).toHaveBeenCalledWith(expect.stringContaining('Test sink logging'));
 
-      vi.mocked(fs.appendFileSync).mockClear();
+      sink.mockClear();
 
-      Logger.setLogToFile(false);
-      logger.info('This should not be logged to file');
-      expect(fs.appendFileSync).not.toHaveBeenCalled();
+      Logger.setLogSink(null);
+      logger.info('This should not reach the sink');
+      expect(sink).not.toHaveBeenCalled();
     });
 
     it('should enable/disable console logging', () => {
@@ -215,26 +209,28 @@ describe('Logger', () => {
   });
 
   describe('simultaneous output targets', () => {
-    it('should log to both console and file when both are enabled', () => {
+    it('should log to both console and sink when both are enabled', () => {
+      const sink = vi.fn();
       Logger.setLogToConsole(true);
-      Logger.setLogToFile(true, 'dual-output.log');
+      Logger.setLogSink(sink);
       const logger = new Logger('DualLogger');
 
       logger.info('Log to both outputs');
 
       expect(consoleSpy).toHaveBeenCalled();
-      expect(fs.appendFileSync).toHaveBeenCalled();
+      expect(sink).toHaveBeenCalled();
     });
 
     it('should not log to either when both are disabled', () => {
+      const sink = vi.fn();
       Logger.setLogToConsole(false);
-      Logger.setLogToFile(false);
+      Logger.setLogSink(null);
       const logger = new Logger('NoLogger');
 
       logger.info('Should not be logged anywhere');
 
       expect(consoleSpy).not.toHaveBeenCalled();
-      expect(fs.appendFileSync).not.toHaveBeenCalled();
+      expect(sink).not.toHaveBeenCalled();
     });
   });
 
