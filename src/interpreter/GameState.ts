@@ -1,4 +1,4 @@
-import { createStackFrame, deserializeStackFrame, serializeStackFrame, StackFrame } from '../core/execution/StackFrame';
+import { createStackFrame, deserializeStackFrame, StackFrame } from '../core/execution/StackFrame';
 import { Memory } from '../core/memory/Memory';
 import { GameObject } from '../core/objects/GameObject';
 import { GameObjectFactory } from '../core/objects/GameObjectFactory';
@@ -378,20 +378,6 @@ export class GameState {
    */
   getRootObjects(): GameObject[] {
     return this._objectFactory.findRootObjects();
-  }
-
-  /**
-   * Create a snapshot of the current game state
-   * @returns ZMachineState object
-   */
-  createSnapshot(): ZMachineState {
-    return {
-      memory: Buffer.from(this._memory.buffer),
-      pc: this._pc,
-      stack: [...this._stack],
-      callFrames: this._callstack.map((frame) => serializeStackFrame(frame)),
-      originalStory: Buffer.from(this._memory.buffer), // You might want to get this from elsewhere
-    };
   }
 
   /**

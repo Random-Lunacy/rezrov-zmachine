@@ -1431,6 +1431,7 @@ describe('GameObject', () => {
       const name = testObject.name;
       expect(name).toBe(`[Object ${objNum} - Name Error]`);
       expect(mockLogger.debug).toHaveBeenCalledWith(expect.stringContaining('Name Error'));
+      expect(testObject.shortName).toBe('');
     });
 
     it('should handle property table access errors', () => {
@@ -1445,6 +1446,7 @@ describe('GameObject', () => {
       const name = testObject.name;
       expect(name).toBe(`[Object ${objNum} - Property Table Error]`);
       expect(mockLogger.debug).toHaveBeenCalledWith(expect.stringContaining('Property Table Error'));
+      expect(testObject.shortName).toBe('');
     });
 
     it('should decode name correctly when all conditions are met', () => {
