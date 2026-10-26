@@ -94,6 +94,13 @@ Requires Node.js 22.12 or later. The package is ESM-only and ships its own TypeS
 
 The main entry imports nothing from Node, so browser bundlers need no `fs` or `path` shims.
 
+### Public API
+
+The root entry exports the interpreter (`ZMachine`), the screen, input and storage interfaces, Blorb and story-file
+parsing, and the Font 3 text translation. `ZMachine.executor`, `ZMachine.state` and `getUserStackManager()` return
+`Executor`, `GameState` and `UserStackManager`, which are exported as types so you can name them, but they are
+internals and not part of the stable API. The `dump*` helpers and `hex` print diagnostic text whose format may change.
+
 ```typescript
 import { ZMachine, Logger } from '@random-lunacy/rezrov-zmachine';
 import { createFileSystemStorage, setLogToFile } from '@random-lunacy/rezrov-zmachine/node';
