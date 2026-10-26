@@ -1,66 +1,28 @@
-# Rezrov-ZMachine Development Roadmap
+# Rezrov-ZMachine Roadmap
 
-## Current Status
+Version support and the current feature list live in the [README](../README.md#implementation-status).
+This file tracks where the project is heading.
 
-### Implemented
+## Version support
 
-- Basic memory management
-- Core object system
-- Text parsing and dictionary handling
-- Initial support for Z-machine version 3
+- V1-V5: complete or mostly complete. The remaining V5 work is validating the extended screen model against Beyond Zork.
+- V6: Zork Zero is playable in the web example. More V6 titles would show what is still missing.
+- V7-V8: addressing and version detection exist, but no story files have been tested.
 
-### In Progress
+## Near term
 
-- Complete and validate Z-machine version 3 support
-- Extended opcode support for versions 4-5
-- Comprehensive test coverage
-- Improved error handling and logging
+- Validate V5 screen features against Beyond Zork.
+- Web example polish (see the open issues labelled `examples`): text scaling in V6, status-area redraw on
+  font-size changes, the Zork Zero hint screens, and showing Blorb frontispieces before a game starts.
 
-## Short-Term Roadmap
+## Longer term
 
-### Version Support
+- V7-V8 story file testing.
+- More V6 titles.
+- Performance profiling of the executor loop.
+- A plugin or extension story for custom opcodes and multimedia handlers.
 
-- [ ] Complete full implementation of Z-machine versions 3-5
-- [ ] Add comprehensive version detection and handling
-- [ ] Implement version-specific optimizations
+## Challenges
 
-### Core Functionality
-
-- [ ] Enhance opcode implementation coverage
-- [ ] Improve memory management robustness
-- [ ] Implement more advanced object manipulation features
-
-### Testing and Quality
-
-- [ ] Increase test coverage to 90%
-- [ ] Add compliance test suite for Z-machine specification
-- [ ] Implement extensive error logging and diagnostics
-
-## Longer-Term Goals
-
-### Advanced Features
-
-- [ ] Ensure compatibility with V1-2 games
-- [ ] Add graphics support for V6 games
-- [ ] Implement sound capabilities
-- [ ] Create more sophisticated input parsing
-- [ ] Develop advanced save/restore mechanisms
-
-### Performance
-
-- [ ] Optimize memory usage
-- [ ] Implement performance profiling tools
-- [ ] Reduce interpreter overhead
-
-### Extensibility
-
-- [ ] Create plugin architecture
-- [ ] Develop comprehensive extension points
-- [ ] Improve documentation for custom implementations
-
-## Potential Challenges
-
-- Maintaining compatibility across Z-machine versions
-- Performance optimization
-- Comprehensive testing
-- Balancing feature development with stability
+- Keeping behaviour consistent across Z-machine versions.
+- Verifying against the shipped story files rather than the published source, which can differ (see Zork Zero).

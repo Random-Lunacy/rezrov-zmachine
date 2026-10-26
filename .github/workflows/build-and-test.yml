@@ -43,9 +43,9 @@ jobs:
       - name: Install example dependencies
         # tests/examples/ exercises the console examples against the versions
         # they actually declare (chalk 6, nopt 10) rather than whatever the root
-        # tree happens to hoist. --ignore-scripts because each example now links
-        # the repo root via "file:../..", and npm would otherwise re-run the
-        # root's postinstall (patch-package) against the link.
+        # tree happens to hoist. --ignore-scripts because each example links the
+        # repo root via "file:../..", and a lifecycle script there would run
+        # against the link rather than a normal install.
         run: |
           npm ci --ignore-scripts --prefix examples/console
           npm ci --ignore-scripts --prefix examples/blessedConsole

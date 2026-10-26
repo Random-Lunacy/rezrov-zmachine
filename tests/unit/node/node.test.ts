@@ -16,7 +16,7 @@ vi.mock('fs', async (importActual) => {
   return { ...actual, readFileSync: vi.fn(), appendFileSync: vi.fn() };
 });
 
-describe('rezrov-zmachine/node', () => {
+describe('@random-lunacy/rezrov-zmachine/node', () => {
   describe('memoryFromFile', () => {
     let mockLogger: Logger;
 

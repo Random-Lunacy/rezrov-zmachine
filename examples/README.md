@@ -96,15 +96,15 @@ Then open the URL in a browser and load a story file via the file picker.
 
 Both examples support the following flags:
 
-| Flag | Short | Description |
-| ---- | ----- | ----------- |
-| `--debug` | `-d` | Enable debug logging |
-| `--interpreter <name>` | `-i` | Set interpreter type (default: `amiga`) |
-| `--header` | `-h` | Dump Z-Machine header information |
-| `--objectTree` | `-o` | Dump object table structure |
-| `--dict` | `-t` | Dump dictionary contents |
-| `--dump` | | Enable all debugging features without execution |
-| `--noExec` | `-n` | Show debugging info without running the story |
+| Flag                   | Short | Description                                     |
+| ---------------------- | ----- | ----------------------------------------------- |
+| `--debug`              | `-d`  | Enable debug logging                            |
+| `--interpreter <name>` | `-i`  | Set interpreter type (default: `amiga`)         |
+| `--header`             | `-h`  | Dump Z-Machine header information               |
+| `--objectTree`         | `-o`  | Dump object table structure                     |
+| `--dict`               | `-t`  | Dump dictionary contents                        |
+| `--dump`               |       | Enable all debugging features without execution |
+| `--noExec`             | `-n`  | Show debugging info without running the story   |
 
 ### Interpreter Types
 

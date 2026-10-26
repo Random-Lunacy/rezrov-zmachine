@@ -1,6 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import {
+  BaseInputProcessor,
+  InputState,
+  Logger,
+  MouseClickCode,
+  ZMachine,
+  type MouseClick,
+} from '@random-lunacy/rezrov-zmachine';
 import * as blessed from 'blessed';
-import { BaseInputProcessor, InputState, Logger, MouseClickCode, ZMachine, type MouseClick } from 'rezrov-zmachine';
 import { BlessedScreen } from './BlessedScreen.js';
 
 /** Clicks held while the game is busy; more than this is a burst the player didn't mean. */

@@ -1,4 +1,11 @@
-import { BaseInputProcessor, InputState, Logger, MouseClickCode, ZMachine, type MouseClick } from 'rezrov-zmachine';
+import {
+  BaseInputProcessor,
+  InputState,
+  Logger,
+  MouseClickCode,
+  ZMachine,
+  type MouseClick,
+} from '@random-lunacy/rezrov-zmachine';
 import type { WebScreen } from './WebScreen';
 
 /** Clicks held while the game is busy; more than this is a burst the player didn't mean. */

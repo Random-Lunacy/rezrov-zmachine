@@ -54,42 +54,55 @@ This project is a port/refactoring of the [ebozz](https://github.com/toshok/eboz
 
 ### Z-Machine Version Support
 
-| Version | Status              | Notes                                                                                                                  |
-| ------- | ------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| V1-V3   | **Complete**        | Fully tested with classic Infocom titles                                                                               |
-| V4      | **Complete**        | Extended opcodes and expanded object table                                                                             |
-| V5      | **Mostly complete** | Core support working; advanced screen features still being validated against Beyond Zork                               |
-| V6      | **Partial**         | Architecture present, basic graphics opcodes delegate to multimedia handler; ~11 windowing opcodes not yet implemented |
-| V7-V8   | **Partial**         | Version detection and address calculations defined; not yet tested with story files                                    |
+| Version | Status              | Notes                                                                                             |
+| ------- | ------------------- | ------------------------------------------------------------------------------------------------- |
+| V1-V3   | **Complete**        | Fully tested with classic Infocom titles                                                          |
+| V4      | **Complete**        | Extended opcodes and expanded object table                                                        |
+| V5      | **Mostly complete** | Core support working; advanced screen features still being validated against Beyond Zork          |
+| V6      | **Partial**         | Zork Zero is playable in the web example (pictures, windows, mouse); other V6 titles are untested |
+| V7-V8   | **Partial**         | Version detection and address calculations defined; not yet tested with story files               |
 
 ### UI and Examples
 
 - **Window management**: Split-window support with status bar and scrollable main text
 - **Font system**: Font 3 bitmap and Unicode mapping support
-- **Example implementations**: Two complete working interpreters — a basic console (readline-sync + chalk) and an advanced terminal UI (blessed with split windows)
+- **Example implementations**: Three complete working interpreters — a basic console (readline-sync + chalk), an advanced terminal UI (blessed with split windows), and a browser client (Vite) with pictures and sound
 
 ## Roadmap
 
 - [ ] Complete V5 screen model validation (Beyond Zork extended screen features)
-- [ ] Implement remaining V6 windowing opcodes (set_margins, move_window, window_size, etc.)
-- [ ] Full graphics and multimedia handler for V6 games
-- [ ] Implement `encode_text` and `print_form` opcodes
+- [ ] More V6 titles beyond Zork Zero
 - [ ] V7-V8 story file testing and validation
-- [ ] Publish to npm registry
-- [ ] Add web-based example implementation
+- [ ] Web example polish: see the open issues labelled `examples`
 
 ## Installation
 
-### From npm (not yet published)
-
 ```bash
-npm install rezrov-zmachine
+npm install @random-lunacy/rezrov-zmachine
+```
+
+Requires Node.js 22.12 or later. The package is ESM-only and ships its own TypeScript declarations. The API uses
+`Buffer`, so TypeScript projects should have `@types/node` installed, and browser bundles need a `Buffer` polyfill
+(the [web example](examples/web/) uses the `buffer` package).
+
+### Two entry points
+
+| Import                                | Contains                                                                                         | Runs in          |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------ | ---------------- |
+| `@random-lunacy/rezrov-zmachine`      | The interpreter, screens, parsers, Blorb, and the in-memory and browser (`localStorage`) storage | Node and browser |
+| `@random-lunacy/rezrov-zmachine/node` | `FileSystemProvider`, `createFileSystemStorage`, `memoryFromFile`, `setLogToFile`                | Node only        |
+
+The main entry imports nothing from Node, so browser bundlers need no `fs` or `path` shims.
+
+```typescript
+import { ZMachine, Logger } from '@random-lunacy/rezrov-zmachine';
+import { createFileSystemStorage, setLogToFile } from '@random-lunacy/rezrov-zmachine/node';
 ```
 
 ### From source
 
 ```bash
-git clone https://github.com/yourusername/rezrov-zmachine.git
+git clone https://github.com/Random-Lunacy/rezrov-zmachine.git
 cd rezrov-zmachine
 npm install
 npm run build
@@ -178,7 +191,7 @@ This modular design allows the interpreter to run in various environments while 
 The interpreter is designed to work with any UI system. You can create your own screen implementation by implementing the `Screen` interface:
 
 ```typescript
-import { BaseScreen, Capabilities, ScreenSize, ZMachine, InputState } from 'rezrov-zmachine';
+import { BaseScreen, Capabilities, ScreenSize, ZMachine, InputState } from '@random-lunacy/rezrov-zmachine';
 
 export class MyCustomScreen extends BaseScreen {
   getCapabilities(): Capabilities {
@@ -213,7 +226,7 @@ export class MyCustomScreen extends BaseScreen {
 You can create your own storage provider for save/restore functionality by implementing the `StorageProvider` interface:
 
 ```typescript
-import { StorageProvider } from 'rezrov-zmachine';
+import { StorageProvider } from '@random-lunacy/rezrov-zmachine';
 
 export class MyStorageProvider implements StorageProvider {
   async read(location: string): Promise<Buffer | null> {
@@ -237,7 +250,7 @@ export class MyStorageProvider implements StorageProvider {
 Then use it with a format provider when creating the storage system:
 
 ```typescript
-import { ZMachine, Storage, QuetzalFormat } from 'rezrov-zmachine';
+import { ZMachine, Storage, QuetzalFormat } from '@random-lunacy/rezrov-zmachine';
 
 const storage = new Storage(new QuetzalFormat(), new MyStorageProvider(), storyBuffer);
 const machine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, storage);
@@ -290,6 +303,11 @@ The [`examples`](examples/) directory contains complete Z-Machine interpreter im
   - Status bar and scrollable main text area
   - Advanced input handling and visual presentation
   - Full Z-Machine display feature implementation
+
+- **[Web](examples/web/)** - Browser client built with Vite
+  - V6 canvas mode with pictures and sound from Blorb files
+  - Mouse support and save/restore in `localStorage`
+  - Known rough edges are tracked in the open `examples` issues
 
 ## Development Tools
 

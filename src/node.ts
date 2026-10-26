@@ -1,5 +1,5 @@
 /**
- * Node.js-only entry point for the rezrov-zmachine library (`rezrov-zmachine/node`).
+ * Node.js-only entry point for the rezrov-zmachine library (`@random-lunacy/rezrov-zmachine/node`).
  *
  * The main entry has no Node dependencies, so it can be bundled for the browser. Everything that
  * needs the file system lives here instead.
