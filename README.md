@@ -18,7 +18,7 @@ Over the years, the format has evolved through several versions, from v1 (used f
 - [**The Inform 6 Compiler**](https://github.com/DavidKinder/Inform6)
   A popular compiler that produces Z-Machine story files from source code written in the Inform language.
 
-- [**IF Archive: Z-Machine**](https://ifarchive.org/indexes/if-archiveXinfocomXinterpretersXzcode.html)
+- [**IF Archive: Z-Machine**](https://www.ifarchive.org/indexes/if-archive/infocom/interpreters/)
   A repository of Z-Machine interpreters and tools.
 
 - [**The Digital Antiquarian: Infocom History**](https://www.filfre.net/tag/infocom/)

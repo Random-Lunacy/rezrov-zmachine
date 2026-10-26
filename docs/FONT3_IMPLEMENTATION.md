@@ -192,4 +192,3 @@ This represents a significant step toward full Beyond Zork compatibility, addres
 
 - [Z-Machine Standards Document](https://inform-fiction.org/zmachine/standards/z1point1/sect08.html)
 - [Font 3 Specification](https://zspec.jaredreisinger.com/16-font3)
-- [Beyond Zork Technical Analysis](beyond_zork_screen_docs.md)

@@ -19,7 +19,7 @@ A modular Z-machine interpreter written in TypeScript that executes interactive 
 
 - **Z-machine Spec**: [Inform Fiction Standards](https://inform-fiction.org/zmachine/standards/z1point1/index.html)
 - **Quetzal Format**: [Save file format spec](https://inform-fiction.org/zmachine/standards/quetzal/index.html)
-- **IF Archive**: [Z-machine resources](https://ifarchive.org/indexes/if-archiveXinfocomXinterpretersXzcode.html)
+- **IF Archive**: [Z-machine resources](https://www.ifarchive.org/indexes/if-archive/infocom/interpreters/)
 - **Original ebozz**: [Chris Toshok's implementation](https://github.com/toshok/ebozz) (inspiration for this project)
 - **Architecture Details**: See `docs/ARCHITECTURE.md`
 - **Examples**: See `examples/` directory for complete implementations
