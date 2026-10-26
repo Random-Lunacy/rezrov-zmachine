@@ -19,7 +19,7 @@ import {
   LogLevel,
   MemoryStorageProvider,
   ZMachine,
-} from 'rezrov-zmachine';
+} from '@random-lunacy/rezrov-zmachine';
 import { PictureRenderer } from './PictureRenderer';
 import { SoundPlayer } from './SoundPlayer';
 import { WebInputProcessor } from './WebInputProcessor';

@@ -1,5 +1,5 @@
+import { BaseInputProcessor, InputState, Logger, ZMachine } from '@random-lunacy/rezrov-zmachine';
 import * as readline from 'readline-sync';
-import { BaseInputProcessor, InputState, Logger, ZMachine } from 'rezrov-zmachine';
 
 /**
  * Simple stdio-based input processor using readline-sync.

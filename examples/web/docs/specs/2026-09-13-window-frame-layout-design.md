@@ -9,9 +9,9 @@ set via `move_window`/`resize_window` and tracked generically by
 box into a real DOM box. Instead:
 
 - `#main-content` (window 0's text) is a flex child that always spans
-  the *entire* game area, full width, docked at the top. The window's
+  the _entire_ game area, full width, docked at the top. The window's
   actual left/right/top boundaries are faked with CSS padding computed
-  as a percentage of the *full canvas width* — approximately right when
+  as a percentage of the _full canvas width_ — approximately right when
   the container happens to already span the full canvas, wrong once it
   shouldn't.
 - `#status-bar` (window 1) is likewise a flex child, always full width,
@@ -19,14 +19,16 @@ box into a real DOM box. Instead:
   and no window has yet asked to be anywhere else.
 
 Confirmed against a live Zork Zero trace: `move_window(0, y=40, x=44)`
-+ `window_size(0, h=161, w=234)` place window 0's true box at
-left=43px, top=39px, width=234px (right edge 277px) on a 320×200
-canvas — exactly the interior column between two ~43px decorative
-pillars. `window_size(1, h=39, w=320)` places window 1 as the full-width
-39px-tall header strip above it. These tracked values are already
-correct; nothing here changes how they're computed.
+
+- `window_size(0, h=161, w=234)` place window 0's true box at
+  left=43px, top=39px, width=234px (right edge 277px) on a 320×200
+  canvas — exactly the interior column between two ~43px decorative
+  pillars. `window_size(1, h=39, w=320)` places window 1 as the full-width
+  39px-tall header strip above it. These tracked values are already
+  correct; nothing here changes how they're computed.
 
 Symptoms this fixes, all from the same root cause:
+
 - Body text sliding under/behind the header banner picture regardless
   of scroll position (no structural top clip existed).
 - The scroll container's scrollbar rendering at the far right edge of
@@ -134,13 +136,13 @@ When `scroll` is true it also sets `overflowY: 'auto'; overflowX:
   own height plus `#main-content`'s `flex: 1` exactly fill
   `#game-container`'s fixed, aspect-locked height today). Once the
   other two children leave flex flow, `#input-line` becomes the sole
-  flex child and would render at the *top* of the container — a real
+  flex child and would render at the _top_ of the container — a real
   regression, not a hypothetical. Fix: give `#input-line` `position:
-  absolute; left: 0; right: 0; bottom: 0` (pinned to the container's
+absolute; left: 0; right: 0; bottom: 0` (pinned to the container's
   bottom, sized by its own content as today), and have
   `applyWindowFrame` clip a computed frame's bottom edge so it never
   extends past `#input-line`'s top (`Math.min(frame.top + frame.height,
-  inputLineTop) - frame.top`). This is a general clip in
+inputLineTop) - frame.top`). This is a general clip in
   `applyWindowFrame`, not window-0-specific logic — it happens to only
   affect window 0 today because window 0 is the only frame currently
   reaching the bottom of the canvas.
@@ -153,13 +155,13 @@ frame depends on the split height) overrides, plus once from
 ### 4. Margins become box-relative padding
 
 `applyLowerWindowMarginsCss(left, right)` currently computes
-`paddingLeft`/`paddingRight` as percentages of the *full canvas width*,
+`paddingLeft`/`paddingRight` as percentages of the _full canvas width_,
 combining the window's own left/right offset (`_window0BaseLeft`,
 `_window0BaseRight`) with the `set_margins` values, because
 `#main-content` didn't yet have its own correctly-sized box to be
 relative to.
 
-Once `#main-content` *is* window 0's real, correctly-sized box, the
+Once `#main-content` _is_ window 0's real, correctly-sized box, the
 window's own offset is no longer part of this calculation — it's
 already expressed by the box's position/size. This method simplifies
 to setting `paddingLeft`/`paddingRight` directly from the `set_margins`
@@ -179,11 +181,11 @@ currently computes a screen-absolute canvas Y and subtracts the status
 bar's CSS height to get a padding value relative to `#main-content`'s
 current (wrong, full-height) box. Once `#main-content`'s own top is
 already the window's correct top, the padding is just the position
-*within the window*, i.e. `(line - 1) * getCanvasScale()` directly, no
+_within the window_, i.e. `(line - 1) * getCanvasScale()` directly, no
 subtraction needed. This was previously suspected of being unfixable
 because padding-top cancels out of the visible-position formula once
 auto-scroll-to-bottom is active for content taller than the viewport —
-that analysis was correct for *keeping* padding applied for the window's
+that analysis was correct for _keeping_ padding applied for the window's
 lifetime, but this padding is only ever meant to matter for the first
 line printed after a window resize/picture (positioning it below the
 picture); once enough content accumulates to scroll, natural
@@ -196,13 +198,13 @@ right box, not the padding-top mechanism itself.
 
 `applyWindowFrame` and `computeWindowFrame` take a `windowId` parameter
 and contain no window-0- or window-1-specific logic. Call sites decide
-*which* windows get a managed DOM frame:
+_which_ windows get a managed DOM frame:
 
 - Window 0 always does (`#main-content`).
 - Window 1 always does (`#status-bar`) — it's the element that already
   exists for status/header text.
 - Any other window ID that calls `setOutputWindow`/prints text while
-  `_useCanvasBackground` is true is out of scope for *this* change:
+  `_useCanvasBackground` is true is out of scope for _this_ change:
   `BaseScreen`'s content model funnels all non-zero-window output into
   the single `upperWindowBuffer` rendered into `#status-bar` regardless
   of window ID (confirmed: Zork Zero's header uses window 1 only, with
@@ -268,5 +270,5 @@ scratchpad):
   `_useCanvasBackground`.
 - Picture placement/scaling logic itself (covered by the prior inline-
   pictures spec and the `picture_data` 0×0-Rect fix); this spec only
-  changes where the *containers* those pictures and text live in are
+  changes where the _containers_ those pictures and text live in are
   positioned.

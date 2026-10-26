@@ -24,10 +24,12 @@
 Pure refactor — renames `getStatusBarLineHeight()` to `getCanvasScale()` with identical numeric behavior at every existing call site (all three are already gated on `this._useCanvasBackground`, so the method's unused non-canvas fallback branch is dropped). Also reverts a leftover debug-logging change sitting uncommitted in `main.ts` from prior manual verification.
 
 **Files:**
+
 - Modify: `examples/web/src/main.ts`
 - Modify: `examples/web/src/WebScreen.ts`
 
 **Interfaces:**
+
 - Produces: `WebScreen.getCanvasScale(): number` — CSS pixels per one native canvas pixel, valid only when `_useCanvasBackground` is true and the canvas has a laid-out size; returns `0` otherwise. Later tasks build `computeWindowFrame` on top of this.
 
 - [ ] **Step 1: Revert the leftover debug-logging change**
@@ -35,13 +37,13 @@ Pure refactor — renames `getStatusBarLineHeight()` to `getCanvasScale()` with 
 In `examples/web/src/main.ts`, inside `setupGame`, change:
 
 ```ts
-  Logger.setLevel(LogLevel.DEBUG);
+Logger.setLevel(LogLevel.DEBUG);
 ```
 
 back to:
 
 ```ts
-  Logger.setLevel(LogLevel.INFO);
+Logger.setLevel(LogLevel.INFO);
 ```
 
 - [ ] **Step 2: Rename `getStatusBarLineHeight` to `getCanvasScale`**
@@ -90,25 +92,25 @@ with:
 In `print()` (the window-1/upper-window branch), change:
 
 ```ts
-      const lineHeightPx = this._useCanvasBackground ? this.getStatusBarLineHeight() : this.cellHeight;
+const lineHeightPx = this._useCanvasBackground ? this.getStatusBarLineHeight() : this.cellHeight;
 ```
 
 to:
 
 ```ts
-      const lineHeightPx = this._useCanvasBackground ? this.getCanvasScale() : this.cellHeight;
+const lineHeightPx = this._useCanvasBackground ? this.getCanvasScale() : this.cellHeight;
 ```
 
 In `splitWindow()`, change:
 
 ```ts
-        this.statusEl.style.minHeight = `${Math.ceil(lines * this.getStatusBarLineHeight())}px`;
+this.statusEl.style.minHeight = `${Math.ceil(lines * this.getStatusBarLineHeight())}px`;
 ```
 
 to:
 
 ```ts
-        this.statusEl.style.minHeight = `${Math.ceil(lines * this.getCanvasScale())}px`;
+this.statusEl.style.minHeight = `${Math.ceil(lines * this.getCanvasScale())}px`;
 ```
 
 (This line is fully replaced in Task 3 — this step just keeps the file compiling and behaviorally identical in between.)
@@ -116,13 +118,13 @@ to:
 In `setCursorPosition()`, change:
 
 ```ts
-      const lineHeight = this.getStatusBarLineHeight(); // CSS pixels per canvas pixel
+const lineHeight = this.getStatusBarLineHeight(); // CSS pixels per canvas pixel
 ```
 
 to:
 
 ```ts
-      const lineHeight = this.getCanvasScale();
+const lineHeight = this.getCanvasScale();
 ```
 
 (Also fully replaced in Task 3.)
@@ -158,9 +160,11 @@ EOF
 `getSize()` currently sources its `width` from `#main-content`'s own `clientWidth` in both modes, but sources `height` from `#game-container` in canvas mode specifically (an existing asymmetry). Once Task 3 narrows `#main-content` to window 0's own (possibly sub-canvas-width) box, anything relying on `getSize().cols` to mean "the full canvas grid width" — `BaseScreen.clearLine` (library code) and `WebScreen.handleResize()` — would silently start computing a too-narrow column count for the upper-window text buffer. Fixing the asymmetry now, before `#main-content` narrows, is a no-op today (both elements are still the same width) and prevents that regression window.
 
 **Files:**
+
 - Modify: `examples/web/src/WebScreen.ts`
 
 **Interfaces:**
+
 - Consumes: nothing new.
 - Produces: `getSize()` behavior unchanged for non-canvas mode; in canvas mode, `width` now sourced the same way `height` already is (from `#game-container`, i.e. the full canvas box) rather than from `#main-content`.
 
@@ -236,9 +240,11 @@ The core change. Adds `computeWindowFrame`/`applyWindowFrame`, switches `#main-c
 This task lands as one commit because the removed fields and their readers must change atomically — there is no valid intermediate state where the fields are gone but a reader still expects them, or vice versa.
 
 **Files:**
+
 - Modify: `examples/web/src/WebScreen.ts`
 
 **Interfaces:**
+
 - Consumes: `WebScreen.getCanvasScale()` (Task 1), `this.windowManager.getWindowProperty(windowId, WindowProperty.{XCoordinate,YCoordinate,XSize,YSize,LeftMargin,RightMargin})` (already exists, generic per window ID).
 - Produces:
   - `WebScreen.computeWindowFrame(windowId: number): { left: number; top: number; width: number; height: number }` — CSS pixels, relative to `#game-container`'s own content box.
@@ -303,105 +309,105 @@ Add these two new private methods immediately after `getCanvasScale()`:
 Replace the whole method body from the `mainEl.style.backgroundColor` line through the `inputField` block (everything between the `this._useCanvasBackground = true;` line and the `// Remeasure cell dimensions` comment) — currently:
 
 ```ts
-    // Status bar: transparent, no border, initially hidden until split_window is called
-    this.statusEl.style.backgroundColor = 'transparent';
-    this.statusEl.style.borderBottom = 'none';
-    this.statusEl.style.display = 'none';
+// Status bar: transparent, no border, initially hidden until split_window is called
+this.statusEl.style.backgroundColor = 'transparent';
+this.statusEl.style.borderBottom = 'none';
+this.statusEl.style.display = 'none';
 
-    // Main text area: transparent, no default padding/height constraints
-    this.mainEl.style.backgroundColor = 'transparent';
-    this.mainEl.style.minHeight = '0';
+// Main text area: transparent, no default padding/height constraints
+this.mainEl.style.backgroundColor = 'transparent';
+this.mainEl.style.minHeight = '0';
 
-    const mainContent = this.mainEl.parentElement;
-    if (mainContent) {
-      mainContent.style.backgroundColor = 'transparent';
-      mainContent.style.minHeight = '0';
-      mainContent.style.maxHeight = 'none';
-      mainContent.style.padding = '0';
-      mainContent.style.overflowY = 'auto';
-      // Take up all remaining vertical space between status bar and input line
-      mainContent.style.flex = '1';
-    }
+const mainContent = this.mainEl.parentElement;
+if (mainContent) {
+  mainContent.style.backgroundColor = 'transparent';
+  mainContent.style.minHeight = '0';
+  mainContent.style.maxHeight = 'none';
+  mainContent.style.padding = '0';
+  mainContent.style.overflowY = 'auto';
+  // Take up all remaining vertical space between status bar and input line
+  mainContent.style.flex = '1';
+}
 
-    const gameContainer = this.statusEl.parentElement;
-    if (gameContainer) {
-      gameContainer.style.backgroundColor = 'transparent';
-      // Stack children vertically so status bar + text area + input fill the container
-      gameContainer.style.display = 'flex';
-      gameContainer.style.flexDirection = 'column';
-      // Note: we intentionally do NOT override the CSS font size here. The default 16px
-      // font with the body's line-height:1.4 gives cellHeight≈22px and rows≈25, which
-      // maps exactly to Zork Zero's 320×200 canvas at fontH=8 (200/8=25 rows). Changing
-      // the font size would misalign split_window heights and set_cursor coordinates.
-    }
+const gameContainer = this.statusEl.parentElement;
+if (gameContainer) {
+  gameContainer.style.backgroundColor = 'transparent';
+  // Stack children vertically so status bar + text area + input fill the container
+  gameContainer.style.display = 'flex';
+  gameContainer.style.flexDirection = 'column';
+  // Note: we intentionally do NOT override the CSS font size here. The default 16px
+  // font with the body's line-height:1.4 gives cellHeight≈22px and rows≈25, which
+  // maps exactly to Zork Zero's 320×200 canvas at fontH=8 (200/8=25 rows). Changing
+  // the font size would misalign split_window heights and set_cursor coordinates.
+}
 
-    const inputLine = gameContainer?.querySelector('#input-line') as HTMLElement | null;
-    if (inputLine) {
-      inputLine.style.backgroundColor = 'transparent';
-      inputLine.style.borderTop = 'none';
-      inputLine.style.flexShrink = '0';
-    }
-    const inputField = gameContainer?.querySelector('#input-field') as HTMLInputElement | null;
-    if (inputField) {
-      inputField.style.backgroundColor = 'transparent';
-      inputField.style.border = '1px solid rgba(255,255,255,0.3)';
-    }
+const inputLine = gameContainer?.querySelector('#input-line') as HTMLElement | null;
+if (inputLine) {
+  inputLine.style.backgroundColor = 'transparent';
+  inputLine.style.borderTop = 'none';
+  inputLine.style.flexShrink = '0';
+}
+const inputField = gameContainer?.querySelector('#input-field') as HTMLInputElement | null;
+if (inputField) {
+  inputField.style.backgroundColor = 'transparent';
+  inputField.style.border = '1px solid rgba(255,255,255,0.3)';
+}
 ```
 
 with:
 
 ```ts
-    // Status bar: transparent, no border, initially hidden until split_window/
-    // resize_window gives it a size. Positioned by applyWindowFrame, not flex.
-    this.statusEl.style.backgroundColor = 'transparent';
-    this.statusEl.style.borderBottom = 'none';
-    this.statusEl.style.display = 'none';
-    this.statusEl.style.minHeight = '0';
+// Status bar: transparent, no border, initially hidden until split_window/
+// resize_window gives it a size. Positioned by applyWindowFrame, not flex.
+this.statusEl.style.backgroundColor = 'transparent';
+this.statusEl.style.borderBottom = 'none';
+this.statusEl.style.display = 'none';
+this.statusEl.style.minHeight = '0';
 
-    // Main text area: transparent, no default padding/height constraints
-    this.mainEl.style.backgroundColor = 'transparent';
-    this.mainEl.style.minHeight = '0';
+// Main text area: transparent, no default padding/height constraints
+this.mainEl.style.backgroundColor = 'transparent';
+this.mainEl.style.minHeight = '0';
 
-    const mainContent = this.mainEl.parentElement as HTMLElement | null;
-    if (mainContent) {
-      mainContent.style.backgroundColor = 'transparent';
-      mainContent.style.padding = '0';
-      // left/top/width/height/overflow are set by applyWindowFrame, from window 0's
-      // own move_window/resize_window box, once WindowManager has real bounds.
-    }
+const mainContent = this.mainEl.parentElement as HTMLElement | null;
+if (mainContent) {
+  mainContent.style.backgroundColor = 'transparent';
+  mainContent.style.padding = '0';
+  // left/top/width/height/overflow are set by applyWindowFrame, from window 0's
+  // own move_window/resize_window box, once WindowManager has real bounds.
+}
 
-    const gameContainer = this.statusEl.parentElement;
-    if (gameContainer) {
-      gameContainer.style.backgroundColor = 'transparent';
-      // Note: we intentionally do NOT override the CSS font size here. The default 16px
-      // font with the body's line-height:1.4 gives cellHeight≈22px and rows≈25, which
-      // maps exactly to Zork Zero's 320×200 canvas at fontH=8 (200/8=25 rows). Changing
-      // the font size would misalign split_window heights and set_cursor coordinates.
-    }
+const gameContainer = this.statusEl.parentElement;
+if (gameContainer) {
+  gameContainer.style.backgroundColor = 'transparent';
+  // Note: we intentionally do NOT override the CSS font size here. The default 16px
+  // font with the body's line-height:1.4 gives cellHeight≈22px and rows≈25, which
+  // maps exactly to Zork Zero's 320×200 canvas at fontH=8 (200/8=25 rows). Changing
+  // the font size would misalign split_window heights and set_cursor coordinates.
+}
 
-    // #input-line is browser UI chrome, not part of the Z-machine window model --
-    // pin it to the bottom of #game-container directly rather than relying on
-    // flexbox (main-content/status-bar are no longer flex children, so flex
-    // layout can no longer reserve space for it).
-    const inputLine = gameContainer?.querySelector('#input-line') as HTMLElement | null;
-    if (inputLine) {
-      inputLine.style.backgroundColor = 'transparent';
-      inputLine.style.borderTop = 'none';
-      inputLine.style.position = 'absolute';
-      inputLine.style.left = '0';
-      inputLine.style.right = '0';
-      inputLine.style.bottom = '0';
-    }
-    const inputField = gameContainer?.querySelector('#input-field') as HTMLInputElement | null;
-    if (inputField) {
-      inputField.style.backgroundColor = 'transparent';
-      inputField.style.border = '1px solid rgba(255,255,255,0.3)';
-    }
+// #input-line is browser UI chrome, not part of the Z-machine window model --
+// pin it to the bottom of #game-container directly rather than relying on
+// flexbox (main-content/status-bar are no longer flex children, so flex
+// layout can no longer reserve space for it).
+const inputLine = gameContainer?.querySelector('#input-line') as HTMLElement | null;
+if (inputLine) {
+  inputLine.style.backgroundColor = 'transparent';
+  inputLine.style.borderTop = 'none';
+  inputLine.style.position = 'absolute';
+  inputLine.style.left = '0';
+  inputLine.style.right = '0';
+  inputLine.style.bottom = '0';
+}
+const inputField = gameContainer?.querySelector('#input-field') as HTMLInputElement | null;
+if (inputField) {
+  inputField.style.backgroundColor = 'transparent';
+  inputField.style.border = '1px solid rgba(255,255,255,0.3)';
+}
 
-    // Apply initial frames (no-ops if the canvas isn't sized yet — the later
-    // moveWindow/resizeWindow/splitWindow calls will apply them once it is).
-    if (mainContent) this.applyWindowFrame(mainContent, 0, true);
-    this.applyWindowFrame(this.statusEl, 1, false);
+// Apply initial frames (no-ops if the canvas isn't sized yet — the later
+// moveWindow/resizeWindow/splitWindow calls will apply them once it is).
+if (mainContent) this.applyWindowFrame(mainContent, 0, true);
+this.applyWindowFrame(this.statusEl, 1, false);
 ```
 
 - [ ] **Step 3: Delete the `_window0Base*` fields**
@@ -556,7 +562,7 @@ with:
   }
 ```
 
-Note: this intentionally removes the old "never narrow window 0" guard. `#main-content` is now a real box that always reflects `resize_window`'s current value, exactly like a real interpreter — the guard existed only to compensate for `#main-content` not having a real box to be narrow or wide *of*. Task 5 verifies this against the exact scenario that guard was written for.
+Note: this intentionally removes the old "never narrow window 0" guard. `#main-content` is now a real box that always reflects `resize_window`'s current value, exactly like a real interpreter — the guard existed only to compensate for `#main-content` not having a real box to be narrow or wide _of_. Task 5 verifies this against the exact scenario that guard was written for.
 
 Note: any non-zero windowId is routed to `this.statusEl` — per the spec, this repo's content model (`BaseScreen.upperWindowBuffer`) doesn't yet support multiple simultaneous non-zero text windows with independent DOM elements (out of scope; see spec §5), so all non-zero windows share the one status-bar element's frame today. This only changes behavior for a window ID other than 0 or 1, which no currently-known game uses.
 
@@ -611,31 +617,31 @@ with:
 In `print()`'s upper-window branch, the status bar's height is now authoritatively fixed by `applyWindowFrame` (from `resize_window`'s tracked size) — auto-growing `minHeight` past that on overflow would defeat the whole point (status text growing down over the picture below it, the same bug this plan fixes for window 0). Replace:
 
 ```ts
-      // Expand status bar if buffer lines exceed the current split height.
-      // In canvas mode, use the canvas-proportional line height so expansion
-      // doesn't break the coordinate alignment set by splitWindow().
-      const bufferLines = this.upperWindowBuffer.length;
-      const lineHeightPx = this._useCanvasBackground ? this.getCanvasScale() : this.cellHeight;
-      const currentMinHeight = Math.round(parseFloat(this.statusEl.style.minHeight || '0') / lineHeightPx);
-      if (bufferLines > currentMinHeight) {
-        this.statusEl.style.minHeight = `${Math.ceil(bufferLines * lineHeightPx)}px`;
-      }
+// Expand status bar if buffer lines exceed the current split height.
+// In canvas mode, use the canvas-proportional line height so expansion
+// doesn't break the coordinate alignment set by splitWindow().
+const bufferLines = this.upperWindowBuffer.length;
+const lineHeightPx = this._useCanvasBackground ? this.getCanvasScale() : this.cellHeight;
+const currentMinHeight = Math.round(parseFloat(this.statusEl.style.minHeight || '0') / lineHeightPx);
+if (bufferLines > currentMinHeight) {
+  this.statusEl.style.minHeight = `${Math.ceil(bufferLines * lineHeightPx)}px`;
+}
 ```
 
 with:
 
 ```ts
-      // In canvas mode the status bar's box is authoritatively sized by
-      // applyWindowFrame from the window's own resize_window size -- it must
-      // not auto-grow past that (would render over whatever is below it).
-      // Non-canvas mode keeps the original auto-grow-on-overflow behavior.
-      if (!this._useCanvasBackground) {
-        const bufferLines = this.upperWindowBuffer.length;
-        const currentMinHeight = Math.round(parseFloat(this.statusEl.style.minHeight || '0') / this.cellHeight);
-        if (bufferLines > currentMinHeight) {
-          this.statusEl.style.minHeight = `${Math.ceil(bufferLines * this.cellHeight)}px`;
-        }
-      }
+// In canvas mode the status bar's box is authoritatively sized by
+// applyWindowFrame from the window's own resize_window size -- it must
+// not auto-grow past that (would render over whatever is below it).
+// Non-canvas mode keeps the original auto-grow-on-overflow behavior.
+if (!this._useCanvasBackground) {
+  const bufferLines = this.upperWindowBuffer.length;
+  const currentMinHeight = Math.round(parseFloat(this.statusEl.style.minHeight || '0') / this.cellHeight);
+  if (bufferLines > currentMinHeight) {
+    this.statusEl.style.minHeight = `${Math.ceil(bufferLines * this.cellHeight)}px`;
+  }
+}
 ```
 
 - [ ] **Step 7: Simplify `applyLowerWindowMarginsCss`**
@@ -693,25 +699,25 @@ with:
 Replace:
 
 ```ts
-    const leftMargin = this.windowManager.getWindowProperty(0, WindowProperty.LeftMargin);
-    const rightMargin = this.windowManager.getWindowProperty(0, WindowProperty.RightMargin);
-    const columnLeft = this._window0BaseLeft + leftMargin;
-    const columnRight = (this._window0BaseRight >= 0 ? this._window0BaseRight : canvasW) - rightMargin;
-    const columnWidth = Math.max(1, columnRight - columnLeft);
-    const columnMid = (columnLeft + columnRight) / 2;
+const leftMargin = this.windowManager.getWindowProperty(0, WindowProperty.LeftMargin);
+const rightMargin = this.windowManager.getWindowProperty(0, WindowProperty.RightMargin);
+const columnLeft = this._window0BaseLeft + leftMargin;
+const columnRight = (this._window0BaseRight >= 0 ? this._window0BaseRight : canvasW) - rightMargin;
+const columnWidth = Math.max(1, columnRight - columnLeft);
+const columnMid = (columnLeft + columnRight) / 2;
 ```
 
 with:
 
 ```ts
-    const leftMargin = this.windowManager.getWindowProperty(0, WindowProperty.LeftMargin);
-    const rightMargin = this.windowManager.getWindowProperty(0, WindowProperty.RightMargin);
-    const windowLeft = this.windowManager.getWindowProperty(0, WindowProperty.XCoordinate) - 1;
-    const windowWidth = this.windowManager.getWindowProperty(0, WindowProperty.XSize);
-    const columnLeft = windowLeft + leftMargin;
-    const columnRight = windowLeft + windowWidth - rightMargin;
-    const columnWidth = Math.max(1, columnRight - columnLeft);
-    const columnMid = (columnLeft + columnRight) / 2;
+const leftMargin = this.windowManager.getWindowProperty(0, WindowProperty.LeftMargin);
+const rightMargin = this.windowManager.getWindowProperty(0, WindowProperty.RightMargin);
+const windowLeft = this.windowManager.getWindowProperty(0, WindowProperty.XCoordinate) - 1;
+const windowWidth = this.windowManager.getWindowProperty(0, WindowProperty.XSize);
+const columnLeft = windowLeft + leftMargin;
+const columnRight = windowLeft + windowWidth - rightMargin;
+const columnWidth = Math.max(1, columnRight - columnLeft);
+const columnMid = (columnLeft + columnRight) / 2;
 ```
 
 (This function's `pixelX`/percentage-of-`columnWidth` math below this point is unchanged — both values are still screen-absolute canvas pixels, just sourced live from `WindowManager` instead of a mirrored field. Also update the comment two lines above this block, which currently reads `// 0-based to compare against the 0-based _window0BaseLeft/_window0BaseRight bounds,` — change `_window0BaseLeft/_window0BaseRight` to `windowLeft/windowWidth`.)
@@ -782,12 +788,14 @@ await browser.close();
 Run: `node /tmp/window-frame-verify/verify.mjs`
 
 Read `/tmp/window-frame-verify/initial.png` and confirm visually:
+
 - Body text does not overlap the header banner picture.
 - Body text renders between the left and right decorative pillars, not under either.
 - The scrollbar (if visible) renders at the right edge of the text column, not at the right edge of the whole game surface / over the right pillar.
 - `#input-line` renders pinned at the bottom of the game area, not at the top.
 
 From the JSON output, confirm:
+
 - `mainContent.top > gameContainer.top` (window 0 starts below the header, not at the very top).
 - `mainContent.right <= statusEl.right` and `mainContent.left >= statusEl.left` is not a meaningful check (status bar spans full width); instead confirm `mainContent.width < gameContainer.width` (window 0 is narrower than the full canvas, i.e. it excludes the pillars).
 - `mainContent.bottom <= inputLine.top` (no overlap between the scrolling text box and the input line).
@@ -828,10 +836,12 @@ EOF
 `resize_window`'s own tracked width already gives window 0's true right edge (confirmed against a live trace: `move_window(0, y=40, x=44)` + `window_size(0, h=161, w=234)` → right edge 277, exactly the right pillar's left edge on a 320px canvas) and Task 3 already uses it directly. `_rightPillarX`/`trackRightPicture` are now dead weight that reconstructs the same boundary a less reliable way (inferring it from which pictures happen to be tall and right-of-center).
 
 **Files:**
+
 - Modify: `examples/web/src/WebScreen.ts`
 - Modify: `examples/web/src/main.ts`
 
 **Interfaces:**
+
 - Removes: `WebScreen.trackRightPicture(screenX: number): void`, `WebScreen._rightPillarX`.
 
 - [ ] **Step 1: Confirm nothing still reads it**
@@ -875,38 +885,38 @@ and:
 Replace:
 
 ```ts
-        try {
-          if (window === 0) {
-            await webScreen.displayInlinePicture(resourceId, data, format, x, y, scale);
-            return;
-          }
-          // Track right-side pictures synchronously (before async image load) so that
-          // the right text boundary is set before any subsequent set_margins opcode runs.
-          // Only a tall picture (a real decorative side pillar/column) should narrow the
-          // text margin -- a small badge/icon drawn elsewhere on the right (e.g. a
-          // status-bar decoration) must not be mistaken for one.
-          const pictureHeight = multimediaHandler?.getPictureData(resourceId)?.height ?? 0;
-          if (x > pictureCanvas.width / 2 && pictureHeight > pictureCanvas.height / 4) {
-            webScreen.trackRightPicture(x);
-          }
-          await pictureRenderer.displayPicture(resourceId, data, format, x, y, scale);
-        } catch (error) {
-          console.warn(`Picture ${resourceId} render failed:`, error);
-        }
+try {
+  if (window === 0) {
+    await webScreen.displayInlinePicture(resourceId, data, format, x, y, scale);
+    return;
+  }
+  // Track right-side pictures synchronously (before async image load) so that
+  // the right text boundary is set before any subsequent set_margins opcode runs.
+  // Only a tall picture (a real decorative side pillar/column) should narrow the
+  // text margin -- a small badge/icon drawn elsewhere on the right (e.g. a
+  // status-bar decoration) must not be mistaken for one.
+  const pictureHeight = multimediaHandler?.getPictureData(resourceId)?.height ?? 0;
+  if (x > pictureCanvas.width / 2 && pictureHeight > pictureCanvas.height / 4) {
+    webScreen.trackRightPicture(x);
+  }
+  await pictureRenderer.displayPicture(resourceId, data, format, x, y, scale);
+} catch (error) {
+  console.warn(`Picture ${resourceId} render failed:`, error);
+}
 ```
 
 with:
 
 ```ts
-        try {
-          if (window === 0) {
-            await webScreen.displayInlinePicture(resourceId, data, format, x, y, scale);
-            return;
-          }
-          await pictureRenderer.displayPicture(resourceId, data, format, x, y, scale);
-        } catch (error) {
-          console.warn(`Picture ${resourceId} render failed:`, error);
-        }
+try {
+  if (window === 0) {
+    await webScreen.displayInlinePicture(resourceId, data, format, x, y, scale);
+    return;
+  }
+  await pictureRenderer.displayPicture(resourceId, data, format, x, y, scale);
+} catch (error) {
+  console.warn(`Picture ${resourceId} render failed:`, error);
+}
 ```
 
 - [ ] **Step 4: Verify it builds**
@@ -952,6 +962,7 @@ This game's trace includes `window_size(0, h=161, w=234)` followed later by `win
 - [ ] **Step 3: Re-verify prior fixes still hold**
 
 Take a fresh screenshot at the opening scene and confirm all of the following, which were fixed earlier in this feature's development and must not regress:
+
 - Inline pictures (the drop-cap letter, small room icons) render flush-left/flush-right at the correct column position, matching the sfrotz reference.
 - Padding exists between inline images and adjacent body text (not butted directly against it).
 - The compass/exit icon overlay renders in the correct position.

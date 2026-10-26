@@ -14,7 +14,7 @@ describe('package.json entry points', () => {
   // it promises, so the test checks the mapping without needing a build.
   beforeAll(() => {
     consumer = mkdtempSync(join(tmpdir(), 'rezrov-resolution-'));
-    const installed = join(consumer, 'node_modules', 'rezrov-zmachine');
+    const installed = join(consumer, 'node_modules', '@random-lunacy', 'rezrov-zmachine');
     mkdirSync(join(installed, 'dist'), { recursive: true });
     writeFileSync(join(installed, 'package.json'), JSON.stringify(pkg));
     for (const name of ['index', 'node']) {
@@ -37,8 +37,12 @@ describe('package.json entry points', () => {
     ['Node10', ts.ModuleResolutionKind.Node10],
     ['Bundler', ts.ModuleResolutionKind.Bundler],
   ])('resolves both entry points under %s resolution', (_name, kind) => {
-    expect(resolveFrom('rezrov-zmachine', kind)).toBe('/node_modules/rezrov-zmachine/dist/index.d.ts');
-    expect(resolveFrom('rezrov-zmachine/node', kind)).toBe('/node_modules/rezrov-zmachine/dist/node.d.ts');
+    expect(resolveFrom('@random-lunacy/rezrov-zmachine', kind)).toBe(
+      '/node_modules/@random-lunacy/rezrov-zmachine/dist/index.d.ts'
+    );
+    expect(resolveFrom('@random-lunacy/rezrov-zmachine/node', kind)).toBe(
+      '/node_modules/@random-lunacy/rezrov-zmachine/dist/node.d.ts'
+    );
   });
 
   it('points every export and typesVersions target at a file the build produces', () => {

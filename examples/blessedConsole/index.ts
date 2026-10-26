@@ -1,5 +1,3 @@
-import * as fs from 'fs';
-import * as path from 'path';
 import {
   BlorbParser,
   dumpDictionary,
@@ -9,8 +7,10 @@ import {
   Logger,
   LogLevel,
   ZMachine,
-} from 'rezrov-zmachine';
-import { setLogToFile } from 'rezrov-zmachine/node';
+} from '@random-lunacy/rezrov-zmachine';
+import { setLogToFile } from '@random-lunacy/rezrov-zmachine/node';
+import * as fs from 'fs';
+import * as path from 'path';
 import { BlessedInputProcessor } from './BlessedInputProcessor.js';
 import { BlessedScreen } from './BlessedScreen.js';
 import { INTERPRETER_NAMES, parseArguments } from './utils.js';

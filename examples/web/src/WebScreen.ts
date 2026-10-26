@@ -7,7 +7,7 @@ import {
   WindowProperty,
   ZMachine,
   translateFont3Text,
-} from 'rezrov-zmachine';
+} from '@random-lunacy/rezrov-zmachine';
 import type { PictureRenderer } from './PictureRenderer';
 import type { SoundPlayer } from './SoundPlayer';
 

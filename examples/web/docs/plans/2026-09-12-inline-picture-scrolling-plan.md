@@ -21,10 +21,12 @@
 ### Task 1: Thread `window` through `MultimediaHandler.displayPicture`
 
 **Files:**
+
 - Modify: `src/ui/multimedia/MultimediaHandler.ts:169` (interface), `:286` (`BaseMultimediaHandler` stub)
 - Test: `tests/unit/ui/multimedia/BaseMultimediaHandler.test.ts:141-146`
 
 **Interfaces:**
+
 - Produces: `MultimediaHandler.displayPicture(resourceId: number, x: number, y: number, scale: number, window: number): ResourceStatus` — the `window` parameter is new and required, appended after `scale`.
 
 - [ ] **Step 1: Update the test to call the new signature**
@@ -32,12 +34,12 @@
 In `tests/unit/ui/multimedia/BaseMultimediaHandler.test.ts`, replace the `'should display pictures'` test (lines 141-146):
 
 ```typescript
-    it('should display pictures', () => {
-      const result = handler.displayPicture(1, 100, 200, 150, 0);
+it('should display pictures', () => {
+  const result = handler.displayPicture(1, 100, 200, 150, 0);
 
-      expect(result).toBe(ResourceStatus.NotAvailable);
-      expect(mockLogger.debug).toHaveBeenCalledWith('Displaying picture 1 at (100,200) with scale 150%');
-    });
+  expect(result).toBe(ResourceStatus.NotAvailable);
+  expect(mockLogger.debug).toHaveBeenCalledWith('Displaying picture 1 at (100,200) with scale 150%');
+});
 ```
 
 - [ ] **Step 2: Run it to verify it fails**
@@ -85,10 +87,12 @@ git commit -m "Add window parameter to MultimediaHandler.displayPicture"
 ### Task 2: Thread `window` through `BlorbMultimediaHandler.displayPicture` and `PictureRendererCallback`
 
 **Files:**
+
 - Modify: `src/ui/multimedia/BlorbMultimediaHandler.ts:105-112` (`PictureRendererCallback` type), `:263-287` (`displayPicture` method)
 - Test: `tests/unit/ui/multimedia/BlorbMultimediaHandler.test.ts:276-286`
 
 **Interfaces:**
+
 - Consumes: `MultimediaHandler.displayPicture(resourceId, x, y, scale, window)` from Task 1.
 - Produces: `PictureRendererCallback = (resourceId: number, data: Buffer, format: string, x: number, y: number, scale: number, window: number) => void`. `BlorbMultimediaHandler.displayPicture` now requires a 5th `window` argument and forwards it as the callback's 7th argument.
 
@@ -97,26 +101,26 @@ git commit -m "Add window parameter to MultimediaHandler.displayPicture"
 In `tests/unit/ui/multimedia/BlorbMultimediaHandler.test.ts`, replace the `describe('displayPicture', ...)` block (lines 276-286):
 
 ```typescript
-  describe('displayPicture', () => {
-    it('should return Available for existing picture', () => {
-      const status = handler.displayPicture(1, 10, 20, 100, 0);
-      expect(status).toBe(ResourceStatus.Available);
-    });
-
-    it('should return NotAvailable for missing picture', () => {
-      const status = handler.displayPicture(99, 10, 20, 100, 0);
-      expect(status).toBe(ResourceStatus.NotAvailable);
-    });
-
-    it('should forward the target window to the pictureRenderer callback', () => {
-      const rendererSpy = vi.fn();
-      const h = new BlorbMultimediaHandler(blorbMap, blorbData, { logger: mockLogger, pictureRenderer: rendererSpy });
-
-      h.displayPicture(1, 10, 20, 100, 3);
-
-      expect(rendererSpy).toHaveBeenCalledWith(1, jpegData, 'JPEG', 10, 20, 100, 3);
-    });
+describe('displayPicture', () => {
+  it('should return Available for existing picture', () => {
+    const status = handler.displayPicture(1, 10, 20, 100, 0);
+    expect(status).toBe(ResourceStatus.Available);
   });
+
+  it('should return NotAvailable for missing picture', () => {
+    const status = handler.displayPicture(99, 10, 20, 100, 0);
+    expect(status).toBe(ResourceStatus.NotAvailable);
+  });
+
+  it('should forward the target window to the pictureRenderer callback', () => {
+    const rendererSpy = vi.fn();
+    const h = new BlorbMultimediaHandler(blorbMap, blorbData, { logger: mockLogger, pictureRenderer: rendererSpy });
+
+    h.displayPicture(1, 10, 20, 100, 3);
+
+    expect(rendererSpy).toHaveBeenCalledWith(1, jpegData, 'JPEG', 10, 20, 100, 3);
+  });
+});
 ```
 
 - [ ] **Step 2: Run it to verify it fails**
@@ -187,10 +191,12 @@ git commit -m "Forward target window to BlorbMultimediaHandler's pictureRenderer
 ### Task 3: Pass the current output window from the `draw_picture` opcode
 
 **Files:**
+
 - Modify: `src/core/opcodes/graphics.ts:65`
 - Test: `tests/unit/core/opcodes/multimedia.test.ts` (`'draw_picture opcode'` describe block, plus 6 existing assertions elsewhere in the file)
 
 **Interfaces:**
+
 - Consumes: `MultimediaHandler.displayPicture(resourceId, x, y, scale, window)` from Task 1. `draw_picture` already computes `currentWindow` via `machine.screen.getOutputWindow(machine)` (see `graphics.ts:51`).
 
 - [ ] **Step 1: Add a new failing test asserting the window is forwarded**
@@ -198,15 +204,15 @@ git commit -m "Forward target window to BlorbMultimediaHandler's pictureRenderer
 In `tests/unit/core/opcodes/multimedia.test.ts`, add this test inside the existing `describe('draw_picture opcode', ...)` block (after the `'should use cursor position when y or x is 0'` test, before its closing `});` at line 145):
 
 ```typescript
-    it('should pass the current output window to the multimedia handler', () => {
-      machine.state.version = 6;
-      machine.screen.getOutputWindow.mockReturnValue(3);
-      mockMultimediaHandler.displayPicture.mockReturnValue(ResourceStatus.Available);
+it('should pass the current output window to the multimedia handler', () => {
+  machine.state.version = 6;
+  machine.screen.getOutputWindow.mockReturnValue(3);
+  mockMultimediaHandler.displayPicture.mockReturnValue(ResourceStatus.Available);
 
-      draw_picture(machine, [], 1, 200, 100);
+  draw_picture(machine, [], 1, 200, 100);
 
-      expect(mockMultimediaHandler.displayPicture).toHaveBeenCalledWith(1, 100, 200, 100, 3);
-    });
+  expect(mockMultimediaHandler.displayPicture).toHaveBeenCalledWith(1, 100, 200, 100, 3);
+});
 ```
 
 - [ ] **Step 2: Run it to verify it fails**
@@ -219,7 +225,7 @@ Expected: FAIL — actual call was `(1, 100, 200, 100)` (4 arguments), expected 
 In `src/core/opcodes/graphics.ts`, replace line 65:
 
 ```typescript
-    const status = machine.multimediaHandler.displayPicture(picture, finalX, finalY, 100, currentWindow);
+const status = machine.multimediaHandler.displayPicture(picture, finalX, finalY, 100, currentWindow);
 ```
 
 - [ ] **Step 4: Run the new test to verify it passes**
@@ -260,9 +266,11 @@ git commit -m "Pass the current output window from draw_picture to the multimedi
 ### Task 4: Render window-0 pictures as inline DOM images in `WebScreen`
 
 **Files:**
+
 - Modify: `examples/web/src/WebScreen.ts:507` (new field, after `_rightPillarX`), `:1253-1301` (`clearWindow`), `:1235-1251` (remove `onWindowPictureDrawn` override), add two new public methods near `trackRightPicture` (`:1199-1206`)
 
 **Interfaces:**
+
 - Produces:
   - `WebScreen.displayInlinePicture(resourceId: number, data: Buffer, format: string, x: number, y: number, scale: number): Promise<void>`
   - `WebScreen.eraseInlinePicture(resourceId: number): boolean` (returns `true` if an inline picture was found and removed)
@@ -362,30 +370,30 @@ Immediately after the `trackRightPicture` method (ends at line 1206 with its clo
 In `examples/web/src/WebScreen.ts`, in `clearWindow` (lines 1253-1301), each of the three branches that does `this.mainEl.innerHTML = '';` needs `this.inlinePictures.clear();` alongside it, since those DOM nodes are being removed as a side effect and the map must not keep stale references. Replace the three branches (lines 1280-1296):
 
 ```typescript
-    if (windowId === -1) {
-      // Clear both windows and unsplit
-      this.mainEl.innerHTML = '';
-      this.mainEl.style.paddingTop = '';
-      this.inlinePictures.clear();
-      this.statusEl.innerHTML = '';
-      this.statusEl.style.display = 'none';
-      this.statusEl.style.minHeight = '';
-      this.upperWindowFontBuffer = [];
-    } else if (windowId === -2) {
-      // Clear both windows but preserve split state
-      this.mainEl.innerHTML = '';
-      this.mainEl.style.paddingTop = '';
-      this.inlinePictures.clear();
-      this.statusEl.innerHTML = '';
-      this.upperWindowFontBuffer = [];
-    } else if (windowId === 0) {
-      this.mainEl.innerHTML = '';
-      this.mainEl.style.paddingTop = '';
-      this.inlinePictures.clear();
-    } else if (windowId === 1) {
-      this.statusEl.innerHTML = '';
-      this.upperWindowFontBuffer = [];
-    }
+if (windowId === -1) {
+  // Clear both windows and unsplit
+  this.mainEl.innerHTML = '';
+  this.mainEl.style.paddingTop = '';
+  this.inlinePictures.clear();
+  this.statusEl.innerHTML = '';
+  this.statusEl.style.display = 'none';
+  this.statusEl.style.minHeight = '';
+  this.upperWindowFontBuffer = [];
+} else if (windowId === -2) {
+  // Clear both windows but preserve split state
+  this.mainEl.innerHTML = '';
+  this.mainEl.style.paddingTop = '';
+  this.inlinePictures.clear();
+  this.statusEl.innerHTML = '';
+  this.upperWindowFontBuffer = [];
+} else if (windowId === 0) {
+  this.mainEl.innerHTML = '';
+  this.mainEl.style.paddingTop = '';
+  this.inlinePictures.clear();
+} else if (windowId === 1) {
+  this.statusEl.innerHTML = '';
+  this.upperWindowFontBuffer = [];
+}
 ```
 
 - [ ] **Step 4: Remove the now-obsolete `onWindowPictureDrawn` override**
@@ -433,9 +441,11 @@ git commit -m "Render V6 window-0 pictures as inline DOM images that scroll with
 ### Task 5: Wire `main.ts` to route window-0 pictures through the new `WebScreen` methods
 
 **Files:**
+
 - Modify: `examples/web/src/main.ts:107-116`
 
 **Interfaces:**
+
 - Consumes: `PictureRendererCallback` with the new `window` parameter (Task 2); `WebScreen.displayInlinePicture` and `WebScreen.eraseInlinePicture` (Task 4).
 
 - [ ] **Step 1: Update the `pictureRenderer` and `pictureEraser` callbacks**

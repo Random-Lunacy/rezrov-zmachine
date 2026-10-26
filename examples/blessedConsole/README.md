@@ -62,15 +62,15 @@ npm start -- -d path/to/story.z3
 
 ### Command-Line Options
 
-| Flag | Short | Description |
-| ---- | ----- | ----------- |
-| `--debug` | `-d` | Enable debug logging (writes to `zmachine-debug.log`) |
-| `--interpreter <name>` | `-i` | Set interpreter type (default: `amiga`) |
-| `--header` | `-h` | Dump Z-Machine header information |
-| `--objectTree` | `-o` | Dump object table structure |
-| `--dict` | `-t` | Dump dictionary contents |
-| `--dump` | | Enable all debugging features without execution |
-| `--noExec` | `-n` | Show debugging info without running the story |
+| Flag                   | Short | Description                                           |
+| ---------------------- | ----- | ----------------------------------------------------- |
+| `--debug`              | `-d`  | Enable debug logging (writes to `zmachine-debug.log`) |
+| `--interpreter <name>` | `-i`  | Set interpreter type (default: `amiga`)               |
+| `--header`             | `-h`  | Dump Z-Machine header information                     |
+| `--objectTree`         | `-o`  | Dump object table structure                           |
+| `--dict`               | `-t`  | Dump dictionary contents                              |
+| `--dump`               |       | Enable all debugging features without execution       |
+| `--noExec`             | `-n`  | Show debugging info without running the story         |
 
 ### Interpreter Types and Color Palettes
 
@@ -80,14 +80,14 @@ Valid interpreter names: `dec20`, `apple-iie`, `mac`, `amiga`, `atari`, `ibm`, `
 
 The default is `amiga`, which provides good color support. Beyond Zork's default color palettes by interpreter:
 
-| Interpreter | Default Palette | Colors (BG / FG / Title / Status) |
-| ----------- | --------------- | --------------------------------- |
-| `amiga` | BWCR | Black / White / Cyan / Red |
-| `atari` | BWCR | Black / White / Cyan / Red |
-| `apple-iigs` | BWCR | Black / White / Cyan / Red |
-| `tandy` | BWCR | Black / White / Cyan / Red |
-| `ibm` | DEFCOLORS | Default / Default / Default / Default |
-| `c128` | Custom | Black / White / Yellow / Cyan |
+| Interpreter  | Default Palette | Colors (BG / FG / Title / Status)     |
+| ------------ | --------------- | ------------------------------------- |
+| `amiga`      | BWCR            | Black / White / Cyan / Red            |
+| `atari`      | BWCR            | Black / White / Cyan / Red            |
+| `apple-iigs` | BWCR            | Black / White / Cyan / Red            |
+| `tandy`      | BWCR            | Black / White / Cyan / Red            |
+| `ibm`        | DEFCOLORS       | Default / Default / Default / Default |
+| `c128`       | Custom          | Black / White / Yellow / Cyan         |
 
 Games that support color palettes (like Beyond Zork) typically allow cycling through palettes in-game. In Beyond Zork, type `COLOR ROOMS` to cycle through available color schemes.
 

@@ -44,7 +44,7 @@ export class Logger {
 
   /**
    * Install an extra destination for formatted log messages, or remove it with null. This is how
-   * file logging works without the core depending on Node: `setLogToFile` from `rezrov-zmachine/node`
+   * file logging works without the core depending on Node: `setLogToFile` from `@random-lunacy/rezrov-zmachine/node`
    * installs a sink that appends to a file.
    * @param sink Called with each formatted message, or null to remove the current sink
    */

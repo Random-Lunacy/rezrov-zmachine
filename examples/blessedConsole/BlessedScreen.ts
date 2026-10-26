@@ -1,6 +1,14 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
+import {
+  BaseScreen,
+  Capabilities,
+  Color,
+  ScreenSize,
+  TextStyle,
+  translateFont3Text,
+  ZMachine,
+} from '@random-lunacy/rezrov-zmachine';
 import * as blessed from 'blessed';
-import { BaseScreen, Capabilities, Color, ScreenSize, TextStyle, translateFont3Text, ZMachine } from 'rezrov-zmachine';
 
 export class BlessedScreen extends BaseScreen {
   private screen: blessed.Widgets.Screen;

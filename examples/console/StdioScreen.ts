@@ -1,6 +1,14 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
+import {
+  BaseScreen,
+  Capabilities,
+  Color,
+  ScreenSize,
+  TextStyle,
+  translateFont3Text,
+  ZMachine,
+} from '@random-lunacy/rezrov-zmachine';
 import chalk from 'chalk';
-import { BaseScreen, Capabilities, Color, ScreenSize, TextStyle, translateFont3Text, ZMachine } from 'rezrov-zmachine';
 
 export class StdioScreen extends BaseScreen {
   private textStyle: number = TextStyle.Roman;

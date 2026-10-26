@@ -78,7 +78,7 @@ This project is a port/refactoring of the [ebozz](https://github.com/toshok/eboz
 ## Installation
 
 ```bash
-npm install rezrov-zmachine
+npm install @random-lunacy/rezrov-zmachine
 ```
 
 Requires Node.js 22.12 or later. The package is ESM-only and ships its own TypeScript declarations. The API uses
@@ -87,16 +87,16 @@ Requires Node.js 22.12 or later. The package is ESM-only and ships its own TypeS
 
 ### Two entry points
 
-| Import                 | Contains                                                                                         | Runs in          |
-| ---------------------- | ------------------------------------------------------------------------------------------------ | ---------------- |
-| `rezrov-zmachine`      | The interpreter, screens, parsers, Blorb, and the in-memory and browser (`localStorage`) storage | Node and browser |
-| `rezrov-zmachine/node` | `FileSystemProvider`, `createFileSystemStorage`, `memoryFromFile`, `setLogToFile`                | Node only        |
+| Import                                | Contains                                                                                         | Runs in          |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------ | ---------------- |
+| `@random-lunacy/rezrov-zmachine`      | The interpreter, screens, parsers, Blorb, and the in-memory and browser (`localStorage`) storage | Node and browser |
+| `@random-lunacy/rezrov-zmachine/node` | `FileSystemProvider`, `createFileSystemStorage`, `memoryFromFile`, `setLogToFile`                | Node only        |
 
 The main entry imports nothing from Node, so browser bundlers need no `fs` or `path` shims.
 
 ```typescript
-import { ZMachine, Logger } from 'rezrov-zmachine';
-import { createFileSystemStorage, setLogToFile } from 'rezrov-zmachine/node';
+import { ZMachine, Logger } from '@random-lunacy/rezrov-zmachine';
+import { createFileSystemStorage, setLogToFile } from '@random-lunacy/rezrov-zmachine/node';
 ```
 
 ### From source
@@ -191,7 +191,7 @@ This modular design allows the interpreter to run in various environments while 
 The interpreter is designed to work with any UI system. You can create your own screen implementation by implementing the `Screen` interface:
 
 ```typescript
-import { BaseScreen, Capabilities, ScreenSize, ZMachine, InputState } from 'rezrov-zmachine';
+import { BaseScreen, Capabilities, ScreenSize, ZMachine, InputState } from '@random-lunacy/rezrov-zmachine';
 
 export class MyCustomScreen extends BaseScreen {
   getCapabilities(): Capabilities {
@@ -226,7 +226,7 @@ export class MyCustomScreen extends BaseScreen {
 You can create your own storage provider for save/restore functionality by implementing the `StorageProvider` interface:
 
 ```typescript
-import { StorageProvider } from 'rezrov-zmachine';
+import { StorageProvider } from '@random-lunacy/rezrov-zmachine';
 
 export class MyStorageProvider implements StorageProvider {
   async read(location: string): Promise<Buffer | null> {
@@ -250,7 +250,7 @@ export class MyStorageProvider implements StorageProvider {
 Then use it with a format provider when creating the storage system:
 
 ```typescript
-import { ZMachine, Storage, QuetzalFormat } from 'rezrov-zmachine';
+import { ZMachine, Storage, QuetzalFormat } from '@random-lunacy/rezrov-zmachine';
 
 const storage = new Storage(new QuetzalFormat(), new MyStorageProvider(), storyBuffer);
 const machine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, storage);

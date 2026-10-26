@@ -10,8 +10,8 @@ export default defineConfig({
       // The web example imports the library by its published name, which in the
       // repo resolves through a `file:` link in examples/web/node_modules. CI
       // never installs that, so point the specifier at the TypeScript sources.
-      { find: /^rezrov-zmachine$/, replacement: path.resolve(__dirname, 'src/index.ts') },
-      { find: /^rezrov-zmachine\/node$/, replacement: path.resolve(__dirname, 'src/node.ts') },
+      { find: /^@random-lunacy\/rezrov-zmachine$/, replacement: path.resolve(__dirname, 'src/index.ts') },
+      { find: /^@random-lunacy\/rezrov-zmachine\/node$/, replacement: path.resolve(__dirname, 'src/node.ts') },
     ],
   },
   test: {

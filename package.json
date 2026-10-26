@@ -1,5 +1,5 @@
 {
-  "name": "rezrov-zmachine",
+  "name": "@random-lunacy/rezrov-zmachine",
   "version": "1.0.0-rc.0",
   "description": "A modular Z-machine interpreter in TypeScript for running Infocom-style interactive fiction (Zork, Planetfall, Beyond Zork and more)",
   "type": "module",

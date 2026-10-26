@@ -60,15 +60,15 @@ npm start -- -d path/to/story.z3
 
 ### Command-Line Options
 
-| Flag | Short | Description |
-| ---- | ----- | ----------- |
-| `--debug` | `-d` | Enable debug logging |
-| `--interpreter <name>` | `-i` | Set interpreter type (default: `amiga`) |
-| `--header` | `-h` | Dump Z-Machine header information |
-| `--objectTree` | `-o` | Dump object table structure |
-| `--dict` | `-t` | Dump dictionary contents |
-| `--dump` | | Enable all debugging features without execution |
-| `--noExec` | `-n` | Show debugging info without running the story |
+| Flag                   | Short | Description                                     |
+| ---------------------- | ----- | ----------------------------------------------- |
+| `--debug`              | `-d`  | Enable debug logging                            |
+| `--interpreter <name>` | `-i`  | Set interpreter type (default: `amiga`)         |
+| `--header`             | `-h`  | Dump Z-Machine header information               |
+| `--objectTree`         | `-o`  | Dump object table structure                     |
+| `--dict`               | `-t`  | Dump dictionary contents                        |
+| `--dump`               |       | Enable all debugging features without execution |
+| `--noExec`             | `-n`  | Show debugging info without running the story   |
 
 The `--interpreter` flag sets which platform the Z-Machine reports to the game. Some games (notably Beyond Zork) use this to select color palettes. Valid names: `dec20`, `apple-iie`, `mac`, `amiga`, `atari`, `ibm`, `c128`, `c64`, `apple-iic`, `apple-iigs`, `tandy`. Default is `amiga`.
 

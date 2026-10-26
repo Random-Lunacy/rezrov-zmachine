@@ -2,7 +2,7 @@
  * Plays Blorb sound resources using the Web Audio API.
  * Supports OGG Vorbis (OGGV). AIFF requires additional decoding.
  */
-import { Logger, ResourceStatus } from 'rezrov-zmachine';
+import { Logger, ResourceStatus } from '@random-lunacy/rezrov-zmachine';
 
 export class SoundPlayer {
   private readonly logger = new Logger('SoundPlayer');
