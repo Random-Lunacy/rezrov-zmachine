@@ -6,15 +6,12 @@
 export { toI16, toU16 } from './core/memory/cast16';
 export { Memory } from './core/memory/Memory';
 
-// Execution components
-export { Executor } from './core/execution/Executor';
-export { createStackFrame } from './core/execution/StackFrame';
+// Interpreter internals are exported as types only: ZMachine exposes them (`executor`, `state`,
+// `getUserStackManager()`) so they can be named in annotations, but they are not constructible API.
+export type { Executor } from './core/execution/Executor';
 export type { StackFrame } from './core/execution/StackFrame';
-export { SuspendState } from './core/execution/SuspendState';
-export { UserStackManager } from './core/execution/UserStack';
-
-// State management
-export { GameState } from './interpreter/GameState';
+export type { UserStackManager } from './core/execution/UserStack';
+export type { GameState } from './interpreter/GameState';
 export { ZMachine } from './interpreter/ZMachine';
 
 // Object system
@@ -41,21 +38,9 @@ export { WindowEventType, WindowManager } from './ui/screen/WindowManager';
 export type { WindowEvent, WindowEventHandler, WindowOptions, WindowState } from './ui/screen/WindowManager';
 
 // Font system
-export { FONT3_BITMAPS, getAvailableFont3Codes, getFont3Bitmap, hasFont3Bitmap } from './ui/fonts/Font3Bitmaps';
-export { Font3System } from './ui/fonts/Font3System';
-export {
-  font3StringToUnicode,
-  font3ToUnicode,
-  getArrowCharacters,
-  getBoxDrawingCharacters,
-  getFont3Category,
-  getRunicCharacters,
-  getSpecialCharacters,
-  hasFont3Mapping,
-  translateFont3Text,
-} from './ui/fonts/Font3Unicode';
-export type { Font3Category } from './ui/fonts/Font3Unicode';
-export { FontManager, FontType } from './ui/fonts/FontManager';
+export { translateFont3Text } from './ui/fonts/Font3Unicode';
+export { FontType } from './ui/fonts/FontManager';
+export type { FontManager } from './ui/fonts/FontManager';
 
 // Parsing components
 export { AlphabetTableManager } from './parsers/AlphabetTable';
@@ -94,7 +79,6 @@ export {
 export { dumpDictionary, dumpHeader, dumpObjectTable, dumpParseBuffer, dumpState, hex } from './utils/debug';
 export { LogLevel, Logger } from './utils/log';
 export type { LogSink } from './utils/log';
-export { initRandom, random, randomInt, randomIntFrom0, randomSeed } from './utils/random';
 
 // Types
 export { InstructionForm, OperandType } from './types';

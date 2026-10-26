@@ -49,4 +49,56 @@ describe('public API surface', () => {
 
     expect(missing).toEqual([]);
   });
+
+  /**
+   * 1.0 freezes whatever the entry point exports, so internals stay out of it. The ones ZMachine
+   * exposes in its signatures are exported as types only, which erases the runtime binding.
+   */
+  describe('internals are not part of the public API', () => {
+    it.each([
+      // Interpreter internals: type-only exports, so there must be no runtime value
+      'Executor',
+      'GameState',
+      'UserStackManager',
+      'FontManager',
+      'StackFrame',
+      // Not exported at all
+      'createStackFrame',
+      'SuspendState',
+      'Font3System',
+      'FONT3_BITMAPS',
+      'getFont3Bitmap',
+      'hasFont3Bitmap',
+      'getAvailableFont3Codes',
+      'font3ToUnicode',
+      'font3StringToUnicode',
+      'getFont3Category',
+      'hasFont3Mapping',
+      'getArrowCharacters',
+      'getBoxDrawingCharacters',
+      'getRunicCharacters',
+      'getSpecialCharacters',
+      'initRandom',
+      'random',
+      'randomInt',
+      'randomIntFrom0',
+      'randomSeed',
+    ])('should not export %s as a runtime value', (name) => {
+      expect((api as Record<string, unknown>)[name]).toBeUndefined();
+    });
+
+    it('should still export what examples and consumers use', () => {
+      for (const name of [
+        'ZMachine',
+        'Memory',
+        'Logger',
+        'BaseScreen',
+        'translateFont3Text',
+        'FontType',
+        'dumpHeader',
+      ]) {
+        expect((api as Record<string, unknown>)[name], name).toBeDefined();
+      }
+    });
+  });
 });
