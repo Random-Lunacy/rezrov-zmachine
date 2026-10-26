@@ -5,6 +5,9 @@ name: Publish to npm
 #
 # Authentication is npm trusted publishing (OIDC): there is no NPM_TOKEN. It has to be configured once on
 # npmjs.com for the package (see docs/RELEASING.md), and only works for a package that already exists.
+#
+# The trusted publisher only allows `npm stage publish`. This workflow uploads the tarball to npm's stage queue,
+# and a maintainer approves it with 2FA (`npm stage approve`, or on the package page) before it goes live.
 on:
   release:
     types: [published]
@@ -33,9 +36,9 @@ jobs:
           cache: 'npm'
           registry-url: 'https://registry.npmjs.org'
       - name: Check the npm version
-        # Trusted publishing needs npm 11.5.1 or later
+        # `npm stage publish` needs npm 11.15.0 or later
         run: |
-          npm install --global npm@^11.5.1
+          npm install --global npm@^11.15.0
           npm --version
       - name: Install dependencies
         run: npm ci
@@ -71,7 +74,9 @@ jobs:
           fi
       - name: Show what will be published
         run: npm pack --dry-run --ignore-scripts
-      - name: Publish
+      - name: Stage the release
         if: github.event_name == 'release' && steps.published.outputs.already == 'false'
-        # --ignore-scripts: the test job already ran lint, tests and the build (prepublishOnly would repeat them)
-        run: npm publish --provenance --access public --tag ${{ steps.version.outputs.tag }} --ignore-scripts
+        # --ignore-scripts: the test job already ran lint, tests and the build (prepublishOnly would repeat them).
+        # The version is not installable until a maintainer approves it. Provenance is generated automatically
+        # for OIDC publishes from a public repo.
+        run: npm stage publish --tag ${{ steps.version.outputs.tag }} --ignore-scripts
