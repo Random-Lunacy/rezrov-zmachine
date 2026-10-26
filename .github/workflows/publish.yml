@@ -1,0 +1,77 @@
+name: Publish to npm
+
+# Publishes when a GitHub Release is published. The release tag must be v<package.json version>.
+# Versions with a prerelease suffix (1.0.0-rc.1) go to the `next` dist-tag; stable versions go to `latest`.
+#
+# Authentication is npm trusted publishing (OIDC): there is no NPM_TOKEN. It has to be configured once on
+# npmjs.com for the package (see docs/RELEASING.md), and only works for a package that already exists.
+on:
+  release:
+    types: [published]
+  # Manual run: dry-run only, to check the workflow and package contents without publishing
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    if: github.repository == 'Random-Lunacy/rezrov-zmachine'
+    uses: ./.github/workflows/build-and-test.yml
+
+  publish:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # npm trusted publishing and provenance
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.x
+          cache: 'npm'
+          registry-url: 'https://registry.npmjs.org'
+      - name: Check the npm version
+        # Trusted publishing needs npm 11.5.1 or later
+        run: |
+          npm install --global npm@^11.5.1
+          npm --version
+      - name: Install dependencies
+        run: npm ci
+      - name: Build
+        run: npm run build
+      - name: Work out the version and dist-tag
+        id: version
+        run: |
+          version=$(node -p "require('./package.json').version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [[ "$version" == *-* ]]; then echo "tag=next" >> "$GITHUB_OUTPUT"; else echo "tag=latest" >> "$GITHUB_OUTPUT"; fi
+      - name: Check the release tag matches package.json
+        if: github.event_name == 'release'
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if [[ "$TAG" != "v$VERSION" ]]; then
+            echo "::error::Release tag $TAG does not match package.json version $VERSION (expected v$VERSION)"
+            exit 1
+          fi
+      - name: Check the version is not already published
+        id: published
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          name=$(node -p "require('./package.json').name")
+          if npm view "$name@$VERSION" version >/dev/null 2>&1; then
+            echo "::warning::$name@$VERSION is already on npm; skipping publish"
+            echo "already=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "already=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Show what will be published
+        run: npm pack --dry-run --ignore-scripts
+      - name: Publish
+        if: github.event_name == 'release' && steps.published.outputs.already == 'false'
+        # --ignore-scripts: the test job already ran lint, tests and the build (prepublishOnly would repeat them)
+        run: npm publish --provenance --access public --tag ${{ steps.version.outputs.tag }} --ignore-scripts
