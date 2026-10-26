@@ -15,11 +15,11 @@ The `.inf` files in this directory are written in Inform 6, the standard languag
 
 - **Linux (Debian/Ubuntu)**: `sudo apt-get install inform`
 - **macOS (Homebrew)**: `brew install inform6`
-- **Windows**: Download from [IF Archive](https://www.ifarchive.org/indexes/if-archiveXinfocomXcompilersXinform6.html)
+- **Windows**: Download from [IF Archive](https://www.ifarchive.org/indexes/if-archive/infocom/compilers/inform6/)
 
 #### Manual installation
 
-You can download Inform 6 compiler directly from the [IF Archive](https://www.ifarchive.org/indexes/if-archiveXinfocomXcompilersXinform6.html) or [David Kinder's GitHub repository](https://github.com/DavidKinder/Inform6).
+You can download Inform 6 compiler directly from the [IF Archive](https://www.ifarchive.org/indexes/if-archive/infocom/compilers/inform6/) or [David Kinder's GitHub repository](https://github.com/DavidKinder/Inform6).
 
 ### Compiling a Test File
 
