@@ -1,6 +1,8 @@
 name: Build and run tests
 
 on:
+  # Lets publish.yml run the same checks before it publishes
+  workflow_call:
   push:
     branches: [main]
   pull_request:
