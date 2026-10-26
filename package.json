@@ -86,8 +86,8 @@
     "@types/seedrandom": "^3.0.8",
     "@typescript-eslint/eslint-plugin": "^8.72.0",
     "@typescript-eslint/parser": "^8.72.0",
-    "@vitest/coverage-v8": "^5.0.2",
-    "@vitest/ui": "^5.0.0",
+    "@vitest/coverage-v8": "^5.0.5",
+    "@vitest/ui": "^5.0.5",
     "eslint": "^10.13.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.7",
@@ -101,7 +101,7 @@
     "tsx": "^4.23.15",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.72.0",
-    "vitest": "^5.0.0"
+    "vitest": "^5.0.5"
   },
   "dependencies": {
     "glob": "^13.0.6",
