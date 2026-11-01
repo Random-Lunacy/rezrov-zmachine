@@ -1,4 +1,14 @@
 import { ZMachineState } from '../../types';
+import {
+  asciiString,
+  copyBytes,
+  readU16BE,
+  readU32BE,
+  readU8,
+  writeU16BE,
+  writeU32BE,
+  writeU8,
+} from '../../utils/bytes';
 import { Logger } from '../../utils/log';
 import { FormatProvider } from './FormatProvider';
 
@@ -36,7 +46,7 @@ export class QuetzalFormat implements FormatProvider {
     offset += 4;
 
     // Write size (size of everything except the FORM ID and size fields)
-    buffer.writeUInt32BE(totalSize - 8, offset);
+    writeU32BE(buffer, totalSize - 8, offset);
     offset += 4;
 
     // Write IFZS identifier
@@ -44,13 +54,13 @@ export class QuetzalFormat implements FormatProvider {
     offset += 4;
 
     // Copy the chunks
-    ifhdChunk.copy(buffer, offset);
+    copyBytes(ifhdChunk, buffer, offset);
     offset += ifhdChunk.length;
 
-    memChunk.copy(buffer, offset);
+    copyBytes(memChunk, buffer, offset);
     offset += memChunk.length;
 
-    stksChunk.copy(buffer, offset);
+    copyBytes(stksChunk, buffer, offset);
 
     return buffer;
   }
@@ -61,12 +71,12 @@ export class QuetzalFormat implements FormatProvider {
     }
 
     // Check for valid FORM header
-    if (data.toString('ascii', 0, 4) !== QuetzalFormat.FORM_ID) {
+    if (asciiString(data, 0, 4) !== QuetzalFormat.FORM_ID) {
       throw new Error('Invalid Quetzal file: missing FORM header');
     }
 
     // Check for valid IFZS identifier
-    if (data.toString('ascii', 8, 12) !== QuetzalFormat.IFZS_ID) {
+    if (asciiString(data, 8, 12) !== QuetzalFormat.IFZS_ID) {
       throw new Error('Invalid Quetzal file: missing IFZS identifier');
     }
 
@@ -96,8 +106,8 @@ export class QuetzalFormat implements FormatProvider {
     const version = originalStory[0];
     if (version === 6 || version === 7) {
       // For V6/V7, validate the routine and string offsets
-      const routinesOffset = originalStory.readUInt16BE(0x28); // HeaderLocation.RoutinesOffset
-      const stringsOffset = originalStory.readUInt16BE(0x2a); // HeaderLocation.StaticStringsOffset
+      const routinesOffset = readU16BE(originalStory, 0x28); // HeaderLocation.RoutinesOffset
+      const stringsOffset = readU16BE(originalStory, 0x2a); // HeaderLocation.StaticStringsOffset
       this.validateV6V7Fields(routinesOffset, stringsOffset);
     }
 
@@ -137,12 +147,12 @@ export class QuetzalFormat implements FormatProvider {
 
     try {
       // Check for valid FORM header
-      if (data.toString('ascii', 0, 4) !== QuetzalFormat.FORM_ID) {
+      if (asciiString(data, 0, 4) !== QuetzalFormat.FORM_ID) {
         return metadata;
       }
 
       // Check for valid IFZS identifier
-      if (data.toString('ascii', 8, 12) !== QuetzalFormat.IFZS_ID) {
+      if (asciiString(data, 8, 12) !== QuetzalFormat.IFZS_ID) {
         return metadata;
       }
 
@@ -151,7 +161,7 @@ export class QuetzalFormat implements FormatProvider {
 
       // Get annotation if present
       if (chunks[QuetzalFormat.ANNO_ID]) {
-        const annoText = chunks[QuetzalFormat.ANNO_ID].toString('ascii');
+        const annoText = asciiString(chunks[QuetzalFormat.ANNO_ID]);
         metadata.description = annoText;
       }
 
@@ -176,16 +186,16 @@ export class QuetzalFormat implements FormatProvider {
 
     while (offset < data.length) {
       // Read chunk ID
-      const chunkId = data.toString('ascii', offset, offset + 4);
+      const chunkId = asciiString(data, offset, offset + 4);
       offset += 4;
 
       // Read chunk size
-      const chunkSize = data.readUInt32BE(offset);
+      const chunkSize = readU32BE(data, offset);
       offset += 4;
 
       // Read chunk data
       const chunkData = Buffer.alloc(chunkSize);
-      data.copy(chunkData, 0, offset, offset + chunkSize);
+      copyBytes(data, chunkData, 0, offset, offset + chunkSize);
       chunks[chunkId] = chunkData;
 
       // Move to next chunk (accounting for padding)
@@ -208,32 +218,32 @@ export class QuetzalFormat implements FormatProvider {
     offset += 4;
 
     // Write chunk size
-    buffer.writeUInt32BE(13, offset);
+    writeU32BE(buffer, 13, offset);
     offset += 4;
 
     // Write release number (word at 0x02 in header)
-    const release = state.originalStory.readUInt16BE(2);
-    buffer.writeUInt16BE(release, offset);
+    const release = readU16BE(state.originalStory, 2);
+    writeU16BE(buffer, release, offset);
     offset += 2;
 
     // Write serial number (6 bytes at 0x12 in header)
-    state.originalStory.copy(buffer, offset, 0x12, 0x18);
+    copyBytes(state.originalStory, buffer, offset, 0x12, 0x18);
     offset += 6;
 
     // Write checksum (word at 0x1c in header)
-    const checksum = state.originalStory.readUInt16BE(0x1c);
-    buffer.writeUInt16BE(checksum, offset);
+    const checksum = readU16BE(state.originalStory, 0x1c);
+    writeU16BE(buffer, checksum, offset);
     offset += 2;
 
     // Write PC (24-bit value: 1 byte high bits, 2 bytes low bits)
     const pc = state.pc;
-    buffer.writeUInt8((pc >> 16) & 0xff, offset);
+    writeU8(buffer, (pc >> 16) & 0xff, offset);
     offset++;
-    buffer.writeUInt16BE(pc & 0xffff, offset);
+    writeU16BE(buffer, pc & 0xffff, offset);
     offset += 2;
 
     // Write padding byte
-    buffer.writeUInt8(0, offset);
+    writeU8(buffer, 0, offset);
 
     return buffer;
   }
@@ -244,17 +254,17 @@ export class QuetzalFormat implements FormatProvider {
     }
 
     // Read release number
-    const release = data.readUInt16BE(0);
+    const release = readU16BE(data, 0);
 
     // Read serial number
-    const serial = data.toString('ascii', 2, 8);
+    const serial = asciiString(data, 2, 8);
 
     // Read checksum
-    const checksum = data.readUInt16BE(8);
+    const checksum = readU16BE(data, 8);
 
     // Read PC (24-bit value)
-    const pcHigh = data.readUInt8(10);
-    const pcLow = data.readUInt16BE(11);
+    const pcHigh = readU8(data, 10);
+    const pcLow = readU16BE(data, 11);
     const pc = (pcHigh << 16) | pcLow;
 
     return { release, serial, checksum, pc };
@@ -265,13 +275,13 @@ export class QuetzalFormat implements FormatProvider {
     originalStory: Buffer
   ): void {
     // Read release number from story file
-    const originalRelease = originalStory.readUInt16BE(2);
+    const originalRelease = readU16BE(originalStory, 2);
 
     // Read serial number from story file
-    const originalSerial = originalStory.toString('ascii', 0x12, 0x18);
+    const originalSerial = asciiString(originalStory, 0x12, 0x18);
 
     // Read checksum from story file
-    const originalChecksum = originalStory.readUInt16BE(0x1c);
+    const originalChecksum = readU16BE(originalStory, 0x1c);
 
     // Compare release numbers
     if (ifhdData.release !== originalRelease) {
@@ -295,11 +305,11 @@ export class QuetzalFormat implements FormatProvider {
 
     // Extract dynamic memory from current state
     const dynamicMemory = Buffer.alloc(dynamicMemorySize);
-    memory.copy(dynamicMemory, 0, 0, dynamicMemorySize);
+    copyBytes(memory, dynamicMemory, 0, 0, dynamicMemorySize);
 
     // Extract original dynamic memory
     const originalDynamicMemory = Buffer.alloc(dynamicMemorySize);
-    originalStory.copy(originalDynamicMemory, 0, 0, dynamicMemorySize);
+    copyBytes(originalStory, originalDynamicMemory, 0, 0, dynamicMemorySize);
 
     // XOR the memory with the original to get the differences
     for (let i = 0; i < dynamicMemorySize; i++) {
@@ -320,11 +330,11 @@ export class QuetzalFormat implements FormatProvider {
     offset += 4;
 
     // Write chunk size
-    buffer.writeUInt32BE(compressed.length, offset);
+    writeU32BE(buffer, compressed.length, offset);
     offset += 4;
 
     // Write compressed data
-    compressed.copy(buffer, offset);
+    copyBytes(compressed, buffer, offset);
 
     return buffer;
   }
@@ -341,7 +351,7 @@ export class QuetzalFormat implements FormatProvider {
 
     // Extract original dynamic memory
     const originalDynamicMemory = Buffer.alloc(dynamicMemorySize);
-    originalStory.copy(originalDynamicMemory, 0, 0, dynamicMemorySize);
+    copyBytes(originalStory, originalDynamicMemory, 0, 0, dynamicMemorySize);
 
     // XOR the decompressed data with the original to restore the actual memory
     for (let i = 0; i < dynamicMemorySize; i++) {
@@ -386,7 +396,7 @@ export class QuetzalFormat implements FormatProvider {
 
     // Create final buffer with correct size
     const result = Buffer.alloc(tempOffset);
-    tempBuffer.copy(result, 0, 0, tempOffset);
+    copyBytes(tempBuffer, result, 0, 0, tempOffset);
 
     return result;
   }
@@ -454,34 +464,34 @@ export class QuetzalFormat implements FormatProvider {
     offset += 4;
 
     // Write chunk size
-    buffer.writeUInt32BE(size, offset);
+    writeU32BE(buffer, size, offset);
     offset += 4;
 
     // Write dummy frame for versions other than V6
-    buffer.writeUInt8(0, offset++); // PC high byte
-    buffer.writeUInt16BE(0, offset); // PC low bytes
+    writeU8(buffer, 0, offset++); // PC high byte
+    writeU16BE(buffer, 0, offset); // PC low bytes
     offset += 2;
 
-    buffer.writeUInt8(0, offset++); // Flags
-    buffer.writeUInt8(0, offset++); // Variable
-    buffer.writeUInt8(0, offset++); // Args
+    writeU8(buffer, 0, offset++); // Flags
+    writeU8(buffer, 0, offset++); // Variable
+    writeU8(buffer, 0, offset++); // Args
 
     // Write dummy stack size
     const dummyStackSize = state.stack.length;
-    buffer.writeUInt16BE(dummyStackSize, offset);
+    writeU16BE(buffer, dummyStackSize, offset);
     offset += 2;
 
     // Write stack values
     for (const value of state.stack) {
-      buffer.writeUInt16BE(value, offset);
+      writeU16BE(buffer, value, offset);
       offset += 2;
     }
 
     // Write call frames
     for (const frame of state.callFrames) {
       // Write return PC (24-bit)
-      buffer.writeUInt8((frame.returnPC >> 16) & 0xff, offset++);
-      buffer.writeUInt16BE(frame.returnPC & 0xffff, offset);
+      writeU8(buffer, (frame.returnPC >> 16) & 0xff, offset++);
+      writeU16BE(buffer, frame.returnPC & 0xffff, offset);
       offset += 2;
 
       // Write flags
@@ -492,10 +502,10 @@ export class QuetzalFormat implements FormatProvider {
 
       // Add local count in low bits
       flags |= Math.min(frame.locals.length, 0x0f);
-      buffer.writeUInt8(flags, offset++);
+      writeU8(buffer, flags, offset++);
 
       // Write store variable
-      buffer.writeUInt8(frame.storeVariable || 0, offset++);
+      writeU8(buffer, frame.storeVariable || 0, offset++);
 
       // Write argument mask
       let args = 0;
@@ -509,21 +519,21 @@ export class QuetzalFormat implements FormatProvider {
         // Handle the case where argumentMask might be a number instead of array
         args = frame.argumentMask;
       }
-      buffer.writeUInt8(args, offset++);
+      writeU8(buffer, args, offset++);
 
       // Write stack size
-      buffer.writeUInt16BE(frame.stack.length, offset);
+      writeU16BE(buffer, frame.stack.length, offset);
       offset += 2;
 
       // Write locals
       for (const local of frame.locals) {
-        buffer.writeUInt16BE(local, offset);
+        writeU16BE(buffer, local, offset);
         offset += 2;
       }
 
       // Write frame stack values
       for (const value of frame.stack) {
-        buffer.writeUInt16BE(value, offset);
+        writeU16BE(buffer, value, offset);
         offset += 2;
       }
     }
@@ -560,53 +570,53 @@ export class QuetzalFormat implements FormatProvider {
     offset++; // Args
 
     // Read dummy stack size
-    const dummyStackSize = data.readUInt16BE(offset);
+    const dummyStackSize = readU16BE(data, offset);
     offset += 2;
 
     // Read stack values
     for (let i = 0; i < dummyStackSize; i++) {
-      stack.push(data.readUInt16BE(offset));
+      stack.push(readU16BE(data, offset));
       offset += 2;
     }
 
     // Read call frames
     while (offset < data.length) {
       // Read return PC (24-bit)
-      const pcHigh = data.readUInt8(offset++);
-      const pcLow = data.readUInt16BE(offset);
+      const pcHigh = readU8(data, offset++);
+      const pcLow = readU16BE(data, offset);
       offset += 2;
       const returnPC = (pcHigh << 16) | pcLow;
 
       // Read flags
-      const flags = data.readUInt8(offset++);
+      const flags = readU8(data, offset++);
       const discardResult = (flags & 0x10) !== 0;
       const localCount = flags & 0x0f;
 
       // Read store variable
-      const storeVariable = data.readUInt8(offset++);
+      const storeVariable = readU8(data, offset++);
 
       // Read args supplied
-      const argsSupplied = data.readUInt8(offset++);
+      const argsSupplied = readU8(data, offset++);
       const argumentMask: boolean[] = [];
       for (let i = 0; i < 7; i++) {
         argumentMask[i] = (argsSupplied & (1 << i)) !== 0;
       }
 
       // Read stack size
-      const evalStackSize = data.readUInt16BE(offset);
+      const evalStackSize = readU16BE(data, offset);
       offset += 2;
 
       // Read locals
       const locals: number[] = [];
       for (let i = 0; i < localCount; i++) {
-        locals.push(data.readUInt16BE(offset));
+        locals.push(readU16BE(data, offset));
         offset += 2;
       }
 
       // Read frame stack
       const frameStack: number[] = [];
       for (let i = 0; i < evalStackSize; i++) {
-        frameStack.push(data.readUInt16BE(offset));
+        frameStack.push(readU16BE(data, offset));
         offset += 2;
       }
 
@@ -628,7 +638,7 @@ export class QuetzalFormat implements FormatProvider {
     // Per Z-spec §1.1 and Quetzal spec §3.1: dynamic memory extends from
     // address 0 to static_memory_base - 1. The static memory base is stored
     // as a word at header offset 0x0E.
-    return storyData.readUInt16BE(0x0e);
+    return readU16BE(storyData, 0x0e);
   }
 
   // Fix: V6/V7 fields validation

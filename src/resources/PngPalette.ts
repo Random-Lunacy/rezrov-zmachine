@@ -1,3 +1,4 @@
+import { asciiString, copyBytes, readU32BE, writeU32BE } from '../utils/bytes';
 /**
  * PNG palette (PLTE chunk) inspection and substitution.
  *
@@ -65,8 +66,8 @@ export function findPaletteChunk(data: Buffer): { dataOffset: number; length: nu
   // Walk the chunk list: each chunk is [length:4][type:4][data:length][crc:4].
   let offset = PNG_SIGNATURE.length;
   while (offset + 8 <= data.length) {
-    const length = data.readUInt32BE(offset);
-    const type = data.toString('ascii', offset + 4, offset + 8);
+    const length = readU32BE(data, offset);
+    const type = asciiString(data, offset + 4, offset + 8);
     const dataOffset = offset + 8;
 
     // A truncated chunk means a corrupt file; stop rather than read past the end.
@@ -110,12 +111,12 @@ export function replacePalette(data: Buffer, palette: Buffer): Buffer {
     Math.floor(chunk.length / PALETTE_ENTRY_SIZE),
     Math.floor(palette.length / PALETTE_ENTRY_SIZE)
   );
-  palette.copy(result, chunk.dataOffset, 0, entries * PALETTE_ENTRY_SIZE);
+  copyBytes(palette, result, chunk.dataOffset, 0, entries * PALETTE_ENTRY_SIZE);
 
   // The CRC covers the chunk's type and data, so it must be recomputed.
   const crcStart = chunk.dataOffset - 4;
   const crcEnd = chunk.dataOffset + chunk.length;
-  result.writeUInt32BE(crc32(result, crcStart, crcEnd), crcEnd);
+  writeU32BE(result, crc32(result, crcStart, crcEnd), crcEnd);
 
   return result;
 }
