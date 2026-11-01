@@ -1,6 +1,3 @@
-import { Buffer } from 'buffer';
-(globalThis as typeof globalThis & { Buffer: typeof Buffer }).Buffer = Buffer;
-
 // Polyfill process for browser (Logger checks process.stdout.isTTY)
 if (typeof (globalThis as unknown as { process?: unknown }).process === 'undefined') {
   (globalThis as unknown as Record<string, unknown>).process = { stdout: { isTTY: false } };
@@ -25,11 +22,7 @@ import { SoundPlayer } from './SoundPlayer';
 import { WebInputProcessor } from './WebInputProcessor';
 import { WebScreen } from './WebScreen';
 
-function bufferFromArrayBuffer(ab: ArrayBuffer): Buffer {
-  return Buffer.from(new Uint8Array(ab));
-}
-
-function isBlorb(data: ArrayBuffer | Buffer): boolean {
+function isBlorb(data: ArrayBuffer | Uint8Array): boolean {
   const buf = data instanceof ArrayBuffer ? new Uint8Array(data) : data;
   if (buf.length < 12) return false;
   const form = String.fromCharCode(buf[0], buf[1], buf[2], buf[3]);
@@ -42,11 +35,11 @@ function getBasename(filename: string): string {
   return lastDot > 0 ? filename.substring(0, lastDot) : filename;
 }
 
-async function readFileAsBuffer(file: File): Promise<Buffer> {
+async function readFileAsBytes(file: File): Promise<Uint8Array> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
-      resolve(bufferFromArrayBuffer(reader.result as ArrayBuffer));
+      resolve(new Uint8Array(reader.result as ArrayBuffer));
     };
     reader.onerror = () => reject(reader.error);
     reader.readAsArrayBuffer(file);
@@ -79,8 +72,8 @@ function stopSession(): void {
 }
 
 function setupGame(
-  storyData: Buffer,
-  blorbData: Buffer | null,
+  storyData: Uint8Array,
+  blorbData: Uint8Array | null,
   statusEl: HTMLDivElement,
   mainEl: HTMLDivElement,
   pictureCanvas: HTMLCanvasElement,
@@ -232,13 +225,13 @@ async function handleFileSelect(files: FileList | null): Promise<void> {
   inputEl.placeholder = '';
   inputEl.disabled = false;
 
-  let storyData: Buffer;
-  let blorbData: Buffer | null = null;
+  let storyData: Uint8Array;
+  let blorbData: Uint8Array | null = null;
   let blorbMap: ReturnType<typeof BlorbParser.parse> | null = null;
 
   if (files.length === 1) {
     const file = files[0];
-    const data = await readFileAsBuffer(file);
+    const data = await readFileAsBytes(file);
 
     if (isBlorb(data)) {
       blorbMap = BlorbParser.parse(data);
@@ -255,8 +248,8 @@ async function handleFileSelect(files: FileList | null): Promise<void> {
       return;
     }
 
-    storyData = await readFileAsBuffer(result.story);
-    blorbData = result.blorb ? await readFileAsBuffer(result.blorb) : null;
+    storyData = await readFileAsBytes(result.story);
+    blorbData = result.blorb ? await readFileAsBytes(result.blorb) : null;
     if (blorbData && isBlorb(blorbData)) {
       blorbMap = BlorbParser.parse(blorbData);
     }
@@ -271,8 +264,9 @@ async function handleFileSelect(files: FileList | null): Promise<void> {
   if (blorbMap && blorbData) {
     const resoData = BlorbParser.getChunkByType(blorbMap, blorbData, 'Reso');
     if (resoData && resoData.length >= 8) {
-      v6NativeWidth = resoData.readUInt32BE(0);
-      v6NativeHeight = resoData.readUInt32BE(4);
+      const reso = new DataView(resoData.buffer, resoData.byteOffset, resoData.byteLength);
+      v6NativeWidth = reso.getUint32(0);
+      v6NativeHeight = reso.getUint32(4);
     }
   }
 

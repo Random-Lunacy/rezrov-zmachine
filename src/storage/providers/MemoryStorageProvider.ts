@@ -7,13 +7,13 @@ import { StorageProvider } from './StorageProvider';
  */
 export class MemoryStorageProvider implements StorageProvider {
   private logger = new Logger('MemoryStorageProvider');
-  private storage: Map<string, Buffer> = new Map();
+  private storage: Map<string, Uint8Array> = new Map();
 
-  async read(location: string): Promise<Buffer | null> {
+  async read(location: string): Promise<Uint8Array | null> {
     return this.storage.get(location) || null;
   }
 
-  async write(location: string, data: Buffer): Promise<void> {
+  async write(location: string, data: Uint8Array): Promise<void> {
     this.storage.set(location, data);
   }
 

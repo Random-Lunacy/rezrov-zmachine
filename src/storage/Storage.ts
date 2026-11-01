@@ -10,13 +10,13 @@ import { StorageProvider } from './providers/StorageProvider';
 export class Storage implements StorageInterface {
   private formatProvider: FormatProvider;
   private storageProvider: StorageProvider;
-  private originalStory: Buffer;
+  private originalStory: Uint8Array;
   private options: StorageOptions = {};
 
   constructor(
     formatProvider: FormatProvider,
     storageProvider: StorageProvider,
-    originalStory: Buffer,
+    originalStory: Uint8Array,
     options?: StorageOptions
   ) {
     this.formatProvider = formatProvider;
@@ -114,11 +114,11 @@ export class Storage implements StorageInterface {
     this.options = { ...this.options, ...options };
   }
 
-  async writeRaw(filename: string, data: Buffer): Promise<void> {
+  async writeRaw(filename: string, data: Uint8Array): Promise<void> {
     await this.storageProvider.write(filename, data);
   }
 
-  async readRaw(filename: string): Promise<Buffer | null> {
+  async readRaw(filename: string): Promise<Uint8Array | null> {
     return this.storageProvider.read(filename);
   }
 

@@ -40,7 +40,7 @@ function getCrcTable(): Uint32Array {
  * CRC-32 over a byte range, as PNG defines it: computed across the chunk's
  * type field and data, seeded with all ones and finally inverted.
  */
-function crc32(data: Buffer, start: number, end: number): number {
+function crc32(data: Uint8Array, start: number, end: number): number {
   const table = getCrcTable();
   let c = 0xffffffff;
   for (let i = start; i < end; i++) {
@@ -50,7 +50,7 @@ function crc32(data: Buffer, start: number, end: number): number {
 }
 
 /** True if the buffer starts with the PNG signature. */
-export function isPng(data: Buffer): boolean {
+export function isPng(data: Uint8Array): boolean {
   if (data.length < PNG_SIGNATURE.length) return false;
   return PNG_SIGNATURE.every((byte, i) => data[i] === byte);
 }
@@ -60,7 +60,7 @@ export function isPng(data: Buffer): boolean {
  * and the data length, or null when the PNG is malformed or has no palette
  * (truecolor and greyscale PNGs legitimately have none).
  */
-export function findPaletteChunk(data: Buffer): { dataOffset: number; length: number } | null {
+export function findPaletteChunk(data: Uint8Array): { dataOffset: number; length: number } | null {
   if (!isPng(data)) return null;
 
   // Walk the chunk list: each chunk is [length:4][type:4][data:length][crc:4].
@@ -84,10 +84,10 @@ export function findPaletteChunk(data: Buffer): { dataOffset: number; length: nu
  * Read a PNG's palette as raw RGB triples, or null if it has no PLTE chunk.
  * The returned buffer is a copy, so it stays valid if the source is rewritten.
  */
-export function readPalette(data: Buffer): Buffer | null {
+export function readPalette(data: Uint8Array): Uint8Array | null {
   const chunk = findPaletteChunk(data);
   if (!chunk) return null;
-  return Buffer.from(data.subarray(chunk.dataOffset, chunk.dataOffset + chunk.length));
+  return new Uint8Array(data.subarray(chunk.dataOffset, chunk.dataOffset + chunk.length));
 }
 
 /**
@@ -102,11 +102,11 @@ export function readPalette(data: Buffer): Buffer | null {
  *
  * Returns `data` unchanged when it has no palette to replace.
  */
-export function replacePalette(data: Buffer, palette: Buffer): Buffer {
+export function replacePalette(data: Uint8Array, palette: Uint8Array): Uint8Array {
   const chunk = findPaletteChunk(data);
   if (!chunk) return data;
 
-  const result = Buffer.from(data);
+  const result = new Uint8Array(data);
   const entries = Math.min(
     Math.floor(chunk.length / PALETTE_ENTRY_SIZE),
     Math.floor(palette.length / PALETTE_ENTRY_SIZE)

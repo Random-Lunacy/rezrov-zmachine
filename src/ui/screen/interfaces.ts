@@ -135,7 +135,7 @@ export interface Screen {
   hideCursor(machine: ZMachine, windowId: number): void;
   showCursor(machine: ZMachine, windowId: number): void;
 
-  // Buffer and stream management
+  // Uint8Array and stream management
   setBufferMode(machine: ZMachine, mode: number): void;
   getBufferMode(machine: ZMachine): number;
   enableOutputStream(machine: ZMachine, streamId: number, table: number, width: number): void;

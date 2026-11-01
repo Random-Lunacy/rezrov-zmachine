@@ -5,7 +5,7 @@ import { StorageStats } from '../interfaces';
 import { StorageProvider } from './StorageProvider';
 
 export class FileSystemProvider implements StorageProvider {
-  async read(location: string): Promise<Buffer | null> {
+  async read(location: string): Promise<Uint8Array | null> {
     try {
       return await fs.readFile(location);
     } catch (error) {
@@ -19,7 +19,7 @@ export class FileSystemProvider implements StorageProvider {
     return null; // Other errors
   }
 
-  async write(location: string, data: Buffer): Promise<void> {
+  async write(location: string, data: Uint8Array): Promise<void> {
     await fs.writeFile(location, data);
   }
 

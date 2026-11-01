@@ -20,7 +20,7 @@
  * - `read_char`: Read a single character from the user
  * - `get_wind_prop`: Get a window property
  * - `set_font`: Set the font for text output
- * - `buffer_screen`: Buffer screen operation
+ * - `buffer_screen`: Uint8Array screen operation
  * - `set_true_colour`: Set true color for text output
  * - `set_margins`: Set margins for text output
  * - `move_window`: Move a window to a new position
@@ -420,7 +420,7 @@ function set_font(machine: ZMachine, _operandTypes: OperandType[], font: number,
 }
 
 /**
- * Buffer screen operation
+ * Uint8Array screen operation
  */
 function buffer_screen(machine: ZMachine, _operandTypes: OperandType[], mode: number): void {
   const resultVar = machine.state.readByte();

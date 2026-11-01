@@ -12,14 +12,14 @@ import { BLORB_FORM_TYPE, BLORB_RIDX_TYPE } from './BlorbData';
 
 export class BlorbParser {
   /**
-   * Parse a Buffer containing a Blorb file into a BlorbMap.
+   * Parse a Uint8Array containing a Blorb file into a BlorbMap.
    * Validates the IFF structure, scans all chunks, and builds the resource index.
    *
    * @param data The raw Blorb file data
    * @returns A BlorbMap with chunks and sorted resources
    * @throws Error on invalid format
    */
-  static parse(data: Buffer): BlorbMap {
+  static parse(data: Uint8Array): BlorbMap {
     // Validate minimum size for FORM header (12 bytes: 'FORM' + size + type)
     if (data.length < 12) {
       throw new Error('Invalid Blorb file: too small');
@@ -52,7 +52,7 @@ export class BlorbParser {
    * Scan all IFF chunks in the file, building chunk descriptors.
    * Mirrors the chunk scanning loop in giblorb_create_map (gi_blorb.c:145-192).
    */
-  private static scanChunks(data: Buffer, totalLength: number): BlorbChunk[] {
+  private static scanChunks(data: Uint8Array, totalLength: number): BlorbChunk[] {
     const chunks: BlorbChunk[] = [];
     let offset = 12; // Skip FORM header (4) + size (4) + type (4)
 
@@ -94,7 +94,7 @@ export class BlorbParser {
    * Find the RIdx chunk and build the sorted resource index.
    * Mirrors giblorb_initialize_map (gi_blorb.c:231-353).
    */
-  private static buildResourceIndex(data: Buffer, chunks: BlorbChunk[]): BlorbResource[] {
+  private static buildResourceIndex(data: Uint8Array, chunks: BlorbChunk[]): BlorbResource[] {
     // Find the RIdx chunk
     const ridxIndex = chunks.findIndex((c) => c.type === BLORB_RIDX_TYPE);
     if (ridxIndex === -1) {
@@ -166,9 +166,9 @@ export class BlorbParser {
    * @param data The raw Blorb file buffer
    * @param usage Resource usage type (e.g., BlorbUsage.Pict)
    * @param number Resource number
-   * @returns Buffer slice containing the resource data, or null if not found
+   * @returns Uint8Array slice containing the resource data, or null if not found
    */
-  static getResource(map: BlorbMap, data: Buffer, usage: string, number: number): Buffer | null {
+  static getResource(map: BlorbMap, data: Uint8Array, usage: string, number: number): Uint8Array | null {
     const index = BlorbParser.findResource(map.resources, usage, number);
     if (index === -1) {
       return null;
@@ -199,9 +199,9 @@ export class BlorbParser {
    * @param data The raw Blorb file buffer
    * @param type Chunk type to find (e.g., 'AUTH', 'ANNO', 'IFmd')
    * @param count Number of matches to skip (default 0 = first match)
-   * @returns Buffer slice containing the chunk data, or null if not found
+   * @returns Uint8Array slice containing the chunk data, or null if not found
    */
-  static getChunkByType(map: BlorbMap, data: Buffer, type: string, count: number = 0): Buffer | null {
+  static getChunkByType(map: BlorbMap, data: Uint8Array, type: string, count: number = 0): Uint8Array | null {
     let skipped = 0;
     for (const chunk of map.chunks) {
       if (chunk.type === type) {
@@ -227,7 +227,7 @@ export class BlorbParser {
    * The chunk is a flat list of big-endian 32-bit resource numbers. Returns an
    * empty set when the Blorb has no 'APal' chunk, which is the common case.
    */
-  static getAdaptivePaletteIds(map: BlorbMap, data: Buffer): Set<number> {
+  static getAdaptivePaletteIds(map: BlorbMap, data: Uint8Array): Set<number> {
     const ids = new Set<number>();
     const chunk = BlorbParser.getChunkByType(map, data, 'APal');
     if (!chunk) return ids;
@@ -244,9 +244,9 @@ export class BlorbParser {
    *
    * @param map The parsed Blorb map
    * @param data The raw Blorb file buffer
-   * @returns Buffer containing the story data, or null if not embedded
+   * @returns Uint8Array containing the story data, or null if not embedded
    */
-  static getExecData(map: BlorbMap, data: Buffer): Buffer | null {
+  static getExecData(map: BlorbMap, data: Uint8Array): Uint8Array | null {
     return BlorbParser.getResource(map, data, 'Exec', 0);
   }
 
@@ -278,10 +278,10 @@ export class BlorbParser {
   }
 
   /**
-   * Check whether a Buffer looks like a Blorb file (starts with FORM...IFRS).
+   * Check whether a Uint8Array looks like a Blorb file (starts with FORM...IFRS).
    * Useful for auto-detection without throwing on invalid data.
    */
-  static isBlorb(data: Buffer): boolean {
+  static isBlorb(data: Uint8Array): boolean {
     if (data.length < 12) return false;
     return asciiString(data, 0, 4) === 'FORM' && asciiString(data, 8, 12) === BLORB_FORM_TYPE;
   }

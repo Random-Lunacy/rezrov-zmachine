@@ -16,9 +16,6 @@ export default defineConfig({
       external: [],
     },
   },
-  optimizeDeps: {
-    include: ['buffer'],
-  },
   define: {
     'process.stdout.isTTY': 'false',
     global: 'globalThis',

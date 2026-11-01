@@ -17,12 +17,25 @@ export function moduleSpecifiers(source: string): string[] {
   );
 }
 
-/** Uses of the `process` global that aren't behind a `typeof process` check. */
-export function unguardedProcessUses(source: string): string[] {
-  const stripped = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-  return stripped
+const STRIP_COMMENTS = [/\/\*[\s\S]*?\*\//g, /(?<![:'"\w])\/\/.*$/gm];
+const STRIP_STRINGS = [/'(?:[^'\\\n]|\\.)*'/g, /"(?:[^"\\\n]|\\.)*"/g];
+
+/**
+ * Uses of Node-only globals in code (comments and string literals are ignored): Buffer, setImmediate,
+ * __dirname, __filename and require(), plus the `process` global when it isn't behind a `typeof process` check.
+ */
+export function nodeGlobalUses(source: string): string[] {
+  const withoutComments = STRIP_COMMENTS.reduce((text, pattern) => text.replace(pattern, ''), source);
+  return withoutComments
     .split('\n')
-    .filter((line) => /\bprocess\b/.test(line) && !/typeof process !== 'undefined'/.test(line))
+    .filter((line) => {
+      const code = STRIP_STRINGS.reduce((text, pattern) => text.replace(pattern, "''"), line);
+      return (
+        /\b(Buffer|setImmediate|__dirname|__filename)\b|\brequire\s*\(/.test(code) ||
+        // The guard itself names 'undefined' in a string, so check it on the original line
+        (/\bprocess\b/.test(code) && !/typeof process !== 'undefined'/.test(line))
+      );
+    })
     .map((line) => line.trim());
 }
 
@@ -90,14 +103,22 @@ describe('module scanning', () => {
     );
   });
 
-  it('finds unguarded uses of the process global', () => {
+  it('finds Node-only globals, ignoring comments and string literals', () => {
     const source = `
       const guarded = typeof process !== 'undefined' && !!process.stdout?.isTTY;
       const unguarded = process.stdout.isTTY;
-      // process.exit() in a comment is ignored
+      const bytes = Buffer.from(data);
+      setImmediate(callback);
+      const type = 'Buffer'; // Buffer and process.exit() in a comment are ignored
+      const dir = __dirname;
     `;
 
-    expect(unguardedProcessUses(source)).toEqual(['const unguarded = process.stdout.isTTY;']);
+    expect(nodeGlobalUses(source)).toEqual([
+      'const unguarded = process.stdout.isTTY;',
+      'const bytes = Buffer.from(data);',
+      'setImmediate(callback);',
+      'const dir = __dirname;',
+    ]);
   });
 });
 
@@ -109,12 +130,12 @@ describe('package entry points', () => {
     expect(main.external).toEqual(['seedrandom']);
   });
 
-  it('only touches the process global behind a typeof check in the main entry', () => {
-    const unguarded = main.files.flatMap((file) =>
-      unguardedProcessUses(readFileSync(file, 'utf8')).map((line) => `${file}: ${line}`)
-    );
+  it('uses no Node-only globals (Buffer, setImmediate, unguarded process) in the main entry', () => {
+    // src/utils/defer.ts is where setImmediate is allowed: it checks for it and falls back to setTimeout
+    const files = main.files.filter((file) => !file.endsWith('utils/defer.ts'));
+    const uses = files.flatMap((file) => nodeGlobalUses(readFileSync(file, 'utf8')).map((line) => `${file}: ${line}`));
 
-    expect(unguarded).toEqual([]);
+    expect(uses).toEqual([]);
   });
 
   it('puts the file system code behind the node entry', () => {

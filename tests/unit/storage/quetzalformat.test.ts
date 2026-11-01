@@ -82,10 +82,10 @@ describe('QuetzalFormat', () => {
 
   describe('serialize', () => {
     it('should serialize ZMachineState to a Quetzal format Buffer', () => {
-      const serialized = format.serialize(mockState);
+      const serialized = Buffer.from(format.serialize(mockState));
 
       // Verify the result is a Buffer
-      expect(serialized).toBeInstanceOf(Buffer);
+      expect(serialized).toBeInstanceOf(Uint8Array);
 
       // Check IFF header
       expect(serialized.slice(0, 4).toString('ascii')).toBe('FORM');
@@ -104,7 +104,7 @@ describe('QuetzalFormat', () => {
     });
 
     it('should create valid IFhd chunk with correct story information', () => {
-      const serialized = format.serialize(mockState);
+      const serialized = Buffer.from(format.serialize(mockState));
 
       // Find IFhd chunk in the buffer
       const ifhdIndex = findChunkIndex(serialized, 'IFhd');
@@ -131,7 +131,7 @@ describe('QuetzalFormat', () => {
     });
 
     it('should create valid CMem chunk with compressed memory', () => {
-      const serialized = format.serialize(mockState);
+      const serialized = Buffer.from(format.serialize(mockState));
 
       // Find CMem chunk in the buffer
       const cmemIndex = findChunkIndex(serialized, 'CMem');
@@ -157,7 +157,7 @@ describe('QuetzalFormat', () => {
     });
 
     it('should create valid Stks chunk with stack and call frames', () => {
-      const serialized = format.serialize(mockState);
+      const serialized = Buffer.from(format.serialize(mockState));
 
       // Find Stks chunk in the buffer
       const stksIndex = findChunkIndex(serialized, 'Stks');
@@ -386,7 +386,7 @@ describe('QuetzalFormat', () => {
 
   describe('extractMetadata', () => {
     it('should extract basic metadata from a serialized state', () => {
-      const serialized = format.serialize(mockState);
+      const serialized = Buffer.from(format.serialize(mockState));
       const metadata = format.extractMetadata(serialized);
 
       // Should extract basic information
@@ -398,7 +398,7 @@ describe('QuetzalFormat', () => {
     it('should extract annotation if present', () => {
       // We need to manually add an ANNO chunk to test this
       // First, serialize the state
-      const serialized = format.serialize(mockState);
+      const serialized = Buffer.from(format.serialize(mockState));
 
       // Create a modified buffer with an ANNO chunk
       const annotation = 'Test save file';
@@ -467,7 +467,7 @@ describe('QuetzalFormat', () => {
       });
 
       // Generate the serialized data
-      const serialized = testFormat.serialize(mockState);
+      const serialized = Buffer.from(testFormat.serialize(mockState));
 
       // Deserialize
       const deserialized = testFormat.deserialize(serialized, originalStory);
@@ -636,7 +636,7 @@ describe('QuetzalFormat', () => {
         heavyState.memory[i] = (i % 255) + 1; // Avoid zeros
       }
 
-      const serialized = format.serialize(heavyState);
+      const serialized = Buffer.from(format.serialize(heavyState));
 
       // Find CMem chunk
       const cmemIndex = findChunkIndex(serialized, 'CMem');
@@ -652,7 +652,7 @@ describe('QuetzalFormat', () => {
       const zeroState = { ...mockState };
       zeroState.memory = Buffer.alloc(0x10000, 0);
 
-      const serialized = format.serialize(zeroState);
+      const serialized = Buffer.from(format.serialize(zeroState));
 
       // Find CMem chunk
       const cmemIndex = findChunkIndex(serialized, 'CMem');
@@ -672,7 +672,7 @@ describe('QuetzalFormat', () => {
         stack: [],
       };
 
-      const serialized = format.serialize(emptyState);
+      const serialized = Buffer.from(format.serialize(emptyState));
 
       // Find Stks chunk
       const stksIndex = findChunkIndex(serialized, 'Stks');
@@ -694,7 +694,7 @@ describe('QuetzalFormat', () => {
         ],
       };
 
-      const serialized = format.serialize(discardState);
+      const serialized = Buffer.from(format.serialize(discardState));
 
       // Find Stks chunk
       const stksIndex = findChunkIndex(serialized, 'Stks');
@@ -731,10 +731,10 @@ describe('QuetzalFormat', () => {
         ],
       };
 
-      const serialized = format.serialize(numericArgState as any);
+      const serialized = Buffer.from(format.serialize(numericArgState as any));
 
       // Should serialize without errors
-      expect(serialized).toBeInstanceOf(Buffer);
+      expect(serialized).toBeInstanceOf(Uint8Array);
 
       // Find Stks chunk
       const stksIndex = findChunkIndex(serialized, 'Stks');

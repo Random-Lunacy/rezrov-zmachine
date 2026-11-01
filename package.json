@@ -106,13 +106,5 @@
   "dependencies": {
     "glob": "^13.0.6",
     "seedrandom": "^3.0.5"
-  },
-  "peerDependencies": {
-    "@types/node": ">=22"
-  },
-  "peerDependenciesMeta": {
-    "@types/node": {
-      "optional": true
-    }
   }
 }

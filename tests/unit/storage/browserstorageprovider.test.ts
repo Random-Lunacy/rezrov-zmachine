@@ -58,7 +58,7 @@ describe('BrowserStorageProvider', () => {
 
       expect(localStorageMock.getItem).toHaveBeenCalledWith('test-test-location');
       expect(result).not.toBeNull();
-      expect(result?.toString()).toBe('test data');
+      expect(new TextDecoder().decode(result!)).toBe('test data');
     });
 
     it('should throw an error when localStorage access fails', async () => {

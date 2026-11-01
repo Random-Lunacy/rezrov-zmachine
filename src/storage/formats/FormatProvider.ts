@@ -13,7 +13,7 @@ import { ZMachineState } from '../../types';
  * formats that support metadata extraction, such as Quetzal.
  */
 export interface FormatProvider {
-  serialize(state: ZMachineState): Buffer;
-  deserialize(data: Buffer, originalStory: Buffer): ZMachineState;
-  extractMetadata?(data: Buffer): { description?: string; [key: string]: unknown };
+  serialize(state: ZMachineState): Uint8Array;
+  deserialize(data: Uint8Array, originalStory: Uint8Array): ZMachineState;
+  extractMetadata?(data: Uint8Array): { description?: string; [key: string]: unknown };
 }

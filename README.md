@@ -81,9 +81,11 @@ This project is a port/refactoring of the [ebozz](https://github.com/toshok/eboz
 npm install @random-lunacy/rezrov-zmachine
 ```
 
-Requires Node.js 22.12 or later. The package is ESM-only and ships its own TypeScript declarations. The API uses
-`Buffer`, so TypeScript projects should have `@types/node` installed, and browser bundles need a `Buffer` polyfill
-(the [web example](examples/web/) uses the `buffer` package).
+Requires Node.js 22.12 or later. The package is ESM-only and ships its own TypeScript declarations.
+
+Story files, saves and resources are plain `Uint8Array`s. A Node `Buffer` is one, so `fs.readFileSync(path)` can be
+passed straight in, and in a browser `new Uint8Array(await response.arrayBuffer())` works, with no `Buffer` polyfill.
+Values the library returns are plain `Uint8Array`s (not `Buffer`s): use `Buffer.from(bytes)` if you want Buffer methods.
 
 ### Two entry points
 
@@ -236,11 +238,11 @@ You can create your own storage provider for save/restore functionality by imple
 import { StorageProvider } from '@random-lunacy/rezrov-zmachine';
 
 export class MyStorageProvider implements StorageProvider {
-  async read(location: string): Promise<Buffer | null> {
+  async read(location: string): Promise<Uint8Array | null> {
     // Read save data from your storage backend
   }
 
-  async write(location: string, data: Buffer): Promise<void> {
+  async write(location: string, data: Uint8Array): Promise<void> {
     // Write save data to your storage backend
   }
 

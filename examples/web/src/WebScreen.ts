@@ -1784,7 +1784,7 @@ export class WebScreen extends BaseScreen {
    */
   async displayInlinePicture(
     resourceId: number,
-    data: Buffer,
+    data: Uint8Array,
     format: string,
     x: number,
     _y: number,

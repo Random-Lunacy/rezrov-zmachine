@@ -13,7 +13,7 @@ import { Storage } from './Storage';
  * This is useful for web applications where file system access
  * is not available.
  */
-export function createBrowserStorage(originalStoryData: Buffer): StorageInterface {
+export function createBrowserStorage(originalStoryData: Uint8Array): StorageInterface {
   const formatProvider = new EnhancedDatFormat();
   const storageProvider = new BrowserStorageProvider();
   return new Storage(formatProvider, storageProvider, originalStoryData);
@@ -25,7 +25,7 @@ export function createBrowserStorage(originalStoryData: Buffer): StorageInterfac
  * This is useful for testing or environments where
  * persistent storage is not required.
  */
-export function createMemoryStorage(originalStoryData: Buffer): StorageInterface {
+export function createMemoryStorage(originalStoryData: Uint8Array): StorageInterface {
   const formatProvider = new EnhancedDatFormat();
   const storageProvider = new MemoryStorageProvider();
   return new Storage(formatProvider, storageProvider, originalStoryData);

@@ -101,3 +101,45 @@ export function toBase64(bytes: Uint8Array): string {
   }
   return btoa(binary);
 }
+
+/** Decode a base64 string into a new Uint8Array. */
+export function fromBase64(text: string): Uint8Array {
+  const binary = atob(text);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
+/** Write a string into the array as 7-bit ASCII (one byte per character, high bits dropped). */
+export function writeAscii(bytes: Uint8Array, text: string, offset: number): void {
+  checkRange(bytes, offset, text.length);
+  for (let i = 0; i < text.length; i++) {
+    bytes[offset + i] = text.charCodeAt(i) & 0x7f;
+  }
+}
+
+/** Join byte arrays into one new Uint8Array. */
+export function concatBytes(parts: Uint8Array[]): Uint8Array {
+  const result = new Uint8Array(parts.reduce((total, part) => total + part.length, 0));
+  let offset = 0;
+  for (const part of parts) {
+    result.set(part, offset);
+    offset += part.length;
+  }
+  return result;
+}
+
+const encoder = new TextEncoder();
+const decoder = new TextDecoder('utf-8');
+
+/** Encode a string as UTF-8. */
+export function utf8Encode(text: string): Uint8Array {
+  return encoder.encode(text);
+}
+
+/** Decode UTF-8 bytes into a string. */
+export function utf8Decode(bytes: Uint8Array): string {
+  return decoder.decode(bytes);
+}
