@@ -157,6 +157,19 @@ describe('I/O Opcodes', () => {
       expect(machine.screen.setCursorPosition).toHaveBeenCalledWith(machine, line, column, 1);
     });
 
+    it.each([7, 8])('should target the upper window and not treat -1 as hide cursor in V%i', (version) => {
+      // Arrange: cursor hiding and the window operand are V6 only
+      mockMachine.state.version = version;
+
+      // Act
+      ioOpcodes.set_cursor.impl(machine, [], -1, 0, 2);
+      ioOpcodes.set_cursor.impl(machine, [], 3, 5, 2);
+
+      // Assert
+      expect(machine.screen.hideCursor).not.toHaveBeenCalled();
+      expect(machine.screen.setCursorPosition).toHaveBeenLastCalledWith(machine, 3, 5, 1);
+    });
+
     it('should use provided window parameter in V6', () => {
       // Arrange
       mockMachine.state.version = 6;

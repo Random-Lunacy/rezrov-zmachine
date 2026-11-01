@@ -411,14 +411,14 @@ export class Memory {
   getFontUnits(): { width: number; height: number } {
     const first = this.getByte(HeaderLocation.FontWidthInUnits);
     const second = this.getByte(HeaderLocation.FontHeightInUnits);
-    return this._version >= 6 ? { width: second, height: first } : { width: first, height: second };
+    return this._version === 6 ? { width: second, height: first } : { width: first, height: second };
   }
 
   /**
    * Write the font size in screen units to the header, in the version's byte order (see getFontUnits)
    */
   setFontUnits(width: number, height: number): void {
-    const [first, second] = this._version >= 6 ? [height, width] : [width, height];
+    const [first, second] = this._version === 6 ? [height, width] : [width, height];
     this.setByte(HeaderLocation.FontWidthInUnits, Math.min(255, first));
     this.setByte(HeaderLocation.FontHeightInUnits, Math.min(255, second));
   }

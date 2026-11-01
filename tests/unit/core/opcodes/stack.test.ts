@@ -88,6 +88,20 @@ describe('Stack Opcodes', () => {
       expect(mockMachine.logger.debug).toHaveBeenCalledWith(`1234 pull ${variable}`);
     });
 
+    it.each([7, 8])('should use the plain stack form, not the V6 user-stack form, in V%i', (version) => {
+      // Arrange: only V6 has the stored/user-stack form; V7 and V8 pull into a named variable
+      const variable = 3;
+      mockMachine.state.version = version;
+
+      // Act
+      stackOpcodes.pull.impl(machine, [], variable);
+
+      // Assert
+      expect(mockMachine.getUserStackManager).not.toHaveBeenCalled();
+      expect(mockMachine.state.readByte).not.toHaveBeenCalled();
+      expect(mockMachine.state.storeVariable).toHaveBeenCalledWith(variable, 99);
+    });
+
     it('should pull a value from a user stack in V6', () => {
       // Arrange: in V6, first operand IS the user stack address; result var comes from readByte()
       const stackAddr = 0x2000;

@@ -724,6 +724,24 @@ describe('BaseScreen', () => {
       expect(screen.getCursorPosition(machine as any)).toEqual({ line: 2, column: 2 });
     });
 
+    it.each([7, 8])('should treat set_cursor coordinates as character cells in V%i', (version) => {
+      machine.state.version = version;
+      givenFontSize(8);
+
+      screen.setCursorPosition(machine as any, 17, 9, 1);
+
+      // No pixel conversion outside V6
+      expect(screen.getCursorPosition(machine as any)).toEqual({ line: 17, column: 9 });
+    });
+
+    it.each([7, 8])('should reject a non-upper window in V%i', (version) => {
+      machine.state.version = version;
+
+      screen.setCursorPosition(machine as any, 5, 10, 0);
+
+      expect(mockLogger.debug).toHaveBeenCalledWith('TestScreen setCursorPosition only works in upper window');
+    });
+
     it('should still reject a non-upper window in V5', () => {
       machine.state.version = 5;
 
