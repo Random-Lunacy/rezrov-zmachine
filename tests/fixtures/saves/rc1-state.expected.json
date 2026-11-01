@@ -1,0 +1,50 @@
+{
+  "qzl": {
+    "pc": 1297,
+    "stack": [1, 2, 3, 65535],
+    "callFrames": [
+      {
+        "returnPC": 1312,
+        "discardResult": false,
+        "storeVariable": 16,
+        "argumentMask": [true, false, true, false, false, false, false],
+        "locals": [10, 20, 30],
+        "stack": [40, 50, 60]
+      },
+      {
+        "returnPC": 1328,
+        "discardResult": true,
+        "storeVariable": 0,
+        "argumentMask": [true, false, false, false, false, false, false],
+        "locals": [65535],
+        "stack": []
+      }
+    ],
+    "memorySha256": "6f0b96c36a7ae4eaa44af7cecba5b878a9e74864709101bd2003158c196c6a2c",
+    "originalStorySha256": "eedef00445be0fd06c8d759da9e07751c666ab7e6ba9eaa14e625becda6e4f7f"
+  },
+  "dat": {
+    "pc": 1297,
+    "stack": [1, 2, 3, 65535],
+    "callFrames": [
+      {
+        "returnPC": 1312,
+        "discardResult": false,
+        "storeVariable": 16,
+        "argumentMask": [true, false, true],
+        "locals": [10, 20, 30],
+        "stack": [40, 50, 60]
+      },
+      {
+        "returnPC": 1328,
+        "discardResult": true,
+        "storeVariable": 0,
+        "argumentMask": [true],
+        "locals": [65535],
+        "stack": []
+      }
+    ],
+    "memorySha256": "6f0b96c36a7ae4eaa44af7cecba5b878a9e74864709101bd2003158c196c6a2c",
+    "originalStorySha256": "eedef00445be0fd06c8d759da9e07751c666ab7e6ba9eaa14e625becda6e4f7f"
+  }
+}

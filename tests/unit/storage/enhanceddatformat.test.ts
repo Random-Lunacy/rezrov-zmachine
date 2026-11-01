@@ -48,10 +48,10 @@ describe('EnhancedDatFormat', () => {
 
   describe('serialize', () => {
     it('should serialize ZMachineState to a Buffer', () => {
-      const serialized = format.serialize(mockState);
+      const serialized = Buffer.from(format.serialize(mockState));
 
       // Verify the result is a Buffer
-      expect(serialized).toBeInstanceOf(Buffer);
+      expect(serialized).toBeInstanceOf(Uint8Array);
 
       // Verify the content is parsable JSON
       const parsed = JSON.parse(serialized.toString('utf-8'));
@@ -83,10 +83,10 @@ describe('EnhancedDatFormat', () => {
         originalStory: Buffer.alloc(0),
       };
 
-      const serialized = format.serialize(emptyState);
+      const serialized = Buffer.from(format.serialize(emptyState));
 
       // Should serialize properly even with empty state
-      expect(serialized).toBeInstanceOf(Buffer);
+      expect(serialized).toBeInstanceOf(Uint8Array);
 
       const parsed = JSON.parse(serialized.toString('utf-8'));
       expect(parsed.pc).toBe(0);
@@ -95,7 +95,7 @@ describe('EnhancedDatFormat', () => {
     });
 
     it('should convert call frames correctly', () => {
-      const serialized = format.serialize(mockState);
+      const serialized = Buffer.from(format.serialize(mockState));
       const parsed = JSON.parse(serialized.toString('utf-8'));
 
       // Verify that call frames are serialized correctly
@@ -115,7 +115,7 @@ describe('EnhancedDatFormat', () => {
   describe('deserialize', () => {
     it('should deserialize Buffer to ZMachineState', () => {
       // First serialize then deserialize to test roundtrip
-      const serialized = format.serialize(mockState);
+      const serialized = Buffer.from(format.serialize(mockState));
       const deserialized = format.deserialize(serialized, originalStory);
 
       // Verify the result is a ZMachineState
@@ -123,10 +123,12 @@ describe('EnhancedDatFormat', () => {
       expect(deserialized.stack).toEqual(mockState.stack);
 
       // Check that buffer properties are correctly recreated
-      expect(Buffer.isBuffer(deserialized.memory)).toBe(true);
-      expect(deserialized.memory.equals(mockState.memory)).toBe(true);
-      expect(Buffer.isBuffer(deserialized.originalStory)).toBe(true);
-      expect(deserialized.originalStory.equals(mockState.originalStory)).toBe(true);
+      expect(deserialized.memory).toBeInstanceOf(Uint8Array);
+      expect(Buffer.isBuffer(deserialized.memory)).toBe(false); // plain bytes, no Node Buffer needed
+      expect(Buffer.from(deserialized.memory).equals(mockState.memory)).toBe(true);
+      expect(deserialized.originalStory).toBeInstanceOf(Uint8Array);
+      expect(Buffer.isBuffer(deserialized.originalStory)).toBe(false);
+      expect(Buffer.from(deserialized.originalStory).equals(mockState.originalStory)).toBe(true);
 
       // Verify call frames
       expect(deserialized.callFrames.length).toBe(mockState.callFrames.length);
@@ -264,7 +266,7 @@ describe('EnhancedDatFormat', () => {
     });
 
     it('should provide default metadata if description is missing', () => {
-      const serialized = format.serialize(mockState);
+      const serialized = Buffer.from(format.serialize(mockState));
       const metadata = format.extractMetadata(serialized);
 
       // Should provide default description
@@ -284,7 +286,7 @@ describe('EnhancedDatFormat', () => {
 
   describe('roundtrip', () => {
     it('should perform complete roundtrip serialization/deserialization', () => {
-      const serialized = format.serialize(mockState);
+      const serialized = Buffer.from(format.serialize(mockState));
       const deserialized = format.deserialize(serialized, originalStory);
 
       // Check primitive properties
@@ -292,8 +294,8 @@ describe('EnhancedDatFormat', () => {
       expect(deserialized.stack).toEqual(mockState.stack);
 
       // Check buffer properties
-      expect(deserialized.memory.equals(mockState.memory)).toBe(true);
-      expect(deserialized.originalStory.equals(mockState.originalStory)).toBe(true);
+      expect(Buffer.from(deserialized.memory).equals(mockState.memory)).toBe(true);
+      expect(Buffer.from(deserialized.originalStory).equals(mockState.originalStory)).toBe(true);
 
       // Check call frames
       expect(deserialized.callFrames.length).toBe(mockState.callFrames.length);
@@ -336,7 +338,7 @@ describe('EnhancedDatFormat', () => {
         originalStory: originalStory,
       };
 
-      const serialized = format.serialize(complexState);
+      const serialized = Buffer.from(format.serialize(complexState));
       const deserialized = format.deserialize(serialized, originalStory);
 
       // Check structure and content

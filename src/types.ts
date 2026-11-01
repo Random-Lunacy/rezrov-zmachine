@@ -75,9 +75,9 @@ export type FIXME = unknown;
  * Represents the complete state of a Z-Machine that needs to be saved/restored
  */
 export interface ZMachineState {
-  memory: Buffer;
+  memory: Uint8Array;
   pc: number;
   stack: number[];
   callFrames: SerializedStackFrame[];
-  originalStory: Buffer;
+  originalStory: Uint8Array;
 }

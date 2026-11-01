@@ -34,7 +34,7 @@ export class PictureRenderer {
    */
   displayPicture(
     resourceId: number,
-    data: ArrayBuffer | Buffer,
+    data: ArrayBuffer | Uint8Array,
     format: string,
     x: number,
     y: number,

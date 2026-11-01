@@ -28,7 +28,7 @@ interface ValidationRule {
  * Memory class for the Z-machine
  */
 export class Memory {
-  private _mem: Buffer;
+  private _mem: Uint8Array;
   private readonly logger: Logger;
 
   private readonly _dynamicMemoryEnd: number = 0;
@@ -44,7 +44,7 @@ export class Memory {
    * @param options Optional dependencies
    */
   constructor(
-    buffer: Buffer,
+    buffer: Uint8Array,
     options?: {
       logger?: Logger;
       skipValidation?: boolean;
@@ -390,15 +390,15 @@ export class Memory {
   /**
    * Get a block of memory as a buffer
    */
-  getBytes(addr: Address, length: number): Buffer {
+  getBytes(addr: Address, length: number): Uint8Array {
     this.checkBounds(addr, length);
-    return Buffer.from(this._mem.subarray(addr, addr + length));
+    return new Uint8Array(this._mem.subarray(addr, addr + length));
   }
 
   /**
    * Set a block of memory from a buffer
    */
-  setBytes(addr: Address, buffer: Buffer): void {
+  setBytes(addr: Address, buffer: Uint8Array): void {
     this.checkBounds(addr, buffer.length, true);
     copyBytes(buffer, this._mem, addr);
   }
@@ -467,7 +467,7 @@ export class Memory {
   /**
    * Get the memory buffer
    */
-  get buffer(): Buffer {
+  get buffer(): Uint8Array {
     return this._mem;
   }
 
@@ -903,7 +903,7 @@ export class Memory {
    * @param data The buffer of data to write
    * @param ignoreProtection Whether to ignore memory protection (for test setup)
    */
-  public setMemoryForTesting(addr: Address, data: Buffer, ignoreProtection: boolean = false): void {
+  public setMemoryForTesting(addr: Address, data: Uint8Array, ignoreProtection: boolean = false): void {
     if (ignoreProtection) {
       // Allow direct writing to any memory region for test setup
       if (addr < 0 || addr + data.length > this._mem.length) {

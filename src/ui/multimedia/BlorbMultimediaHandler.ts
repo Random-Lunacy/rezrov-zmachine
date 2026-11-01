@@ -27,7 +27,7 @@ import {
  * SOF0 (0xFFC0) through SOF3 (0xFFC3) contain the image dimensions.
  * Returns null if no SOF marker is found.
  */
-function getJpegDimensions(data: Buffer): { width: number; height: number } | null {
+function getJpegDimensions(data: Uint8Array): { width: number; height: number } | null {
   // Validate JPEG SOI marker
   if (data.length < 2 || data[0] !== 0xff || data[1] !== 0xd8) {
     return null;
@@ -64,7 +64,7 @@ function getJpegDimensions(data: Buffer): { width: number; height: number } | nu
  * The IHDR chunk starts at byte 16 and contains 4-byte BE width and height.
  * Returns null if the buffer is too small or has an invalid PNG signature.
  */
-function getPngDimensions(data: Buffer): { width: number; height: number } | null {
+function getPngDimensions(data: Uint8Array): { width: number; height: number } | null {
   // PNG signature (8 bytes) + IHDR length (4) + 'IHDR' (4) + width (4) + height (4) = 24 bytes minimum
   if (data.length < 24) return null;
 
@@ -92,7 +92,7 @@ function getPngDimensions(data: Buffer): { width: number; height: number } | nul
  * width followed by 4-byte BE height, no pixel data. Returns null if the
  * buffer is too small.
  */
-function getRectDimensions(data: Buffer): { width: number; height: number } | null {
+function getRectDimensions(data: Uint8Array): { width: number; height: number } | null {
   if (data.length < 8) return null;
 
   const width = readU32BE(data, 0);
@@ -105,7 +105,7 @@ function getRectDimensions(data: Buffer): { width: number; height: number } | nu
  */
 export type PictureRendererCallback = (
   resourceId: number,
-  data: Buffer,
+  data: Uint8Array,
   format: string,
   x: number,
   y: number,
@@ -123,7 +123,7 @@ export type PictureEraserCallback = (resourceId: number) => void;
  */
 export type SoundPlayerCallback = (
   resourceId: number,
-  data: Buffer,
+  data: Uint8Array,
   format: string,
   volume: number,
   repeats: number
@@ -152,7 +152,7 @@ export interface BlorbMultimediaHandlerOptions {
  */
 export class BlorbMultimediaHandler extends BaseMultimediaHandler {
   private readonly _blorbMap: BlorbMap;
-  private readonly _blorbData: Buffer;
+  private readonly _blorbData: Uint8Array;
   private readonly _logger: Logger;
   private readonly _dimensionCache: Map<number, PictureData> = new Map();
   private readonly _pictureRenderer?: PictureRendererCallback;
@@ -167,9 +167,9 @@ export class BlorbMultimediaHandler extends BaseMultimediaHandler {
    * pictures so they take on the colors of the artwork they overlay. Null until
    * such a picture has been drawn.
    */
-  private _currentPalette: Buffer | null = null;
+  private _currentPalette: Uint8Array | null = null;
 
-  constructor(blorbMap: BlorbMap, blorbData: Buffer, options?: BlorbMultimediaHandlerOptions) {
+  constructor(blorbMap: BlorbMap, blorbData: Uint8Array, options?: BlorbMultimediaHandlerOptions) {
     super(options);
     this._blorbMap = blorbMap;
     this._blorbData = blorbData;
@@ -285,7 +285,7 @@ export class BlorbMultimediaHandler extends BaseMultimediaHandler {
    *
    * Returns the data to render — unchanged unless a substitution applies.
    */
-  private applyAdaptivePalette(resourceId: number, data: Buffer): Buffer {
+  private applyAdaptivePalette(resourceId: number, data: Uint8Array): Uint8Array {
     if (!isPng(data)) return data;
 
     if (!this._adaptivePaletteIds.has(resourceId)) {

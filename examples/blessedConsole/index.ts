@@ -71,11 +71,11 @@ process.on('SIGINT', () => {
 
 try {
   // Load the story file
-  let storyData: Buffer = fs.readFileSync(file);
+  let storyData: Uint8Array = fs.readFileSync(file);
   logger.debug(`Loaded ${storyData.length} bytes from ${file}`);
 
   let blorbMap: ReturnType<typeof BlorbParser.parse> | null = null;
-  let blorbData: Buffer | null = null;
+  let blorbData: Uint8Array | null = null;
 
   if (BlorbParser.isBlorb(storyData)) {
     blorbMap = BlorbParser.parse(storyData);

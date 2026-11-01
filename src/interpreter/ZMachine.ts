@@ -14,7 +14,9 @@ import { InputProcessor, InputState } from '../ui/input/InputInterface';
 import { BlorbMultimediaHandler } from '../ui/multimedia/BlorbMultimediaHandler';
 import { BaseMultimediaHandler, MultimediaHandler } from '../ui/multimedia/MultimediaHandler';
 import { Capabilities, Screen } from '../ui/screen/interfaces';
+import { concatBytes } from '../utils/bytes';
 import { Flags1, Flags2, HeaderLocation, Interpreter } from '../utils/constants';
+import { defer } from '../utils/defer';
 import { Logger } from '../utils/log';
 import { GameState } from './GameState';
 
@@ -37,14 +39,14 @@ export class ZMachine {
   private _storage: StorageInterface;
   private _undoStack: ZMachineState[] = [];
   private readonly _maxUndoLevels = 10;
-  private readonly _originalStory: Buffer;
+  private readonly _originalStory: Uint8Array;
   private _blorbMap: BlorbMap | null = null;
-  private _blorbData: Buffer | null = null;
+  private _blorbData: Uint8Array | null = null;
   private _mouseWindow = 1;
 
   /**
    * Creates a new Z-Machine interpreter
-   * @param storyBuffer Buffer containing the story file
+   * @param storyBuffer Uint8Array containing the story file
    * @param screen Screen interface for output
    * @param inputProcessor Input processor for handling user input
    * @param multimediaHandler Multimedia handler for sound and pictures (optional, defaults to BaseMultimediaHandler)
@@ -53,7 +55,7 @@ export class ZMachine {
    * @param options Optional configuration options
    */
   constructor(
-    storyBuffer: Buffer,
+    storyBuffer: Uint8Array,
     screen: Screen,
     inputProcessor: InputProcessor,
     multimediaHandler?: MultimediaHandler,
@@ -63,7 +65,7 @@ export class ZMachine {
   ) {
     // Store a copy of the original story for restart functionality
     // This must be a copy, not a reference, since Memory modifies the buffer in place
-    this._originalStory = Buffer.from(storyBuffer);
+    this._originalStory = new Uint8Array(storyBuffer);
     this._memory = new Memory(storyBuffer);
     this._logger = options?.logger || new Logger('ZMachine');
     this._screen = screen;
@@ -134,13 +136,13 @@ export class ZMachine {
   public get logger(): Logger {
     return this._logger;
   }
-  public get originalStory(): Buffer {
+  public get originalStory(): Uint8Array {
     return this._originalStory;
   }
   public get blorbMap(): BlorbMap | null {
     return this._blorbMap;
   }
-  public get blorbData(): Buffer | null {
+  public get blorbData(): Uint8Array | null {
     return this._blorbData;
   }
 
@@ -151,7 +153,7 @@ export class ZMachine {
    * @param data Raw Blorb file buffer
    * @param handler Optional pre-configured MultimediaHandler (e.g., BlorbMultimediaHandler with render/play callbacks). If not provided, a default BlorbMultimediaHandler is created.
    */
-  setBlorb(map: BlorbMap, data: Buffer, handler?: MultimediaHandler): void {
+  setBlorb(map: BlorbMap, data: Uint8Array, handler?: MultimediaHandler): void {
     this._blorbMap = map;
     this._blorbData = data;
     this._multimediaHandler = handler ?? new BlorbMultimediaHandler(map, data, { logger: this._logger });
@@ -446,7 +448,7 @@ export class ZMachine {
       }
 
       // Read the suggested name from memory (length-prefixed, max 32 bytes)
-      const nameHeader = Buffer.alloc(AUXILIARY_NAME_LENGTH);
+      const nameHeader = new Uint8Array(AUXILIARY_NAME_LENGTH);
       if (name !== 0) {
         const nameLen = Math.min(this._memory.getByte(name), AUXILIARY_NAME_LENGTH - 1);
         nameHeader[0] = nameLen;
@@ -459,7 +461,7 @@ export class ZMachine {
       const data = this._memory.getBytes(table, bytes);
 
       // Build the file: [name header (32 bytes)] + [data]
-      const fileBuffer = Buffer.concat([nameHeader, data]);
+      const fileBuffer = concatBytes([nameHeader, data]);
 
       // Write using raw storage (bypasses format provider)
       if (!filename) {
@@ -539,7 +541,7 @@ export class ZMachine {
 
       // Copy data into Z-machine memory
       const data = fileBuffer.subarray(dataStart, dataStart + bytesToRead);
-      this._memory.setBytes(table, Buffer.from(data));
+      this._memory.setBytes(table, new Uint8Array(data));
 
       return bytesToRead;
     } catch (error) {
@@ -550,11 +552,11 @@ export class ZMachine {
 
   private getState(): ZMachineState {
     return {
-      memory: Buffer.from(this.memory.buffer),
+      memory: new Uint8Array(this.memory.buffer),
       pc: this.state.pc,
       stack: [...this.state.stack],
       callFrames: this.state.callstack.map((frame) => serializeStackFrame(frame)),
-      originalStory: Buffer.from(this.originalStory),
+      originalStory: new Uint8Array(this.originalStory),
     };
   }
 
@@ -688,7 +690,7 @@ export class ZMachine {
 
     // Schedule the new execution loop to start after the current call stack unwinds.
     // This ensures the old executeLoop() exits cleanly before the new one begins.
-    setImmediate(() => {
+    defer(() => {
       // Reset executor state now that the old loop has exited
       this._executor.reset();
 

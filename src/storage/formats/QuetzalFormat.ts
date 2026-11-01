@@ -5,6 +5,7 @@ import {
   readU16BE,
   readU32BE,
   readU8,
+  writeAscii,
   writeU16BE,
   writeU32BE,
   writeU8,
@@ -28,7 +29,7 @@ export class QuetzalFormat implements FormatProvider {
     this.logger = options?.logger || new Logger('QuetzalFormat');
   }
 
-  serialize(state: ZMachineState): Buffer {
+  serialize(state: ZMachineState): Uint8Array {
     // Create the chunks for the IFF format
     const ifhdChunk = this.createIFhdChunk(state);
     const memChunk = this.createCMemChunk(state.memory, state.originalStory);
@@ -38,11 +39,11 @@ export class QuetzalFormat implements FormatProvider {
     const totalSize = 4 + 4 + 4 + ifhdChunk.length + memChunk.length + stksChunk.length;
 
     // Create the buffer and write the data
-    const buffer = Buffer.alloc(totalSize);
+    const buffer = new Uint8Array(totalSize);
     let offset = 0;
 
     // Write FORM header
-    buffer.write(QuetzalFormat.FORM_ID, offset, 'ascii');
+    writeAscii(buffer, QuetzalFormat.FORM_ID, offset);
     offset += 4;
 
     // Write size (size of everything except the FORM ID and size fields)
@@ -50,7 +51,7 @@ export class QuetzalFormat implements FormatProvider {
     offset += 4;
 
     // Write IFZS identifier
-    buffer.write(QuetzalFormat.IFZS_ID, offset, 'ascii');
+    writeAscii(buffer, QuetzalFormat.IFZS_ID, offset);
     offset += 4;
 
     // Copy the chunks
@@ -65,7 +66,7 @@ export class QuetzalFormat implements FormatProvider {
     return buffer;
   }
 
-  deserialize(data: Buffer, originalStory: Buffer): ZMachineState {
+  deserialize(data: Uint8Array, originalStory: Uint8Array): ZMachineState {
     if (!originalStory) {
       throw new Error('Original story data is required for Quetzal format');
     }
@@ -112,7 +113,7 @@ export class QuetzalFormat implements FormatProvider {
     }
 
     // Parse the memory chunk
-    let memory: Buffer;
+    let memory: Uint8Array;
     if (chunks[QuetzalFormat.CMEM_ID]) {
       memory = this.parseCMemChunk(chunks[QuetzalFormat.CMEM_ID], originalStory);
     } else {
@@ -138,11 +139,11 @@ export class QuetzalFormat implements FormatProvider {
       pc: ifhdData.pc,
       stack,
       callFrames, // Fixed: Use the properly formatted callFrames
-      originalStory: Buffer.from(originalStory),
+      originalStory: new Uint8Array(originalStory),
     };
   }
 
-  extractMetadata(data: Buffer): { description?: string; [key: string]: unknown } {
+  extractMetadata(data: Uint8Array): { description?: string; [key: string]: unknown } {
     const metadata: { description?: string; [key: string]: unknown } = {};
 
     try {
@@ -180,8 +181,8 @@ export class QuetzalFormat implements FormatProvider {
     return metadata;
   }
 
-  private parseChunks(data: Buffer): { [id: string]: Buffer } {
-    const chunks: { [id: string]: Buffer } = {};
+  private parseChunks(data: Uint8Array): { [id: string]: Uint8Array } {
+    const chunks: { [id: string]: Uint8Array } = {};
     let offset = 12; // Skip FORM header and IFZS ID
 
     while (offset < data.length) {
@@ -194,7 +195,7 @@ export class QuetzalFormat implements FormatProvider {
       offset += 4;
 
       // Read chunk data
-      const chunkData = Buffer.alloc(chunkSize);
+      const chunkData = new Uint8Array(chunkSize);
       copyBytes(data, chunkData, 0, offset, offset + chunkSize);
       chunks[chunkId] = chunkData;
 
@@ -208,13 +209,13 @@ export class QuetzalFormat implements FormatProvider {
     return chunks;
   }
 
-  private createIFhdChunk(state: ZMachineState): Buffer {
+  private createIFhdChunk(state: ZMachineState): Uint8Array {
     // Create a buffer for the IFhd chunk (fixed size + header)
-    const buffer = Buffer.alloc(13 + 8 + 1); // 13 bytes data, 8 bytes header, 1 padding
+    const buffer = new Uint8Array(13 + 8 + 1); // 13 bytes data, 8 bytes header, 1 padding
     let offset = 0;
 
     // Write chunk ID
-    buffer.write(QuetzalFormat.IFHD_ID, offset, 'ascii');
+    writeAscii(buffer, QuetzalFormat.IFHD_ID, offset);
     offset += 4;
 
     // Write chunk size
@@ -248,7 +249,7 @@ export class QuetzalFormat implements FormatProvider {
     return buffer;
   }
 
-  private parseIFhdChunk(data: Buffer): { release: number; serial: string; checksum: number; pc: number } {
+  private parseIFhdChunk(data: Uint8Array): { release: number; serial: string; checksum: number; pc: number } {
     if (data.length < 13) {
       throw new Error('Invalid IFhd chunk: too short');
     }
@@ -272,7 +273,7 @@ export class QuetzalFormat implements FormatProvider {
 
   private validateIFhdData(
     ifhdData: { release: number; serial: string; checksum: number },
-    originalStory: Buffer
+    originalStory: Uint8Array
   ): void {
     // Read release number from story file
     const originalRelease = readU16BE(originalStory, 2);
@@ -299,16 +300,16 @@ export class QuetzalFormat implements FormatProvider {
     }
   }
 
-  private createCMemChunk(memory: Buffer, originalStory: Buffer): Buffer {
+  private createCMemChunk(memory: Uint8Array, originalStory: Uint8Array): Uint8Array {
     // Calculate dynamic memory size
     const dynamicMemorySize = this.getDynamicMemorySize(originalStory);
 
     // Extract dynamic memory from current state
-    const dynamicMemory = Buffer.alloc(dynamicMemorySize);
+    const dynamicMemory = new Uint8Array(dynamicMemorySize);
     copyBytes(memory, dynamicMemory, 0, 0, dynamicMemorySize);
 
     // Extract original dynamic memory
-    const originalDynamicMemory = Buffer.alloc(dynamicMemorySize);
+    const originalDynamicMemory = new Uint8Array(dynamicMemorySize);
     copyBytes(originalStory, originalDynamicMemory, 0, 0, dynamicMemorySize);
 
     // XOR the memory with the original to get the differences
@@ -322,11 +323,11 @@ export class QuetzalFormat implements FormatProvider {
     // Create the chunk. IFF requires odd-length chunks to be followed by a pad byte (not counted in
     // the chunk size), otherwise the next chunk is misaligned for any conforming reader.
     const padding = compressed.length % 2;
-    const buffer = Buffer.alloc(compressed.length + 8 + padding);
+    const buffer = new Uint8Array(compressed.length + 8 + padding);
     let offset = 0;
 
     // Write chunk ID
-    buffer.write(QuetzalFormat.CMEM_ID, offset, 'ascii');
+    writeAscii(buffer, QuetzalFormat.CMEM_ID, offset);
     offset += 4;
 
     // Write chunk size
@@ -339,7 +340,7 @@ export class QuetzalFormat implements FormatProvider {
     return buffer;
   }
 
-  private parseCMemChunk(data: Buffer, originalStory: Buffer): Buffer {
+  private parseCMemChunk(data: Uint8Array, originalStory: Uint8Array): Uint8Array {
     // Calculate dynamic memory size
     const dynamicMemorySize = this.getDynamicMemorySize(originalStory);
 
@@ -347,10 +348,10 @@ export class QuetzalFormat implements FormatProvider {
     const decompressed = this.decompressMemory(data, dynamicMemorySize);
 
     // Create a new memory buffer from the original story
-    const memory = Buffer.from(originalStory);
+    const memory = new Uint8Array(originalStory);
 
     // Extract original dynamic memory
-    const originalDynamicMemory = Buffer.alloc(dynamicMemorySize);
+    const originalDynamicMemory = new Uint8Array(dynamicMemorySize);
     copyBytes(originalStory, originalDynamicMemory, 0, 0, dynamicMemorySize);
 
     // XOR the decompressed data with the original to restore the actual memory
@@ -361,16 +362,16 @@ export class QuetzalFormat implements FormatProvider {
     return memory;
   }
 
-  private parseUMemChunk(data: Buffer): Buffer {
+  private parseUMemChunk(data: Uint8Array): Uint8Array {
     // For UMem chunks, the data is simply the uncompressed memory
     // We could add validation here, but for now just return the data
     return data;
   }
 
-  private compressMemory(data: Buffer): Buffer {
+  private compressMemory(data: Uint8Array): Uint8Array {
     // Simple run-length encoding for zero bytes
     // See Quetzal spec section 3.2
-    const tempBuffer = Buffer.alloc(data.length * 2);
+    const tempBuffer = new Uint8Array(data.length * 2);
     let tempOffset = 0;
     let i = 0;
 
@@ -395,14 +396,14 @@ export class QuetzalFormat implements FormatProvider {
     }
 
     // Create final buffer with correct size
-    const result = Buffer.alloc(tempOffset);
+    const result = new Uint8Array(tempOffset);
     copyBytes(tempBuffer, result, 0, 0, tempOffset);
 
     return result;
   }
 
-  private decompressMemory(compressedData: Buffer, targetSize: number): Buffer {
-    const result = Buffer.alloc(targetSize);
+  private decompressMemory(compressedData: Uint8Array, targetSize: number): Uint8Array {
+    const result = new Uint8Array(targetSize);
     let resultOffset = 0;
     let i = 0;
 
@@ -436,7 +437,7 @@ export class QuetzalFormat implements FormatProvider {
     return result;
   }
 
-  private createStksChunk(state: ZMachineState): Buffer {
+  private createStksChunk(state: ZMachineState): Uint8Array {
     // Calculate size needed for the chunk
     let size = 0;
 
@@ -456,11 +457,11 @@ export class QuetzalFormat implements FormatProvider {
     }
 
     // Create the buffer
-    const buffer = Buffer.alloc(size + 8);
+    const buffer = new Uint8Array(size + 8);
     let offset = 0;
 
     // Write chunk ID
-    buffer.write(QuetzalFormat.STKS_ID, offset, 'ascii');
+    writeAscii(buffer, QuetzalFormat.STKS_ID, offset);
     offset += 4;
 
     // Write chunk size
@@ -541,7 +542,7 @@ export class QuetzalFormat implements FormatProvider {
     return buffer;
   }
 
-  private parseStksChunk(data: Buffer): {
+  private parseStksChunk(data: Uint8Array): {
     stack: number[];
     callstack: Array<{
       returnPC: number;
@@ -634,7 +635,7 @@ export class QuetzalFormat implements FormatProvider {
     return { stack, callstack };
   }
 
-  private getDynamicMemorySize(storyData: Buffer): number {
+  private getDynamicMemorySize(storyData: Uint8Array): number {
     // Per Z-spec §1.1 and Quetzal spec §3.1: dynamic memory extends from
     // address 0 to static_memory_base - 1. The static memory base is stored
     // as a word at header offset 0x0E.

@@ -69,7 +69,7 @@ describe('Quetzal save and restore through a running machine', () => {
       }
       await save(machine);
 
-      const file = (await provider.read(SAVE_FILE))!;
+      const file = Buffer.from((await provider.read(SAVE_FILE))!);
       let offset = 12;
       const ids: string[] = [];
       while (offset < file.length) {

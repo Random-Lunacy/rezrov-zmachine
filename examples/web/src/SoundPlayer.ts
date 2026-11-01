@@ -15,7 +15,7 @@ export class SoundPlayer {
 
   playSound(
     resourceId: number,
-    data: ArrayBuffer | Buffer,
+    data: ArrayBuffer | Uint8Array,
     format: string,
     volume: number,
     repeats: number

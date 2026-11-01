@@ -9,8 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@random-lunacy/rezrov-zmachine": "file:../..",
-    "buffer": "^6.0.3"
+    "@random-lunacy/rezrov-zmachine": "file:../.."
   },
   "devDependencies": {
     "@types/node": "^26.6.5",

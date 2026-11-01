@@ -398,7 +398,7 @@ export class GameState {
     this._callstack = state.callFrames.map((frame) => deserializeStackFrame(frame));
 
     // Restore memory
-    const newBuffer = Buffer.from(state.memory);
+    const newBuffer = new Uint8Array(state.memory);
     for (let i = 0; i < newBuffer.length; i++) {
       this._memory.buffer[i] = newBuffer[i];
     }

@@ -38,7 +38,7 @@ export function memoryFromFile(filePath: string, options?: { logger?: Logger }):
  * file system access is available.
  * Use Quetzal format by default, but can be overridden.
  */
-export function createFileSystemStorage(originalStoryData: Buffer, useQuetzal: boolean = true): StorageInterface {
+export function createFileSystemStorage(originalStoryData: Uint8Array, useQuetzal: boolean = true): StorageInterface {
   const formatProvider = useQuetzal ? new QuetzalFormat() : new EnhancedDatFormat();
   const storageProvider = new FileSystemProvider();
   return new Storage(formatProvider, storageProvider, originalStoryData);

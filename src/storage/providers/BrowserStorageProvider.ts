@@ -1,4 +1,4 @@
-import { toBase64 } from '../../utils/bytes';
+import { fromBase64, toBase64 } from '../../utils/bytes';
 import { Logger } from '../../utils/log';
 import { StorageProvider } from './StorageProvider';
 
@@ -19,15 +19,15 @@ export class BrowserStorageProvider implements StorageProvider {
   /**
    * Read data from localStorage
    * @param location The storage key (without prefix)
-   * @returns Buffer containing the data, or null if not found
+   * @returns Uint8Array containing the data, or null if not found
    * @throws Error if there's an error reading from localStorage
    */
-  async read(location: string): Promise<Buffer | null> {
+  async read(location: string): Promise<Uint8Array | null> {
     try {
       const data = localStorage.getItem(this.prefix + location);
       if (!data) return null;
 
-      return Buffer.from(data, 'base64');
+      return fromBase64(data);
     } catch (error) {
       this.logger.error(`Error reading from localStorage: ${error}`);
       throw new Error(`Failed to read from localStorage: ${error}`, { cause: error });
@@ -37,10 +37,10 @@ export class BrowserStorageProvider implements StorageProvider {
   /**
    * Write data to localStorage
    * @param location The storage key (without prefix)
-   * @param data Buffer containing the data to write
+   * @param data Uint8Array containing the data to write
    * @throws Error if the data exceeds the size limit or if there's an error writing to localStorage
    */
-  async write(location: string, data: Buffer): Promise<void> {
+  async write(location: string, data: Uint8Array): Promise<void> {
     try {
       // Check size limit
       if (data.length > this.sizeLimit) {

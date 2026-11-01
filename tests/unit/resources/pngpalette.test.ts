@@ -6,6 +6,7 @@ import {
   readPalette,
   replacePalette,
 } from '../../../src/resources/PngPalette';
+import { readU32BE } from '../../../src/utils/bytes';
 
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
@@ -134,7 +135,7 @@ describe('PngPalette', () => {
       const found = findPaletteChunk(result)!;
 
       const typeAndData = result.subarray(found.dataOffset - 4, found.dataOffset + found.length);
-      const storedCrc = result.readUInt32BE(found.dataOffset + found.length);
+      const storedCrc = readU32BE(result, found.dataOffset + found.length);
       expect(storedCrc).toBe(crc32(typeAndData));
     });
 

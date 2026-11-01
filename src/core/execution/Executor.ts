@@ -2,6 +2,7 @@ import { ZMachine } from '../../interpreter/ZMachine';
 import { Address, InstructionForm, OperandType } from '../../types';
 import { InputMode, InputState } from '../../ui/input/InputInterface';
 import { hex } from '../../utils/debug';
+import { defer } from '../../utils/defer';
 import { Logger } from '../../utils/log';
 import { Opcode } from '../opcodes/base';
 import * as opcodes from '../opcodes/index';
@@ -88,7 +89,7 @@ export class Executor {
 
         this.logger.debug(`Suspended state: ${JSON.stringify(this._suspended)}`);
 
-        setImmediate(() => {
+        defer(() => {
           this.logger.debug('Starting input setup in setImmediate...');
           try {
             // Use the same InputState object stored in _suspendedInputState
