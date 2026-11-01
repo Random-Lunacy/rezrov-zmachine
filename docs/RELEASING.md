@@ -33,6 +33,8 @@ Releases use npm **staged publishing**: the workflow uploads the tarball to a qu
 2. On GitHub, create a release with the tag `v<version>` targeting `main`. Tick **Set as a pre-release** for an rc.
 3. Publishing the release runs `publish.yml`: it runs the full test workflow, checks the tag matches `package.json`,
    and stages the version. Prereleases use the `next` dist-tag and stable versions use `latest`.
+   That workflow includes `tools/smoke-test.sh`, which installs the packed tarball into an empty project and
+   loads both entry points; run it locally after `npm run build` to check a release before tagging.
 4. **Approve the staged version** (this is what makes it live), on the package's page on npmjs.com or with:
 
    ```bash
