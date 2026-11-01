@@ -51,8 +51,8 @@ function pop(machine: ZMachine): void {
  *   - Note: the operand may be absent (types byte 0xFF) when the game stack is intended.
  */
 function pull(machine: ZMachine, operandTypes: OperandType[], variableRef?: number): void {
-  // V6: completely different semantics — stored opcode, operand is user stack address
-  if (machine.state.version >= 6) {
+  // V6 only: completely different semantics — stored opcode, operand is user stack address
+  if (machine.state.version === 6) {
     const resultVar = machine.state.readByte();
     let value: number;
     // Treat undefined (no operand) and 0 the same: pop from game stack

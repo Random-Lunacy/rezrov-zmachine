@@ -106,7 +106,7 @@ function set_cursor(
   // defaulting it to 0 sent every header-positioning call to the lower window.
   let targetWindow = window ?? machine.screen.getOutputWindow(machine);
 
-  if (machine.state.version >= 6) {
+  if (machine.state.version === 6) {
     if (line === -1) {
       machine.screen.hideCursor(machine, targetWindow);
       return;
@@ -117,8 +117,8 @@ function set_cursor(
     }
   }
 
-  if (machine.state.version < 6) {
-    // Per spec 8.7.2: set_cursor always targets the upper window in V4/V5
+  if (machine.state.version !== 6) {
+    // Per spec 8.7.2: set_cursor always targets the upper window in every version but V6
     // "This is the cursor which set_cursor sets."
     targetWindow = 1; // WindowType.Upper
   }

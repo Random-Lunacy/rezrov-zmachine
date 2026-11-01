@@ -122,7 +122,7 @@ function print_table(
     // Position cursor at the starting column for each row after the first
     if (i > 0) {
       if (isUpperWindow) {
-        const windowId = machine.state.version < 6 ? 1 : outputWindow;
+        const windowId = machine.state.version !== 6 ? 1 : outputWindow;
         machine.screen.setCursorPosition(machine, startPos.line + i, startPos.column, windowId);
       } else {
         machine.screen.print(machine, '\n');

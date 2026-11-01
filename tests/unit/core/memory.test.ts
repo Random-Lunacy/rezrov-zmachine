@@ -848,6 +848,19 @@ describe('Memory', () => {
       expect(memory.getFontUnits()).toEqual({ width: 6, height: 8 });
     });
 
+    it.each([7, 8])('should store width at 0x26 and height at 0x27 in V%i, like V5', (version) => {
+      mockBuffer[HeaderLocation.Version] = version;
+      mockBuffer.writeUInt16BE(0x0100, HeaderLocation.RoutinesOffset);
+      mockBuffer.writeUInt16BE(0x0100, HeaderLocation.StaticStringsOffset);
+      const memory = new Memory(mockBuffer, { logger: mockLogger });
+
+      memory.setFontUnits(6, 8);
+
+      expect(memory.getByte(0x26)).toBe(6);
+      expect(memory.getByte(0x27)).toBe(8);
+      expect(memory.getFontUnits()).toEqual({ width: 6, height: 8 });
+    });
+
     it('should cap each size at 255, the largest a header byte holds', () => {
       mockBuffer[HeaderLocation.Version] = 5;
       const memory = new Memory(mockBuffer, { logger: mockLogger });

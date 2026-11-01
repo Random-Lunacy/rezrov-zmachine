@@ -133,7 +133,7 @@ export class BaseScreen implements Screen {
    * Get window property with version-aware behavior
    */
   getWindowProperty(machine: ZMachine, window: number, property: number): number {
-    if (machine.state.version >= 6) {
+    if (machine.state.version === 6) {
       this.syncWindowManagerScreenSize(machine);
     }
     // Use BaseScreen's own tracked state as the source of truth.
@@ -153,7 +153,7 @@ export class BaseScreen implements Screen {
 
       case WindowProperty.YSize:
         // Height of window in units. V6 windows are sized by window_size, tracked in the WindowManager.
-        if (machine.state.version >= 6) {
+        if (machine.state.version === 6) {
           return this.windowManager.getWindowProperty(window, WindowProperty.YSize);
         }
         if (window === WindowType.Upper) {
@@ -164,7 +164,7 @@ export class BaseScreen implements Screen {
 
       case WindowProperty.XSize:
         // Width of window in units
-        if (machine.state.version >= 6) {
+        if (machine.state.version === 6) {
           return this.windowManager.getWindowProperty(window, WindowProperty.XSize);
         }
         return screenSize.cols;
@@ -253,7 +253,7 @@ export class BaseScreen implements Screen {
     // V5+ allows the upper window to cover the full screen (for title pages, etc.).
     // V6 splits in pixels, so the limit is the header's screen height rather than the text rows.
     let maxLines = this.getSize().rows;
-    if (version >= 6) {
+    if (version === 6) {
       this.syncWindowManagerScreenSize(machine);
       maxLines = this.windowManager.getScreenSize().height;
     }
@@ -426,7 +426,7 @@ export class BaseScreen implements Screen {
 
     // V4/V5: set_cursor always targets the upper window (spec §8.7.2).
     // V6: set_cursor accepts an explicit window operand — any window is valid.
-    if (version < 6 && windowId !== WindowType.Upper) {
+    if (version !== 6 && windowId !== WindowType.Upper) {
       this.logger.debug(`${this.id} setCursorPosition only works in upper window`);
       return;
     }
@@ -440,7 +440,7 @@ export class BaseScreen implements Screen {
     // In V6 set_cursor passes screen-unit (pixel) coordinates. Convert to
     // 1-based character-cell indices using the font dimensions from the header.
     // Formula matches Frotz: charRow = floor((pixelRow - 1) / fontH) + 1
-    if (version >= 6) {
+    if (version === 6) {
       const font = machine.memory.getFontUnits();
       const fontH = font.height || 1;
       const fontW = font.width || 1;
