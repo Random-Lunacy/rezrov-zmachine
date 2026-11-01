@@ -54,13 +54,13 @@ This project is a port/refactoring of the [ebozz](https://github.com/toshok/eboz
 
 ### Z-Machine Version Support
 
-| Version | Status              | Notes                                                                                                  |
-| ------- | ------------------- | ------------------------------------------------------------------------------------------------------ |
-| V1-V3   | **Complete**        | Fully tested with classic Infocom titles                                                               |
-| V4      | **Complete**        | Extended opcodes and expanded object table                                                             |
-| V5      | **Mostly complete** | Core support working; advanced screen features still being validated against Beyond Zork               |
-| V6      | **Partial**         | Zork Zero is playable in the web example (pictures, windows, mouse); other V6 titles are untested      |
-| V7-V8   | **Partial**         | A V8 Blorb story (Black Thumb) runs end to end in the Discord bot; V7 and other V8 titles are untested |
+| Version | Status              | Notes                                                                                                                           |
+| ------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| V1-V3   | **Complete**        | Fully tested with classic Infocom titles                                                                                        |
+| V4      | **Complete**        | Extended opcodes and expanded object table                                                                                      |
+| V5      | **Mostly complete** | Core support working; advanced screen features still being validated against Beyond Zork                                        |
+| V6      | **Partial**         | Zork Zero is playable in the web example (pictures, windows, mouse); other V6 titles are untested                               |
+| V7-V8   | **Partial**         | One V8 Blorb story (Black Thumb) loads, plays and saves/restores in the Discord bot, but was not played through; V7 is untested |
 
 ### UI and Examples
 

@@ -30,16 +30,18 @@ A modular Z-machine interpreter written in TypeScript that executes interactive 
 **Current Focus:** V3 and V5 story files (most classic Infocom games like Zork, Planetfall)
 
 **Version Support:**
+
 - **V1-V3:** Core support complete (execution, objects, text parsing)
 - **V4-V5:** Extended opcodes, timed input (in progress)
 - **V6:** Graphics support (pictures, fonts, windowing) in development
-- **V7-V8:** Partial. One V8 story (Black Thumb) is verified end to end; V7 is untested. V7/V8 follow the V5 model
+- **V7-V8:** Partial. One V8 story (Black Thumb) loads, plays a few turns and saves/restores, but has not been played through; V7 is untested. V7/V8 follow the V5 model
   except for packed-address offsets (V7) and 8x packing (V8)
 
 **Version checks:** V6 is its own model (packed main routine, user stacks, pixel windows, swapped font bytes, `set_cursor`
 window operand). Test `version === 6` for V6-only behaviour, never `version >= 6`, which also catches V7 and V8.
 
 **Design Decisions:**
+
 - **Strict TypeScript:** Prevents runtime type errors in complex opcode implementations
 - **Dependency injection:** Screen, Storage, and Input are injected for maximum flexibility
 - **No global state:** All state contained in ZMachine instance for multiple concurrent games
@@ -53,11 +55,11 @@ window operand). Test `version === 6` for V6-only behaviour, never `version >= 6
 
 When working on tasks involving these technologies, invoke the corresponding skill:
 
-| Skill | Invoke When |
-|-------|-------------|
-| npm | Manages dependencies, scripts, and package distribution |
-| eslint | Enforces code quality, import organization, and class member ordering |
-| prettier | Formats TypeScript code with 120-char lines and single quotes |
-| node | Manages Node.js runtime, file system APIs, and module execution |
-| typescript | Enforces strict TypeScript patterns, VM correctness, and type safety |
-| vitest | Configures unit, integration, and compliance tests with V8 coverage |
+| Skill      | Invoke When                                                           |
+| ---------- | --------------------------------------------------------------------- |
+| npm        | Manages dependencies, scripts, and package distribution               |
+| eslint     | Enforces code quality, import organization, and class member ordering |
+| prettier   | Formats TypeScript code with 120-char lines and single quotes         |
+| node       | Manages Node.js runtime, file system APIs, and module execution       |
+| typescript | Enforces strict TypeScript patterns, VM correctness, and type safety  |
+| vitest     | Configures unit, integration, and compliance tests with V8 coverage   |
