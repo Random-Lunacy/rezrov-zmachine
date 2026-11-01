@@ -51,6 +51,14 @@ jobs:
         run: |
           npm ci --ignore-scripts --prefix examples/console
           npm ci --ignore-scripts --prefix examples/blessedConsole
+      - name: Type-check console examples
+        # Vitest and vite build both skip type-checking, so a type error in an
+        # example (a missing Buffer type, an ESM-only dependency whose types
+        # don't resolve) would otherwise reach main unnoticed. The web example
+        # type-checks as part of its build below.
+        run: |
+          npx tsc --noEmit --project examples/console
+          npx tsc --noEmit --project examples/blessedConsole
       - name: Build web example
         # A real browser bundle is the only check that the main entry needs no
         # Node shims: a stray node: import resolves to Vite's browser-external
