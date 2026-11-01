@@ -140,6 +140,51 @@ describe('ZMachine', () => {
       // Check that executeLoop was called
       expect(executeSpy).toHaveBeenCalled();
     });
+
+    // V6 and V7 headers must carry non-zero routine and string offsets to validate
+    const setPackedOffsets = (): void => {
+      storyBuffer[HeaderLocation.RoutinesOffset + 1] = 0x10;
+      storyBuffer[HeaderLocation.StaticStringsOffset + 1] = 0x10;
+    };
+
+    // Only V6 stores a packed main routine in header word 0x06 (spec section 5.5 / 6.4).
+    // V7 and V8 use a byte address like V1-5; reading it as packed overshoots the story.
+    it.each([5, 7, 8])('should treat the initial PC as a byte address in V%i', (version) => {
+      storyBuffer[0] = version;
+      setPackedOffsets();
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+      vi.spyOn(zmachine.executor, 'executeLoop').mockResolvedValue();
+
+      zmachine.execute();
+
+      expect(zmachine.state.pc).toBe(0x0020);
+      expect(zmachine.state.callstack.length).toBe(0);
+    });
+
+    it('should call the packed main routine in V6', () => {
+      storyBuffer[0] = 6;
+      setPackedOffsets();
+      // Packed 0x0020 * 4 + routine offset 0x10 * 8 = byte address 0x100; zero locals there
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+      vi.spyOn(zmachine.executor, 'executeLoop').mockResolvedValue();
+
+      zmachine.execute();
+
+      expect(zmachine.state.pc).toBe(0x0101);
+      expect(zmachine.state.callstack.length).toBe(1);
+    });
+
+    it.each([7, 8])('should restart a V%i story at the byte address', (version) => {
+      storyBuffer[0] = version;
+      setPackedOffsets();
+      const zmachine = new ZMachine(storyBuffer, screen, inputProcessor, undefined, undefined, undefined, { logger });
+      vi.spyOn(zmachine.executor, 'executeLoop').mockResolvedValue();
+
+      zmachine.restart();
+
+      expect(zmachine.state.pc).toBe(0x0020);
+      expect(zmachine.state.callstack.length).toBe(0);
+    });
   });
 
   describe('Input State', () => {

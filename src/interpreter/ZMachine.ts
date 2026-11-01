@@ -313,12 +313,12 @@ export class ZMachine {
   /**
    * Start executing the story file
    *
-   * V1-5: Word 0x06 contains the byte address of the first instruction; we jump there.
-   * V6-7: Word 0x06 contains the packed address of the main routine; we must call it
+   * V1-5 and V7-8: Word 0x06 contains the byte address of the first instruction; we jump there.
+   * V6: Word 0x06 contains the packed address of the main routine; we must call it
    * (Z-spec 6.4), creating a stack frame so catch/throw work correctly.
    */
   execute(): void {
-    if (this._state.version >= 6) {
+    if (this._state.version === 6) {
       const packedMain = this._memory.getWord(HeaderLocation.InitialPC);
       const mainAddr = this._memory.unpackRoutineAddress(packedMain);
       this._state.callRoutine(mainAddr, null);
@@ -671,8 +671,8 @@ export class ZMachine {
     // Windows, cursors, colours and the split go back to how a new game starts
     this._screen.reset?.(this);
 
-    // Reset execution start: V6-7 call main routine; V1-5 jump to initial PC
-    if (this._state.version >= 6) {
+    // Reset execution start: V6 calls the main routine; every other version jumps to initial PC
+    if (this._state.version === 6) {
       const packedMain = this._memory.getWord(HeaderLocation.InitialPC);
       const mainAddr = this._memory.unpackRoutineAddress(packedMain);
       this._state.callRoutine(mainAddr, null);
