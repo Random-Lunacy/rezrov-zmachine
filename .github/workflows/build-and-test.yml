@@ -59,5 +59,9 @@ jobs:
           npm ci --ignore-scripts --prefix examples/web
           npm run build --prefix examples/web
           ! grep -rl "__vite-browser-external" examples/web/dist
+      - name: Smoke-test the packed tarball
+        # Installs the real `npm pack` output into an empty project, so a mistake in
+        # `files`, `exports` or `typesVersions` fails here instead of after publishing.
+        run: tools/smoke-test.sh
       - name: Run tests with coverage
         run: npm run test:coverage
