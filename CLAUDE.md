@@ -33,7 +33,11 @@ A modular Z-machine interpreter written in TypeScript that executes interactive 
 - **V1-V3:** Core support complete (execution, objects, text parsing)
 - **V4-V5:** Extended opcodes, timed input (in progress)
 - **V6:** Graphics support (pictures, fonts, windowing) in development
-- **V7-V8:** Not yet implemented
+- **V7-V8:** Partial. One V8 story (Black Thumb) is verified end to end; V7 is untested. V7/V8 follow the V5 model
+  except for packed-address offsets (V7) and 8x packing (V8)
+
+**Version checks:** V6 is its own model (packed main routine, user stacks, pixel windows, swapped font bytes, `set_cursor`
+window operand). Test `version === 6` for V6-only behaviour, never `version >= 6`, which also catches V7 and V8.
 
 **Design Decisions:**
 - **Strict TypeScript:** Prevents runtime type errors in complex opcode implementations

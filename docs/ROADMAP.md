@@ -7,7 +7,8 @@ This file tracks where the project is heading.
 
 - V1-V5: complete or mostly complete. The remaining V5 work is validating the extended screen model against Beyond Zork.
 - V6: Zork Zero is playable in the web example. More V6 titles would show what is still missing.
-- V7-V8: addressing and version detection exist, but no story files have been tested.
+- V7-V8: one V8 story (Black Thumb, a Blorb) runs end to end in the Discord bot, after #401 and #403 stopped V7/V8
+  taking V6-only code paths. V7 and other V8 titles are untested.
 
 ## Near term
 
@@ -17,7 +18,7 @@ This file tracks where the project is heading.
 
 ## Longer term
 
-- V7-V8 story file testing.
+- More V7-V8 story file testing.
 - More V6 titles.
 - Performance profiling of the executor loop.
 - A plugin or extension story for custom opcodes and multimedia handlers.

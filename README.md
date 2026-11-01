@@ -35,7 +35,7 @@ This project is a port/refactoring of the [ebozz](https://github.com/toshok/eboz
 
 - **Fully modular design**: Clear separation between core interpreter, UI, storage, and parsing components
 - **TypeScript implementation**: Strong typing for better development experience
-- **High compatibility**: Full support for Z-machine versions 1-5, with V6-V8 in progress
+- **High compatibility**: Full support for Z-machine versions 1-5; V6 is partial (Zork Zero) and V7-V8 are lightly tested
 - **Extensible interfaces**: Easily create custom UI and storage implementations
 - **Modern architecture**: Promise-based APIs for asynchronous operations
 - **Comprehensive object model**: Full support for the Z-machine object system
@@ -54,13 +54,13 @@ This project is a port/refactoring of the [ebozz](https://github.com/toshok/eboz
 
 ### Z-Machine Version Support
 
-| Version | Status              | Notes                                                                                             |
-| ------- | ------------------- | ------------------------------------------------------------------------------------------------- |
-| V1-V3   | **Complete**        | Fully tested with classic Infocom titles                                                          |
-| V4      | **Complete**        | Extended opcodes and expanded object table                                                        |
-| V5      | **Mostly complete** | Core support working; advanced screen features still being validated against Beyond Zork          |
-| V6      | **Partial**         | Zork Zero is playable in the web example (pictures, windows, mouse); other V6 titles are untested |
-| V7-V8   | **Partial**         | Version detection and address calculations defined; not yet tested with story files               |
+| Version | Status              | Notes                                                                                                  |
+| ------- | ------------------- | ------------------------------------------------------------------------------------------------------ |
+| V1-V3   | **Complete**        | Fully tested with classic Infocom titles                                                               |
+| V4      | **Complete**        | Extended opcodes and expanded object table                                                             |
+| V5      | **Mostly complete** | Core support working; advanced screen features still being validated against Beyond Zork               |
+| V6      | **Partial**         | Zork Zero is playable in the web example (pictures, windows, mouse); other V6 titles are untested      |
+| V7-V8   | **Partial**         | A V8 Blorb story (Black Thumb) runs end to end in the Discord bot; V7 and other V8 titles are untested |
 
 ### UI and Examples
 
@@ -72,7 +72,7 @@ This project is a port/refactoring of the [ebozz](https://github.com/toshok/eboz
 
 - [ ] Complete V5 screen model validation (Beyond Zork extended screen features)
 - [ ] More V6 titles beyond Zork Zero
-- [ ] V7-V8 story file testing and validation
+- [ ] More V7-V8 story file testing (one V8 title verified so far)
 - [ ] Web example polish: see the open issues labelled `examples`
 
 ## Installation
