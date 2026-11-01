@@ -12,6 +12,7 @@ import type { BlorbMap } from '../../resources/BlorbData';
 import { BlorbChunkType, BlorbUsage } from '../../resources/BlorbData';
 import { BlorbParser } from '../../resources/BlorbParser';
 import { isPng, readPalette, replacePalette } from '../../resources/PngPalette';
+import { readU16BE, readU32BE } from '../../utils/bytes';
 import { Logger } from '../../utils/log';
 import {
   BaseMultimediaHandler,
@@ -44,14 +45,14 @@ function getJpegDimensions(data: Buffer): { width: number; height: number } | nu
     // SOF markers: 0xC0-0xC3 (baseline, extended, progressive, lossless)
     if (marker >= 0xc0 && marker <= 0xc3) {
       if (offset + 9 > data.length) return null;
-      const height = data.readUInt16BE(offset + 5);
-      const width = data.readUInt16BE(offset + 7);
+      const height = readU16BE(data, offset + 5);
+      const width = readU16BE(data, offset + 7);
       return { width, height };
     }
 
     // Skip marker segment (length is big-endian at offset+2)
     if (offset + 3 >= data.length) return null;
-    const segmentLength = data.readUInt16BE(offset + 2);
+    const segmentLength = readU16BE(data, offset + 2);
     offset += 2 + segmentLength;
   }
 
@@ -81,8 +82,8 @@ function getPngDimensions(data: Buffer): { width: number; height: number } | nul
     return null;
   }
 
-  const width = data.readUInt32BE(16);
-  const height = data.readUInt32BE(20);
+  const width = readU32BE(data, 16);
+  const height = readU32BE(data, 20);
   return { width, height };
 }
 
@@ -94,8 +95,8 @@ function getPngDimensions(data: Buffer): { width: number; height: number } | nul
 function getRectDimensions(data: Buffer): { width: number; height: number } | null {
   if (data.length < 8) return null;
 
-  const width = data.readUInt32BE(0);
-  const height = data.readUInt32BE(4);
+  const width = readU32BE(data, 0);
+  const height = readU32BE(data, 4);
   return { width, height };
 }
 

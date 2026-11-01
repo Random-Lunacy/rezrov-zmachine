@@ -1,3 +1,4 @@
+import { toBase64 } from '../../utils/bytes';
 import { Logger } from '../../utils/log';
 import { StorageProvider } from './StorageProvider';
 
@@ -46,7 +47,7 @@ export class BrowserStorageProvider implements StorageProvider {
         throw new Error(`Data size (${data.length} bytes) exceeds limit (${this.sizeLimit} bytes)`);
       }
 
-      const base64Data = data.toString('base64');
+      const base64Data = toBase64(data);
 
       try {
         localStorage.setItem(this.prefix + location, base64Data);

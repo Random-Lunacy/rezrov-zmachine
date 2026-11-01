@@ -16,6 +16,7 @@
  */
 import { ZMachine } from '../../interpreter/ZMachine';
 import { OperandType } from '../../types';
+import { readU16BE } from '../../utils/bytes';
 import { HeaderLocation } from '../../utils/constants';
 import { opcode } from './base';
 
@@ -90,7 +91,7 @@ function verify(machine: ZMachine, _operandTypes: OperandType[]): void {
   const version = machine.state.version;
 
   // File length from header at 0x1A is packed (Z-spec §11.1.6)
-  const rawLength = buffer.readUInt16BE(HeaderLocation.FileLength);
+  const rawLength = readU16BE(buffer, HeaderLocation.FileLength);
   let fileLength: number;
   if (version <= 3) {
     fileLength = rawLength * 2;
@@ -109,7 +110,7 @@ function verify(machine: ZMachine, _operandTypes: OperandType[]): void {
     checksum = (checksum + buffer[i]) & 0xffff;
   }
 
-  const expectedChecksum = buffer.readUInt16BE(HeaderLocation.Checksum);
+  const expectedChecksum = readU16BE(buffer, HeaderLocation.Checksum);
   const verified = checksum === expectedChecksum;
 
   machine.logger.debug(

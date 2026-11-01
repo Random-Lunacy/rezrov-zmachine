@@ -1,4 +1,5 @@
 import { ZMachineState } from '../../types';
+import { toBase64 } from '../../utils/bytes';
 import { Logger } from '../../utils/log';
 import { FormatProvider } from './FormatProvider';
 
@@ -20,7 +21,7 @@ export class EnhancedDatFormat implements FormatProvider {
     // Create a serializable object with explicit type information
     // and Buffer objects converted to base64 strings
     const serializable = {
-      memory: state.memory.toString('base64'),
+      memory: toBase64(state.memory),
       pc: state.pc,
       stack: state.stack,
       callFrames: state.callFrames.map((frame) => ({
@@ -31,7 +32,7 @@ export class EnhancedDatFormat implements FormatProvider {
         locals: Array.from(frame.locals || []),
         stack: Array.from(frame.stack || []),
       })),
-      originalStory: state.originalStory.toString('base64'),
+      originalStory: toBase64(state.originalStory),
       __version: 1, // Format version for future compatibility
       __types: {
         memory: 'Buffer',

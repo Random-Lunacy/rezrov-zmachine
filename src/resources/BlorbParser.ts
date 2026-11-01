@@ -6,6 +6,7 @@
  * from the cheapglk reference implementation by Andrew Plotkin.
  */
 
+import { asciiString, readU32BE } from '../utils/bytes';
 import type { BlorbChunk, BlorbMap, BlorbResource } from './BlorbData';
 import { BLORB_FORM_TYPE, BLORB_RIDX_TYPE } from './BlorbData';
 
@@ -25,18 +26,18 @@ export class BlorbParser {
     }
 
     // Validate FORM header
-    const formId = data.toString('ascii', 0, 4);
+    const formId = asciiString(data, 0, 4);
     if (formId !== 'FORM') {
       throw new Error(`Invalid Blorb file: expected FORM header, got '${formId}'`);
     }
 
     // Validate IFRS type
-    const formType = data.toString('ascii', 8, 12);
+    const formType = asciiString(data, 8, 12);
     if (formType !== BLORB_FORM_TYPE) {
       throw new Error(`Invalid Blorb file: expected ${BLORB_FORM_TYPE} type, got '${formType}'`);
     }
 
-    const totalLength = data.readUInt32BE(4) + 8;
+    const totalLength = readU32BE(data, 4) + 8;
 
     // Scan all chunks
     const chunks = BlorbParser.scanChunks(data, totalLength);
@@ -56,8 +57,8 @@ export class BlorbParser {
     let offset = 12; // Skip FORM header (4) + size (4) + type (4)
 
     while (offset < totalLength && offset + 8 <= data.length) {
-      const type = data.toString('ascii', offset, offset + 4);
-      const len = data.readUInt32BE(offset + 4);
+      const type = asciiString(data, offset, offset + 4);
+      const len = readU32BE(data, offset + 4);
 
       if (type === 'FORM') {
         // FORM sub-containers (e.g., AIFF): data includes the 8-byte header
@@ -107,7 +108,7 @@ export class BlorbParser {
       throw new Error('Invalid Blorb file: RIdx chunk too small');
     }
 
-    const numResources = ridxData.readUInt32BE(0);
+    const numResources = readU32BE(ridxData, 0);
 
     // Sanity check (per gi_blorb.c:266-267)
     if (numResources & 0xf0000000) {
@@ -133,9 +134,9 @@ export class BlorbParser {
     const resources: BlorbResource[] = [];
     for (let i = 0; i < numResources; i++) {
       const entryOffset = 4 + i * 12;
-      const usage = ridxData.toString('ascii', entryOffset, entryOffset + 4);
-      const resnum = ridxData.readUInt32BE(entryOffset + 4);
-      const startpos = ridxData.readUInt32BE(entryOffset + 8);
+      const usage = asciiString(ridxData, entryOffset, entryOffset + 4);
+      const resnum = readU32BE(ridxData, entryOffset + 4);
+      const startpos = readU32BE(ridxData, entryOffset + 8);
 
       const chunkIndex = startPosToChunkIndex.get(startpos);
       if (chunkIndex === undefined) {
@@ -232,7 +233,7 @@ export class BlorbParser {
     if (!chunk) return ids;
 
     for (let offset = 0; offset + 4 <= chunk.length; offset += 4) {
-      ids.add(chunk.readUInt32BE(offset));
+      ids.add(readU32BE(chunk, offset));
     }
     return ids;
   }
@@ -282,7 +283,7 @@ export class BlorbParser {
    */
   static isBlorb(data: Buffer): boolean {
     if (data.length < 12) return false;
-    return data.toString('ascii', 0, 4) === 'FORM' && data.toString('ascii', 8, 12) === BLORB_FORM_TYPE;
+    return asciiString(data, 0, 4) === 'FORM' && asciiString(data, 8, 12) === BLORB_FORM_TYPE;
   }
 
   /**

@@ -10,6 +10,7 @@ import {
 import { AlphabetTableManager } from '../../parsers/AlphabetTable';
 import { ZString } from '../../parsers/ZString';
 import { Address } from '../../types';
+import { copyBytes } from '../../utils/bytes';
 import { HeaderExtension, HeaderLocation } from '../../utils/constants';
 import { Logger } from '../../utils/log';
 
@@ -351,7 +352,7 @@ export class Memory {
 
     // If source and destination don't overlap, use the more efficient built-in copy
     if (destAddr >= sourceAddr + length || sourceAddr >= destAddr + length) {
-      this._mem.copy(this._mem, destAddr, sourceAddr, sourceAddr + length);
+      copyBytes(this._mem, this._mem, destAddr, sourceAddr, sourceAddr + length);
       return;
     }
 
@@ -399,7 +400,7 @@ export class Memory {
    */
   setBytes(addr: Address, buffer: Buffer): void {
     this.checkBounds(addr, buffer.length, true);
-    buffer.copy(this._mem, addr);
+    copyBytes(buffer, this._mem, addr);
   }
 
   /**
@@ -908,11 +909,11 @@ export class Memory {
       if (addr < 0 || addr + data.length > this._mem.length) {
         throw new Error('Memory access out of bounds');
       }
-      data.copy(this._mem, addr);
+      copyBytes(data, this._mem, addr);
     } else {
       // Use normal memory protection rules
       this.checkBounds(addr, data.length, true);
-      data.copy(this._mem, addr);
+      copyBytes(data, this._mem, addr);
     }
   }
 }
