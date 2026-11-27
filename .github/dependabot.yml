@@ -49,14 +49,18 @@ updates:
     versioning-strategy: increase
     allow:
       - dependency-type: 'development'
-    # TEMPORARY: TypeScript 7 is blocked upstream. typescript-eslint, even at its
-    # newest release, still declares `typescript: >=4.8.4 <6.1.0` as a peer range,
-    # so bumping to TS 7 breaks linting outright and the PR can never go green.
-    # Minor/patch TS updates still flow through; only the major is held back.
-    # Revisit once typescript-eslint ships TypeScript 7 support, then remove this.
+    # TEMPORARY: TypeScript 7 is blocked upstream. 7.0 ships no JS API, which
+    # typescript-eslint, ts-node, prettier-plugin-organize-imports and tsc-esm-fix
+    # need, and typescript-eslint declares `typescript: >=4.8.4 <6.1.0`, so a TS 7
+    # bump fails `npm ci` with ERESOLVE (see #421). The repo is on TS 6.0.x (#425).
+    # Minor/patch TS 6 updates still flow through. The version-range entry is
+    # explicit because the update-types rule alone did not stop #421 being opened.
+    # Revisit with the TS 7 tracking issue, then remove both entries.
     ignore:
       - dependency-name: 'typescript'
         update-types: ['version-update:semver-major']
+      - dependency-name: 'typescript'
+        versions: ['>=7.0.0']
     labels:
       - 'dependencies'
       - 'npm'
