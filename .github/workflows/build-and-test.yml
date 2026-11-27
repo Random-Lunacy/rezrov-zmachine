@@ -9,6 +9,10 @@ on:
     branches: [main]
     types: [opened, synchronize, reopened]
 
+# Read-only token: this workflow only checks out code and runs tests.
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
