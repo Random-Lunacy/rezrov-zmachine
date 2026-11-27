@@ -6,7 +6,7 @@
     // widens the ambient type declarations; emitted syntax stays at the ES2020 target,
     // and `engines` already requires Node >=22.12, which has all of ES2022 at runtime.
     "lib": ["ES2022", "DOM"],
-    "moduleResolution": "Node",
+    "moduleResolution": "Bundler",
     "moduleDetection": "force", // Ensures it treats files with imports/exports as modules (optional)
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
@@ -17,6 +17,7 @@
     "noUnusedLocals": true,
     "noUnusedParameters": false, // Checking this in ESLint
     "useUnknownInCatchVariables": true,
+    "types": ["node"],
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
