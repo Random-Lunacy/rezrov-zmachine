@@ -79,7 +79,8 @@ export { bytes, memory };
 EOF
 npx tsc --noEmit --strict --skipLibCheck --target ES2022 --module ESNext --moduleResolution bundler consumer.ts
 echo "ok: bundler resolution"
-npx tsc --noEmit --strict --skipLibCheck --target ES2022 --module ESNext --moduleResolution node10 consumer.ts
+# node10 is deprecated in TS 6 and removed in TS 7; keep checking it for consumers still on it.
+npx tsc --noEmit --strict --skipLibCheck --target ES2022 --module ESNext --moduleResolution node10 --ignoreDeprecations 6.0 consumer.ts
 echo "ok: node10 resolution"
 
 echo "Smoke test passed"
