@@ -6,12 +6,20 @@ on:
   pull_request:
     branches: [main]
   schedule:
-    - cron: '0 0 * * 0' # Run once per week at midnight on Sunday
+    # Weekly, Sunday. Off the top of the hour: scheduled runs at :00 are the
+    # most likely to be delayed or dropped under GitHub's load.
+    - cron: '17 3 * * 0'
+
+# Supersede stale runs on a PR, but never cancel a run on main or the schedule.
+concurrency:
+  group: codeql-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   analyze:
-    name: Analyze
+    name: Analyze (${{ matrix.language }})
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       actions: read
       contents: read
@@ -20,7 +28,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: ['javascript']
+        # 'actions' scans the workflow files themselves (script injection,
+        # over-broad permissions), which matters because publish.yml releases to npm.
+        language: ['javascript-typescript', 'actions']
 
     steps:
       - name: Checkout repository
@@ -30,10 +40,11 @@ jobs:
         uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
-
-      # Autobuild attempts to build any compiled languages
-      - name: Autobuild
-        uses: github/codeql-action/autobuild@v4
+          # Interpreted languages: CodeQL extracts source directly, no build needed.
+          build-mode: none
+          queries: security-extended
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4
+        with:
+          category: '/language:${{ matrix.language }}'
